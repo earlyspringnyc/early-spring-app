@@ -60,7 +60,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode}){
         {themeMode==="dark"?"Light Mode":"Dark Mode"}
       </button>
     </div>}
-    <div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}><div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,rgba(255,234,151,.15),rgba(255,234,151,.05))",border:"1.5px solid rgba(255,234,151,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold}}>{user.name[0]}</div><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{user.name}</div><div style={{fontSize:10,color:T.dim,textTransform:"capitalize"}}>{user.role}</div></div></div>
+    <div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}><div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,rgba(255,234,151,.15),rgba(255,234,151,.05))",border:"1.5px solid rgba(255,234,151,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold}}>{(user.name||user.email||"?")[0]}</div><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{user.name||user.email||""}</div><div style={{fontSize:10,color:T.dim,textTransform:"capitalize"}}>{user.role}</div></div></div>
   </div>;
 }
 
