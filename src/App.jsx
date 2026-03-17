@@ -28,8 +28,6 @@ function App(){
   const doLogout = useCallback(async()=>{
     if(!confirm("Are you sure you want to sign out?"))return;
     localStorage.removeItem("es_user");
-    localStorage.removeItem("es_projects");
-    localStorage.removeItem("es_vendors");
     localStorage.removeItem("es_google_token");
     await rawLogout();
     window.location.reload();
