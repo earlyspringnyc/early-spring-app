@@ -251,7 +251,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
             {isEditingDate&&canEdit&&<div style={{display:"flex",gap:12,padding:"10px 16px",background:T.surface,border:`1px solid ${T.borderGlow}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,marginBottom:4}}>
               <DatePick value={t.startDate||""} onChange={v=>updateTaskDates(t.id,v,t.endDate)} label="Start" compact/>
               <DatePick value={t.endDate||""} onChange={v=>updateTaskDates(t.id,t.startDate,v)} label="End" compact/>
-              <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Done</button>
+              <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 14px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
             </div>}
           </div>})}
           {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No tasks with this status.</div>}

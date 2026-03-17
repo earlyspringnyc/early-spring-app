@@ -21,8 +21,12 @@ function BudgetV(p){
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{canEdit?"Internal view with live margin calculations":"View-only mode"}</p></div>
-      {canEdit&&<button onClick={()=>setShowAddSection(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}
-        onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><PlusI size={12}/> Add Section</button>}
+      <div style={{display:"flex",gap:8}}>
+        {p.saving&&<span style={{fontSize:10,color:T.gold,fontFamily:T.mono,alignSelf:"center"}}>Saving...</span>}
+        {!p.saving&&p.lastSaved&&<span style={{fontSize:10,color:T.pos,fontFamily:T.mono,alignSelf:"center"}}>Saved</span>}
+        {canEdit&&<button onClick={()=>setShowAddSection(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><PlusI size={12}/> Add Section</button>}
+      </div>
     </div>
     {(()=>{const cb=p.clientBudget||0;const gt=p.comp.grandTotal;const balance=cb-gt;const overBudget=balance<0;return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:24}}>
       <Card style={{padding:"20px 22px",cursor:canEdit&&!editingBudget?"pointer":"default"}} onClick={!editingBudget?startEditBudget:undefined}>
