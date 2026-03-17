@@ -30,8 +30,12 @@ function App(){
     if(!confirm("Are you sure you want to sign out?"))return;
     localStorage.removeItem("es_user");
     localStorage.removeItem("es_google_token");
-    await rawLogout();
-    window.location.reload();
+    try{ await rawLogout(); }catch(e){ console.error('[app] Logout error:', e); }
+    // Clear Supabase session storage
+    const keys=Object.keys(localStorage).filter(k=>k.startsWith("sb-"));
+    keys.forEach(k=>localStorage.removeItem(k));
+    setShowLogin(false);
+    window.location.href=window.location.origin;
   },[rawLogout]);
 
   // Initialize Google token client for non-Supabase mode
