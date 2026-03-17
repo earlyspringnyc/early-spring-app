@@ -9,7 +9,7 @@ import { Card, Metric, DatePick } from '../components/primitives/index.js';
 
 function VendorsV({project,updateProject,canEdit,onVendorClick}){
   const vendors=project.vendors||[];const docs=project.docs||[];const txns=project.txns||[];
-  const[showAdd,setShowAdd]=useState(false);const[filter,setFilter]=useState("all");const[typeFilter,setTypeFilter]=useState("all");
+  const[showAdd,setShowAdd]=useState(false);const[typeFilter,setTypeFilter]=useState("all");
   const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");
   const[uploadVendorId,setUploadVendorId]=useState(null);const[invName,setInvName]=useState("");const[invAmt,setInvAmt]=useState("");const[invDue,setInvDue]=useState("");const[invKind,setInvKind]=useState("deposit");const[invFile,setInvFile]=useState(null);const[invFileName,setInvFileName]=useState("");
   const invFileRef=useRef(null);
@@ -21,7 +21,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
   const submitInvoice=()=>{if(!invName.trim()||!uploadVendorId)return;const doc=mkDoc(invName.trim(),"invoice",uploadVendorId,parseFloat(invAmt)||0,invDue,"pending","","",invKind,invFile);if(isOverdue(doc))doc.status="overdue";updateProject({docs:[...(project.docs||[]),doc]});setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("");setUploadVendorId(null)};
   const removeVendor=id=>updateProject({vendors:vendors.filter(v=>v.id!==id)});
   const cycleW9=id=>updateProject({vendors:vendors.map(v=>{if(v.id!==id)return v;const order=["pending","received","approved"];return{...v,w9Status:order[(order.indexOf(v.w9Status)+1)%3]}})});
-  const filtered=(filter==="all"?vendors:vendors.filter(v=>v.w9Status===filter)).filter(v=>typeFilter==="all"||v.vendorType===typeFilter);
+  const filtered=vendors.filter(v=>typeFilter==="all"||v.vendorType===typeFilter);
   const getVendorStats=(v)=>{
     const vDocs=docs.filter(d=>d.vendorId===v.id);
     const invoices=vDocs.filter(d=>d.type==="invoice");
@@ -53,18 +53,22 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       </div>
       <button onClick={addVendor} style={{padding:"9px 20px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Vendor</button>
     </Card>}
-    <div style={{display:"flex",gap:4,marginBottom:8}}>
-      {["all","pending","received","approved"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"7px 12px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?T.goldSoft:"transparent",color:filter===f?T.gold:T.dim,textTransform:"capitalize"}}>{f==="all"?"All":`W-9 ${f}`}</button>)}
-    </div>
-    <div style={{display:"flex",gap:3,marginBottom:16,flexWrap:"wrap"}}>
-      <button onClick={()=>setTypeFilter("all")} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:typeFilter==="all"?600:400,fontFamily:T.sans,background:typeFilter==="all"?T.surfEl:"transparent",color:typeFilter==="all"?T.cream:T.dim}}>All Types</button>
-      {VENDOR_TYPES.map(t=><button key={t} onClick={()=>setTypeFilter(t)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:typeFilter===t?600:400,fontFamily:T.sans,background:typeFilter===t?`${VENDOR_TYPE_COLORS[t]}18`:"transparent",color:typeFilter===t?VENDOR_TYPE_COLORS[t]:T.dim}}>{VENDOR_TYPE_LABELS[t]}</button>)}
+    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16}}>
+      <div style={{position:"relative"}}>
+        <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{padding:"7px 28px 7px 10px",borderRadius:T.rS,background:typeFilter!=="all"?`${VENDOR_TYPE_COLORS[typeFilter]||T.gold}12`:T.surface,border:`1px solid ${typeFilter!=="all"?`${VENDOR_TYPE_COLORS[typeFilter]||T.gold}33`:T.border}`,color:typeFilter!=="all"?VENDOR_TYPE_COLORS[typeFilter]||T.gold:T.dim,fontSize:11,fontWeight:typeFilter!=="all"?600:400,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
+          <option value="all">All Types</option>
+          {VENDOR_TYPES.map(t=><option key={t} value={t}>{VENDOR_TYPE_LABELS[t]}</option>)}
+        </select>
+        <span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:8,color:T.dim,pointerEvents:"none"}}>▼</span>
+      </div>
+      {typeFilter!=="all"&&<button onClick={()=>setTypeFilter("all")} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"rgba(248,113,113,.08)",color:T.neg}}>Clear</button>}
+      <span style={{fontSize:11,color:T.dim,marginLeft:"auto"}}>{filtered.length} vendor{filtered.length!==1?"s":""}</span>
     </div>
     <Card style={{overflow:"hidden"}}>
       <div style={{display:"grid",gridTemplateColumns:"1.8fr .7fr .6fr .5fr .6fr .7fr .7fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
         {["Vendor","Type","Contact","W-9","Items","Invoiced","Outstanding",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>3?"right":"left"}}>{h}</span>)}
       </div>
-      {filtered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No vendors{filter!=="all"||typeFilter!=="all"?" match this filter":""}.</div>}
+      {filtered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No vendors{typeFilter!=="all"?" match this filter":""}.</div>}
       {filtered.map(v=>{const s=getVendorStats(v);return<div key={v.id}>
         <div style={{display:"grid",gridTemplateColumns:"1.8fr .7fr .6fr .5fr .6fr .7fr .7fr .5fr",padding:"12px 18px",borderBottom:uploadVendorId===v.id?"none":`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",background:uploadVendorId===v.id?T.surfHov:"transparent"}} onClick={()=>onVendorClick&&onVendorClick(v.id)} onMouseEnter={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background="transparent"}}>
           <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{v.notes}</div>}</div>
