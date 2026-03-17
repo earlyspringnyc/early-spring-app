@@ -29,14 +29,22 @@ export function useSupabaseAuth() {
       return;
     }
 
-    // Check existing session
+    // Check existing session with timeout
+    const timeout = setTimeout(() => setLoading(false), 5000);
     getSession().then(async (session) => {
       if (session?.user) {
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        const p = await getOrCreateProfile(session.user);
-        setProfile(p);
+        try {
+          const p = await getOrCreateProfile(session.user);
+          setProfile(p);
+        } catch (e) { console.error('Profile error:', e); }
       }
+      clearTimeout(timeout);
+      setLoading(false);
+    }).catch(e => {
+      console.error('Session error:', e);
+      clearTimeout(timeout);
       setLoading(false);
     });
 
