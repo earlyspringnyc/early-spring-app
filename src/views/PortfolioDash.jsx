@@ -21,7 +21,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
   allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
 
-  return<div className="scanlines retro-grid" style={{height:"100vh",background:T.bgGrad,fontFamily:T.sans,overflow:"auto"}}>
+  return<div style={{height:"100vh",background:T.bg,fontFamily:T.sans,overflow:"auto"}}>
     <div className="portfolio-container" style={{maxWidth:1100,margin:"0 auto",padding:"40px 32px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28}}>
         <div><div style={{marginBottom:10}}><ESWordmark height={16} color={T.gold}/></div><h1 style={{fontSize:28,fontWeight:600,color:T.cream}}>Production Portfolio</h1></div>

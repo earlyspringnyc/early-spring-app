@@ -3,7 +3,7 @@ import { f0 } from '../../utils/format.js';
 
 function SB({ label, actual, client, variance, v = "d" }) {
   const isP = v === "p", isG = v === "g";
-  return <div className={isP ? "breathe" : ""} style={{ display: "flex", alignItems: "center", padding: isP ? "20px 24px" : "13px 18px", borderRadius: T.rS, marginTop: isG || isP ? 8 : 0,
+  return <div style={{ display: "flex", alignItems: "center", padding: isP ? "20px 24px" : "13px 18px", borderRadius: T.rS, marginTop: isG || isP ? 8 : 0,
     background: isP ? T.brown : isG ? `linear-gradient(135deg,${T.brown},rgba(67,45,28,.7))` : T.surfEl,
     border: isP ? "1px solid rgba(255,234,151,.12)" : isG ? "none" : `1px solid ${T.border}`,
     boxShadow: isP ? "0 0 60px rgba(255,234,151,.05)" : "none" }}>
