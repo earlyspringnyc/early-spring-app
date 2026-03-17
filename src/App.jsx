@@ -25,17 +25,15 @@ function App(){
   const rawLogout = usesSupa ? sbAuth.logout : gAuth.logout;
   const setUser = usesSupa ? sbAuth.setDevUser : gAuth.setUser;
   const loginWithGoogle = usesSupa ? sbAuth.login : null;
-  const logout = useCallback(async()=>{
-    const hasUnsaved = activeId && saving;
-    if(!confirm(hasUnsaved?"You have unsaved changes. Sign out anyway?":"Are you sure you want to sign out?"))return;
-    setActiveId(null);
+  const doLogout = useCallback(async()=>{
+    if(!confirm("Are you sure you want to sign out?"))return;
     localStorage.removeItem("es_user");
     localStorage.removeItem("es_projects");
     localStorage.removeItem("es_vendors");
     localStorage.removeItem("es_google_token");
     await rawLogout();
     window.location.reload();
-  },[rawLogout,activeId,saving]);
+  },[rawLogout]);
 
   // Initialize Google token client for non-Supabase mode
   useEffect(()=>{if(!usesSupa && GOOGLE_CLIENT_ID)gAuth.initTokenClient(GOOGLE_CLIENT_ID)},[usesSupa,GOOGLE_CLIENT_ID]);
@@ -121,12 +119,12 @@ function App(){
     isSupabase={usesSupa}
   />;
 
-  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={logout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
-  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={logout} onDuplicate={duplicateProject}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
