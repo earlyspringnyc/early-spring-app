@@ -13,6 +13,7 @@ function DocsV({project,updateProject,canEdit,vendors,onAddVendor,onVendorClick}
   const[nN,setNN2]=useState("");const[nTy,setNTy2]=useState("invoice");const[nAm,setNAm2]=useState("");const[nDu,setNDu]=useState("");
   const[nLnkCat,setNLnkCat]=useState("");const[nLnkItem,setNLnkItem]=useState("");const[nVId,setNVId]=useState("");
   const[dragging,setDragging]=useState(false);
+  const[viewingDoc,setViewingDoc]=useState(null);
   const fileInputRef=useRef(null);
   const dragCounter=useRef(0);
 
@@ -97,6 +98,7 @@ function DocsV({project,updateProject,canEdit,vendors,onAddVendor,onVendorClick}
       {filtered.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",background:d.status==="overdue"?"rgba(248,113,113,.04)":T.surfEl,borderRadius:T.rS,border:`1px solid ${d.status==="overdue"?"rgba(248,113,113,.15)":T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=d.status==="overdue"?"rgba(248,113,113,.04)":T.surfEl}>
         <span style={{fontSize:9,fontWeight:700,color:DOC_TYPE_COLORS[d.type],textTransform:"uppercase",letterSpacing:".08em",width:60}}>{d.type==="w9"?"W-9":d.type==="w2"?"W-2":d.type}</span>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{d.name}</div><div style={{fontSize:11,color:T.dim,marginTop:2}}>{getVendorName(d.vendorId,project.vendors)||"No vendor"}{d.dueDate?` · Due: ${d.dueDate}`:""}{d.linkedItemId?` · Linked: ${(()=>{const cat=project.cats.find(c=>c.id===d.linkedCatId);const item=cat?.items.find(i=>i.id===d.linkedItemId);return item?`${cat.name} → ${item.name}`:""})()||""}`:""}</div></div>
+        <button onClick={()=>setViewingDoc(d)} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>{d.fileData?"View":"Details"}</button>
         {d.amount>0&&<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.cream,flexShrink:0}}>{f$(d.amount)}</span>}
         <span style={{fontSize:9,fontWeight:700,padding:"4px 10px",borderRadius:10,textTransform:"uppercase",flexShrink:0,background:d.status==="paid"?"rgba(52,211,153,.1)":d.status==="overdue"?"rgba(248,113,113,.1)":"rgba(255,234,151,.06)",color:d.status==="paid"?T.pos:d.status==="overdue"?T.neg:T.gold}}>{d.status}</span>
         {canEdit&&d.status!=="paid"&&<button onClick={()=>markPaid(d.id)} style={{fontSize:10,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${T.pos}`,background:"transparent",color:T.pos,cursor:"pointer",fontFamily:T.sans,fontWeight:600,flexShrink:0}}>Mark Paid</button>}
@@ -108,6 +110,20 @@ function DocsV({project,updateProject,canEdit,vendors,onAddVendor,onVendorClick}
         {canEdit&&<div style={{fontSize:11,color:T.dim,opacity:.6}}>Drag & drop files here or click to upload</div>}
       </div>}
     </div>
+    {viewingDoc&&<div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)"}} onClick={()=>setViewingDoc(null)}>
+      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{width:"90vw",maxWidth:900,height:"85vh",borderRadius:T.r,background:"rgba(12,10,20,.95)",border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          <div><div style={{fontSize:14,fontWeight:600,color:T.cream}}>{viewingDoc.name}</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>{viewingDoc.type==="w9"?"W-9":viewingDoc.type==="w2"?"W-2":viewingDoc.type}{viewingDoc.dueDate?` · Due: ${viewingDoc.dueDate}`:""}{viewingDoc.amount?` · ${f$(viewingDoc.amount)}`:""}</div></div>
+          <div style={{display:"flex",gap:8}}>{viewingDoc.fileData&&<a href={viewingDoc.fileData} download={viewingDoc.name||"document"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none"}}>Download</a>}<button onClick={()=>setViewingDoc(null)} aria-label="Close" style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4}}>×</button></div>
+        </div>
+        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"#111"}}>
+          {viewingDoc.fileData?.startsWith("data:image")?<img src={viewingDoc.fileData} alt={viewingDoc.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}/>
+          :viewingDoc.fileData?.startsWith("data:application/pdf")||viewingDoc.fileName?.endsWith(".pdf")?<iframe src={viewingDoc.fileData} style={{width:"100%",height:"100%",border:"none"}} title={viewingDoc.name}/>
+          :viewingDoc.fileData?<div style={{textAlign:"center",padding:40}}><div style={{fontSize:48,opacity:.2,marginBottom:16}}>▧</div><div style={{fontSize:14,color:T.cream,marginBottom:8}}>{viewingDoc.name}</div><p style={{fontSize:12,color:T.dim,marginBottom:16}}>Preview not available</p><a href={viewingDoc.fileData} download={viewingDoc.name||"document"} style={{padding:"10px 24px",borderRadius:T.rS,background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,fontSize:13,fontWeight:700,textDecoration:"none"}}>Download</a></div>
+          :<div style={{textAlign:"center",padding:40,color:T.dim}}>No file attached to this document</div>}
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 
