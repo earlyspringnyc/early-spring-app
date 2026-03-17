@@ -35,6 +35,12 @@ export async function createCalendarEvent(accessToken, meeting) {
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
     attendees: (meeting.attendees || []).map(email => ({ email: email.trim() })),
+    conferenceData: {
+      createRequest: {
+        requestId: 'es-' + Date.now(),
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    },
     reminders: {
       useDefault: true,
     },
@@ -43,7 +49,7 @@ export async function createCalendarEvent(accessToken, meeting) {
   const res = await fetch('/api/calendar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken, event }),
+    body: JSON.stringify({ accessToken, event, conferenceDataVersion: 1 }),
   });
 
   if (!res.ok) {
@@ -52,6 +58,22 @@ export async function createCalendarEvent(accessToken, meeting) {
   }
 
   return await res.json();
+}
+
+// Search contacts (people you've emailed)
+export async function searchContacts(accessToken, query) {
+  try {
+    const res = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken, query }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.contacts || [];
+  } catch (e) {
+    return [];
+  }
 }
 
 // Send an email via Gmail API

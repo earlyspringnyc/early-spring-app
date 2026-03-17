@@ -39,7 +39,7 @@ export function useGoogleAuth() {
     if (!window.google?.accounts?.oauth2) return;
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send',
+      scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/contacts.readonly',
       callback: (response) => {
         if (response.access_token) {
           setAccessToken(response.access_token);

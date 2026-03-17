@@ -5,6 +5,7 @@
     { "source": "/api/chat", "destination": "/api/chat" },
     { "source": "/api/calendar", "destination": "/api/calendar" },
     { "source": "/api/email", "destination": "/api/email" },
+    { "source": "/api/contacts", "destination": "/api/contacts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
