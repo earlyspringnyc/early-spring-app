@@ -33,17 +33,7 @@ function DashV({cats,comp,feeP,project}){
       <Metric label="Amount Owed to Vendors" value={f0(amountOwed)} color={amountOwed>0?T.neg:T.dim} glow={amountOwed>0}/>
       <Metric label="Due from Client" value={f0(Math.max(0,amountDueFromClient))} color={amountDueFromClient>0?"#FBBF24":T.pos} sub={totalIncome>0?`${f0(totalIncome)} collected`:"No payments received"}/>
     </div>
-    {comp.grandTotal===0&&<Card style={{padding:28,marginBottom:20,borderColor:"rgba(255,234,151,.12)",background:"rgba(255,234,151,.02)"}}>
-  <div style={{fontSize:14,fontWeight:600,color:T.cream,marginBottom:8}}>Getting Started</div>
-  <div style={{fontSize:12,color:T.dim,lineHeight:1.8}}>
-    1. Set your client budget in the Budget tab<br/>
-    2. Add actual costs to budget line items<br/>
-    3. Add vendors and link them to line items<br/>
-    4. Create timeline tasks on the calendar<br/>
-    5. Upload invoices and track payments
-  </div>
-</Card>}
-    {(overdueDocs.length>0||unpaidInvoices.length>0)&&<Card style={{padding:18,marginBottom:16,borderColor:overdueDocs.length>0?"rgba(248,113,113,.2)":"rgba(255,234,151,.12)",background:overdueDocs.length>0?"rgba(248,113,113,.03)":"rgba(255,234,151,.02)"}}>
+{(overdueDocs.length>0||unpaidInvoices.length>0)&&<Card style={{padding:18,marginBottom:16,borderColor:overdueDocs.length>0?"rgba(248,113,113,.2)":"rgba(255,234,151,.12)",background:overdueDocs.length>0?"rgba(248,113,113,.03)":"rgba(255,234,151,.02)"}}>
       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}><span style={{fontSize:12,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold}}>{overdueDocs.length>0?"Unpaid Invoice Alerts":"Unpaid Invoices"}</span><span style={{fontSize:10,color:T.dim}}>({overdueDocs.length+unpaidInvoices.length})</span></div>
       {overdueDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px",marginBottom:3,borderRadius:T.rS,background:"rgba(248,113,113,.06)"}}>
         <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:6,background:"rgba(248,113,113,.15)",color:T.neg}}>OVERDUE</span><span style={{fontSize:12,color:T.cream}}>{d.name}</span>{d.invoiceKind&&<span style={{fontSize:8,color:INVOICE_KIND_COLORS[d.invoiceKind],fontWeight:600,textTransform:"uppercase"}}>{INVOICE_KIND_LABELS[d.invoiceKind]}</span>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>

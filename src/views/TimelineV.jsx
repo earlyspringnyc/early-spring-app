@@ -119,11 +119,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Timeline / Tracker</h1><p style={{fontSize:13,color:T.dim,marginTop:4}}>{tasks.length} tasks, {pct}% complete · Click a date on the calendar to add tasks</p></div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <button onClick={()=>setShowClientTL(!showClientTL)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showClientTL?"transparent":"rgba(34,211,238,.1)",color:showClientTL?T.dim:T.cyan,border:`1px solid ${showClientTL?T.border:"rgba(34,211,238,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showClientTL?"Close":"Create Client Timeline"}</button>
-        <button onClick={()=>setShowMeetingForm(!showMeetingForm)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",background:showMeetingForm?"transparent":"rgba(232,121,249,.1)",color:showMeetingForm?T.dim:T.magenta,border:`1px solid ${showMeetingForm?T.border:"rgba(232,121,249,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showMeetingForm?"Close":"Schedule Meeting"}</button>
-        <button onClick={()=>setLayout(l=>l==="stacked"?"split":"stacked")} style={{padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{layout==="stacked"?"Split View":"Stacked View"}</button>
-        <button onClick={()=>setShowSuggestions(!showSuggestions)} style={{padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showSuggestions?"Hide":"Budget Items"}</button>
         <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
-          {[["calendar","Calendar"],["gantt","Gantt"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
+          {[["calendar","Calendar"],["gantt","Gantt"],["off","Off"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
         </div>
         {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Manual"}</button>}
       </div>
@@ -224,12 +221,12 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <button onClick={()=>addTask()} style={{padding:"9px 20px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Task</button>
     </Card>}
 
-    {/* Calendar / Gantt view + Task List */}
+    {/* Calendar / Gantt view + Task List — draggable side-by-side */}
     {(()=>{
-      const calendarContent=viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} canEdit={canEdit}/>:<GanttChart tasks={tasks}/>;
+      const calendarContent=viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} canEdit={canEdit}/>:viewMode==="gantt"?<GanttChart tasks={tasks}/>:null;
       const taskListContent=<>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,marginTop:layout==="split"?0:4}}>
-          <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Task List</span>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <span onClick={()=>viewMode!=="off"&&setLayout(l=>l==="split"?"stacked":"split")} style={{fontSize:13,fontWeight:600,color:T.cream,cursor:viewMode!=="off"?"pointer":"default"}} title={viewMode!=="off"?"Click to toggle side-by-side view":""}>{layout==="split"?"◧ ":""}Task List</span>
           <div style={{display:"flex",gap:4}}>
             {["all","todo","progress","done"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?T.goldSoft:"transparent",color:filter===f?T.gold:T.dim}}>{f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})</button>)}
           </div>
@@ -249,7 +246,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No tasks with this status.</div>}
         </div>
       </>;
-      if(layout==="split")return<div ref={splitRef} style={{display:"flex",gap:0,alignItems:"flex-start"}}>
+      if(calendarContent&&layout==="split")return<div ref={splitRef} style={{display:"flex",gap:0,alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>{calendarContent}</div>
         <div onMouseDown={()=>setDragging(true)} style={{width:6,cursor:"col-resize",background:dragging?T.gold:"transparent",borderRadius:3,flexShrink:0,alignSelf:"stretch",minHeight:200,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.border} onMouseLeave={e=>{if(!dragging)e.currentTarget.style.background="transparent"}}/>
         <div style={{width:splitWidth,flexShrink:0,maxHeight:"70vh",overflow:"auto",position:"sticky",top:28}}>{taskListContent}</div>
