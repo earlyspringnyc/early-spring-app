@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0 } from '../utils/format.js';
 import { isOverdue, getVendorName } from '../utils/calc.js';
@@ -12,6 +12,37 @@ function DocsV({project,updateProject,canEdit,vendors,onAddVendor,onVendorClick}
   const[showAdd,setShowAdd]=useState(false);const[filter,setFilter]=useState("all");
   const[nN,setNN2]=useState("");const[nTy,setNTy2]=useState("invoice");const[nAm,setNAm2]=useState("");const[nDu,setNDu]=useState("");
   const[nLnkCat,setNLnkCat]=useState("");const[nLnkItem,setNLnkItem]=useState("");const[nVId,setNVId]=useState("");
+  const[dragging,setDragging]=useState(false);
+  const fileInputRef=useRef(null);
+  const dragCounter=useRef(0);
+
+  const autoDetectType=(fileName)=>{
+    const n=fileName.toLowerCase();
+    if(n.includes("invoice")||n.includes("inv"))return"invoice";
+    if(n.includes("w9")||n.includes("w-9"))return"w9";
+    if(n.includes("w2")||n.includes("w-2"))return"w2";
+    if(n.includes("contract")||n.includes("agreement")||n.includes("sow")||n.includes("nda")||n.includes("msa"))return"contract";
+    return"invoice";
+  };
+
+  const handleFiles=useCallback((files)=>{
+    Array.from(files).forEach(file=>{
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const type=autoDetectType(file.name);
+        const name=file.name.replace(/\.[^/.]+$/,"");
+        const doc=mkDoc(name,type,"",0,"","pending","","","",ev.target.result);
+        if(isOverdue(doc))doc.status="overdue";
+        updateProject({docs:[...docs,doc]});
+      };
+      reader.readAsDataURL(file);
+    });
+  },[docs,updateProject]);
+
+  const onDragEnter=useCallback((e)=>{e.preventDefault();e.stopPropagation();dragCounter.current++;setDragging(true)},[]);
+  const onDragLeave=useCallback((e)=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDragging(false)},[]);
+  const onDragOver=useCallback((e)=>{e.preventDefault();e.stopPropagation()},[]);
+  const onDrop=useCallback((e)=>{e.preventDefault();e.stopPropagation();setDragging(false);dragCounter.current=0;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files)},[handleFiles]);
   useEffect(()=>{const u=docs.map(d=>isOverdue(d)&&d.status==="pending"?{...d,status:"overdue"}:d);if(JSON.stringify(u)!==JSON.stringify(docs))updateProject({docs:u})},[]);
   const filtered=filter==="all"?docs:docs.filter(d=>d.type===filter||d.status===filter);
   const overdueCount=docs.filter(d=>d.status==="overdue").length;
@@ -20,10 +51,19 @@ function DocsV({project,updateProject,canEdit,vendors,onAddVendor,onVendorClick}
   const addDoc=()=>{if(!nN.trim())return;const doc=mkDoc(nN.trim(),nTy,nVId,parseFloat(nAm)||0,nDu,"pending",nLnkCat,nLnkItem);if(isOverdue(doc))doc.status="overdue";updateProject({docs:[...docs,doc]});setNN2("");setNTy2("invoice");setNVId("");setNAm2("");setNDu("");setNLnkCat("");setNLnkItem("");setShowAdd(false)};
   const removeDoc=id=>updateProject({docs:docs.filter(d=>d.id!==id)});
   const markPaid=id=>updateProject({docs:docs.map(d=>d.id===id?{...d,status:"paid",paidAmount:d.amount}:d)});
-  return<div>
+  return<div onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop} style={{position:"relative",minHeight:"50vh"}}>
+    <input ref={fileInputRef} type="file" multiple accept="*" onChange={e=>{if(e.target.files?.length)handleFiles(e.target.files);e.target.value=""}} style={{display:"none"}}/>
+    {dragging&&<div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.r,border:`3px dashed ${T.gold}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+      <div style={{fontSize:40,opacity:.6}}>▧</div>
+      <div style={{fontSize:18,fontWeight:600,color:T.gold}}>Drop files here</div>
+      <div style={{fontSize:12,color:T.dim}}>Invoices, contracts, W-9s, and more</div>
+    </div>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Documents</h1><p style={{fontSize:13,color:T.dim,marginTop:4}}>{docs.length} documents{overdueCount>0?<span style={{color:T.neg,fontWeight:600}}> · {overdueCount} overdue</span>:""}</p></div>
-      {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Document"}</button>}
+      <div style={{display:"flex",gap:8}}>
+        {canEdit&&<button onClick={()=>fileInputRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>Upload Files</button>}
+        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Document"}</button>}
+      </div>
     </div>
     <div className="metric-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:20}}>
       <Metric label="Total Documents" value={docs.length}/><Metric label="Outstanding" value={f0(pendingTotal)} color={T.gold}/><Metric label="Paid" value={f0(paidTotal)} color={T.pos}/><Metric label="Overdue" value={overdueCount} color={overdueCount>0?T.neg:T.dim} glow={overdueCount>0}/>
@@ -62,7 +102,11 @@ function DocsV({project,updateProject,canEdit,vendors,onAddVendor,onVendorClick}
         {canEdit&&d.status!=="paid"&&<button onClick={()=>markPaid(d.id)} style={{fontSize:10,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${T.pos}`,background:"transparent",color:T.pos,cursor:"pointer",fontFamily:T.sans,fontWeight:600,flexShrink:0}}>Mark Paid</button>}
         {canEdit&&<button onClick={()=>removeDoc(d.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
       </div>)}
-      {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No documents match this filter.</div>}
+      {filtered.length===0&&<div onClick={()=>canEdit&&fileInputRef.current?.click()} style={{textAlign:"center",padding:60,color:T.dim,fontSize:13,cursor:canEdit?"pointer":"default",border:`2px dashed ${T.border}`,borderRadius:T.r,transition:"all .2s"}} onMouseEnter={e=>{if(canEdit){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
+        <div style={{fontSize:32,opacity:.2,marginBottom:8}}>▧</div>
+        <div style={{fontSize:13,color:T.dim,marginBottom:4}}>{filter!=="all"?"No documents match this filter":"No documents yet"}</div>
+        {canEdit&&<div style={{fontSize:11,color:T.dim,opacity:.6}}>Drag & drop files here or click to upload</div>}
+      </div>}
     </div>
   </div>;
 }
