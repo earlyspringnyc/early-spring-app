@@ -100,7 +100,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               {v.notes&&<p style={{fontSize:11,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{v.notes}</p>}
             </div>}
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
         </div>
       </div>
 

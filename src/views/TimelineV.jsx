@@ -120,7 +120,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
 
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Timeline / Tracker</h1><p style={{fontSize:13,color:T.dim,marginTop:4}}>{tasks.length} tasks, {pct}% complete · Click a date on the calendar to add tasks</p></div>
+      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Timeline / Tracker</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{tasks.length} tasks, {pct}% complete · Click a date on the calendar to add tasks</p></div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <button onClick={()=>setShowClientTL(!showClientTL)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showClientTL?"transparent":"rgba(34,211,238,.1)",color:showClientTL?T.dim:T.cyan,border:`1px solid ${showClientTL?T.border:"rgba(34,211,238,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showClientTL?"Close":"Create Client Timeline"}</button>
         <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>

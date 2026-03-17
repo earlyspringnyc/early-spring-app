@@ -11,6 +11,11 @@ const dark={
   sans:"'Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif",
   mono:"'SF Mono','JetBrains Mono','Fira Code','Menlo',monospace",
   serif:"'Century','Georgia','Times New Roman',serif",
+  // Spacing scale
+  sp4:4,sp8:8,sp12:12,sp16:16,sp20:20,sp24:24,sp28:28,sp32:32,sp40:40,
+  // Typography
+  fsXs:9,fsSm:11,fsMd:13,fsLg:16,fsXl:24,fs2xl:28,
+  fwNormal:400,fwMedium:500,fwSemibold:600,fwBold:700,
 };
 
 const light={
@@ -26,6 +31,11 @@ const light={
   sans:"'Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif",
   mono:"'SF Mono','JetBrains Mono','Fira Code','Menlo',monospace",
   serif:"'Century','Georgia','Times New Roman',serif",
+  // Spacing scale
+  sp4:4,sp8:8,sp12:12,sp16:16,sp20:20,sp24:24,sp28:28,sp32:32,sp40:40,
+  // Typography
+  fsXs:9,fsSm:11,fsMd:13,fsLg:16,fsXl:24,fs2xl:28,
+  fwNormal:400,fwMedium:500,fwSemibold:600,fwBold:700,
 };
 
 const T={...dark};

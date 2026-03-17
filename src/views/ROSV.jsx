@@ -13,7 +13,7 @@ function ROSV({project,updateProject,canEdit}){
   const removeEntry=id=>updateProject({ros:entries.filter(e=>e.id!==id)});
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Run of Show</h1><p style={{fontSize:13,color:T.dim,marginTop:4}}>{entries.length} cues{project.eventDate?` · Event: ${project.eventDate}`:""}</p></div>
+      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Run of Show</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{entries.length} cues{project.eventDate?` · Event: ${project.eventDate}`:""}</p></div>
       {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Cue"}</button>}
     </div>
     {showAdd&&<Card style={{padding:20,marginBottom:16}}>
@@ -26,7 +26,7 @@ function ROSV({project,updateProject,canEdit}){
       <div style={{display:"grid",gridTemplateColumns:".5fr 2fr 1fr 1fr .5fr 1.5fr .3fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
         {["Time","Cue","Location","Lead","Dur.","Notes",""].map((h,i)=><span key={i} style={{fontSize:9.5,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>{h}</span>)}
       </div>
-      {sorted.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No run of show entries yet.</div>}
+      {sorted.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No run of show entries yet.<div style={{fontSize:11,color:T.dim,marginTop:8,fontFamily:T.serif,fontStyle:"italic"}}>Add cues to build your event-day schedule</div></div>}
       {sorted.map((e,idx)=><div key={e.id} style={{display:"grid",gridTemplateColumns:".5fr 2fr 1fr 1fr .5fr 1.5fr .3fr",padding:"10px 18px",borderBottom:idx<sorted.length-1?`1px solid ${T.border}`:"none",alignItems:"center"}} onMouseEnter={ev=>ev.currentTarget.style.background=T.surfHov} onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
         <span style={{fontSize:14,fontWeight:600,fontFamily:T.mono,color:T.gold}}>{e.time}</span>
         <span style={{fontSize:13,color:T.cream,fontWeight:500}}>{e.item}</span>

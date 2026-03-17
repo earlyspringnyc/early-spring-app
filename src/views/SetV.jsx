@@ -21,7 +21,7 @@ function SetV({project,updateProject,onDelete,user}){
   const logoRef=useRef(null);
   const handleLogo=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>updateProject({logo:ev.target.result});reader.readAsDataURL(file)};
   return<div style={{maxWidth:isAdmin?700:500}}>
-    <div style={{marginBottom:24}}><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Settings</h1><p style={{fontSize:13,color:T.dim,marginTop:4,fontFamily:T.serif}}>Project details and financial defaults</p></div>
+    <div style={{marginBottom:24}}><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Settings</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>Project details and financial defaults</p></div>
     <Card style={{padding:28,marginBottom:16}}><div style={{fontSize:13,fontWeight:600,color:T.cream,marginBottom:18}}>Project Information</div><F label="Project Name" field="name"/><F label="Client" field="client"/>
       <div style={{marginBottom:18}}>
         <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>Client Logo</label>

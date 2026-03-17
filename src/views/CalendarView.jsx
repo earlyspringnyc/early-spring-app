@@ -153,7 +153,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
 
   return<Card style={{padding:0,marginBottom:20,overflow:"visible"}} onMouseUp={()=>setIsDragging(false)}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:`1px solid ${T.border}`}}>
-      <button onClick={prev} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 8px"}}>&larr;</button>
+      <button onClick={prev} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 10px",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}} title="Previous month">{"\u2190"}</button>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div style={{display:"flex",gap:2,background:T.surface,borderRadius:T.rS,padding:1}}>
           {[["day","Day"],["week","Week"],["month","Month"]].map(([k,l])=>
@@ -162,7 +162,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
         </div>
         <span style={{fontSize:14,fontWeight:600,color:T.cream}}>{mNames[month.m]} {month.y}</span>
       </div>
-      <button onClick={next} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 8px"}}>&rarr;</button>
+      <button onClick={next} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 10px",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}} title="Next month">{"\u2192"}</button>
     </div>
     {calMode==="month"&&<>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${T.border}`}}>
@@ -174,6 +174,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
     </>}
     {calMode==="week"&&<WeekView/>}
     {calMode==="day"&&<DayView/>}
+    {tasks.length===0&&!addDate&&<div style={{padding:"16px 18px",textAlign:"center",color:T.dim,fontSize:11,fontFamily:T.serif,fontStyle:"italic"}}>Click a date to add your first task</div>}
     {addDate&&canEdit&&<div style={{padding:"14px 18px",borderTop:`1px solid ${T.border}`,position:"relative",zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
         <span style={{fontSize:11,color:T.cream,fontFamily:T.mono}}>{mNames[month.m]} {addDate}{qE?` — ${qE}`:""}</span>

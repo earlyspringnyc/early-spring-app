@@ -32,7 +32,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
   };
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Vendors</h1><p style={{fontSize:13,color:T.dim,marginTop:4}}>{vendors.length} vendors{w9Pending>0?<span style={{color:"#FBBF24"}}> · {w9Pending} W-9 pending</span>:""}</p></div>
+      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Vendors</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{vendors.length} vendors{w9Pending>0?<span style={{color:"#FBBF24"}}> · {w9Pending} W-9 pending</span>:""}</p></div>
       {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Vendor"}</button>}
     </div>
     <div className="metric-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:20}}>
@@ -77,7 +77,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:s.outstanding>0?T.neg:T.dim,fontWeight:s.outstanding>0?600:400}}>{s.outstanding>0?f0(s.outstanding):"\u2014"}</span>
           <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
             {canEdit&&<button onClick={e=>{e.stopPropagation();setUploadVendorId(uploadVendorId===v.id?null:v.id);setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("")}} style={{background:"none",border:`1px solid ${uploadVendorId===v.id?T.cyan:T.border}`,borderRadius:T.rS,padding:"3px 8px",cursor:"pointer",fontSize:9,fontWeight:600,color:uploadVendorId===v.id?T.cyan:T.dim,transition:"all .15s"}} onMouseEnter={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.borderColor=T.cyan;e.currentTarget.style.color=T.cyan}} onMouseLeave={e=>{if(uploadVendorId!==v.id){e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}}>{uploadVendorId===v.id?"Cancel":"+ Invoice"}</button>}
-            {canEdit&&<button onClick={e=>{e.stopPropagation();if(confirm(`Remove "${v.name}"?`))removeVendor(v.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+            {canEdit&&<button title="Delete vendor" onClick={e=>{e.stopPropagation();if(confirm(`Remove "${v.name}"?`))removeVendor(v.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
           </div>
         </div>
         {uploadVendorId===v.id&&<div style={{padding:"16px 18px",background:T.surface,borderBottom:`1px solid ${T.border}`}}>

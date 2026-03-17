@@ -121,7 +121,7 @@ function AIV({project,updateProject,comp}){
   return<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 56px)",maxHeight:"calc(100vh - 56px)"}}>
     <div style={{marginBottom:16}}>
       <h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>AI Assistant</h1>
-      <p style={{fontSize:13,color:T.dim,marginTop:4}}>Powered by Claude. Full project context loaded.</p>
+      <p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>Powered by Claude. Full project context loaded.</p>
     </div>
     <Card style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",padding:0}}>
       <div style={{flex:1,overflow:"auto",padding:20}}>

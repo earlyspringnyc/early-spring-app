@@ -72,3 +72,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   .mobile-nav{display:none!important}
   .desktop-side{display:flex!important}
 }
+
+/* Focus states for accessibility */
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid rgba(255,234,151,.5);outline-offset:2px;border-radius:4px}
+.theme-light button:focus-visible,.theme-light input:focus-visible,.theme-light select:focus-visible,.theme-light textarea:focus-visible{outline:2px solid rgba(67,45,28,.4)}
+
+/* Smooth transitions globally */
+button,input,select,textarea{transition:all .15s ease}
+
+/* Tablet breakpoint */
+@media(min-width:769px) and (max-width:1024px){
+  #root>div>div:first-child{width:200px!important}
+  .metric-grid{grid-template-columns:1fr 1fr!important}
+}

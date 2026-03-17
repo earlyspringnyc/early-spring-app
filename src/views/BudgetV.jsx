@@ -20,7 +20,7 @@ function BudgetV(p){
   const cancelBudget=()=>{setEditingBudget(false);setConfirmBudget(false)};
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1><p style={{fontSize:13,color:T.dim,marginTop:4}}>{canEdit?"Internal view with live margin calculations":"View-only mode"}</p></div>
+      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{canEdit?"Internal view with live margin calculations":"View-only mode"}</p></div>
       {canEdit&&<button onClick={()=>setShowAddSection(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}
         onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><PlusI size={12}/> Add Section</button>}
     </div>
