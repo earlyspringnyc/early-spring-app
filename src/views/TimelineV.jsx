@@ -26,7 +26,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const allBudgetItems=useMemo(()=>{const items=[];(project.cats||[]).forEach(c=>c.items.forEach(it=>items.push({...it,catName:c.name})));return items},[project.cats]);
   const[showSuggestions,setShowSuggestions]=useState(false);
   const[isMeeting,setIsMeeting]=useState(false);
-  const[taskSugs,setTaskSugs]=useState([]);
+  const[taskSugs,setTaskSugs]=useState([]);const[sugIdx2,setSugIdx2]=useState(-1);
   const meetings=project.meetings||[];
   const[meetingTitle,setMeetingTitle]=useState("");
   const[meetingDate,setMeetingDate]=useState("");
@@ -181,9 +181,9 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
 
     {showAdd&&<Card style={{padding:20,marginBottom:16}}>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
-        <div style={{position:"relative"}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Task</label><input autoFocus value={nN} onChange={e=>{setNN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value))}} placeholder="Task" onKeyDown={e=>e.key==="Enter"&&addTask()} onBlur={()=>setTimeout(()=>setTaskSugs([]),200)} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/>
+        <div style={{position:"relative"}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Task</label><input autoFocus value={nN} onChange={e=>{setNN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value));setSugIdx2(-1)}} placeholder="Task" onKeyDown={e=>{if(e.key==="Enter"){if(sugIdx2>=0&&taskSugs[sugIdx2]){setNN(taskSugs[sugIdx2]);setTaskSugs([]);setSugIdx2(-1)}else{addTask()}}else if(e.key==="ArrowDown"){e.preventDefault();setSugIdx2(i=>Math.min(i+1,taskSugs.length-1))}else if(e.key==="ArrowUp"){e.preventDefault();setSugIdx2(i=>Math.max(i-1,-1))}else if(e.key==="Escape"){setTaskSugs([]);setSugIdx2(-1)}}} onBlur={()=>setTimeout(()=>{setTaskSugs([]);setSugIdx2(-1)},200)} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/>
           {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
-            {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setNN(s);setTaskSugs([])}} style={{width:"100%",display:"block",padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{s}</button>)}
+            {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setNN(s);setTaskSugs([]);setSugIdx2(-1)}} style={{width:"100%",display:"block",padding:"8px 12px",background:sugIdx2===i?T.surfHov:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:sugIdx2===i?T.cream:T.dim,fontFamily:T.sans,fontWeight:sugIdx2===i?500:400}} onMouseEnter={()=>setSugIdx2(i)}>{s}</button>)}
           </div>}
         </div>
         {[["Category",nC,setNC,"General"],["Assignee",nA,setNA,"Name"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTask()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}

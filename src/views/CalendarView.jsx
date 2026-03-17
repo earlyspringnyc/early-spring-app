@@ -4,18 +4,41 @@ import { parseD } from '../utils/date.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 import { searchTaskHistory } from '../utils/taskHistory.js';
 
-const CAT_COLORS={"General":"#FFEA97","Venue":"#FB923C","Production":"#67E8F9","Design":"#D8B4FE","Catering":"#6EE7B7","Print":"#FCA5A5","Finance":"#93C5FD","Permits":"#FBBF24","Meeting":"#D8B4FE","Meeting Action":"#D8B4FE"};
+// Smart color inference based on category keywords
 function taskColor(t){
   if(t.status==="done")return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
   if(t.status==="progress")return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
-  if(t.category==="Meeting"||t.category==="Meeting Action")return{bg:"rgba(216,180,254,.12)",fg:"#D8B4FE"};
-  const c=CAT_COLORS[t.category];
-  if(c)return{bg:`${c}18`,fg:c};
-  // Hash the category name to pick a color
-  const colors=["#FFEA97","#6EE7B7","#67E8F9","#D8B4FE","#FCA5A5","#FB923C","#93C5FD","#FBBF24","#A3E635"];
-  let hash=0;for(let i=0;i<(t.category||"").length;i++)hash=((hash<<5)-hash)+(t.category||"").charCodeAt(i);
-  const picked=colors[Math.abs(hash)%colors.length];
-  return{bg:`${picked}18`,fg:picked};
+  const cat=(t.category||"General").toLowerCase();
+  // Meetings/calls — purple
+  if(cat.includes("meeting")||cat.includes("call")||cat.includes("sync"))return{bg:"rgba(216,180,254,.12)",fg:"#D8B4FE"};
+  // Creative/design — lavender
+  if(cat.includes("design")||cat.includes("creative")||cat.includes("brand")||cat.includes("art"))return{bg:"rgba(196,132,252,.12)",fg:"#C084FC"};
+  // Concept/strategy — soft pink
+  if(cat.includes("concept")||cat.includes("strategy")||cat.includes("ideation")||cat.includes("brainstorm"))return{bg:"rgba(244,114,182,.12)",fg:"#F472B6"};
+  // Production/build/fabrication — cyan
+  if(cat.includes("production")||cat.includes("build")||cat.includes("fabrication")||cat.includes("install")||cat.includes("av")||cat.includes("staging"))return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
+  // Venue/location — orange
+  if(cat.includes("venue")||cat.includes("location")||cat.includes("site"))return{bg:"rgba(251,146,60,.12)",fg:"#FB923C"};
+  // Catering/food — green
+  if(cat.includes("catering")||cat.includes("food")||cat.includes("bev"))return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
+  // Finance/payment — blue
+  if(cat.includes("finance")||cat.includes("payment")||cat.includes("invoice")||cat.includes("budget"))return{bg:"rgba(147,197,253,.12)",fg:"#93C5FD"};
+  // Print/collateral — warm red
+  if(cat.includes("print")||cat.includes("collateral")||cat.includes("signage"))return{bg:"rgba(252,165,165,.12)",fg:"#FCA5A5"};
+  // Permits/legal/insurance — amber
+  if(cat.includes("permit")||cat.includes("legal")||cat.includes("insurance")||cat.includes("compliance"))return{bg:"rgba(251,191,36,.12)",fg:"#FBBF24"};
+  // Deliverables/client — bright green
+  if(cat.includes("deliverable")||cat.includes("client")||cat.includes("handoff")||cat.includes("delivery")||cat.includes("final"))return{bg:"rgba(52,211,153,.15)",fg:"#34D399"};
+  // Feedback/review — red
+  if(cat.includes("feedback")||cat.includes("review")||cat.includes("revision")||cat.includes("change")||cat.includes("amend"))return{bg:"rgba(248,113,113,.12)",fg:"#F87171"};
+  // Content/photo/video — teal
+  if(cat.includes("content")||cat.includes("photo")||cat.includes("video")||cat.includes("capture")||cat.includes("edit"))return{bg:"rgba(45,212,191,.12)",fg:"#2DD4BF"};
+  // Staffing/team — soft blue
+  if(cat.includes("staff")||cat.includes("team")||cat.includes("crew")||cat.includes("talent"))return{bg:"rgba(96,165,250,.12)",fg:"#60A5FA"};
+  // Travel/logistics — purple-ish
+  if(cat.includes("travel")||cat.includes("logistics")||cat.includes("shipping")||cat.includes("freight"))return{bg:"rgba(167,139,250,.12)",fg:"#A78BFA"};
+  // General/other — gold
+  return{bg:"rgba(255,234,151,.1)",fg:"#FFEA97"};
 }
 
 function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canEdit}){
@@ -25,6 +48,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
   const[taskSugs,setTaskSugs]=useState([]);
   const[editingTask,setEditingTask]=useState(null);
   const[editName,setEditName]=useState("");
+  const[sugIdx,setSugIdx]=useState(-1);
   const[calMode,setCalMode]=useState("month");
   const[selectedDay,setSelectedDay]=useState(()=>new Date().getDate());
   // Drag to select range
@@ -204,9 +228,9 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
       </div>
       <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
         <div style={{flex:1,position:"relative"}}>
-          <input autoFocus value={qN} onChange={e=>{setQN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value))}} placeholder={isMeeting?"Meeting name":"Task"} onKeyDown={e=>e.key==="Enter"&&quickAdd()} onBlur={()=>setTimeout(()=>setTaskSugs([]),200)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${isMeeting?"rgba(232,121,249,.3)":T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+          <input autoFocus value={qN} onChange={e=>{setQN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value));setSugIdx(-1)}} placeholder={isMeeting?"Meeting name":"Task"} onKeyDown={e=>{if(e.key==="Enter"){if(sugIdx>=0&&taskSugs[sugIdx]){setQN(taskSugs[sugIdx]);setTaskSugs([]);setSugIdx(-1)}else{quickAdd()}}else if(e.key==="ArrowDown"){e.preventDefault();setSugIdx(i=>Math.min(i+1,taskSugs.length-1))}else if(e.key==="ArrowUp"){e.preventDefault();setSugIdx(i=>Math.max(i-1,-1))}else if(e.key==="Escape"){setTaskSugs([]);setSugIdx(-1)}}} onBlur={()=>setTimeout(()=>{setTaskSugs([]);setSugIdx(-1)},200)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${isMeeting?"rgba(232,121,249,.3)":T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
           {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
-            {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setQN(s);setTaskSugs([])}} style={{width:"100%",display:"block",padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{s}</button>)}
+            {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setQN(s);setTaskSugs([]);setSugIdx(-1)}} style={{width:"100%",display:"block",padding:"8px 12px",background:sugIdx===i?T.surfHov:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:sugIdx===i?T.cream:T.dim,fontFamily:T.sans,fontWeight:sugIdx===i?500:400}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;setSugIdx(i)}} onMouseLeave={e=>{if(sugIdx!==i)e.currentTarget.style.background="transparent"}}>{s}</button>)}
           </div>}
         </div>
         {!isMeeting&&<div style={{width:180}}><DatePick value={qE} onChange={setQE} label="End Date" compact/></div>}
