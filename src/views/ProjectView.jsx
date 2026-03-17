@@ -3,6 +3,7 @@ import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { calcProject } from '../utils/calc.js';
 import { mkI, mkA } from '../data/factories.js';
+import ProfileV from './ProfileV.jsx';
 import { Side, MobileNav } from '../components/layout/index.js';
 import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
 import BudgetV from './BudgetV.jsx';
@@ -51,6 +52,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId}/>}
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
+      {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project}/>}
       {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user}/>}
     </div></main>
     {vendorDetailId&&<VendorDetailModal vendorId={vendorDetailId} project={project} onClose={()=>setVendorDetailId(null)} canEdit={canEdit} updateProject={updateProject}/>}

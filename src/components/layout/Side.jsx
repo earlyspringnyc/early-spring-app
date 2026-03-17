@@ -67,8 +67,9 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
       </button>
     </div>}
     <div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:onLogout?8:0}}>
-        <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,rgba(255,234,151,.15),rgba(255,234,151,.05))",border:"1.5px solid rgba(255,234,151,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold}}>{(user.name||user.email||"?")[0]}</div>
+      <div onClick={()=>setView("profile")} style={{display:"flex",alignItems:"center",gap:10,marginBottom:onLogout?8:0,cursor:"pointer",padding:"4px 0",borderRadius:T.rS,transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        {user.avatar_url||user.avatar?<img src={user.avatar_url||user.avatar} alt={user.name||""} style={{width:30,height:30,borderRadius:"50%",objectFit:"cover",border:"1.5px solid rgba(255,234,151,.2)"}}/>
+        :<div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,rgba(255,234,151,.15),rgba(255,234,151,.05))",border:"1.5px solid rgba(255,234,151,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold}}>{(user.name||user.email||"?")[0]}</div>}
         <div style={{flex:1}}><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{user.name||user.email||""}</div><div style={{fontSize:10,color:T.dim,textTransform:"capitalize"}}>{user.role}</div></div>
       </div>
       {onLogout&&<button onClick={onLogout} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:500,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)";e.currentTarget.style.borderColor="rgba(248,113,113,.2)";e.currentTarget.style.color=T.neg}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><LogOutI size={12} color="currentColor"/> Sign Out</button>}
