@@ -47,8 +47,8 @@ export function useProjects(orgId) {
     }, 1000); // Debounce 1s
   }, [orgId]);
 
-  const createProject = useCallback(async (name, client, date, eventDate, logo, clientBudget) => {
-    const p = mkProject(name, client, date, eventDate, logo, clientBudget);
+  const createProject = useCallback(async (name, client, date, eventDate, logo, clientBudget, stage) => {
+    const p = mkProject(name, client, date, eventDate, logo, clientBudget, stage);
     if (isSupabaseConfigured() && orgId && orgId !== 'local') {
       const saved = await db.createProject(orgId, p);
       if (saved) {

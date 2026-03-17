@@ -1,5 +1,8 @@
 import T from '../theme/tokens.js';
 
+export const PROJECT_STAGES = ["pitching", "current", "archived"];
+export const STAGE_LABELS = { pitching: "Pitching", current: "Current", archived: "Archived" };
+export const STAGE_COLORS = { pitching: T.gold, current: T.pos, archived: T.dim };
 export const STATUS_COLORS = { todo: "rgba(250,250,249,.4)", progress: "#22D3EE", done: "#34D399" };
 export const STATUS_LABELS = { todo: "To Do", progress: "In Progress", done: "Done" };
 export const DOC_TYPES = ["invoice", "w9", "w2", "contract"];

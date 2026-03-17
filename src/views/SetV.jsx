@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import T from '../theme/tokens.js';
 import { fp } from '../utils/format.js';
 import { uid } from '../utils/uid.js';
-import { ROLES, ROLE_LABELS, ROLE_COLORS, PERMISSION_LABELS } from '../constants/index.js';
+import { ROLES, ROLE_LABELS, ROLE_COLORS, PERMISSION_LABELS, PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS } from '../constants/index.js';
 import { getStoredUsers, saveUsers } from '../utils/storage.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card, DatePick } from '../components/primitives/index.js';
@@ -35,6 +35,10 @@ function SetV({project,updateProject,onDelete,user}){
       </div>
       <div style={{marginBottom:18}}><DatePick label="Start Date" value={project.date||""} onChange={v=>updateProject({date:v})}/></div>
       <div style={{marginBottom:18}}><DatePick label="Event Date" value={project.eventDate||""} onChange={v=>updateProject({eventDate:v})}/></div>
+      <div style={{marginBottom:18}}>
+        <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>Project Stage</label>
+        <div style={{display:"flex",gap:4}}>{PROJECT_STAGES.map(s=><button key={s} onClick={()=>updateProject({stage:s})} style={{flex:1,padding:"10px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:(project.stage||"pitching")===s?700:400,fontFamily:T.sans,background:(project.stage||"pitching")===s?`${STAGE_COLORS[s]}18`:"transparent",color:(project.stage||"pitching")===s?STAGE_COLORS[s]:T.dim,transition:"all .15s"}}>{STAGE_LABELS[s]}</button>)}</div>
+      </div>
     </Card>
     <Card style={{padding:28,marginBottom:16}}><div style={{fontSize:13,fontWeight:600,color:T.cream,marginBottom:18}}>Financial Defaults</div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em"}}>Agency Fee</span><span className="num" style={{fontSize:20,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{fp(project.feeP)}</span></div>

@@ -2,12 +2,13 @@ import { useState, useRef } from 'react';
 import T from '../../theme/tokens.js';
 import { PlusI } from '../icons/index.js';
 import { DatePick } from '../primitives/index.js';
+import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS } from '../../constants/index.js';
 
 function NewProjectModal({ onClose, onCreate }) {
-  const [name, setName] = useState(""); const [client, setClient] = useState(""); const [date, setDate] = useState(""); const [eventDate, setEventDate] = useState(""); const [logo, setLogo] = useState(""); const [budget, setBudget] = useState("");
+  const [name, setName] = useState(""); const [client, setClient] = useState(""); const [date, setDate] = useState(""); const [eventDate, setEventDate] = useState(""); const [logo, setLogo] = useState(""); const [budget, setBudget] = useState(""); const [stage, setStage] = useState("pitching");
   const fileRef = useRef(null);
   const handleLogo = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => setLogo(ev.target.result); reader.readAsDataURL(file); };
-  const submit = () => { if (!name.trim()) return; onCreate(name.trim(), client.trim(), date, eventDate, logo, parseFloat(budget) || 0); onClose(); };
+  const submit = () => { if (!name.trim()) return; onCreate(name.trim(), client.trim(), date, eventDate, logo, parseFloat(budget) || 0, stage); onClose(); };
   const fStyle = { width: "100%", padding: "11px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 14, fontFamily: T.sans, outline: "none" };
   const lStyle = { display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 };
   return <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.6)", backdropFilter: "blur(8px)" }}>
@@ -30,6 +31,9 @@ function NewProjectModal({ onClose, onCreate }) {
           </div>
         </div>
         <p style={{ fontSize: 10, color: T.dim, marginTop: 6, fontFamily: T.serif }}>PNG, SVG, or JPG. Appears on project cards and client exports.</p>
+      </div>
+      <div style={{marginBottom:16}}><label style={lStyle}>Project Stage</label>
+        <div style={{display:"flex",gap:4}}>{PROJECT_STAGES.map(s=><button key={s} onClick={()=>setStage(s)} style={{flex:1,padding:"9px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:stage===s?700:400,fontFamily:T.sans,background:stage===s?`${STAGE_COLORS[s]}18`:"transparent",color:stage===s?STAGE_COLORS[s]:T.dim,transition:"all .15s"}}>{STAGE_LABELS[s]}</button>)}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}><DatePick label="Start Date" value={date} onChange={setDate} /><DatePick label="Event Date" value={eventDate} onChange={setEventDate} /></div>
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>

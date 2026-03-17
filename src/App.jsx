@@ -55,8 +55,8 @@ function App(){
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
 
-  const createProject=useCallback(async(name,client,date,eventDate,logo,clientBudget)=>{
-    const id=await createProj(name,client,date,eventDate,logo,clientBudget);
+  const createProject=useCallback(async(name,client,date,eventDate,logo,clientBudget,stage)=>{
+    const id=await createProj(name,client,date,eventDate,logo,clientBudget,stage);
     if(id)setActiveId(id);
   },[createProj]);
 
