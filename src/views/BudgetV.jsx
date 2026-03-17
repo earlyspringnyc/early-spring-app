@@ -28,6 +28,27 @@ function BudgetV(p){
     if(!confirm("Delete this version?"))return;
     p.onSaveHistory(history.filter(h=>h.id!==id));
   };
+  const exportXLS=async()=>{
+    const XLSX=await import('xlsx');
+    const rows=[["Category","Item","Description","Vendor","Actual Cost","Margin %","Client Price","Variance"]];
+    p.cats.forEach(c=>{
+      c.items.forEach(it=>{const cp=it.actualCost===0?0:it.actualCost*(1+it.margin);const variance=cp-it.actualCost;
+        const vendorName=(p.vendors||[]).find(v=>v.id===it.vendorId)?.name||"";
+        rows.push([c.name,it.name,it.details||"",vendorName,it.actualCost,(it.margin*100)+"%",cp,variance])})});
+    rows.push([]);rows.push(["","","","","PRODUCTION SUBTOTAL","",p.comp.productionSubtotal.clientPrice,""]);
+    rows.push([]);rows.push(["Agency Role","","","","Days","Day Rate","Cost",""]);
+    p.ag.forEach(it=>{const cp=it.actualCost===0?0:it.actualCost*(1+it.margin);rows.push([it.name,"","","",it.days||"",it.dayRate||"",cp,""])});
+    rows.push(["","","","","AGENCY SUBTOTAL","",p.comp.agencyCostsSubtotal.clientPrice,""]);
+    rows.push(["","","","","AGENCY FEE ("+(p.feeP*100).toFixed(0)+"%)","",p.comp.agencyFee.clientPrice,""]);
+    rows.push(["","","","","GRAND TOTAL","",p.comp.grandTotal,""]);
+    rows.push(["","","","","NET PROFIT","",p.comp.netProfit,""]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    // Set column widths
+    ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:16},{wch:14},{wch:10},{wch:14},{wch:14}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Production Budget");
+    XLSX.writeFile(wb,(p.project?.name||"budget")+"-production-budget.xlsx");
+  };
   const[showAddSection,setShowAddSection]=useState(false);
   const[editingBudget,setEditingBudget]=useState(false);
   const[budgetDraft,setBudgetDraft]=useState("");
@@ -40,9 +61,10 @@ function BudgetV(p){
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{canEdit?"Internal view with live margin calculations":"View-only mode"}</p></div>
-      <div style={{display:"flex",gap:8}}>
-        {p.saving&&<span style={{fontSize:10,color:T.gold,fontFamily:T.mono,alignSelf:"center"}}>Saving...</span>}
-        {!p.saving&&p.lastSaved&&<span style={{fontSize:10,color:T.pos,fontFamily:T.mono,alignSelf:"center"}}>Saved</span>}
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {p.saving&&<span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>Saving...</span>}
+        {!p.saving&&p.lastSaved&&<span style={{fontSize:10,color:T.pos,fontFamily:T.mono}}>Saved</span>}
+        <button onClick={exportXLS} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>Export .xlsx</button>
         {canEdit&&<button onClick={()=>setShowAddSection(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><PlusI size={12}/> Add Section</button>}
       </div>
