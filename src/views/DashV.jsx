@@ -19,7 +19,7 @@ function DashV({cats,comp,feeP,project}){
   const txns=project?.txns||[];
   const totalIncome=txns.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);
   const totalExpensesPaid=txns.filter(t=>t.type==="expense").reduce((a,t)=>a+t.amount,0);
-  const totalBudget=comp.grandTotal;
+  const totalBudget=(project?.clientBudget||0)>0?project.clientBudget:comp.grandTotal;
   const spendToDate=comp.productionSubtotal.actualCost+comp.agencyCostsSubtotal.actualCost+comp.agencyFee.actualCost;
   const amountOwed=docs.filter(d=>d.type==="invoice"&&d.status!=="paid").reduce((a,d)=>a+(d.amount-(d.paidAmount||0)),0);
   const amountDueFromClient=totalBudget-totalIncome;
