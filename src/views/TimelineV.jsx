@@ -64,6 +64,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   };
   const cycleStatus=idx=>{const order=["todo","progress","done"];const cur=tasks[idx].status;updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status:order[(order.indexOf(cur)+1)%3]}:t)})};
   const removeTask=idx=>updateProject({timeline:tasks.filter((_,i)=>i!==idx)});
+  const[editDateId,setEditDateId]=useState(null);
+  const updateTaskDates=(taskId,startDate,endDate)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,startDate:startDate||t.startDate,endDate:endDate||t.endDate}:t)});setEditDateId(null)};
   const addMeeting=(titleOverride)=>{
     const title=(titleOverride||meetingTitle).trim();
     if(!title)return;
@@ -234,16 +236,23 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          {filtered.map(t=>{const ri=tasks.indexOf(t);const dateStr=t.startDate?(t.endDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
-            return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
-            <button onClick={()=>cycleStatus(ri)} style={{width:20,height:20,borderRadius:t.status==="done"?10:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              {t.status==="done"&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
-            </button>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</div>
-              <div style={{display:"flex",gap:10,marginTop:3}}>{t.category&&<span style={{fontSize:10,color:T.dim}}>{t.category}</span>}{t.assignee&&<span style={{fontSize:10,color:T.cyan}}>{t.assignee}</span>}</div></div>
-            {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
-            <span style={{fontSize:9,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>
-            {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+          {filtered.map(t=>{const ri=tasks.indexOf(t);const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"No date";const isEditingDate=editDateId===t.id;
+            return<div key={t.id}>
+              <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:isEditingDate?`${T.rS} ${T.rS} 0 0`:T.rS,border:`1px solid ${isEditingDate?T.borderGlow:T.border}`,borderBottom:isEditingDate?"none":`1px solid ${T.border}`,transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+              <button onClick={()=>cycleStatus(ri)} style={{width:20,height:20,borderRadius:t.status==="done"?10:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {t.status==="done"&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
+              </button>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</div>
+                <div style={{display:"flex",gap:10,marginTop:3}}>{t.category&&<span style={{fontSize:10,color:T.dim}}>{t.category}</span>}{t.assignee&&<span style={{fontSize:10,color:T.cyan}}>{t.assignee}</span>}</div></div>
+              <span onClick={()=>canEdit&&setEditDateId(isEditingDate?null:t.id)} style={{fontSize:10,color:t.startDate?T.dim:"rgba(255,255,255,.2)",fontFamily:T.mono,flexShrink:0,cursor:canEdit?"pointer":"default",padding:"2px 6px",borderRadius:4,transition:"all .15s",background:isEditingDate?T.surfHov:"transparent"}} onMouseEnter={e=>{if(canEdit)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>e.currentTarget.style.color=t.startDate?T.dim:"rgba(255,255,255,.2)"}>{dateStr}</span>
+              <span style={{fontSize:9,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>
+              {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2} title="Delete task"><TrashI size={11} color={T.neg}/></button>}
+            </div>
+            {isEditingDate&&canEdit&&<div style={{display:"flex",gap:12,padding:"10px 16px",background:T.surface,border:`1px solid ${T.borderGlow}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,marginBottom:4}}>
+              <DatePick value={t.startDate||""} onChange={v=>updateTaskDates(t.id,v,t.endDate)} label="Start" compact/>
+              <DatePick value={t.endDate||""} onChange={v=>updateTaskDates(t.id,t.startDate,v)} label="End" compact/>
+              <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Done</button>
+            </div>}
           </div>})}
           {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No tasks with this status.</div>}
         </div>
