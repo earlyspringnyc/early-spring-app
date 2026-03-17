@@ -49,7 +49,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const updateFileCategory=(id,cat)=>updateProject({clientFiles:clientFiles.map(f=>f.id===id?{...f,category:cat}:f)});
   const filteredFiles=fileFilter==="all"?clientFiles:clientFiles.filter(f=>f.category===fileFilter);
   const fileCounts=CLIENT_FILE_CATS.reduce((a,c)=>{a[c]=clientFiles.filter(f=>f.category===c).length;return a},{});
-  const doSendEmail=async()=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const{budgetEmailHtml,timelineEmailHtml}=await import('../utils/emailTemplates.js');let subject,htmlBody;if(tab==="budget"||tab==="proposal"){subject=`Production Estimate: ${project.name||""}`;htmlBody=budgetEmailHtml(project,cats,ag,comp,feeP)}else if(tab==="timeline"){subject=`Project Timeline: ${project.name||""}`;htmlBody=timelineEmailHtml(project,clientTasks)}else{subject=`${project.name||"Project"} — ${tab}`;htmlBody=budgetEmailHtml(project,cats,ag,comp,feeP)}await gmailSend(accessToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
+  const doSendEmail=async()=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const{budgetEmailHtml,timelineEmailHtml}=await import('../utils/emailTemplates.js');let subject,htmlBody;if(tab==="budget"){subject=`Production Estimate: ${project.name||""}`;htmlBody=budgetEmailHtml(project,cats,ag,comp,feeP)}else if(tab==="timeline"){subject=`Project Timeline: ${project.name||""}`;htmlBody=timelineEmailHtml(project,clientTasks)}else{subject=`${project.name||"Project"} Update`;htmlBody=budgetEmailHtml(project,cats,ag,comp,feeP)}await gmailSend(accessToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
 
   /* Client Timeline — Gantt for print */
   const ClientGantt=()=>{
@@ -97,7 +97,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>
     </div>
     <div style={{display:"flex",gap:4,marginBottom:20}}>
-      {[["budget","Budget"],["timeline","Timeline"],["proposal","Proposal"],["files","Files"]].map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{padding:"9px 20px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim}}>{label}{id==="files"&&clientFiles.length>0&&<span style={{marginLeft:6,fontSize:9,fontWeight:600,color:T.dim}}>({clientFiles.length})</span>}</button>)}
+      {[["budget","Budget"],["timeline","Timeline"],["deck","Pitch Deck"],["files","Files"]].map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{padding:"9px 20px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim}}>{label}{id==="files"&&clientFiles.length>0&&<span style={{marginLeft:6,fontSize:9,fontWeight:600,color:T.dim}}>({clientFiles.length})</span>}</button>)}
     </div>
 
     {/* Email share */}
@@ -164,47 +164,48 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>
     </div>}
 
-    {tab==="proposal"&&<div style={{background:"#fff",borderRadius:T.r,padding:48,color:"#111",boxShadow:"0 4px 24px rgba(0,0,0,.4)"}}>
-      {/* Header */}
-      <div style={{display:"flex",justifyContent:"space-between",paddingBottom:24,marginBottom:32,borderBottom:"2px solid #432D1C"}}>
-        <div><div style={{marginBottom:14}}><ESWordmark height={16} color="#432D1C"/></div><div style={{fontSize:28,fontWeight:700,color:"#432D1C"}}>Production Proposal</div><div style={{fontSize:13,color:"#999",marginTop:4,fontFamily:"'Century','Georgia',serif"}}>Prepared by Early Spring</div></div>
-        <div style={{textAlign:"right",fontSize:13,color:"#777",lineHeight:1.8}}>{project.logo&&<div style={{marginBottom:8,display:"flex",justifyContent:"flex-end"}}><img src={project.logo} style={{maxHeight:36,maxWidth:120,objectFit:"contain"}}/></div>}<div><strong style={{color:"#555"}}>Project:</strong> {project.name||"\u2014"}</div><div><strong style={{color:"#555"}}>Client:</strong> {project.client||"\u2014"}</div>{project.eventDate&&<div><strong style={{color:"#555"}}>Event Date:</strong> {project.eventDate}</div>}<div><strong style={{color:"#555"}}>Date:</strong> {project.date||new Date().toLocaleDateString()}</div></div>
-      </div>
-
-      {/* Scope of Work */}
-      <div style={{marginBottom:32}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#432D1C",marginBottom:16,textTransform:"uppercase",letterSpacing:".06em"}}>Scope of Work</h2>
-        {cats.filter(c=>ct(c.items).totals.clientPrice>0).map(c=><div key={c.id} style={{marginBottom:16}}>
-          <h3 style={{fontSize:14,fontWeight:600,color:"#333",marginBottom:8}}>{c.name}</h3>
-          <ul style={{margin:0,paddingLeft:20}}>{c.items.filter(it=>ci(it).clientPrice>0).map(it=><li key={it.id} style={{fontSize:13,color:"#555",marginBottom:4,lineHeight:1.6}}>{it.name}</li>)}</ul>
-        </div>)}
-      </div>
-
-      {/* Investment */}
-      <div style={{marginBottom:32}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#432D1C",marginBottom:16,textTransform:"uppercase",letterSpacing:".06em"}}>Investment</h2>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
-          <tbody>
-            {cats.filter(c=>ct(c.items).totals.clientPrice>0).map(c=>{const t=ct(c.items).totals;return<tr key={c.id} style={{borderBottom:"1px solid #F0F0F0"}}><td style={{padding:"12px 0",color:"#333"}}>{c.name}</td><td style={{padding:"12px 0",textAlign:"right",fontFamily:"monospace",color:"#333"}}>{f$(t.clientPrice)}</td></tr>})}
-            <tr style={{borderTop:"2px solid #432D1C"}}><td style={{padding:"14px 0",fontWeight:700,color:"#432D1C"}}>TOTAL INVESTMENT</td><td style={{padding:"14px 0",textAlign:"right",fontWeight:700,fontFamily:"monospace",color:"#432D1C",fontSize:18}}>{f$(comp.grandTotal)}</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Terms */}
-      <div style={{marginBottom:32}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#432D1C",marginBottom:16,textTransform:"uppercase",letterSpacing:".06em"}}>Terms</h2>
-        <div style={{fontSize:12,color:"#777",lineHeight:1.8}}>
-          <p>{"\u2022"} A 50% deposit is required to confirm the project and begin production.</p>
-          <p>{"\u2022"} Final payment is due 7 days prior to the event date.</p>
-          <p>{"\u2022"} Any changes to scope after approval may result in additional charges.</p>
-          <p>{"\u2022"} Cancellation within 30 days of event date forfeits the deposit.</p>
+    {tab==="deck"&&(()=>{
+      const deck=(project.pitchDeck||null);
+      const deckRef=useRef(null);
+      const handleDeckUpload=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{updateProject({pitchDeck:{name:file.name,fileData:ev.target.result,dateUploaded:new Date().toLocaleDateString()}})};reader.readAsDataURL(file);e.target.value=""};
+      const[deckEmail,setDeckEmail]=useState("");const[deckSending,setDeckSending]=useState(false);const[deckSent,setDeckSent]=useState("");
+      const sendDeck=async()=>{if(!deckEmail.trim()||!deck)return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setDeckSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=`<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F5F4F1;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif"><div style="max-width:640px;margin:0 auto;padding:40px 20px"><div style="background:#fff;border-radius:12px;padding:40px"><table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr><td style="vertical-align:top"><div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">EARLY SPRING</div><div style="font-size:24px;font-weight:700;color:#432D1C">Pitch Deck</div></td><td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top"><div><strong style="color:#555">Project:</strong> ${project.name||""}</div><div><strong style="color:#555">Client:</strong> ${project.client||""}</div></td></tr></table><p style="font-size:14px;color:#333;line-height:1.6">Please find our pitch deck for <strong>${project.name||"the project"}</strong> attached to this email.</p><p style="font-size:14px;color:#333;line-height:1.6">We look forward to discussing this with you.</p><div style="margin-top:32px;padding-top:16px;border-top:1px solid #EEE;text-align:center;font-size:10px;color:#BBB">Early Spring LLC · 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 · earlyspring.nyc</div></div></div></body></html>`;await gmailSend(accessToken,deckEmail.trim(),`Pitch Deck: ${project.name||""}`,htmlBody);setDeckSent(deckEmail);setDeckEmail("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setDeckSending(false)}};
+      return<div>
+        <input ref={deckRef} type="file" accept=".pdf,.pptx,.key" onChange={handleDeckUpload} style={{display:"none"}}/>
+        {deck?<div>
+          <Card style={{padding:20,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:40,height:40,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>
+                  <span style={{color:T.gold}}>▧</span>
+                </div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{deck.name}</div>
+                  <div style={{fontSize:10,color:T.dim}}>Uploaded {deck.dateUploaded}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                {deck.fileData&&<button onClick={()=>window.open(deck.fileData,"_blank")} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>View</button>}
+                <button onClick={()=>deckRef.current?.click()} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Replace</button>
+                <button onClick={()=>updateProject({pitchDeck:null})} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.neg,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Remove</button>
+              </div>
+            </div>
+          </Card>
+          <Card style={{padding:16}}>
+            <div style={{fontSize:11,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Send to Client</div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input value={deckEmail} onChange={e=>setDeckEmail(e.target.value)} placeholder={`${clientName.toLowerCase()}@example.com`} onKeyDown={e=>{if(e.key==="Enter")sendDeck();if(e.key==="Tab"||e.key===","){const v=deckEmail.trim();if(v&&!v.endsWith(",")){e.preventDefault();setDeckEmail(v+", ")}}}} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+              <button onClick={sendDeck} disabled={!deckEmail.trim()||deckSending} style={{padding:"8px 18px",borderRadius:T.rS,border:"none",background:deckEmail.trim()&&!deckSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:deckEmail.trim()&&!deckSending?T.brown:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:deckEmail.trim()&&!deckSending?"pointer":"default",fontFamily:T.sans}}>{deckSending?"Sending…":"Send"}</button>
+            </div>
+            {deckSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {deckSent}</div>}
+          </Card>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{textAlign:"center",marginTop:36,paddingTop:18,borderTop:"1px solid #EEE"}}><div style={{fontSize:10,color:"#BBB"}}>Early Spring LLC {"\u00B7"} 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 {"\u00B7"} earlyspring.nyc</div></div>
-    </div>}
+        :<div onClick={()=>deckRef.current?.click()} style={{textAlign:"center",padding:60,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:"pointer",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
+          <div style={{fontSize:40,opacity:.15,marginBottom:12}}>▧</div>
+          <div style={{fontSize:15,fontWeight:500,color:T.cream,marginBottom:6}}>Upload Pitch Deck</div>
+          <p style={{fontSize:12,color:T.dim}}>PDF, PowerPoint, or Keynote</p>
+        </div>}
+      </div>})()}
 
     {tab==="files"&&<div>
       <input ref={fileInputRef} type="file" multiple accept="*" onChange={handleFileUpload} style={{display:"none"}}/>
