@@ -24,7 +24,7 @@ function DatePick({ value, onChange, label, compact }) {
   const cells = []; for (let i = 0; i < firstDay; i++) cells.push(<div key={`e${i}`} />);
   for (let d = 1; d <= daysInMonth; d++) { const sel = isSelected(d); const tdy = isToday(d); cells.push(<div key={d} onClick={e => { e.stopPropagation(); pick(d); }} style={{ width: compact ? 24 : 28, height: compact ? 24 : 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", fontSize: compact ? 10 : 11, fontWeight: sel ? 700 : tdy ? 600 : 400, cursor: "pointer", background: sel ? T.gold : tdy ? "rgba(255,234,151,.12)" : "transparent", color: sel ? T.brown : tdy ? T.gold : T.cream, transition: "all .1s" }} onMouseEnter={e => { if (!sel) e.currentTarget.style.background = T.surfHov; }} onMouseLeave={e => { if (!sel) e.currentTarget.style.background = tdy ? "rgba(255,234,151,.12)" : "transparent"; }}>{d}</div>); }
   return <div ref={ref} style={{ position: "relative" }}>
-    {label && <label style={{ display: "block", fontSize: 9, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: compact ? 4 : 5 }}>{label}</label>}
+    {label && <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: compact ? 4 : 5 }}>{label}</label>}
     <button onClick={() => setOpen(!open)} style={{ width: "100%", padding: compact ? "6px 8px" : "9px 12px", borderRadius: T.rS, background: T.surface, border: `1px solid ${open ? T.borderGlow : T.border}`, color: displayVal ? T.cream : T.dim, fontSize: compact ? 11 : 13, fontFamily: T.sans, outline: "none", cursor: "pointer", textAlign: "left", transition: "border .15s" }}>{displayVal || "Select date"}</button>
     {open && <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: "rgba(12,10,20,.97)", border: `1px solid ${T.border}`, borderRadius: T.r, boxShadow: "0 12px 40px rgba(0,0,0,.5)", padding: compact ? "10px" : "14px", minWidth: compact ? 220 : 260, backdropFilter: "blur(20px)" }} onClick={e => e.stopPropagation()}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -33,7 +33,7 @@ function DatePick({ value, onChange, label, compact }) {
         <button onClick={next} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: T.rS, cursor: "pointer", color: T.dim, fontSize: 14, padding: "4px 10px", transition: "all .15s" }} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}} title="Next month">{"\u2192"}</button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, marginBottom: 4 }}>
-        {dNames.map(d => <div key={d} style={{ textAlign: "center", fontSize: 9, fontWeight: 600, color: T.dim, padding: "4px 0" }}>{d}</div>)}
+        {dNames.map(d => <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: T.dim, padding: "4px 0" }}>{d}</div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, justifyItems: "center" }}>
         {cells}

@@ -50,7 +50,7 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
     </div>
     :open&&<div className="fade-up budget-scroll" style={{border:`1px solid ${T.border}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,background:T.surface}}>
       <div style={{display:"grid",gridTemplateColumns:cols,padding:"9px 18px",borderBottom:`1px solid ${T.border}`}}>
-        {["Item",...(isAg?["Days","Day Rate"]:["Description","Vendor"]),"Actual","Margin","Client","Variance",...(isAg?[]:["Status"])].map((h,i)=><span key={i} style={{fontSize:9.5,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===0||(!isAg&&i===1)?"left":"right"}}>{h}</span>)}
+        {["Item",...(isAg?["Days","Day Rate"]:["Description","Vendor"]),"Actual","Margin","Client","Variance",...(isAg?[]:["Status"])].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===0||(!isAg&&i===1)?"left":"right"}}>{h}</span>)}
       </div>
       {items.map((it,idx)=><div key={it.id} draggable={!!onReorder} onDragStart={e=>{setDragItem(idx);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverItem(idx)}} onDrop={e=>{e.preventDefault();if(dragItem!==null&&dragItem!==idx&&onReorder)onReorder(dragItem,idx);setDragItem(null);setOverItem(null)}} onDragEnd={()=>{setDragItem(null);setOverItem(null)}} style={{display:"grid",gridTemplateColumns:cols,alignItems:"center",padding:"7px 18px",borderBottom:idx<items.length-1?`1px solid ${T.border}`:"none",transition:"background .12s",opacity:dragItem===idx?.5:1,borderTop:overItem===idx&&dragItem!==null?`2px solid ${T.gold}`:"none"}}
         onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -62,7 +62,7 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
         <NI value={it.margin} fmt="%" onChange={v=>onUp(idx,{margin:v>1?v/100:v})} disabled={!canEdit}/>
         <div className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:500}}>{f$(it.clientPrice)}</div>
         <div className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:it.variance>0?T.pos:T.dim,fontWeight:500}}>{f$(it.variance)}</div>
-        {!isAg&&(()=>{const ps=getPayStatus(it.id,docs);return<div style={{textAlign:"right"}}><span style={{fontSize:8,fontWeight:700,padding:"3px 7px",borderRadius:8,background:`${PAYMENT_COLORS[ps]}18`,color:PAYMENT_COLORS[ps],textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{PAYMENT_LABELS[ps]}</span></div>})()}
+        {!isAg&&(()=>{const ps=getPayStatus(it.id,docs);return<div style={{textAlign:"right"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 7px",borderRadius:8,background:`${PAYMENT_COLORS[ps]}18`,color:PAYMENT_COLORS[ps],textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{PAYMENT_LABELS[ps]}</span></div>})()}
       </div>)}
       {canEdit&&<button onClick={onAdd} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"9px 18px",background:"none",border:"none",borderTop:`1px solid ${T.border}`,color:T.dim,fontSize:11.5,cursor:"pointer",fontFamily:T.sans}}
         onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}><PlusI size={12}/> Add line item</button>}

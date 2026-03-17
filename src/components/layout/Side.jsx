@@ -95,7 +95,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
             >
               <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,opacity:active?1:.5}}>{n.icon}</span>
               <span style={{opacity:expanded?1:0,transition:"opacity .15s",flex:1}}>{n.label}</span>
-              {badge>0&&expanded&&<span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{badge}</span>}
+              {badge>0&&expanded&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{badge}</span>}
             </button>
           );
         })}

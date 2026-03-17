@@ -120,20 +120,20 @@ function AIV({project,updateProject,comp}){
 
   return<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 56px)",maxHeight:"calc(100vh - 56px)"}}>
     <div style={{marginBottom:16}}>
-      <h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>AI Assistant</h1>
-      <p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>Powered by Claude. Full project context loaded.</p>
+      <h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>AI Assistant</h1>
+      <p style={{fontSize:13,color:T.dim,marginTop:6}}>Powered by Claude. Full project context loaded.</p>
     </div>
     <Card style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",padding:0}}>
       <div style={{flex:1,overflow:"auto",padding:20}}>
         {messages.map((m,i)=><div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
           <div style={{maxWidth:"80%",padding:"12px 16px",borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",background:m.role==="user"?`linear-gradient(135deg,rgba(255,234,151,.12),rgba(255,234,151,.06))`:"rgba(255,255,255,.04)",border:`1px solid ${m.role==="user"?"rgba(255,234,151,.15)":T.border}`,fontSize:13,lineHeight:1.6,color:m.role==="user"?T.cream:T.dimH,fontFamily:T.sans}}>
-            {m.role==="assistant"&&<div style={{fontSize:9,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>Claude</div>}
+            {m.role==="assistant"&&<div style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>Claude</div>}
             <div>{renderMarkdown(m.content)}</div>
           </div>
         </div>)}
         {loading&&<div style={{display:"flex",justifyContent:"flex-start",marginBottom:14}}>
           <div style={{padding:"12px 16px",borderRadius:"14px 14px 14px 4px",background:"rgba(255,255,255,.04)",border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:9,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>Claude</div>
+            <div style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>Claude</div>
             <div style={{display:"flex",gap:4}}>{[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:T.dim,animation:`pulse 1.2s ease-in-out ${i*.2}s infinite`}}/>)}</div>
           </div>
         </div>}

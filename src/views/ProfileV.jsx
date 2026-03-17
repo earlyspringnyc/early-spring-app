@@ -81,7 +81,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
   const currentUser = team.find(u => u.id === user?.id) || user;
 
   return <div style={{ maxWidth: 700 }}>
-    <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 600, color: T.cream, letterSpacing: "-0.02em" }}>Profile</h1><p style={{ fontSize: 13, color: T.dim, marginTop: 6, fontFamily: T.serif, fontStyle: "italic" }}>Your account and team</p></div>
+    <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 20, fontWeight: 600, color: T.cream, letterSpacing: "-0.01em" }}>Profile</h1><p style={{ fontSize: 13, color: T.dim, marginTop: 6 }}>Your account and team</p></div>
 
     {/* Profile Card */}
     <Card style={{ padding: 28, marginBottom: 16 }}>
@@ -100,7 +100,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
           <div style={{ fontSize: 20, fontWeight: 600, color: T.cream }}>{currentUser.name || currentUser.email}</div>
           <div style={{ fontSize: 12, color: T.dim, marginTop: 2 }}>{currentUser.email}</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, padding: "3px 10px", borderRadius: 8, background: `${ROLE_COLORS[currentUser.role]}18`, color: ROLE_COLORS[currentUser.role], textTransform: "uppercase" }}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 8, background: `${ROLE_COLORS[currentUser.role]}18`, color: ROLE_COLORS[currentUser.role], textTransform: "uppercase" }}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
           </div>
         </div>
       </div>
@@ -109,15 +109,15 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
     {/* Team Management */}
     <Card style={{ padding: 28, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.cream }}>Team ({team.length})</div>
+        <div style={{ fontSize: 12, fontWeight: 600, fontFamily: T.mono, textTransform: "uppercase", letterSpacing: ".08em", color: T.cream }}>Team ({team.length})</div>
         {isAdmin && <button onClick={() => setShowInvite(!showInvite)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", background: showInvite ? "transparent" : `linear-gradient(135deg,${T.gold},#E8D080)`, color: showInvite ? T.dim : T.brown, border: showInvite ? `1px solid ${T.border}` : "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: T.sans }}>{showInvite ? "Cancel" : "+ Invite"}</button>}
       </div>
 
       {showInvite && <div style={{ marginBottom: 16, padding: 16, borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}` }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><label style={{ display: "block", fontSize: 9, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Name</label><input autoFocus value={invName} onChange={e => setInvName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "8px 10px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none" }} /></div>
-          <div><label style={{ display: "block", fontSize: 9, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Email</label><input value={invEmail} onChange={e => setInvEmail(e.target.value)} placeholder="user@gmail.com" onKeyDown={e => e.key === "Enter" && addTeamMember()} style={{ width: "100%", padding: "8px 10px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none" }} /></div>
-          <div><label style={{ display: "block", fontSize: 9, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Role</label><select value={invRole} onChange={e => setInvRole(e.target.value)} style={{ width: "100%", padding: "8px 8px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none", appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
+          <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Name</label><input autoFocus value={invName} onChange={e => setInvName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "8px 10px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none" }} /></div>
+          <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Email</label><input value={invEmail} onChange={e => setInvEmail(e.target.value)} placeholder="user@gmail.com" onKeyDown={e => e.key === "Enter" && addTeamMember()} style={{ width: "100%", padding: "8px 10px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none" }} /></div>
+          <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Role</label><select value={invRole} onChange={e => setInvRole(e.target.value)} style={{ width: "100%", padding: "8px 8px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none", appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
         </div>
         <button onClick={addTeamMember} disabled={!invEmail.trim() || !invName.trim()} style={{ padding: "7px 16px", background: invEmail.trim() && invName.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(255,255,255,.05)", color: invEmail.trim() && invName.trim() ? T.brown : "rgba(255,255,255,.2)", border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() && invName.trim() ? "pointer" : "default", fontFamily: T.sans }}>Invite Team Member</button>
       </div>}
@@ -129,12 +129,12 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
             : <div style={{ width: 30, height: 30, borderRadius: "50%", background: `linear-gradient(135deg,${ROLE_COLORS[u.role]}22,${ROLE_COLORS[u.role]}08)`, border: `1.5px solid ${ROLE_COLORS[u.role]}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: ROLE_COLORS[u.role], flexShrink: 0 }}>{(u.name || "?")[0]}</div>
           }
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: T.cream }}>{u.name}{u.id === user?.id && <span style={{ fontSize: 9, color: T.dim, marginLeft: 6 }}>(you)</span>}</div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: T.cream }}>{u.name}{u.id === user?.id && <span style={{ fontSize: 10, color: T.dim, marginLeft: 6 }}>(you)</span>}</div>
             <div style={{ fontSize: 10, color: T.dim }}>{u.email}</div>
           </div>
           {isAdmin && <select value={u.role} onChange={e => updateTeamRole(u.id, e.target.value)} disabled={u.id === user?.id} style={{ padding: "4px 6px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: ROLE_COLORS[u.role], fontSize: 10, fontFamily: T.sans, outline: "none", cursor: u.id === user?.id ? "default" : "pointer", appearance: "none", WebkitAppearance: "none" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select>}
           {isAdmin && <div style={{ display: "flex", gap: 2, flexWrap: "wrap", maxWidth: 200 }}>
-            {Object.entries(PERMISSION_LABELS).map(([k, label]) => <button key={k} onClick={() => u.id !== user?.id && togglePermission(u.id, k)} disabled={u.id === user?.id} style={{ padding: "2px 6px", borderRadius: 4, border: "none", fontSize: 8, fontWeight: u.permissions?.[k] ? 600 : 400, cursor: u.id === user?.id ? "default" : "pointer", background: u.permissions?.[k] ? "rgba(255,234,151,.1)" : "transparent", color: u.permissions?.[k] ? T.gold : T.dim, transition: "all .15s" }}>{label}</button>)}
+            {Object.entries(PERMISSION_LABELS).map(([k, label]) => <button key={k} onClick={() => u.id !== user?.id && togglePermission(u.id, k)} disabled={u.id === user?.id} style={{ padding: "2px 6px", borderRadius: 4, border: "none", fontSize: 10, fontWeight: u.permissions?.[k] ? 600 : 400, cursor: u.id === user?.id ? "default" : "pointer", background: u.permissions?.[k] ? "rgba(255,234,151,.1)" : "transparent", color: u.permissions?.[k] ? T.gold : T.dim, transition: "all .15s" }}>{label}</button>)}
           </div>}
           {isAdmin && u.id !== user?.id && <button onClick={() => { if (confirm(`Remove "${u.name}"?`)) removeTeamMember(u.id) }} style={{ background: "none", border: "none", cursor: "pointer", opacity: .2, padding: 2, flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = .2}><TrashI size={11} color={T.neg} /></button>}
         </div>)}
@@ -143,26 +143,26 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
 
     {/* Organization */}
     <Card style={{padding:28,marginBottom:16}}>
-      <div style={{fontSize:13,fontWeight:600,color:T.cream,marginBottom:18}}>Organization</div>
+      <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Organization</div>
       <input ref={orgLogoRef} type="file" accept="image/*,.svg" onChange={handleOrgLogo} style={{display:"none"}}/>
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18}}>
         {org.logo?<div onClick={()=>orgLogoRef.current?.click()} style={{width:56,height:56,borderRadius:T.rS,border:`1px solid ${T.border}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={org.logo} alt="Org logo" style={{maxWidth:52,maxHeight:52,objectFit:"contain"}}/></div>
-        :<div onClick={()=>orgLogoRef.current?.click()} style={{width:56,height:56,borderRadius:T.rS,border:`2px dashed ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexDirection:"column",gap:2}}><span style={{fontSize:16,opacity:.3}}>◈</span><span style={{fontSize:8,color:T.dim}}>Logo</span></div>}
+        :<div onClick={()=>orgLogoRef.current?.click()} style={{width:56,height:56,borderRadius:T.rS,border:`2px dashed ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexDirection:"column",gap:2}}><span style={{fontSize:16,opacity:.3}}>◈</span><span style={{fontSize:10,color:T.dim}}>Logo</span></div>}
         <div style={{flex:1}}>
-          <p style={{fontSize:10,color:T.dim,fontFamily:T.serif,fontStyle:"italic"}}>Your logo replaces the Early Spring logo in the sidebar, exports, and emails.</p>
+          <p style={{fontSize:10,color:T.dim}}>Your logo replaces the Early Spring logo in the sidebar, exports, and emails.</p>
           {org.logo&&<button onClick={()=>updateOrg({logo:""})} style={{fontSize:10,color:T.neg,background:"none",border:"none",cursor:"pointer",marginTop:4}}>Remove logo</button>}
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-        <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Organization Name</label><input value={org.name} onChange={e=>updateOrg({name:e.target.value})} placeholder="Your Company" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
-        <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Website</label><input value={org.website} onChange={e=>updateOrg({website:e.target.value})} placeholder="https://yourcompany.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Organization Name</label><input value={org.name} onChange={e=>updateOrg({name:e.target.value})} placeholder="Your Company" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Website</label><input value={org.website} onChange={e=>updateOrg({website:e.target.value})} placeholder="https://yourcompany.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
       </div>
-      <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Address (for PDFs & exports)</label><input value={org.address} onChange={e=>updateOrg({address:e.target.value})} placeholder="385 Van Brunt St, Floor 2, Brooklyn, NY 11231" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
+      <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Address (for PDFs & exports)</label><input value={org.address} onChange={e=>updateOrg({address:e.target.value})} placeholder="385 Van Brunt St, Floor 2, Brooklyn, NY 11231" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
     </Card>
 
     {/* Roles Explained */}
     <Card style={{ padding: 20 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: T.cream, marginBottom: 12 }}>Roles</div>
+      <div style={{ fontSize: 12, fontWeight: 600, fontFamily: T.mono, textTransform: "uppercase", letterSpacing: ".08em", color: T.cream, marginBottom: 12 }}>Roles</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {ROLES.map(r => <div key={r} style={{ padding: "12px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: ROLE_COLORS[r], marginBottom: 6 }}>{ROLE_LABELS[r]}</div>

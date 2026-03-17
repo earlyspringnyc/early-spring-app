@@ -20,11 +20,11 @@ function MobileNav({view,setView,project}){
   ];
   return<div className="mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(8,8,12,.95)",backdropFilter:"blur(20px)",borderTop:`1px solid ${T.border}`,padding:"6px 0 env(safe-area-inset-bottom,6px)"}}>
     <div style={{display:"flex",justifyContent:"space-around",alignItems:"center"}}>
-      {tabs.map(t=><button key={t.id} onClick={()=>{setView(t.id);setShowMore(false)}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 12px",background:"none",border:"none",cursor:"pointer",color:view===t.id?T.gold:T.dim,fontSize:9,fontFamily:T.sans,fontWeight:view===t.id?600:400,minWidth:56}}>
+      {tabs.map(t=><button key={t.id} onClick={()=>{setView(t.id);setShowMore(false)}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 12px",background:"none",border:"none",cursor:"pointer",color:view===t.id?T.gold:T.dim,fontSize:10,fontFamily:T.sans,fontWeight:view===t.id?600:400,minWidth:56}}>
         <span style={{fontSize:18,lineHeight:1}}>{t.icon}</span>
         <span>{t.label}</span>
       </button>)}
-      <button onClick={()=>setShowMore(!showMore)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 12px",background:"none",border:"none",cursor:"pointer",color:showMore?T.gold:T.dim,fontSize:9,fontFamily:T.sans,fontWeight:showMore?600:400,minWidth:56}}>
+      <button onClick={()=>setShowMore(!showMore)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 12px",background:"none",border:"none",cursor:"pointer",color:showMore?T.gold:T.dim,fontSize:10,fontFamily:T.sans,fontWeight:showMore?600:400,minWidth:56}}>
         <span style={{fontSize:18,lineHeight:1}}>···</span>
         <span>More</span>
       </button>

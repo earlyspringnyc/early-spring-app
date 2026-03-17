@@ -60,7 +60,7 @@ function BudgetV(p){
   const cancelBudget=()=>{setEditingBudget(false);setConfirmBudget(false)};
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{canEdit?"Internal view with live margin calculations":"View-only mode"}</p></div>
+      <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Production Budget</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>{canEdit?"Internal view with live margin calculations":"View-only mode"}</p></div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         {p.saving&&<span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>Saving...</span>}
         {!p.saving&&p.lastSaved&&<span style={{fontSize:10,color:T.pos,fontFamily:T.mono}}>Saved</span>}
@@ -95,11 +95,11 @@ function BudgetV(p){
         <input type="range" min="0" max="40" step="1" value={globalMargin} onChange={e=>setGlobalMargin(parseInt(e.target.value))} style={{flex:1,maxWidth:200}}/>
         <span className="num" style={{fontSize:16,fontWeight:700,color:T.gold,fontFamily:T.mono,minWidth:40}}>{globalMargin}%</span>
         <button onClick={()=>p.setAllMargins(globalMargin/100)} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Apply to All</button>
-        <span style={{fontSize:10,color:T.dim,fontFamily:T.serif,fontStyle:"italic"}}>Individual margins adjustable per line item</span>
+        <span style={{fontSize:10,color:T.dim}}>Individual margins adjustable per line item</span>
       </div>
     </Card>}
     <div style={{display:"flex",justifyContent:"flex-end",gap:20,marginBottom:10,paddingRight:18}}>
-      {[["Actual",T.dim],["Client",T.gold],["Variance",T.pos]].map(([l,c])=><span key={l} style={{fontSize:9.5,fontWeight:600,color:c,letterSpacing:".08em",textTransform:"uppercase",opacity:.6}}>{l}</span>)}
+      {[["Actual",T.dim],["Client",T.gold],["Variance",T.pos]].map(([l,c])=><span key={l} style={{fontSize:10,fontWeight:600,color:c,letterSpacing:".08em",textTransform:"uppercase",opacity:.6}}>{l}</span>)}
     </div>
     {(()=>{const contBase=p.cats.filter(c=>c.name.toLowerCase()!=="contingency").reduce((a,c)=>a+ct(c.items).totals.actualCost,0);return p.cats.map((c,ci2)=>{const isCont=c.name.toLowerCase()==="contingency";return<Cat key={c.id} cat={c} comp={ct(c.items)} open={p.exp.has(c.id)} toggle={()=>p.tog(c.id)} onUp={(ii,u)=>p.uCat(ci2,ii,u)} onAdd={()=>p.aCat(ci2)} onRm={ii=>p.rCat(ci2,ii)} onRemoveCat={()=>p.rmCat(ci2)} canEdit={canEdit} docs={p.docs} vendors={p.vendors} onAddVendor={p.onAddVendor} onVendorClick={p.onVendorClick} isContingency={isCont} contBase={contBase} onReorder={(from,to)=>p.reorderCat(ci2,from,to)}/>})})()}
     <div style={{marginTop:4}}><SB label="Production Subtotal" actual={p.comp.productionSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance}/></div>

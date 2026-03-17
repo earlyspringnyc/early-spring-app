@@ -9,7 +9,7 @@ function NewProjectModal({ onClose, onCreate }) {
   const fileRef = useRef(null);
   const handleLogo = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => setLogo(ev.target.result); reader.readAsDataURL(file); };
   const submit = () => { if (!name.trim()) return; onCreate(name.trim(), client.trim(), date, eventDate, logo, parseFloat(budget) || 0, stage); onClose(); };
-  const fStyle = { width: "100%", padding: "11px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 14, fontFamily: T.sans, outline: "none" };
+  const fStyle = { width: "100%", padding: "11px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 13, fontFamily: T.sans, outline: "none" };
   const lStyle = { display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 };
   return <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.6)", backdropFilter: "blur(8px)" }}>
     <div className="slide-in modal-inner" style={{ width: 440, padding: 36, borderRadius: T.r, background: "rgba(12,10,20,.95)", border: `1px solid ${T.border}`, boxShadow: "0 24px 80px rgba(0,0,0,.5)", maxHeight: "90vh", overflow: "auto" }}>
@@ -30,7 +30,7 @@ function NewProjectModal({ onClose, onCreate }) {
             {logo && <button onClick={() => setLogo("")} style={{ background: "none", border: "none", color: T.neg, fontSize: 11, cursor: "pointer", marginLeft: 8 }}>Remove</button>}
           </div>
         </div>
-        <p style={{ fontSize: 10, color: T.dim, marginTop: 6, fontFamily: T.serif }}>PNG, SVG, or JPG. Appears on project cards and client exports.</p>
+        <p style={{ fontSize: 10, color: T.dim, marginTop: 6 }}>PNG, SVG, or JPG. Appears on project cards and client exports.</p>
       </div>
       <div style={{marginBottom:16}}><label style={lStyle}>Project Stage</label>
         <div style={{display:"flex",gap:4}}>{PROJECT_STAGES.map(s=><button key={s} onClick={()=>setStage(s)} style={{flex:1,padding:"9px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:stage===s?700:400,fontFamily:T.sans,background:stage===s?`${STAGE_COLORS[s]}18`:"transparent",color:stage===s?STAGE_COLORS[s]:T.dim,transition:"all .15s"}}>{STAGE_LABELS[s]}</button>)}</div>

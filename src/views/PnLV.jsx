@@ -33,7 +33,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   const sorted=[...txns].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div><h1 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>P&L + Cashflow</h1><p style={{fontSize:13,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>Track payments received and expenses paid</p></div>
+      <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>P&L + Cashflow</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>Track payments received and expenses paid</p></div>
       {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Entry"}</button>}
     </div>
     <div className="metric-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:20}}>
@@ -51,14 +51,14 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
         {["income","expense"].map(t=><button key={t} onClick={()=>setNTy(t)} style={{padding:"7px 16px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:nTy===t?600:400,fontFamily:T.sans,background:nTy===t?(t==="income"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)"):"transparent",color:nTy===t?(t==="income"?T.pos:T.neg):T.dim}}>{t==="income"?"Income":"Expense"}</button>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
-        {[["Description",nDe,setNDe,"Client payment"],["Amount",nAm,setNAm,"25000"],["Category",nCa,setNCa,"Venue"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTxn()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}
+        {[["Description",nDe,setNDe,"Client payment"],["Amount",nAm,setNAm,"25000"],["Category",nCa,setNCa,"Venue"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTxn()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}
       </div>
-      {nTy==="expense"&&<div style={{marginBottom:12,maxWidth:300}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Vendor</label><VendorSelect value={nVId} onChange={v=>{setNVId2(v);setMatchDocId("")}} vendors={project.vendors} onAddVendor={v=>{updateProject({vendors:[...(project.vendors||[]),v]})}} compact/></div>}
+      {nTy==="expense"&&<div style={{marginBottom:12,maxWidth:300}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Vendor</label><VendorSelect value={nVId} onChange={v=>{setNVId2(v);setMatchDocId("")}} vendors={project.vendors} onAddVendor={v=>{updateProject({vendors:[...(project.vendors||[]),v]})}} compact/></div>}
       {nTy==="expense"&&nVId&&(()=>{
         const outstanding=(project.docs||[]).filter(d=>d.vendorId===nVId&&d.status!=="paid"&&d.type==="invoice");
         if(!outstanding.length)return null;
         return<div style={{marginBottom:12}}>
-          <label style={{display:"block",fontSize:9,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Match to Invoice</label>
+          <label style={{display:"block",fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Match to Invoice</label>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             {outstanding.map(d=><button key={d.id} onClick={()=>{setMatchDocId(d.id);setNAm(String(d.amount-(d.paidAmount||0)))}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderRadius:T.rS,background:matchDocId===d.id?"rgba(34,211,238,.1)":T.surface,border:`1px solid ${matchDocId===d.id?T.cyan:T.border}`,cursor:"pointer",transition:"all .15s"}}>
               <span style={{fontSize:12,color:T.cream}}>{d.name}</span>
@@ -72,9 +72,9 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
     </Card>}
     <Card style={{overflow:"hidden"}}>
       <div style={{display:"grid",gridTemplateColumns:".6fr 2fr 1fr 1fr .3fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-        {["Date","Description","Category","Amount",""].map((h,i)=><span key={i} style={{fontSize:9.5,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===3?"right":"left"}}>{h}</span>)}
+        {["Date","Description","Category","Amount",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===3?"right":"left"}}>{h}</span>)}
       </div>
-      {sorted.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No transactions yet.<div style={{fontSize:11,color:T.dim,marginTop:8,fontFamily:T.serif,fontStyle:"italic"}}>Add income or expense entries to track your project cashflow</div></div>}
+      {sorted.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No transactions yet.<div style={{fontSize:11,color:T.dim,marginTop:8}}>Add income or expense entries to track your project cashflow</div></div>}
       {sorted.map((t,idx)=><div key={t.id} style={{display:"grid",gridTemplateColumns:".6fr 2fr 1fr 1fr .3fr",padding:"10px 18px",borderBottom:idx<sorted.length-1?`1px solid ${T.border}`:"none",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
         <span style={{fontSize:12,color:T.dim,fontFamily:T.mono}}>{t.date||"\u2014"}</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:6,height:6,borderRadius:"50%",background:t.type==="income"?T.pos:T.neg}}/><span style={{fontSize:13,color:T.cream}}>{t.description}</span></div>

@@ -108,15 +108,15 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
                 <button onClick={()=>setEditing(false)} style={{padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
               </div>
             </div>:<div>
-              <h2 style={{fontSize:24,fontWeight:600,color:T.cream,letterSpacing:"-0.02em"}}>{v.name}</h2>
+              <h2 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>{v.name}</h2>
               <div style={{display:"flex",gap:8,marginTop:6,alignItems:"center",flexWrap:"wrap"}}>
-                <span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"]}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
+                <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"]}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
                 {v.email&&<span style={{fontSize:11,color:T.dim}}>{v.email}</span>}
                 {v.phone&&<span style={{fontSize:11,color:T.dim}}>{v.phone}</span>}
-                <button onClick={cycleW9} style={{background:"none",border:"none",cursor:canEdit?"pointer":"default",padding:0}}><span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${W9_COLORS[v.w9Status]}18`,color:W9_COLORS[v.w9Status],textTransform:"uppercase"}}>W-9: {v.w9Status}</span></button>
+                <button onClick={cycleW9} style={{background:"none",border:"none",cursor:canEdit?"pointer":"default",padding:0}}><span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${W9_COLORS[v.w9Status]}18`,color:W9_COLORS[v.w9Status],textTransform:"uppercase"}}>W-9: {v.w9Status}</span></button>
                 {canEdit&&<button onClick={()=>setEditing(true)} style={{fontSize:10,color:T.dim,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Edit</button>}
               </div>
-              {v.notes&&<p style={{fontSize:11,color:T.dim,marginTop:6,fontFamily:T.serif,fontStyle:"italic"}}>{v.notes}</p>}
+              {v.notes&&<p style={{fontSize:11,color:T.dim,marginTop:6}}>{v.notes}</p>}
             </div>}
           </div>
           <button onClick={onClose} aria-label="Close" style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
@@ -135,10 +135,10 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
         {/* Overview Tab */}
         {tab==="overview"&&<div>
           <div className="metric-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:24}}>
-            <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Contracted</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{f0(totalContracted)}</div></div>
-            <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Invoiced</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(totalInvoiced)}</div></div>
-            <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Paid</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.pos,fontFamily:T.mono}}>{f0(totalPaid)}</div></div>
-            <div style={{padding:"14px 16px",borderRadius:T.rS,background:outstanding>0?"rgba(248,113,113,.04)":T.surfEl,border:`1px solid ${outstanding>0?"rgba(248,113,113,.15)":T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Outstanding</div><div className="num" style={{fontSize:18,fontWeight:700,color:outstanding>0?T.neg:T.dim,fontFamily:T.mono}}>{f0(outstanding)}</div></div>
+            <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Contracted</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{f0(totalContracted)}</div></div>
+            <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Invoiced</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(totalInvoiced)}</div></div>
+            <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Paid</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.pos,fontFamily:T.mono}}>{f0(totalPaid)}</div></div>
+            <div style={{padding:"14px 16px",borderRadius:T.rS,background:outstanding>0?"rgba(248,113,113,.04)":T.surfEl,border:`1px solid ${outstanding>0?"rgba(248,113,113,.15)":T.border}`}}><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Outstanding</div><div className="num" style={{fontSize:18,fontWeight:700,color:outstanding>0?T.neg:T.dim,fontFamily:T.mono}}>{f0(outstanding)}</div></div>
           </div>
           {budgetItems.length>0&&<div style={{marginBottom:20}}>
             <div style={{fontSize:12,fontWeight:600,color:T.cream,marginBottom:10}}>Budget Items ({budgetItems.length})</div>
@@ -146,7 +146,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               <div><span style={{fontSize:12,color:T.cream}}>{it.name}</span><span style={{fontSize:10,color:T.dim,marginLeft:8}}>{it.catName}</span></div>
               <div style={{display:"flex",gap:16,alignItems:"center"}}>
                 <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(it.actualCost)}</span>
-                <span style={{fontSize:8,fontWeight:700,padding:"3px 7px",borderRadius:8,background:`${PAYMENT_COLORS[getPayStatus(it.id,project.docs)]}18`,color:PAYMENT_COLORS[getPayStatus(it.id,project.docs)],textTransform:"uppercase"}}>{PAYMENT_LABELS[getPayStatus(it.id,project.docs)]}</span>
+                <span style={{fontSize:10,fontWeight:700,padding:"3px 7px",borderRadius:8,background:`${PAYMENT_COLORS[getPayStatus(it.id,project.docs)]}18`,color:PAYMENT_COLORS[getPayStatus(it.id,project.docs)],textTransform:"uppercase"}}>{PAYMENT_LABELS[getPayStatus(it.id,project.docs)]}</span>
               </div>
             </div>)}
           </div>}
@@ -171,10 +171,10 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               {VENDOR_DOC_TYPES.map(t=><button key={t} onClick={()=>setDocType(t)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:docType===t?600:400,fontFamily:T.sans,background:docType===t?`${VENDOR_DOC_COLORS[t]}22`:"transparent",color:docType===t?VENDOR_DOC_COLORS[t]:T.dim}}>{VENDOR_DOC_LABELS[t]}</button>)}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
-              <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Document Name</label><input autoFocus value={docName} onChange={e=>setDocName(e.target.value)} placeholder={VENDOR_DOC_LABELS[docType]} onKeyDown={e=>e.key==="Enter"&&addVendorDoc()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-              <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Expiry Date</label><DatePick value={docExpiry} onChange={setDocExpiry} compact/></div>
+              <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Document Name</label><input autoFocus value={docName} onChange={e=>setDocName(e.target.value)} placeholder={VENDOR_DOC_LABELS[docType]} onKeyDown={e=>e.key==="Enter"&&addVendorDoc()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+              <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Expiry Date</label><DatePick value={docExpiry} onChange={setDocExpiry} compact/></div>
             </div>
-            <div style={{marginBottom:10}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Notes</label><input value={docNotes} onChange={e=>setDocNotes(e.target.value)} placeholder="Optional notes about this document" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+            <div style={{marginBottom:10}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Notes</label><input value={docNotes} onChange={e=>setDocNotes(e.target.value)} placeholder="Optional notes about this document" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",borderRadius:T.rS,border:`1px dashed ${docFile?T.pos:T.border}`,background:docFile?"rgba(52,211,153,.06)":"transparent",color:docFile?T.pos:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>{docFile?"Replace file":"Choose file…"}</button>
               {docFileName&&<span style={{fontSize:10,color:T.pos,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{docFileName}</span>}
@@ -184,7 +184,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
 
           {vendorDocs.length>0?<div style={{display:"flex",flexDirection:"column",gap:4}}>
             {vendorDocs.map(d=><div key={d.id} onClick={()=>setViewingDoc(d)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
-              <span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:6,background:`${VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other}22`,color:VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other,textTransform:"uppercase",flexShrink:0}}>{VENDOR_DOC_LABELS[d.type]||d.type}</span>
+              <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,background:`${VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other}22`,color:VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other,textTransform:"uppercase",flexShrink:0}}>{VENDOR_DOC_LABELS[d.type]||d.type}</span>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{d.name}</div>
                 <div style={{display:"flex",gap:8,marginTop:2}}>
@@ -208,10 +208,10 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
           {projectDocs.length>0&&<div style={{marginTop:20}}>
             <div style={{fontSize:11,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Project Documents</div>
             {projectDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",marginBottom:3,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
-              <span style={{fontSize:9,fontWeight:700,color:DOC_TYPE_COLORS[d.type],textTransform:"uppercase",width:50}}>{d.type==="w9"?"W-9":d.type==="w2"?"W-2":d.type}</span>
+              <span style={{fontSize:10,fontWeight:700,color:DOC_TYPE_COLORS[d.type],textTransform:"uppercase",width:50}}>{d.type==="w9"?"W-9":d.type==="w2"?"W-2":d.type}</span>
               <span style={{fontSize:12,color:T.cream,flex:1}}>{d.name}</span>
               {d.amount>0&&<span className="num" style={{fontSize:11,fontFamily:T.mono,color:T.cream}}>{f$(d.amount)}</span>}
-              <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:6,background:d.status==="paid"?"rgba(52,211,153,.1)":"rgba(255,234,151,.06)",color:d.status==="paid"?T.pos:T.gold,textTransform:"uppercase"}}>{d.status}</span>
+              <span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:6,background:d.status==="paid"?"rgba(52,211,153,.1)":"rgba(255,234,151,.06)",color:d.status==="paid"?T.pos:T.gold,textTransform:"uppercase"}}>{d.status}</span>
             </div>)}
           </div>}
         </div>}
@@ -222,15 +222,15 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
             <div style={{fontSize:12,fontWeight:600,color:T.cream,marginBottom:10}}>Invoices ({invoices.length})</div>
             {invoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:3,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {d.fileData&&<button onClick={()=>window.open(d.fileData,"_blank")} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:9,color:T.cyan,fontWeight:600}}>PDF</button>}
+                {d.fileData&&<button onClick={()=>window.open(d.fileData,"_blank")} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:10,color:T.cyan,fontWeight:600}}>PDF</button>}
                 <div><span style={{fontSize:12,color:T.cream}}>{d.name}</span>
-                  {d.invoiceKind&&<span style={{fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:6,marginLeft:6,background:`${INVOICE_KIND_COLORS[d.invoiceKind]||T.dim}22`,color:INVOICE_KIND_COLORS[d.invoiceKind]||T.dim,textTransform:"uppercase"}}>{INVOICE_KIND_LABELS[d.invoiceKind]||d.invoiceKind}</span>}
+                  {d.invoiceKind&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:6,marginLeft:6,background:`${INVOICE_KIND_COLORS[d.invoiceKind]||T.dim}22`,color:INVOICE_KIND_COLORS[d.invoiceKind]||T.dim,textTransform:"uppercase"}}>{INVOICE_KIND_LABELS[d.invoiceKind]||d.invoiceKind}</span>}
                   {d.dueDate&&<span style={{fontSize:10,color:T.dim,marginLeft:8}}>Due: {d.dueDate}</span>}</div>
               </div>
               <div style={{display:"flex",gap:12,alignItems:"center"}}>
                 <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(d.amount)}</span>
                 {(d.paidAmount||0)>0&&<span className="num" style={{fontSize:10,fontFamily:T.mono,color:T.pos}}>Paid: {f$(d.paidAmount)}</span>}
-                <span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:8,background:d.status==="paid"?"rgba(52,211,153,.1)":d.status==="overdue"?"rgba(248,113,113,.1)":"rgba(255,234,151,.06)",color:d.status==="paid"?T.pos:d.status==="overdue"?T.neg:T.gold,textTransform:"uppercase"}}>{d.status}</span>
+                <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:d.status==="paid"?"rgba(52,211,153,.1)":d.status==="overdue"?"rgba(248,113,113,.1)":"rgba(255,234,151,.06)",color:d.status==="paid"?T.pos:d.status==="overdue"?T.neg:T.gold,textTransform:"uppercase"}}>{d.status}</span>
               </div>
             </div>)}
           </div>}

@@ -153,14 +153,14 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
       <div style={{fontSize:11,fontWeight:tdy?700:400,color:tdy?T.gold:T.dim,marginBottom:4,fontFamily:T.mono}}>{d}</div>
       {dayTasks.slice(0,3).map(t=>{const tc=taskColor(t);const isEditing=editingTask===t.id;
         return isEditing?<div key={t.id+d} style={{display:"flex",gap:2,marginBottom:2}} onClick={e=>e.stopPropagation()}>
-          <input autoFocus value={editName} onChange={e=>setEditName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}if(e.key==="Escape")setEditingTask(null)}} onBlur={()=>{if(editName.trim()&&editName!==t.name)onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}} style={{flex:1,padding:"1px 4px",fontSize:9,borderRadius:2,border:`1px solid ${tc.fg}`,background:"transparent",color:T.cream,outline:"none",fontFamily:T.sans,minWidth:0}}/>
+          <input autoFocus value={editName} onChange={e=>setEditName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}if(e.key==="Escape")setEditingTask(null)}} onBlur={()=>{if(editName.trim()&&editName!==t.name)onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}} style={{flex:1,padding:"1px 4px",fontSize:10,borderRadius:2,border:`1px solid ${tc.fg}`,background:"transparent",color:T.cream,outline:"none",fontFamily:T.sans,minWidth:0}}/>
           <button onClick={e=>{e.stopPropagation();onDeleteTask&&onDeleteTask(t.id);setEditingTask(null)}} style={{background:"none",border:"none",color:T.neg,fontSize:10,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Delete task">×</button>
         </div>
         :<div key={t.id+d} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
-          <div onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:9,padding:"2px 5px",borderRadius:3,background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}</div>
-          {canEdit&&<button onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:9,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
+          <div onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:10,padding:"2px 5px",borderRadius:3,background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}</div>
+          {canEdit&&<button onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:10,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
         </div>})}
-      {dayTasks.length>3&&<div style={{fontSize:8,color:T.dim,paddingLeft:5}}>+{dayTasks.length-3} more</div>}
+      {dayTasks.length>3&&<div style={{fontSize:10,color:T.dim,paddingLeft:5}}>+{dayTasks.length-3} more</div>}
     </div>);
   }
 
@@ -191,7 +191,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
         const tdy=isToday(d);
         return<div key={d} onClick={()=>{setSelectedDay(d);canEdit&&setAddDate(addDate===d?null:d)}} style={{minHeight:200,padding:8,background:addDate===d?"rgba(255,234,151,.06)":"transparent",borderRadius:T.rS,cursor:canEdit?"pointer":"default",border:tdy?`1px solid rgba(255,234,151,.25)`:"1px solid transparent"}} onMouseEnter={e=>{if(addDate!==d)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(addDate!==d)e.currentTarget.style.background="transparent"}}>
           <div style={{fontSize:10,fontWeight:tdy?700:400,color:tdy?T.gold:T.dim,marginBottom:6,fontFamily:T.mono,textAlign:"center"}}>{dNames[new Date(month.y,month.m,d).getDay()]} {d}</div>
-          {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id+d} style={{fontSize:9,padding:"3px 6px",marginBottom:3,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px solid ${tc.fg}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>})}
+          {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id+d} style={{fontSize:10,padding:"3px 6px",marginBottom:3,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px solid ${tc.fg}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>})}
         </div>;
       })}
     </div>;
@@ -212,7 +212,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     </div>
     {calMode==="month"&&<>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${T.border}`}}>
-        {dNames.map(d=><div key={d} style={{textAlign:"center",padding:"8px 0",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>{d}</div>)}
+        {dNames.map(d=><div key={d} style={{textAlign:"center",padding:"8px 0",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>{d}</div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,padding:6}} onMouseLeave={()=>setIsDragging(false)}>
         {cells}
@@ -220,7 +220,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     </>}
     {calMode==="week"&&<WeekView/>}
     {calMode==="day"&&<DayView/>}
-    {tasks.length===0&&!addDate&&<div style={{padding:"16px 18px",textAlign:"center",color:T.dim,fontSize:11,fontFamily:T.serif,fontStyle:"italic"}}>Click a date to add your first task</div>}
+    {tasks.length===0&&!addDate&&<div style={{padding:"16px 18px",textAlign:"center",color:T.dim,fontSize:11}}>Click a date to add your first task</div>}
     {addDate&&canEdit&&<div style={{padding:"14px 18px",borderTop:`1px solid ${T.border}`,position:"relative",zIndex:10}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
         <span style={{fontSize:11,color:T.cream,fontFamily:T.mono}}>{mNames[month.m]} {addDate}{qE?` — ${qE}`:""}</span>
@@ -241,19 +241,19 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
       </div>
       {isMeeting&&<div style={{marginTop:10,padding:12,borderRadius:T.rS,border:`1px solid rgba(232,121,249,.15)`,background:"rgba(232,121,249,.02)"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-          <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Time</label>
+          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Time</label>
             <select value={meetTime||""} onChange={e=>setMeetTime(e.target.value)} style={{width:"100%",padding:"7px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:meetTime?T.cream:T.dim,fontSize:12,fontFamily:T.mono,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>
               <option value="">Select time</option>
               {[...Array(30)].map((_,i)=>{const h=7+Math.floor(i/2);const m=i%2===0?"00":"30";const t=`${String(h).padStart(2,"0")}:${m}`;return<option key={t} value={t}>{h>12?h-12:h}:{m}{h>=12?" PM":" AM"}</option>})}
             </select></div>
-          <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Duration</label>
+          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Duration</label>
             <select value={meetDuration} onChange={e=>setMeetDuration(e.target.value)} style={{width:"100%",padding:"7px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>
               {["15m","30m","45m","1h","1.5h","2h","3h"].map(d=><option key={d} value={d}>{d}</option>)}
             </select></div>
         </div>
-        <div style={{marginBottom:8}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Attendees</label>
+        <div style={{marginBottom:8}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Attendees</label>
           <input value={meetAttendees} onChange={e=>setMeetAttendees(e.target.value)} onKeyDown={e=>{if(e.key==="Tab"||e.key===","){const v=meetAttendees.trim();if(v&&!v.endsWith(",")){e.preventDefault();setMeetAttendees(v+", ")}}}} placeholder="email@example.com" style={{width:"100%",padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none"}}/></div>
-        <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Agenda</label>
+        <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Agenda</label>
           <input value={meetAgenda} onChange={e=>setMeetAgenda(e.target.value)} placeholder="Topics to discuss..." style={{width:"100%",padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none"}}/></div>
       </div>}
     </div>}

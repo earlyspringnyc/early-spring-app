@@ -5,7 +5,7 @@ import { taskColor } from './CalendarView.jsx';
 
 function GanttChart({tasks}){
   const dated=tasks.filter(t=>parseD(t.startDate));
-  if(dated.length===0)return<Card style={{padding:24,marginBottom:20}}><div style={{textAlign:"center",color:T.dim,fontSize:13,fontFamily:T.serif}}>Add start dates to tasks to see the Gantt chart.</div></Card>;
+  if(dated.length===0)return<Card style={{padding:24,marginBottom:20}}><div style={{textAlign:"center",color:T.dim,fontSize:13}}>Add start dates to tasks to see the Gantt chart.</div></Card>;
   const allDates=[];
   dated.forEach(t=>{allDates.push(parseD(t.startDate));if(parseD(t.endDate))allDates.push(parseD(t.endDate));else allDates.push(parseD(t.startDate))});
   const minD=new Date(Math.min(...allDates));const maxD=new Date(Math.max(...allDates));
@@ -21,7 +21,7 @@ function GanttChart({tasks}){
         <div style={{display:"flex",borderBottom:`1px solid ${T.border}`,padding:"6px 0"}}>
           <div style={{width:160,flexShrink:0,padding:"0 14px"}}/>
           <div style={{flex:1,position:"relative",height:20}}>
-            {weeks.map((w,i)=>{const left=(daysBetween(minD,w)/totalDays)*100;return<span key={i} style={{position:"absolute",left:`${left}%`,fontSize:9,color:T.dim,fontFamily:T.mono,whiteSpace:"nowrap"}}>{fmtShort(w)}</span>})}
+            {weeks.map((w,i)=>{const left=(daysBetween(minD,w)/totalDays)*100;return<span key={i} style={{position:"absolute",left:`${left}%`,fontSize:10,color:T.dim,fontFamily:T.mono,whiteSpace:"nowrap"}}>{fmtShort(w)}</span>})}
           </div>
         </div>
         {/* Task rows */}
@@ -37,7 +37,7 @@ function GanttChart({tasks}){
             </div>
             <div style={{flex:1,position:"relative",height:22}}>
               <div style={{position:"absolute",left:`${left}%`,width:`${width}%`,top:4,height:14,borderRadius:3,background:tc.fg,opacity:t.status==="done"?.3:.8,transition:"all .3s",boxShadow:`0 0 8px ${tc.fg}33`}}>
-                <span style={{position:"absolute",left:6,top:1,fontSize:9,color:"#000",fontWeight:600,whiteSpace:"nowrap",mixBlendMode:"luminosity"}}>{fmtShort(start)}{end>start?` — ${fmtShort(end)}`:""}</span>
+                <span style={{position:"absolute",left:6,top:1,fontSize:10,color:"#000",fontWeight:600,whiteSpace:"nowrap",mixBlendMode:"luminosity"}}>{fmtShort(start)}{end>start?` — ${fmtShort(end)}`:""}</span>
               </div>
             </div>
           </div>})}
