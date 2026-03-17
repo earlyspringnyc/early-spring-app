@@ -30,6 +30,9 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
   const aAg=useCallback(()=>updateProject({ag:[...project.ag,mkA("New Role")]}),[project.ag,updateProject]);
   const rAg=useCallback(ii=>updateProject({ag:project.ag.filter((_,i)=>i!==ii)}),[project.ag,updateProject]);
   const setFeeP=useCallback(v=>updateProject({feeP:v}),[updateProject]);
+  const setAllMargins=useCallback(margin=>{updateProject({cats:project.cats.map(c=>({...c,items:c.items.map(it=>({...it,margin}))}))});},[project.cats,updateProject]);
+  const saveHistory=useCallback(history=>updateProject({budgetHistory:history}),[updateProject]);
+  const restoreHistory=useCallback(snapshot=>{updateProject({cats:snapshot.cats,ag:snapshot.ag,feeP:snapshot.feeP});},[updateProject]);
   const comp=useMemo(()=>calcProject(project),[project]);
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const reorderCat=useCallback((ci2,from,to)=>{const cats=[...project.cats];const items=[...cats[ci2].items];const[moved]=items.splice(from,1);items.splice(to,0,moved);cats[ci2]={...cats[ci2],items};updateProject({cats})},[project.cats,updateProject]);
@@ -39,7 +42,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     <Side view={view} setView={setView} comp={comp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout} saving={saving} lastSaved={lastSaved}/>
     <MobileNav view={view} setView={setView} project={project}/>
     <main className="main-content" style={{flex:1,overflow:"auto",padding:28}}><div key={view} className="view-enter">
-      {view==="budget"&&<BudgetV cats={project.cats} ag={project.ag} feeP={project.feeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={project.clientBudget||0} onUpdateBudget={v=>updateProject({clientBudget:v})} reorderCat={reorderCat} saving={saving} lastSaved={lastSaved}/>}
+      {view==="budget"&&<BudgetV cats={project.cats} ag={project.ag} feeP={project.feeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={project.clientBudget||0} onUpdateBudget={v=>updateProject({clientBudget:v})} reorderCat={reorderCat} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={project} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory}/>}
       {view==="dashboard"&&<DashV cats={project.cats} comp={comp} feeP={project.feeP} project={project}/>}
       {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit}/>}
