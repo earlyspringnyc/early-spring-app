@@ -11,6 +11,7 @@ import { Card, DatePick } from '../components/primitives/index.js';
 import GanttChart from './GanttChart.jsx';
 import CalendarView from './CalendarView.jsx';
 import { createCalendarEvent, searchContacts } from '../utils/google.js';
+import { addTaskToHistory, searchTaskHistory } from '../utils/taskHistory.js';
 
 function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAccess}){
   const tasks=project.timeline||[];
@@ -24,7 +25,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[clientEmail,setClientEmail]=useState("");const[clientSending,setClientSending]=useState(false);const[clientSent,setClientSent]=useState("");
   const allBudgetItems=useMemo(()=>{const items=[];(project.cats||[]).forEach(c=>c.items.forEach(it=>items.push({...it,catName:c.name})));return items},[project.cats]);
   const[showSuggestions,setShowSuggestions]=useState(false);
-  const[showMeetingForm,setShowMeetingForm]=useState(false);
+  const[isMeeting,setIsMeeting]=useState(false);
+  const[taskSugs,setTaskSugs]=useState([]);
   const meetings=project.meetings||[];
   const[meetingTitle,setMeetingTitle]=useState("");
   const[meetingDate,setMeetingDate]=useState("");
@@ -56,17 +58,19 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const pct=tasks.length?Math.round((counts.done/tasks.length)*100):0;
   const addTask=(name,cat,assignee,start,end,linkedItemId="")=>{
     const n=name||nN.trim();if(!n)return;
+    addTaskToHistory(n);
     updateProject({timeline:[...tasks,mkTask(n,cat||nC,assignee||nA,start||nS,end||nE,linkedItemId)]});
-    setNN("");setNC("General");setNA("");setNS("");setNE("");setShowAdd(false);
+    setNN("");setNC("General");setNA("");setNS("");setNE("");setShowAdd(false);setTaskSugs([]);
   };
   const cycleStatus=idx=>{const order=["todo","progress","done"];const cur=tasks[idx].status;updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status:order[(order.indexOf(cur)+1)%3]}:t)})};
   const removeTask=idx=>updateProject({timeline:tasks.filter((_,i)=>i!==idx)});
-  const addMeeting=()=>{
-    if(!meetingTitle.trim())return;
-    const m=mkMeeting(meetingTitle.trim(),meetingDate,meetingTime,meetingDuration,meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean),meetingAgenda,meetingLocation);
+  const addMeeting=(titleOverride)=>{
+    const title=(titleOverride||meetingTitle).trim();
+    if(!title)return;
+    const m=mkMeeting(title,meetingDate,meetingTime,meetingDuration,meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean),meetingAgenda,meetingLocation);
     updateProject({meetings:[...(project.meetings||[]),m]});
-    addTask(meetingTitle.trim(),"Meeting","",meetingDate,meetingDate);
-    setMeetingTitle("");setMeetingDate("");setMeetingTime("");setMeetingDuration("30m");setMeetingAttendees("");setMeetingAgenda("");setMeetingLocation("");setShowMeetingForm(false);
+    addTask(title,"Meeting","",meetingDate,meetingDate);
+    setMeetingTitle("");setMeetingDate("");setMeetingTime("");setMeetingDuration("30m");setMeetingAttendees("");setMeetingAgenda("");setMeetingLocation("");setIsMeeting(false);
   };
   const removeMeeting=id=>updateProject({meetings:(project.meetings||[]).filter(m=>m.id!==id)});
   const updateMeeting=(id,updates)=>updateProject({meetings:(project.meetings||[]).map(m=>m.id===id?{...m,...updates}:m)});
@@ -165,41 +169,6 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       </div>
     </Card>}
 
-    {showMeetingForm&&<Card style={{padding:20,marginBottom:16,borderColor:"rgba(232,121,249,.15)",background:"rgba(232,121,249,.02)"}}>
-  <div style={{fontSize:13,fontWeight:600,color:T.magenta,marginBottom:14}}>Schedule Client Meeting</div>
-  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
-    <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Meeting Title</label><input autoFocus value={meetingTitle} onChange={e=>setMeetingTitle(e.target.value)} placeholder="Kickoff call" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
-    <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Time</label>{customTime?<input autoFocus value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} onBlur={()=>{if(!meetingTime)setCustomTime(false)}} placeholder="14:00" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.cyan}`,color:T.cream,fontSize:13,fontFamily:T.mono,outline:"none"}}/>:<select value={meetingTime||""} onChange={e=>{if(e.target.value==="__custom__"){setCustomTime(true);setMeetingTime("")}else setMeetingTime(e.target.value)}} style={{width:"100%",padding:"9px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:meetingTime?T.cream:T.dim,fontSize:13,fontFamily:T.mono,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}><option value="">Select time</option>{[...Array(30)].map((_,i)=>{const h=7+Math.floor(i/2);const m=i%2===0?"00":"30";const t=`${String(h).padStart(2,"0")}:${m}`;return<option key={t} value={t}>{h>12?h-12:h}:{m}{h>=12?" PM":" AM"}</option>})}<option value="__custom__">Custom time…</option></select>}</div>
-    <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Duration</label>
-      <select value={meetingDuration} onChange={e=>setMeetingDuration(e.target.value)} style={{width:"100%",padding:"9px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>
-        {["15m","30m","45m","1h","1.5h","2h","3h"].map(d=><option key={d} value={d}>{d}</option>)}
-      </select></div>
-  </div>
-  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-    <DatePick label="Date" value={meetingDate} onChange={setMeetingDate} compact/>
-    <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Location / Link</label><input value={meetingLocation} onChange={e=>setMeetingLocation(e.target.value)} placeholder="Zoom / Office" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-  </div>
-  <div style={{marginBottom:12,position:"relative"}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Attendees</label>
-    {(()=>{const attendeeList=meetingAttendees?meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean):[];
-    const onInput=async(e)=>{setMeetingAttendees(e.target.value);const parts=e.target.value.split(",");const current=parts[parts.length-1].trim();if(current.length>=2&&accessToken){const results=await searchContacts(accessToken,current);setContactSuggestions(results);setShowContactSug(results.length>0)}else{setShowContactSug(false)}};
-    const pickSuggestion=(email)=>{const parts=meetingAttendees.split(",");parts[parts.length-1]=email;setMeetingAttendees(parts.join(", ")+", ");setShowContactSug(false)};
-    return<div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:attendeeList.length>0?6:0}}>{attendeeList.map((a,i)=>a.includes("@")&&<span key={i} style={{fontSize:10,padding:"3px 8px",borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,display:"flex",alignItems:"center",gap:4}}>{a}<button onClick={()=>{const parts=attendeeList.filter((_,j)=>j!==i);setMeetingAttendees(parts.join(", "))}} style={{background:"none",border:"none",color:T.dim,cursor:"pointer",fontSize:10,padding:0,lineHeight:1}}>×</button></span>)}</div>
-      <input value={meetingAttendees} onChange={onInput} onFocus={()=>{if(contactSuggestions.length)setShowContactSug(true)}} onBlur={()=>setTimeout(()=>setShowContactSug(false),200)} placeholder="Start typing a name or email..." style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-      {showContactSug&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
-        {contactSuggestions.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickSuggestion(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <span style={{flex:1}}>{c.name&&<span style={{marginRight:6}}>{c.name}</span>}<span style={{color:T.dim}}>{c.email}</span></span>
-        </button>)}
-      </div>}
-    </div>})()}</div>
-  <div style={{marginBottom:12}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Agenda</label><textarea value={meetingAgenda} onChange={e=>setMeetingAgenda(e.target.value)} placeholder="Topics to discuss..." rows={3} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
-  <div style={{display:"flex",gap:8,alignItems:"center"}}>
-    <button onClick={addMeeting} disabled={!meetingTitle.trim()} style={{padding:"9px 20px",background:meetingTitle.trim()?`linear-gradient(135deg,${T.magenta},#C084FC)`:"rgba(255,255,255,.05)",color:meetingTitle.trim()?"#fff":"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:meetingTitle.trim()?"pointer":"default",fontFamily:T.sans}}>Schedule Meeting</button>
-    <button onClick={async()=>{if(!accessToken){if(requestCalendarAccess){requestCalendarAccess();setCalStatus("Requesting Google access...");return}setCalStatus("Sign in with Google first");return}if(!meetingTitle.trim()){setCalStatus("Enter a meeting title first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:meetingTitle.trim(),date:meetingDate,time:meetingTime,duration:meetingDuration,attendees:meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean),agenda:meetingAgenda,location:meetingLocation});setCalStatus("Calendar invite sent!");} catch(e){setCalStatus("Error: "+(e.message||"Failed to send"))}finally{setCalSending(false)}}} disabled={calSending} style={{padding:"9px 16px",border:`1px solid rgba(34,211,238,.2)`,background:calSending?"rgba(34,211,238,.02)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:T.cyan,fontSize:11,fontWeight:600,cursor:calSending?"default":"pointer",fontFamily:T.sans}}>{calSending?"Sending…":"Send Google Calendar Invite"}</button>
-    {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.serif}}>{calStatus}</span>}
-    {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.serif}}>Requires Google OAuth access token</span>}
-  </div>
-</Card>}
 
     {showSuggestions&&<Card style={{padding:16,marginBottom:16}}>
   <div style={{fontSize:12,fontWeight:600,color:T.cream,marginBottom:10}}>Add Tasks from Budget Items</div>
@@ -212,13 +181,43 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
 
     {showAdd&&<Card style={{padding:20,marginBottom:16}}>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
-        {[["Task",nN,setNN,"Task"],["Category",nC,setNC,"General"],["Assignee",nA,setNA,"Name"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input autoFocus={l==="Task"} value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTask()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}
+        <div style={{position:"relative"}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Task</label><input autoFocus value={nN} onChange={e=>{setNN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value))}} placeholder="Task" onKeyDown={e=>e.key==="Enter"&&addTask()} onBlur={()=>setTimeout(()=>setTaskSugs([]),200)} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/>
+          {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
+            {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setNN(s);setTaskSugs([])}} style={{width:"100%",display:"block",padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{s}</button>)}
+          </div>}
+        </div>
+        {[["Category",nC,setNC,"General"],["Assignee",nA,setNA,"Name"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTask()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
         <DatePick label="Start Date" value={nS} onChange={setNS} compact/>
         <DatePick label="End Date" value={nE} onChange={setNE} compact/>
       </div>
-      <button onClick={()=>addTask()} style={{padding:"9px 20px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Task</button>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Type:</span>
+        <button onClick={()=>setIsMeeting(!isMeeting)} style={{padding:"5px 12px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:isMeeting?600:400,background:isMeeting?"rgba(232,121,249,.12)":"transparent",color:isMeeting?T.magenta:T.dim}}>Meeting</button>
+      </div>
+      {isMeeting&&<div style={{marginBottom:12,padding:14,borderRadius:T.rS,border:`1px solid rgba(232,121,249,.15)`,background:"rgba(232,121,249,.02)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Time</label>{customTime?<input value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} onBlur={()=>{if(!meetingTime)setCustomTime(false)}} placeholder="14:00" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.cyan}`,color:T.cream,fontSize:13,fontFamily:T.mono,outline:"none"}}/>:<select value={meetingTime||""} onChange={e=>{if(e.target.value==="__custom__"){setCustomTime(true);setMeetingTime("")}else setMeetingTime(e.target.value)}} style={{width:"100%",padding:"9px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:meetingTime?T.cream:T.dim,fontSize:13,fontFamily:T.mono,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}><option value="">Select time</option>{[...Array(30)].map((_,i)=>{const h=7+Math.floor(i/2);const m=i%2===0?"00":"30";const t=`${String(h).padStart(2,"0")}:${m}`;return<option key={t} value={t}>{h>12?h-12:h}:{m}{h>=12?" PM":" AM"}</option>})}<option value="__custom__">Custom time...</option></select>}</div>
+          <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Duration</label><select value={meetingDuration} onChange={e=>setMeetingDuration(e.target.value)} style={{width:"100%",padding:"9px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>{["15m","30m","45m","1h","1.5h","2h","3h"].map(d=><option key={d} value={d}>{d}</option>)}</select></div>
+          <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Location / Link</label><input value={meetingLocation} onChange={e=>setMeetingLocation(e.target.value)} placeholder="Zoom / Office" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        </div>
+        <div style={{marginBottom:12,position:"relative"}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Attendees</label>
+          {(()=>{const attendeeList=meetingAttendees?meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean):[];
+          const onInput=async(e)=>{setMeetingAttendees(e.target.value);const parts=e.target.value.split(",");const current=parts[parts.length-1].trim();if(current.length>=2&&accessToken){const results=await searchContacts(accessToken,current);setContactSuggestions(results);setShowContactSug(results.length>0)}else{setShowContactSug(false)}};
+          const pickSuggestion=(email)=>{const parts=meetingAttendees.split(",");parts[parts.length-1]=email;setMeetingAttendees(parts.join(", ")+", ");setShowContactSug(false)};
+          return<div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:attendeeList.length>0?6:0}}>{attendeeList.map((a,i)=>a.includes("@")&&<span key={i} style={{fontSize:10,padding:"3px 8px",borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,display:"flex",alignItems:"center",gap:4}}>{a}<button onClick={()=>{const parts=attendeeList.filter((_,j)=>j!==i);setMeetingAttendees(parts.join(", "))}} style={{background:"none",border:"none",color:T.dim,cursor:"pointer",fontSize:10,padding:0,lineHeight:1}}>x</button></span>)}</div>
+            <input value={meetingAttendees} onChange={onInput} onFocus={()=>{if(contactSuggestions.length)setShowContactSug(true)}} onBlur={()=>setTimeout(()=>setShowContactSug(false),200)} placeholder="Start typing a name or email..." style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+            {showContactSug&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
+              {contactSuggestions.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickSuggestion(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{flex:1}}>{c.name&&<span style={{marginRight:6}}>{c.name}</span>}<span style={{color:T.dim}}>{c.email}</span></span>
+              </button>)}
+            </div>}
+          </div>})()}</div>
+        <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Agenda</label><textarea value={meetingAgenda} onChange={e=>setMeetingAgenda(e.target.value)} placeholder="Topics to discuss..." rows={2} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
+      </div>}
+      <button onClick={()=>{if(isMeeting){addMeeting(nN)}else{addTask()}}} style={{padding:"9px 20px",background:isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:`linear-gradient(135deg,${T.gold},#E8D080)`,color:isMeeting?"#fff":T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{isMeeting?"Schedule Meeting":"Add Task"}</button>
     </Card>}
 
     {/* Calendar / Gantt view + Task List — draggable side-by-side */}

@@ -6,6 +6,11 @@
     { "source": "/api/calendar", "destination": "/api/calendar" },
     { "source": "/api/email", "destination": "/api/email" },
     { "source": "/api/contacts", "destination": "/api/contacts" },
+    { "source": "/api/slack", "destination": "/api/slack" },
+    { "source": "/api/notify", "destination": "/api/notify" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/notify", "schedule": "0 9 * * *" }
   ]
 }

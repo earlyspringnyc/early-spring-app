@@ -2,11 +2,13 @@ import { useState, useMemo } from 'react';
 import T from '../theme/tokens.js';
 import { parseD } from '../utils/date.js';
 import { Card, DatePick } from '../components/primitives/index.js';
+import { searchTaskHistory } from '../utils/taskHistory.js';
 
 function CalendarView({tasks,onAddTask,canEdit}){
   const[month,setMonth]=useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}});
   const[addDate,setAddDate]=useState(null);
   const[qN,setQN]=useState("");const[qE,setQE]=useState("");
+  const[taskSugs,setTaskSugs]=useState([]);
   const[calMode,setCalMode]=useState("month");
   const[selectedDay,setSelectedDay]=useState(()=>new Date().getDate());
   const mNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -113,7 +115,11 @@ function CalendarView({tasks,onAddTask,canEdit}){
     {calMode==="day"&&<DayView/>}
     {addDate&&canEdit&&<div style={{padding:"12px 18px",borderTop:`1px solid ${T.border}`,display:"flex",gap:8,alignItems:"center",position:"relative",zIndex:10}}>
       <span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{mNames[month.m]} {addDate}</span>
-      <input autoFocus value={qN} onChange={e=>setQN(e.target.value)} placeholder="Task" onKeyDown={e=>e.key==="Enter"&&quickAdd()} style={{flex:1,padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+      <div style={{flex:1,position:"relative"}}><input autoFocus value={qN} onChange={e=>{setQN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value))}} placeholder="Task" onKeyDown={e=>e.key==="Enter"&&quickAdd()} onBlur={()=>setTimeout(()=>setTaskSugs([]),200)} style={{width:"100%",padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+        {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
+          {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setQN(s);setTaskSugs([])}} style={{width:"100%",display:"block",padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{s}</button>)}
+        </div>}
+      </div>
       <div style={{width:200}}><DatePick value={qE} onChange={setQE} label="End Date" compact/></div>
       <button onClick={quickAdd} style={{padding:"7px 14px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>Add</button>
     </div>}

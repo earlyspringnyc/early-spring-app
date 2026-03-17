@@ -72,6 +72,17 @@ function App(){
     setActiveId(null);
   },[deleteProj]);
 
+  const duplicateProject=useCallback(async(projectId)=>{
+    const source=projects.find(p=>p.id===projectId);
+    if(!source)return;
+    const{id,_dbId,createdAt,...data}=JSON.parse(JSON.stringify(source));
+    const newId=await createProj(data.name+" (Copy)",data.client,data.date,data.eventDate,data.logo,data.clientBudget,"pitching");
+    if(newId){
+      const{name,client,date,eventDate,logo,clientBudget,stage,...rest}=data;
+      updateProj(newId,rest);
+    }
+  },[projects,createProj,updateProj]);
+
   const undo=useCallback(()=>{setUndoStack(s=>{if(!s.length)return s;/* undo not fully supported with Supabase yet */return s.slice(0,-1)})},[]);
 
   useEffect(()=>{const handler=e=>{
@@ -99,7 +110,7 @@ function App(){
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
-  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={logout}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={logout} onDuplicate={duplicateProject}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>

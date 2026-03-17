@@ -40,25 +40,24 @@ export async function getOrCreateProfile(user) {
   if (!isSupabaseConfigured()) return null;
 
   // Check if profile exists
-  let { data: profile } = await supabase
+  let { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*, organizations(*)')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (profile) return profile;
 
-  // Check if there's an invitation for this email
+  // Check if there's an invitation
   const { data: invitation } = await supabase
     .from('invitations')
     .select('*')
     .eq('email', user.email)
     .eq('accepted', false)
-    .single();
+    .maybeSingle();
 
   if (invitation) {
-    // Accept invitation — join existing org
-    const { data: newProfile } = await supabase
+    const { data: newProfile, error } = await supabase
       .from('profiles')
       .insert({
         user_id: user.id,
@@ -69,31 +68,31 @@ export async function getOrCreateProfile(user) {
         role: invitation.role || 'producer',
       })
       .select('*, organizations(*)')
-      .single();
+      .maybeSingle();
 
-    // Mark invitation as accepted
-    await supabase
-      .from('invitations')
-      .update({ accepted: true })
-      .eq('id', invitation.id);
-
+    if (!error) {
+      await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
+    }
     return newProfile;
   }
 
-  // No invitation — create new org and profile
+  // Create new org and profile
   const orgName = user.user_metadata?.full_name
     ? `${user.user_metadata.full_name}'s Team`
     : `${user.email.split('@')[0]}'s Team`;
 
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from('organizations')
     .insert({ name: orgName })
     .select()
-    .single();
+    .maybeSingle();
 
-  if (!org) return null;
+  if (orgError || !org) {
+    console.error('Org creation failed:', orgError);
+    return null;
+  }
 
-  const { data: newProfile } = await supabase
+  const { data: newProfile, error: profError } = await supabase
     .from('profiles')
     .insert({
       user_id: user.id,
@@ -104,7 +103,12 @@ export async function getOrCreateProfile(user) {
       role: 'admin',
     })
     .select('*, organizations(*)')
-    .single();
+    .maybeSingle();
+
+  if (profError) {
+    console.error('Profile creation failed:', profError);
+    return null;
+  }
 
   return newProfile;
 }

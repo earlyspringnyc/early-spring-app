@@ -97,7 +97,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>
     </div>
     <div style={{display:"flex",gap:4,marginBottom:20}}>
-      {[["budget","Budget"],["timeline","Timeline"],["files","Files"]].map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{padding:"9px 20px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim}}>{label}{id==="files"&&clientFiles.length>0&&<span style={{marginLeft:6,fontSize:9,fontWeight:600,color:T.dim}}>({clientFiles.length})</span>}</button>)}
+      {[["budget","Budget"],["timeline","Timeline"],["proposal","Proposal"],["files","Files"]].map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{padding:"9px 20px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim}}>{label}{id==="files"&&clientFiles.length>0&&<span style={{marginLeft:6,fontSize:9,fontWeight:600,color:T.dim}}>({clientFiles.length})</span>}</button>)}
     </div>
 
     {/* Email share */}
@@ -162,6 +162,48 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
         {clientTasks.length===0&&<div style={{padding:40,textAlign:"center",color:"#999",fontSize:14}}>No tasks selected for client timeline.</div>}
         <div style={{textAlign:"center",marginTop:36,paddingTop:18,borderTop:"1px solid #EEE"}}><div style={{fontSize:10,color:"#BBB"}}>Early Spring LLC · 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 · earlyspring.nyc</div></div>
       </div>
+    </div>}
+
+    {tab==="proposal"&&<div style={{background:"#fff",borderRadius:T.r,padding:48,color:"#111",boxShadow:"0 4px 24px rgba(0,0,0,.4)"}}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",paddingBottom:24,marginBottom:32,borderBottom:"2px solid #432D1C"}}>
+        <div><div style={{marginBottom:14}}><ESWordmark height={16} color="#432D1C"/></div><div style={{fontSize:28,fontWeight:700,color:"#432D1C"}}>Production Proposal</div><div style={{fontSize:13,color:"#999",marginTop:4,fontFamily:"'Century','Georgia',serif"}}>Prepared by Early Spring</div></div>
+        <div style={{textAlign:"right",fontSize:13,color:"#777",lineHeight:1.8}}>{project.logo&&<div style={{marginBottom:8,display:"flex",justifyContent:"flex-end"}}><img src={project.logo} style={{maxHeight:36,maxWidth:120,objectFit:"contain"}}/></div>}<div><strong style={{color:"#555"}}>Project:</strong> {project.name||"\u2014"}</div><div><strong style={{color:"#555"}}>Client:</strong> {project.client||"\u2014"}</div>{project.eventDate&&<div><strong style={{color:"#555"}}>Event Date:</strong> {project.eventDate}</div>}<div><strong style={{color:"#555"}}>Date:</strong> {project.date||new Date().toLocaleDateString()}</div></div>
+      </div>
+
+      {/* Scope of Work */}
+      <div style={{marginBottom:32}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:"#432D1C",marginBottom:16,textTransform:"uppercase",letterSpacing:".06em"}}>Scope of Work</h2>
+        {cats.filter(c=>ct(c.items).totals.clientPrice>0).map(c=><div key={c.id} style={{marginBottom:16}}>
+          <h3 style={{fontSize:14,fontWeight:600,color:"#333",marginBottom:8}}>{c.name}</h3>
+          <ul style={{margin:0,paddingLeft:20}}>{c.items.filter(it=>ci(it).clientPrice>0).map(it=><li key={it.id} style={{fontSize:13,color:"#555",marginBottom:4,lineHeight:1.6}}>{it.name}</li>)}</ul>
+        </div>)}
+      </div>
+
+      {/* Investment */}
+      <div style={{marginBottom:32}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:"#432D1C",marginBottom:16,textTransform:"uppercase",letterSpacing:".06em"}}>Investment</h2>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+          <tbody>
+            {cats.filter(c=>ct(c.items).totals.clientPrice>0).map(c=>{const t=ct(c.items).totals;return<tr key={c.id} style={{borderBottom:"1px solid #F0F0F0"}}><td style={{padding:"12px 0",color:"#333"}}>{c.name}</td><td style={{padding:"12px 0",textAlign:"right",fontFamily:"monospace",color:"#333"}}>{f$(t.clientPrice)}</td></tr>})}
+            <tr style={{borderTop:"2px solid #432D1C"}}><td style={{padding:"14px 0",fontWeight:700,color:"#432D1C"}}>TOTAL INVESTMENT</td><td style={{padding:"14px 0",textAlign:"right",fontWeight:700,fontFamily:"monospace",color:"#432D1C",fontSize:18}}>{f$(comp.grandTotal)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Terms */}
+      <div style={{marginBottom:32}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:"#432D1C",marginBottom:16,textTransform:"uppercase",letterSpacing:".06em"}}>Terms</h2>
+        <div style={{fontSize:12,color:"#777",lineHeight:1.8}}>
+          <p>{"\u2022"} A 50% deposit is required to confirm the project and begin production.</p>
+          <p>{"\u2022"} Final payment is due 7 days prior to the event date.</p>
+          <p>{"\u2022"} Any changes to scope after approval may result in additional charges.</p>
+          <p>{"\u2022"} Cancellation within 30 days of event date forfeits the deposit.</p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{textAlign:"center",marginTop:36,paddingTop:18,borderTop:"1px solid #EEE"}}><div style={{fontSize:10,color:"#BBB"}}>Early Spring LLC {"\u00B7"} 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 {"\u00B7"} earlyspring.nyc</div></div>
     </div>}
 
     {tab==="files"&&<div>
