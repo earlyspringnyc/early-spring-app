@@ -1,7 +1,7 @@
 // Morgan Wordmark — elegant, geometric sans-serif with a production feel
 // The "M" has a subtle architectural quality
 
-export function MorganWordmark({ height = 24, color = "#FFEA97" }) {
+export function MorganWordmark({ height = 24, color = "#E8E8EC" }) {
   return <svg height={height} viewBox="0 0 420 60" fill={color} style={{ display: "inline-block" }}>
     {/* M */}
     <path d="M0 58V2h8l28 40L64 2h8v56h-7V14L39 50h-6L7 14v44H0z" />
@@ -19,7 +19,7 @@ export function MorganWordmark({ height = 24, color = "#FFEA97" }) {
 }
 
 // Morgan Isotype — abstract "M" mark with production/architectural feel
-export function MorganIsotype({ size = 28, color = "#FFEA97" }) {
+export function MorganIsotype({ size = 28, color = "#E8E8EC" }) {
   return <svg width={size} height={size} viewBox="0 0 60 60" fill="none" style={{ display: "inline-block" }}>
     <rect x="2" y="2" width="56" height="56" rx="12" stroke={color} strokeWidth="2.5" fill="none" />
     <path d="M14 44V16h3l13 20 13-20h3v28h-3V22L30 40h-2L15 22v22h-1z" fill={color} />
