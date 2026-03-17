@@ -37,8 +37,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
     </div>
     <div className="metric-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:20}}>
       <Metric label="Total Vendors" value={vendors.length}/>
-      <Metric label="W-9 Received" value={w9Received} color={T.pos}/>
-      <Metric label="W-9 Pending" value={w9Pending} color="#FBBF24"/>
+      {(()=>{const allInvoices=docs.filter(d=>d.type==="invoice");const totalReceived=allInvoices.reduce((a,d)=>a+d.amount,0);const totalPaid=allInvoices.filter(d=>d.status==="paid").reduce((a,d)=>a+d.amount,0);return<><Metric label="Invoices Received" value={f0(totalReceived)} color={T.gold}/><Metric label="Invoices Paid" value={f0(totalPaid)} color={T.pos}/></>})()}
       <Metric label="Outstanding" value={f0(totalOutstanding)} color={totalOutstanding>0?T.neg:T.dim} glow={totalOutstanding>0}/>
     </div>
     {showAdd&&<Card style={{padding:20,marginBottom:16}}>
