@@ -4,9 +4,9 @@ import { ci, ct } from './calc.js';
 export function budgetEmailHtml(project, cats, ag, comp, feeP) {
   const catRows = cats.map(c => {
     const t = ct(c.items).totals;
-    const catHeader = `<tr style="border-bottom:1px solid #F0F0F0;background:#FAFAF9"><td style="padding:12px 0;color:#333;font-size:14px;font-weight:600">${c.name}</td><td style="padding:12px 0;text-align:right;font-family:monospace;color:#333;font-size:14px;font-weight:600">${f$(t.clientPrice)}</td></tr>`;
+    const catHeader = `<tr style="border-bottom:1px solid #F0F0F0;background:#FAFAF9"><td colspan="2" style="padding:12px 0;color:#333;font-size:14px;font-weight:600">${c.name}</td><td style="padding:12px 0;text-align:right;font-family:monospace;color:#333;font-size:14px;font-weight:600">${f$(t.clientPrice)}</td></tr>`;
     const itemRows = c.items.filter(it => ci(it).clientPrice > 0).map(it =>
-      `<tr style="border-bottom:1px solid #F8F8F8"><td style="padding:8px 0 8px 20px;color:#555;font-size:13px">${it.name}${it.details ? `<div style="font-size:11px;color:#999;font-style:italic;margin-top:2px">${it.details}</div>` : ''}</td><td style="padding:8px 0;text-align:right;font-family:monospace;color:#555;font-size:13px">${f$(ci(it).clientPrice)}</td></tr>`
+      `<tr style="border-bottom:1px solid #F8F8F8"><td style="padding:8px 0 8px 20px;color:#555;font-size:13px">${it.name}</td><td style="padding:8px 0 8px 8px;color:#999;font-size:12px;font-style:italic">${it.details || ''}</td><td style="padding:8px 0;text-align:right;font-family:monospace;color:#555;font-size:13px">${f$(ci(it).clientPrice)}</td></tr>`
     ).join('');
     return catHeader + itemRows;
   }).join('');
@@ -34,10 +34,10 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
     </tr></table>
 
     <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
-      <thead><tr style="border-bottom:2px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Category</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Estimated Cost</th></tr></thead>
+      <thead><tr style="border-bottom:2px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Item</th><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Description</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Cost</th></tr></thead>
       <tbody>
         ${catRows}
-        <tr style="border-top:2px solid #432D1C"><td style="padding:14px 0;font-weight:700;color:#432D1C;font-size:14px">PRODUCTION SUBTOTAL</td><td style="padding:14px 0;text-align:right;font-weight:700;font-family:monospace;color:#432D1C;font-size:14px">${f$(comp.productionSubtotal.clientPrice)}</td></tr>
+        <tr style="border-top:2px solid #432D1C"><td colspan="2" style="padding:14px 0;font-weight:700;color:#432D1C;font-size:14px">PRODUCTION SUBTOTAL</td><td style="padding:14px 0;text-align:right;font-weight:700;font-family:monospace;color:#432D1C;font-size:14px">${f$(comp.productionSubtotal.clientPrice)}</td></tr>
       </tbody>
     </table>
 
