@@ -8,6 +8,10 @@ import { getStoredUsers, saveUsers } from '../utils/storage.js';
 
 function ProfileV({ user, updateProject, project, onUpdateUser }) {
   const isAdmin = user?.role === 'admin';
+  const[org,setOrg]=useState(()=>{try{return JSON.parse(localStorage.getItem("es_org"))||{name:"",logo:"",address:"",website:""}}catch(e){return{name:"",logo:"",address:"",website:""}}});
+  const updateOrg=(updates)=>{const next={...org,...updates};setOrg(next);try{localStorage.setItem("es_org",JSON.stringify(next))}catch(e){}};
+  const orgLogoRef=useRef(null);
+  const handleOrgLogo=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>updateOrg({logo:ev.target.result});reader.readAsDataURL(file)};
   const [team, setTeam] = useState(getStoredUsers);
   const [showInvite, setShowInvite] = useState(false);
   const [invEmail, setInvEmail] = useState("");
@@ -135,6 +139,25 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
           {isAdmin && u.id !== user?.id && <button onClick={() => { if (confirm(`Remove "${u.name}"?`)) removeTeamMember(u.id) }} style={{ background: "none", border: "none", cursor: "pointer", opacity: .2, padding: 2, flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = .2}><TrashI size={11} color={T.neg} /></button>}
         </div>)}
       </div>
+    </Card>
+
+    {/* Organization */}
+    <Card style={{padding:28,marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:600,color:T.cream,marginBottom:18}}>Organization</div>
+      <input ref={orgLogoRef} type="file" accept="image/*,.svg" onChange={handleOrgLogo} style={{display:"none"}}/>
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18}}>
+        {org.logo?<div onClick={()=>orgLogoRef.current?.click()} style={{width:56,height:56,borderRadius:T.rS,border:`1px solid ${T.border}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={org.logo} alt="Org logo" style={{maxWidth:52,maxHeight:52,objectFit:"contain"}}/></div>
+        :<div onClick={()=>orgLogoRef.current?.click()} style={{width:56,height:56,borderRadius:T.rS,border:`2px dashed ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexDirection:"column",gap:2}}><span style={{fontSize:16,opacity:.3}}>◈</span><span style={{fontSize:8,color:T.dim}}>Logo</span></div>}
+        <div style={{flex:1}}>
+          <p style={{fontSize:10,color:T.dim,fontFamily:T.serif,fontStyle:"italic"}}>Your logo replaces the Early Spring logo in the sidebar, exports, and emails.</p>
+          {org.logo&&<button onClick={()=>updateOrg({logo:""})} style={{fontSize:10,color:T.neg,background:"none",border:"none",cursor:"pointer",marginTop:4}}>Remove logo</button>}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Organization Name</label><input value={org.name} onChange={e=>updateOrg({name:e.target.value})} placeholder="Your Company" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Website</label><input value={org.website} onChange={e=>updateOrg({website:e.target.value})} placeholder="https://yourcompany.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
+      </div>
+      <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Address (for PDFs & exports)</label><input value={org.address} onChange={e=>updateOrg({address:e.target.value})} placeholder="385 Van Brunt St, Floor 2, Brooklyn, NY 11231" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>
     </Card>
 
     {/* Roles Explained */}

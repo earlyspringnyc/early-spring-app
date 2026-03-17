@@ -2,6 +2,8 @@ import { f$, fp } from './format.js';
 import { ci, ct } from './calc.js';
 
 export function budgetEmailHtml(project, cats, ag, comp, feeP) {
+  let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
+  try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
   const catRows = cats.map(c => {
     const t = ct(c.items).totals;
     const catHeader = `<tr style="border-bottom:1px solid #F0F0F0;background:#FAFAF9"><td colspan="2" style="padding:12px 0;color:#333;font-size:14px;font-weight:600">${c.name}</td><td style="padding:12px 0;text-align:right;font-family:monospace;color:#333;font-size:14px;font-weight:600">${f$(t.clientPrice)}</td></tr>`;
@@ -21,9 +23,9 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
   <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
     <table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr>
       <td style="vertical-align:top">
-        <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">EARLY SPRING</div>
+        <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">${orgName.toUpperCase()}</div>
         <div style="font-size:24px;font-weight:700;color:#432D1C">Production Estimate</div>
-        <div style="font-size:12px;color:#999;margin-top:4px">Prepared by Early Spring</div>
+        <div style="font-size:12px;color:#999;margin-top:4px">Prepared by ${orgName}</div>
       </td>
       <td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top">
         <div><strong style="color:#555">Project:</strong> ${project.name || '\u2014'}</div>
@@ -56,13 +58,16 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
     </tr></table>
 
     <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #EEE">
-      <div style="font-size:10px;color:#BBB">Early Spring LLC · 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 · earlyspring.nyc</div>
+      <div style="font-size:10px;color:#BBB">Sent from <a href="https://early-spring-app.vercel.app" style="color:#999;text-decoration:none">Morgan</a> @ <a href="https://${orgWeb.replace(/^https?:\/\//,'')}" style="color:#999;text-decoration:none">${orgName}</a></div>
+      ${orgAddr?`<div style="font-size:9px;color:#CCC;margin-top:4px">${orgAddr}</div>`:''}
     </div>
   </div>
 </div></body></html>`;
 }
 
 export function timelineEmailHtml(project, tasks) {
+  let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
+  try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
   const dated = tasks.filter(t => t.startDate).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
   const taskRows = dated.map(t =>
@@ -80,9 +85,9 @@ export function timelineEmailHtml(project, tasks) {
   <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
     <table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr>
       <td style="vertical-align:top">
-        <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">EARLY SPRING</div>
+        <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">${orgName.toUpperCase()}</div>
         <div style="font-size:24px;font-weight:700;color:#432D1C">Project Timeline</div>
-        <div style="font-size:12px;color:#999;margin-top:4px">Prepared by Early Spring</div>
+        <div style="font-size:12px;color:#999;margin-top:4px">Prepared by ${orgName}</div>
       </td>
       <td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top">
         <div><strong style="color:#555">Project:</strong> ${project.name || '\u2014'}</div>
@@ -105,7 +110,8 @@ export function timelineEmailHtml(project, tasks) {
     ${dated.length === 0 ? '<p style="text-align:center;padding:20px;color:#999;font-size:13px">No dated tasks in the timeline.</p>' : ''}
 
     <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #EEE">
-      <div style="font-size:10px;color:#BBB">Early Spring LLC · 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 · earlyspring.nyc</div>
+      <div style="font-size:10px;color:#BBB">Sent from <a href="https://early-spring-app.vercel.app" style="color:#999;text-decoration:none">Morgan</a> @ <a href="https://${orgWeb.replace(/^https?:\/\//,'')}" style="color:#999;text-decoration:none">${orgName}</a></div>
+      ${orgAddr?`<div style="font-size:9px;color:#CCC;margin-top:4px">${orgAddr}</div>`:''}
     </div>
   </div>
 </div></body></html>`;

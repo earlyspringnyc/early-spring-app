@@ -7,6 +7,7 @@ import { ESIsotype } from '../brand/index.js';
 import { BackI, LogOutI } from '../icons/index.js';
 
 function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout,saving,lastSaved}){
+  const[org]=useState(()=>{try{return JSON.parse(localStorage.getItem("es_org")||"{}")}catch(e){return{}}});
   const clientLabel=project.client||"Client";
   const mainNav=[{id:"dashboard",label:"Dashboard",s:"◐"},{id:"budget",label:"Budget",s:"◈"},{id:"timeline",label:"Timeline",s:"▤"},{id:"vendors",label:"Vendors",s:"◆"},{id:"export",label:clientLabel,s:"◈",isClient:true},{id:"ai",label:"AI Assistant",s:"◉"},...(user.role!=="viewer"?[{id:"settings",label:"Settings",s:"◎"}]:[])];
   const toolboxNav=[{id:"pnl",label:"P&L + Cash",s:"◇"},{id:"docs",label:"Documents",s:"▧"},{id:"ros",label:"Run of Show",s:"▶"}];
@@ -35,7 +36,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
   const onDragEnd=()=>{setDragIdx(null);setOverIdx(null)};
   return<div className="desktop-side" style={{width:228,display:"flex",flexDirection:"column",fontFamily:T.sans,background:"linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.005))",borderRight:`1px solid ${T.border}`}}>
     <div style={{padding:"20px 14px 6px"}}><button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",padding:"6px 8px",borderRadius:T.rS,color:T.dim,fontSize:11,fontFamily:T.sans,width:"100%",textAlign:"left",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.dim}} title="All Projects"><BackI size={12} color="currentColor"/> All Projects</button></div>
-    <div style={{padding:"10px 22px 18px"}}><div style={{display:"flex",alignItems:"center",gap:7}}><ESIsotype size={18} color={T.gold}/><span style={{fontSize:10,fontWeight:600,letterSpacing:".14em",color:T.gold}}>EARLY SPRING</span></div>
+    <div style={{padding:"10px 22px 18px"}}><div style={{display:"flex",alignItems:"center",gap:7}}>{org.logo?<img src={org.logo} alt={org.name||"Logo"} style={{height:20,objectFit:"contain"}}/>:org.name?<span style={{fontSize:10,fontWeight:600,letterSpacing:".14em",color:T.gold}}>{org.name.toUpperCase()}</span>:<><ESIsotype size={18} color={T.gold}/><span style={{fontSize:10,fontWeight:600,letterSpacing:".14em",color:T.gold}}>EARLY SPRING</span></>}</div>
       <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10}}>{project.logo&&<img src={project.logo} alt={project.client||project.name||"Client logo"} style={{width:28,height:28,borderRadius:6,objectFit:"contain",flexShrink:0,border:`1px solid ${T.border}`}}/>}<div><h2 style={{fontSize:14,fontWeight:600,color:T.cream,lineHeight:1.3}}>{project.name}</h2><p style={{fontSize:11,color:T.dim,marginTop:2}}>{project.client||"No client"}</p></div></div>
     </div>
     <div style={{padding:"0 14px 8px",position:"relative"}}>
