@@ -6,7 +6,7 @@ import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
 import { getStoredUsers, saveUsers } from '../utils/storage.js';
 
-function ProfileV({ user, updateProject, project }) {
+function ProfileV({ user, updateProject, project, onUpdateUser }) {
   const isAdmin = user?.role === 'admin';
   const [team, setTeam] = useState(getStoredUsers);
   const [showInvite, setShowInvite] = useState(false);
@@ -22,10 +22,12 @@ function ProfileV({ user, updateProject, project }) {
     setAvatarUploading(true);
     const reader = new FileReader();
     reader.onload = ev => {
-      // Update current user's avatar in team
-      const updated = team.map(u => u.id === user?.id ? { ...u, avatar: ev.target.result } : u);
+      const avatar = ev.target.result;
+      const updated = team.map(u => u.id === user?.id ? { ...u, avatar } : u);
       setTeam(updated);
       saveUsers(updated);
+      if (onUpdateUser) onUpdateUser({ ...user, avatar });
+      try { const u = JSON.parse(localStorage.getItem("es_user") || "{}"); localStorage.setItem("es_user", JSON.stringify({ ...u, avatar })); } catch (e) {}
       setAvatarUploading(false);
     };
     reader.readAsDataURL(file);

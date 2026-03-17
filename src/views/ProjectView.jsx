@@ -17,7 +17,7 @@ import ExpV from './ExpV.jsx';
 import AIV from './AIV.jsx';
 import SetV from './SetV.jsx';
 
-function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved}){
+function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved,onUpdateUser}){
   const[view,setView]=useState("dashboard");
   const[exp,setExp]=useState(new Set());
   const canEdit=user.role!=="viewer";
@@ -52,7 +52,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId}/>}
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
-      {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project}/>}
+      {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project} onUpdateUser={onUpdateUser}/>}
       {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user}/>}
     </div></main>
     {vendorDetailId&&<VendorDetailModal vendorId={vendorDetailId} project={project} onClose={()=>setVendorDetailId(null)} canEdit={canEdit} updateProject={updateProject}/>}
