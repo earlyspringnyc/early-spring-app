@@ -104,7 +104,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     <Card style={{padding:16,marginBottom:16}}>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",flexShrink:0}}>Share via email</span>
-        <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase()}@example.com`} onKeyDown={e=>e.key==="Enter"&&doSendEmail()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+        <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase()}@example.com`} onKeyDown={e=>{if(e.key==="Enter")doSendEmail();if(e.key==="Tab"||e.key===","){const v=emailTo.trim();if(v&&!v.endsWith(",")){e.preventDefault();setEmailTo(v+", ")}}}} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
         <button onClick={doSendEmail} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 18px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending…":"Send"}</button>
       </div>
       {emailSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {emailSent}</div>}
