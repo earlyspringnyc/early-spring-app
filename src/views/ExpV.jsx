@@ -18,6 +18,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[emailTo,setEmailTo]=useState("");const[emailSending,setEmailSending]=useState(false);const[emailSent,setEmailSent]=useState("");
   const[fileFilter,setFileFilter]=useState("all");
   const fileInputRef=useRef(null);
+  const deckRef=useRef(null);
+  const[deckEmail,setDeckEmail]=useState("");const[deckSending,setDeckSending]=useState(false);const[deckSent,setDeckSent]=useState("");
   const toggleTask=id=>setIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setIncluded(new Set(tasks.map(t=>t.id)));
   const selectNone=()=>setIncluded(new Set());
@@ -166,9 +168,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
 
     {tab==="deck"&&(()=>{
       const deck=(project.pitchDeck||null);
-      const deckRef=useRef(null);
       const handleDeckUpload=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{updateProject({pitchDeck:{name:file.name,fileData:ev.target.result,dateUploaded:new Date().toLocaleDateString()}})};reader.readAsDataURL(file);e.target.value=""};
-      const[deckEmail,setDeckEmail]=useState("");const[deckSending,setDeckSending]=useState(false);const[deckSent,setDeckSent]=useState("");
       const sendDeck=async()=>{if(!deckEmail.trim()||!deck)return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setDeckSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=`<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F5F4F1;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif"><div style="max-width:640px;margin:0 auto;padding:40px 20px"><div style="background:#fff;border-radius:12px;padding:40px"><table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr><td style="vertical-align:top"><div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">EARLY SPRING</div><div style="font-size:24px;font-weight:700;color:#432D1C">Pitch Deck</div></td><td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top"><div><strong style="color:#555">Project:</strong> ${project.name||""}</div><div><strong style="color:#555">Client:</strong> ${project.client||""}</div></td></tr></table><p style="font-size:14px;color:#333;line-height:1.6">Please find our pitch deck for <strong>${project.name||"the project"}</strong> attached to this email.</p><p style="font-size:14px;color:#333;line-height:1.6">We look forward to discussing this with you.</p><div style="margin-top:32px;padding-top:16px;border-top:1px solid #EEE;text-align:center;font-size:10px;color:#BBB">Early Spring LLC · 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 · earlyspring.nyc</div></div></div></body></html>`;await gmailSend(accessToken,deckEmail.trim(),`Pitch Deck: ${project.name||""}`,htmlBody);setDeckSent(deckEmail);setDeckEmail("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setDeckSending(false)}};
       return<div>
         <input ref={deckRef} type="file" accept=".pdf,.pptx,.key" onChange={handleDeckUpload} style={{display:"none"}}/>
