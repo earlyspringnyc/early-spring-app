@@ -7,10 +7,14 @@ export function useProjects(orgId) {
   const [projects, setProjects] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
+  const initialLoadDone = useRef(false);
   const usesDb = isSupabaseConfigured() && orgId && orgId !== 'local';
 
   // Load projects
   useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
     if (usesDb) {
       db.getProjects(orgId).then(p => {
         setProjects(p.length ? p : []);

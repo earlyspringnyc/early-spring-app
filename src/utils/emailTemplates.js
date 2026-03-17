@@ -4,7 +4,11 @@ import { ci, ct } from './calc.js';
 export function budgetEmailHtml(project, cats, ag, comp, feeP) {
   const catRows = cats.map(c => {
     const t = ct(c.items).totals;
-    return `<tr style="border-bottom:1px solid #F0F0F0"><td style="padding:12px 0;color:#333;font-size:14px">${c.name}</td><td style="padding:12px 0;text-align:right;font-family:monospace;color:#333;font-size:14px">${f$(t.clientPrice)}</td></tr>`;
+    const catHeader = `<tr style="border-bottom:1px solid #F0F0F0;background:#FAFAF9"><td style="padding:12px 0;color:#333;font-size:14px;font-weight:600">${c.name}</td><td style="padding:12px 0;text-align:right;font-family:monospace;color:#333;font-size:14px;font-weight:600">${f$(t.clientPrice)}</td></tr>`;
+    const itemRows = c.items.filter(it => ci(it).clientPrice > 0).map(it =>
+      `<tr style="border-bottom:1px solid #F8F8F8"><td style="padding:8px 0 8px 20px;color:#555;font-size:13px">${it.name}${it.details ? `<div style="font-size:11px;color:#999;font-style:italic;margin-top:2px">${it.details}</div>` : ''}</td><td style="padding:8px 0;text-align:right;font-family:monospace;color:#555;font-size:13px">${f$(ci(it).clientPrice)}</td></tr>`
+    ).join('');
+    return catHeader + itemRows;
   }).join('');
 
   const agRows = ag.map(it => {

@@ -6,6 +6,15 @@ import { PAYMENT_COLORS, PAYMENT_LABELS } from '../constants/index.js';
 import { Chev, PlusI, TrashI } from '../components/icons/index.js';
 import { NI, VendorSelect } from '../components/primitives/index.js';
 
+function DetailsInput({value,onChange,canEdit}){
+  const[editing,setEditing]=useState(false);
+  const[tmp,setTmp]=useState(value);
+  if(editing)return<input autoFocus value={tmp} onChange={e=>setTmp(e.target.value)} onBlur={()=>{onChange(tmp);setEditing(false)}} onKeyDown={e=>{if(e.key==="Enter"){onChange(tmp);setEditing(false)}if(e.key==="Escape")setEditing(false)}} style={{width:"100%",padding:"2px 4px",marginTop:2,fontSize:10,fontStyle:"italic",color:T.dim,background:"transparent",border:`1px solid ${T.border}`,borderRadius:4,outline:"none",fontFamily:T.sans}}/>;
+  if(value)return<div onClick={()=>canEdit&&setEditing(true)} style={{fontSize:10,color:T.dim,fontStyle:"italic",marginTop:2,cursor:canEdit?"pointer":"default"}}>{value}</div>;
+  if(canEdit)return<button onClick={()=>{setTmp("");setEditing(true)}} style={{fontSize:9,color:T.dim,opacity:.3,background:"none",border:"none",cursor:"pointer",padding:"1px 0",fontFamily:T.sans}}>+ details</button>;
+  return null;
+}
+
 function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs,vendors,onAddVendor,onVendorClick,isContingency,contBase,onReorder}){
   const{items,totals}=comp;
   const[dragItem,setDragItem]=useState(null);const[overItem,setOverItem]=useState(null);
@@ -45,8 +54,11 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
       </div>
       {items.map((it,idx)=><div key={it.id} draggable={!!onReorder} onDragStart={e=>{setDragItem(idx);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverItem(idx)}} onDrop={e=>{e.preventDefault();if(dragItem!==null&&dragItem!==idx&&onReorder)onReorder(dragItem,idx);setDragItem(null);setOverItem(null)}} onDragEnd={()=>{setDragItem(null);setOverItem(null)}} style={{display:"grid",gridTemplateColumns:cols,alignItems:"center",padding:"7px 18px",borderBottom:idx<items.length-1?`1px solid ${T.border}`:"none",transition:"background .12s",opacity:dragItem===idx?.5:1,borderTop:overItem===idx&&dragItem!==null?`2px solid ${T.gold}`:"none"}}
         onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,color:T.cream}}>{it.name}</span>
-          {canEdit&&<button onClick={()=>onRm(idx)} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}</div>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,color:T.cream}}>{it.name}</span>
+            {canEdit&&<button onClick={()=>onRm(idx)} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}</div>
+          <DetailsInput value={it.details||""} onChange={v=>onUp(idx,{details:v})} canEdit={canEdit}/>
+        </div>
         {!isAg&&<div style={{paddingRight:4}}><VendorSelect value={it.vendorId} onChange={v=>onUp(idx,{vendorId:v})} vendors={vendors} onAddVendor={onAddVendor} disabled={!canEdit} compact/></div>}
         {isAg?<><NI value={it.days||0} fmt="" onChange={v=>onUp(idx,{days:v,actualCost:v*(it.dayRate||0)})} disabled={!canEdit}/><NI value={it.dayRate||0} onChange={v=>onUp(idx,{dayRate:v,actualCost:(it.days||0)*v})} disabled={!canEdit}/></>
           :<><NI value={it.budget} onChange={v=>onUp(idx,{budget:v})} disabled={!canEdit}/><NI value={it.estCost} onChange={v=>onUp(idx,{estCost:v})} disabled={!canEdit}/></>}
