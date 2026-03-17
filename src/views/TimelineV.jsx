@@ -43,7 +43,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[contactSuggestions,setContactSuggestions]=useState([]);const[showContactSug,setShowContactSug]=useState(false);
   const[newActionItem,setNewActionItem]=useState("");
   const filtered=filter==="all"?tasks:tasks.filter(t=>t.status===filter);
-  const counts={all:tasks.length,todo:tasks.filter(t=>t.status==="todo").length,progress:tasks.filter(t=>t.status==="progress").length,done:tasks.filter(t=>t.status==="done").length};
+  const counts={all:tasks.length,todo:tasks.filter(t=>t.status==="todo").length,progress:tasks.filter(t=>t.status==="progress").length,roadblocked:tasks.filter(t=>t.status==="roadblocked").length,done:tasks.filter(t=>t.status==="done").length};
   const[layout,setLayout]=useState("stacked");
   const[splitWidth,setSplitWidth]=useState(380);
   const[dragging,setDragging]=useState(false);
@@ -62,7 +62,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     updateProject({timeline:[...tasks,mkTask(n,cat||nC,assignee||nA,start||nS,end||nE,linkedItemId)]});
     setNN("");setNC("General");setNA("");setNS("");setNE("");setShowAdd(false);setTaskSugs([]);
   };
-  const cycleStatus=idx=>{const order=["todo","progress","done"];const cur=tasks[idx].status;updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status:order[(order.indexOf(cur)+1)%3]}:t)})};
+  const cycleStatus=idx=>{const order=["todo","progress","roadblocked","done"];const cur=tasks[idx].status;updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status:order[(order.indexOf(cur)+1)%order.length]}:t)})};
+  const setTaskStatus=(idx,status)=>{updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status}:t)})};
   const removeTask=idx=>updateProject({timeline:tasks.filter((_,i)=>i!==idx)});
   const[editDateId,setEditDateId]=useState(null);
   const updateTaskDates=(taskId,startDate,endDate)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,startDate:startDate||t.startDate,endDate:endDate||t.endDate}:t)});setEditDateId(null)};
@@ -232,7 +233,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <span onClick={()=>viewMode!=="off"&&setLayout(l=>l==="split"?"stacked":"split")} style={{fontSize:13,fontWeight:600,color:T.cream,cursor:viewMode!=="off"?"pointer":"default"}} title={viewMode!=="off"?"Click to toggle side-by-side view":""}>{layout==="split"?"◧ ":""}Task List</span>
           <div style={{display:"flex",gap:4}}>
-            {["all","todo","progress","done"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?T.goldSoft:"transparent",color:filter===f?T.gold:T.dim}}>{f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})</button>)}
+            {["all","todo","progress","roadblocked","done"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?(f==="roadblocked"?"rgba(248,113,113,.1)":T.goldSoft):"transparent",color:filter===f?(f==="roadblocked"?T.neg:T.gold):T.dim}}>{f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})</button>)}
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -245,7 +246,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
               <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</div>
                 <div style={{display:"flex",gap:10,marginTop:3}}>{t.category&&<span style={{fontSize:10,color:T.dim}}>{t.category}</span>}{t.assignee&&<span style={{fontSize:10,color:T.cyan}}>{t.assignee}</span>}</div></div>
               <span onClick={()=>canEdit&&setEditDateId(isEditingDate?null:t.id)} style={{fontSize:10,color:t.startDate?T.dim:"rgba(255,255,255,.2)",fontFamily:T.mono,flexShrink:0,cursor:canEdit?"pointer":"default",padding:"2px 6px",borderRadius:4,transition:"all .15s",background:isEditingDate?T.surfHov:"transparent"}} onMouseEnter={e=>{if(canEdit)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>e.currentTarget.style.color=t.startDate?T.dim:"rgba(255,255,255,.2)"}>{dateStr}</span>
-              <span style={{fontSize:9,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>
+              {canEdit?<select value={t.status} onChange={e=>setTaskStatus(ri,e.target.value)} style={{padding:"3px 4px",borderRadius:T.rS,background:`${STATUS_COLORS[t.status]}18`,border:`1px solid ${STATUS_COLORS[t.status]}33`,color:STATUS_COLORS[t.status],fontSize:9,fontWeight:600,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none",textTransform:"uppercase",letterSpacing:".04em",flexShrink:0}}>{["todo","progress","roadblocked","done"].map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select>
+              :<span style={{fontSize:9,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>}
               {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2} title="Delete task"><TrashI size={11} color={T.neg}/></button>}
             </div>
             {isEditingDate&&canEdit&&<div style={{display:"flex",gap:12,padding:"10px 16px",background:T.surface,border:`1px solid ${T.borderGlow}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,marginBottom:4}}>
