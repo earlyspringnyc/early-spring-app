@@ -8,6 +8,7 @@ import { useProjects } from './hooks/useProjects.js';
 import { useVendors } from './hooks/useVendors.js';
 import { isSupabaseConfigured } from './lib/supabase.js';
 import Login from './views/Login.jsx';
+import LandingPage from './views/LandingPage.jsx';
 import PortfolioDash from './views/PortfolioDash.jsx';
 import ProjectView from './views/ProjectView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
@@ -60,6 +61,7 @@ function App(){
   const[saving,setSaving]=useState(false);
   const[lastSaved,setLastSaved]=useState(null);
 
+  const[showLogin,setShowLogin]=useState(false);
   const[activeId,setActiveId]=useState(null);
   const[showNew,setShowNew]=useState(false);
   const[undoStack,setUndoStack]=useState([]);
@@ -113,12 +115,10 @@ function App(){
     </div>
   </div>;
 
-  if(!user)return<Login
-    onLogin={setUser}
-    googleClientId={GOOGLE_CLIENT_ID}
-    onGoogleLogin={loginWithGoogle}
-    isSupabase={usesSupa}
-  />;
+  if(!user){
+    if(showLogin)return<Login onLogin={setUser} googleClientId={GOOGLE_CLIENT_ID} onGoogleLogin={loginWithGoogle} isSupabase={usesSupa}/>;
+    return<LandingPage onGetStarted={()=>setShowLogin(true)}/>;
+  }
 
   if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
