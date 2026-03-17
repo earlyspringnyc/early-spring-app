@@ -223,7 +223,9 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     {/* Calendar / Gantt view + Task List — draggable side-by-side */}
     {(()=>{
       const calendarMeeting=(title,date,time,duration,attendees,agenda)=>{addMeeting(title);};
-      const calendarContent=viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} canEdit={canEdit}/>:viewMode==="gantt"?<GanttChart tasks={tasks}/>:null;
+      const editTask=(taskId,updates)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,...updates}:t)})};
+      const deleteTask=(taskId)=>{updateProject({timeline:tasks.filter(t=>t.id!==taskId)})};
+      const calendarContent=viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>:viewMode==="gantt"?<GanttChart tasks={tasks}/>:null;
       const taskListContent=<>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <span onClick={()=>viewMode!=="off"&&setLayout(l=>l==="split"?"stacked":"split")} style={{fontSize:13,fontWeight:600,color:T.cream,cursor:viewMode!=="off"?"pointer":"default"}} title={viewMode!=="off"?"Click to toggle side-by-side view":""}>{layout==="split"?"◧ ":""}Task List</span>

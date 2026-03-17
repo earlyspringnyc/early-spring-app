@@ -4,11 +4,27 @@ import { parseD } from '../utils/date.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 import { searchTaskHistory } from '../utils/taskHistory.js';
 
-function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
+const CAT_COLORS={"General":"#FFEA97","Venue":"#FB923C","Production":"#67E8F9","Design":"#D8B4FE","Catering":"#6EE7B7","Print":"#FCA5A5","Finance":"#93C5FD","Permits":"#FBBF24","Meeting":"#D8B4FE","Meeting Action":"#D8B4FE"};
+function taskColor(t){
+  if(t.status==="done")return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
+  if(t.status==="progress")return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
+  if(t.category==="Meeting"||t.category==="Meeting Action")return{bg:"rgba(216,180,254,.12)",fg:"#D8B4FE"};
+  const c=CAT_COLORS[t.category];
+  if(c)return{bg:`${c}18`,fg:c};
+  // Hash the category name to pick a color
+  const colors=["#FFEA97","#6EE7B7","#67E8F9","#D8B4FE","#FCA5A5","#FB923C","#93C5FD","#FBBF24","#A3E635"];
+  let hash=0;for(let i=0;i<(t.category||"").length;i++)hash=((hash<<5)-hash)+(t.category||"").charCodeAt(i);
+  const picked=colors[Math.abs(hash)%colors.length];
+  return{bg:`${picked}18`,fg:picked};
+}
+
+function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canEdit}){
   const[month,setMonth]=useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}});
   const[addDate,setAddDate]=useState(null);
   const[qN,setQN]=useState("");const[qE,setQE]=useState("");
   const[taskSugs,setTaskSugs]=useState([]);
+  const[editingTask,setEditingTask]=useState(null);
+  const[editName,setEditName]=useState("");
   const[calMode,setCalMode]=useState("month");
   const[selectedDay,setSelectedDay]=useState(()=>new Date().getDate());
   // Drag to select range
@@ -111,7 +127,12 @@ function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
       onMouseOver={e=>{if(!isDragging&&!inRange&&!isStart)e.currentTarget.style.background=T.surfHov}}
       onMouseOut={e=>{if(!isDragging&&!inRange&&!isStart)e.currentTarget.style.background="transparent"}}>
       <div style={{fontSize:11,fontWeight:tdy?700:400,color:tdy?T.gold:T.dim,marginBottom:4,fontFamily:T.mono}}>{d}</div>
-      {dayTasks.slice(0,3).map(t=><div key={t.id+d} style={{fontSize:9,padding:"2px 5px",marginBottom:2,borderRadius:3,background:t.status==="done"?"rgba(52,211,153,.12)":t.status==="progress"?"rgba(34,211,238,.12)":t.category==="Meeting"?"rgba(232,121,249,.12)":"rgba(255,234,151,.1)",color:t.status==="done"?T.pos:t.status==="progress"?T.cyan:t.category==="Meeting"?T.magenta:T.gold,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.category==="Meeting"?"● ":""}{t.name}</div>)}
+      {dayTasks.slice(0,3).map(t=>{const tc=taskColor(t);const isEditing=editingTask===t.id;
+        return isEditing?<div key={t.id+d} style={{display:"flex",gap:2,marginBottom:2}} onClick={e=>e.stopPropagation()}>
+          <input autoFocus value={editName} onChange={e=>setEditName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}if(e.key==="Escape")setEditingTask(null)}} onBlur={()=>{if(editName.trim()&&editName!==t.name)onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}} style={{flex:1,padding:"1px 4px",fontSize:9,borderRadius:2,border:`1px solid ${tc.fg}`,background:"transparent",color:T.cream,outline:"none",fontFamily:T.sans,minWidth:0}}/>
+          <button onClick={e=>{e.stopPropagation();onDeleteTask&&onDeleteTask(t.id);setEditingTask(null)}} style={{background:"none",border:"none",color:T.neg,fontSize:10,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Delete task">×</button>
+        </div>
+        :<div key={t.id+d} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{fontSize:9,padding:"2px 5px",marginBottom:2,borderRadius:3,background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}</div>})}
       {dayTasks.length>3&&<div style={{fontSize:8,color:T.dim,paddingLeft:5}}>+{dayTasks.length-3} more</div>}
     </div>);
   }
@@ -126,9 +147,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
             {h>12?h-12:h}{h>=12?"pm":"am"}
           </div>
           <div style={{flex:1,padding:"4px 8px",borderLeft:`1px solid ${T.border}`}} onClick={()=>canEdit&&setAddDate(selectedDay)}>
-            {dayTasks.map(t=>
-              <div key={t.id} style={{fontSize:10,padding:"2px 6px",marginBottom:2,borderRadius:3,background:t.status==="done"?"rgba(52,211,153,.12)":"rgba(255,234,151,.1)",color:t.status==="done"?T.pos:T.gold}}>{t.name}</div>
-            )}
+            {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id} style={{fontSize:10,padding:"2px 6px",marginBottom:2,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px solid ${tc.fg}`}}>{t.name}</div>})}
           </div>
         </div>
       ))}
@@ -145,7 +164,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,canEdit}){
         const tdy=isToday(d);
         return<div key={d} onClick={()=>{setSelectedDay(d);canEdit&&setAddDate(addDate===d?null:d)}} style={{minHeight:200,padding:8,background:addDate===d?"rgba(255,234,151,.06)":"transparent",borderRadius:T.rS,cursor:canEdit?"pointer":"default",border:tdy?`1px solid rgba(255,234,151,.25)`:"1px solid transparent"}} onMouseEnter={e=>{if(addDate!==d)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(addDate!==d)e.currentTarget.style.background="transparent"}}>
           <div style={{fontSize:10,fontWeight:tdy?700:400,color:tdy?T.gold:T.dim,marginBottom:6,fontFamily:T.mono,textAlign:"center"}}>{dNames[new Date(month.y,month.m,d).getDay()]} {d}</div>
-          {dayTasks.map(t=><div key={t.id+d} style={{fontSize:9,padding:"3px 6px",marginBottom:3,borderRadius:3,background:t.status==="done"?"rgba(52,211,153,.12)":t.status==="progress"?"rgba(34,211,238,.12)":"rgba(255,234,151,.1)",color:t.status==="done"?T.pos:t.status==="progress"?T.cyan:T.gold,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>)}
+          {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id+d} style={{fontSize:9,padding:"3px 6px",marginBottom:3,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px solid ${tc.fg}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>})}
         </div>;
       })}
     </div>;
