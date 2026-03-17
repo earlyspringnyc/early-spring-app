@@ -5,7 +5,7 @@ import { Card, DatePick } from '../components/primitives/index.js';
 import { searchTaskHistory } from '../utils/taskHistory.js';
 
 // Smart color inference based on category keywords
-function taskColor(t){
+export function taskColor(t){
   if(t.status==="done")return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
   if(t.status==="progress")return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
   const cat=((t.category||"General")+" "+(t.name||"")).toLowerCase();
@@ -156,7 +156,10 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
           <input autoFocus value={editName} onChange={e=>setEditName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}if(e.key==="Escape")setEditingTask(null)}} onBlur={()=>{if(editName.trim()&&editName!==t.name)onEditTask&&onEditTask(t.id,{name:editName});setEditingTask(null)}} style={{flex:1,padding:"1px 4px",fontSize:9,borderRadius:2,border:`1px solid ${tc.fg}`,background:"transparent",color:T.cream,outline:"none",fontFamily:T.sans,minWidth:0}}/>
           <button onClick={e=>{e.stopPropagation();onDeleteTask&&onDeleteTask(t.id);setEditingTask(null)}} style={{background:"none",border:"none",color:T.neg,fontSize:10,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Delete task">×</button>
         </div>
-        :<div key={t.id+d} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{fontSize:9,padding:"2px 5px",marginBottom:2,borderRadius:3,background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}</div>})}
+        :<div key={t.id+d} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
+          <div onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:9,padding:"2px 5px",borderRadius:3,background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}</div>
+          {canEdit&&<button onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:9,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
+        </div>})}
       {dayTasks.length>3&&<div style={{fontSize:8,color:T.dim,paddingLeft:5}}>+{dayTasks.length-3} more</div>}
     </div>);
   }

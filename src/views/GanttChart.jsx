@@ -1,6 +1,7 @@
 import T from '../theme/tokens.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
 import { Card } from '../components/primitives/index.js';
+import { taskColor } from './CalendarView.jsx';
 
 function GanttChart({tasks}){
   const dated=tasks.filter(t=>parseD(t.startDate));
@@ -28,12 +29,15 @@ function GanttChart({tasks}){
           const start=parseD(t.startDate);const end=parseD(t.endDate)||start;
           const left=(daysBetween(minD,start)/totalDays)*100;
           const width=Math.max((daysBetween(start,end)+1)/totalDays*100,1);
-          const barColor=t.status==="done"?T.pos:t.status==="progress"?T.cyan:T.gold;
+          const tc=taskColor(t);
           return<div key={t.id} style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>
-            <div style={{width:160,flexShrink:0,padding:"0 14px",overflow:"hidden"}}><span style={{fontSize:11,color:t.status==="done"?T.dim:T.cream,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{t.name}</span></div>
+            <div style={{width:160,flexShrink:0,padding:"0 14px",overflow:"hidden",display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:4,height:4,borderRadius:"50%",background:tc.fg,flexShrink:0}}/>
+              <span style={{fontSize:11,color:t.status==="done"?T.dim:T.cream,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{t.name}</span>
+            </div>
             <div style={{flex:1,position:"relative",height:22}}>
-              <div style={{position:"absolute",left:`${left}%`,width:`${width}%`,top:4,height:14,borderRadius:3,background:barColor,opacity:t.status==="done"?.4:.8,transition:"all .3s",boxShadow:`0 0 8px ${barColor}33`}}>
-                <span style={{position:"absolute",left:6,top:1,fontSize:9,color:t.status==="done"?"#fff":"#000",fontWeight:600,whiteSpace:"nowrap"}}>{fmtShort(start)}{end>start?` — ${fmtShort(end)}`:""}</span>
+              <div style={{position:"absolute",left:`${left}%`,width:`${width}%`,top:4,height:14,borderRadius:3,background:tc.fg,opacity:t.status==="done"?.3:.8,transition:"all .3s",boxShadow:`0 0 8px ${tc.fg}33`}}>
+                <span style={{position:"absolute",left:6,top:1,fontSize:9,color:"#000",fontWeight:600,whiteSpace:"nowrap",mixBlendMode:"luminosity"}}>{fmtShort(start)}{end>start?` — ${fmtShort(end)}`:""}</span>
               </div>
             </div>
           </div>})}
