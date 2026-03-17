@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 let supabase = null;
 let supabaseError = false;
 
-if (supabaseUrl && supabaseAnonKey && supabaseAnonKey.startsWith('eyJ')) {
+if (supabaseUrl && supabaseAnonKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseAnonKey);
   } catch (e) {
