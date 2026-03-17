@@ -1,0 +1,66 @@
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%;overflow:hidden}
+body{font-family:'Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glow{0%,100%{opacity:.4}50%{opacity:.8}}
+@keyframes slideIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:.8;transform:scale(1)}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes breathe{0%,100%{opacity:.4;box-shadow:0 0 12px rgba(255,234,151,.05)}50%{opacity:.7;box-shadow:0 0 20px rgba(255,234,151,.12)}}
+@keyframes borderGlow{0%,100%{border-color:rgba(255,234,151,.06)}50%{border-color:rgba(255,234,151,.15)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes popIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@keyframes checkPop{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes subtlePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+@keyframes typeIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+@keyframes viewFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+.fade-up{animation:fadeUp .35s ease-out forwards}
+.slide-in{animation:slideIn .25s ease-out forwards}
+.count-up{animation:countUp .4s ease-out forwards}
+.pop-in{animation:popIn .25s cubic-bezier(.34,1.56,.64,1) forwards}
+.breathe{animation:breathe 4s ease-in-out infinite}
+.border-breathe{animation:borderGlow 3s ease-in-out infinite}
+.float{animation:float 3s ease-in-out infinite}
+.shimmer-bg{background:linear-gradient(90deg,transparent,rgba(255,234,151,.03),transparent);background-size:200% 100%;animation:shimmer 3s ease-in-out infinite}
+.gradient-shift{background-size:200% 200%;animation:gradientShift 8s ease infinite}
+.view-enter{animation:viewFade .2s ease-out forwards}
+.num{font-variant-numeric:tabular-nums}
+
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.04);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.08)}
+
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-track{height:3px;border-radius:2px;background:rgba(255,255,255,.06)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#FFEA97;margin-top:-6.5px;box-shadow:0 0 12px rgba(255,234,151,.3)}
+
+.retro-grid{background-image:linear-gradient(rgba(255,234,151,.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,234,151,.012) 1px,transparent 1px);background-size:60px 60px}
+.scanlines::after{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.012) 2px,rgba(0,0,0,.012) 4px);pointer-events:none;z-index:9999}
+
+@media print{
+  .no-print{display:none!important}
+  body{background:#fff!important;color:#000!important}
+  #root>div>div:first-child{display:none!important}
+  .scanlines::after{display:none!important}
+  .retro-grid{background-image:none!important}
+}
+@media(max-width:768px){
+  .desktop-side{display:none!important}
+  .main-content{padding:12px 12px 80px!important}
+  .metric-grid{grid-template-columns:1fr 1fr!important}
+  .budget-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  .modal-inner{width:100%!important;max-width:100%!important;height:100%!important;max-height:100%!important;border-radius:0!important;padding:20px!important}
+  input,select,button{min-height:40px}
+  input[type=range]{min-height:32px}
+  .cal-cell{min-height:70px!important}
+  .chart-container{overflow-x:auto}
+  .card-mobile{padding:14px!important}
+  .grid-responsive{grid-template-columns:1fr!important}
+  .mobile-nav{display:flex}
+}
+@media(min-width:769px){
+  .mobile-nav{display:none!important}
+  .desktop-side{display:flex!important}
+}
