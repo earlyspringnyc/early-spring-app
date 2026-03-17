@@ -201,6 +201,58 @@ export async function deleteProject(projectId) {
 }
 
 // ============================================================
+// Shared Vendor Registry (org-level)
+// ============================================================
+
+export async function getVendors(orgId) {
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await supabase
+    .from('vendors')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('name');
+  if (error) { console.error('Get vendors failed:', error); return []; }
+  return data || [];
+}
+
+export async function createVendor(orgId, vendor) {
+  if (!isSupabaseConfigured()) return null;
+  const { data, error } = await supabase
+    .from('vendors')
+    .insert({
+      org_id: orgId,
+      name: vendor.name,
+      email: vendor.email || '',
+      phone: vendor.phone || '',
+      notes: vendor.notes || '',
+      vendor_type: vendor.vendorType || 'other',
+      w9_status: vendor.w9Status || 'pending',
+    })
+    .select()
+    .maybeSingle();
+  if (error) { console.error('Create vendor failed:', error); return null; }
+  // Map to app format
+  return data ? { ...data, vendorType: data.vendor_type, w9Status: data.w9_status } : null;
+}
+
+export async function updateVendorDb(vendorId, updates) {
+  if (!isSupabaseConfigured()) return;
+  const dbUpdates = {};
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.email !== undefined) dbUpdates.email = updates.email;
+  if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+  if (updates.vendorType !== undefined) dbUpdates.vendor_type = updates.vendorType;
+  if (updates.w9Status !== undefined) dbUpdates.w9_status = updates.w9Status;
+  await supabase.from('vendors').update(dbUpdates).eq('id', vendorId);
+}
+
+export async function deleteVendorDb(vendorId) {
+  if (!isSupabaseConfigured()) return;
+  await supabase.from('vendors').delete().eq('id', vendorId);
+}
+
+// ============================================================
 // File Storage
 // ============================================================
 

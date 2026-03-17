@@ -6,7 +6,7 @@ import { isOverdue } from '../../utils/calc.js';
 import { ESIsotype } from '../brand/index.js';
 import { BackI, LogOutI } from '../icons/index.js';
 
-function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout}){
+function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout,saving,lastSaved}){
   const clientLabel=project.client||"Client";
   const mainNav=[{id:"dashboard",label:"Dashboard",s:"◐"},{id:"budget",label:"Budget",s:"◈"},{id:"timeline",label:"Timeline",s:"▤"},{id:"vendors",label:"Vendors",s:"◆"},{id:"export",label:clientLabel,s:"◈",isClient:true},{id:"ai",label:"AI Assistant",s:"◉"},...(user.role!=="viewer"?[{id:"settings",label:"Settings",s:"◎"}]:[])];
   const toolboxNav=[{id:"pnl",label:"P&L + Cash",s:"◇"},{id:"docs",label:"Documents",s:"▧"},{id:"ros",label:"Run of Show",s:"▶"}];
@@ -59,6 +59,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
       </div>}
     </nav>
     <div style={{padding:"0 14px 12px"}}><div className="border-breathe" style={{padding:"20px 18px",borderRadius:T.r,background:"linear-gradient(135deg,rgba(255,234,151,.04),rgba(34,211,238,.02),rgba(232,121,249,.02))",backgroundSize:"200% 200%",animation:"gradientShift 8s ease infinite",border:"1px solid rgba(255,234,151,.06)"}}><div style={{fontSize:9,color:T.dim,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",fontFamily:T.sans}}>Net Profit</div><div className="num" style={{fontSize:26,fontWeight:700,color:T.gold,fontFamily:T.mono,marginTop:6,lineHeight:1,letterSpacing:"-0.02em"}}>{f0(comp.netProfit)}</div><div style={{height:1,background:`linear-gradient(90deg,transparent,${T.border},transparent)`,margin:"14px 0"}}/><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:10,color:T.dim,fontFamily:T.serif,fontStyle:"italic"}}>Grand Total</span><span className="num" style={{fontSize:14,fontWeight:600,color:T.cream,fontFamily:T.mono}}>{f0(comp.grandTotal)}</span></div></div></div>
+    <div style={{padding:"4px 14px",textAlign:"center"}}><span style={{fontSize:9,color:saving?T.gold:T.dim,fontFamily:T.mono,transition:"color .3s"}}>{saving?"Saving...":lastSaved?"Saved "+lastSaved.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):""}</span></div>
     {toggleTheme&&<div style={{padding:"8px 14px"}}>
       <button onClick={toggleTheme} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"8px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:500,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.dim}}>
         <span style={{fontSize:14}}>{themeMode==="dark"?"\u2600":"\u263E"}</span>

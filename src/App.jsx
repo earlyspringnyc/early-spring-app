@@ -5,6 +5,7 @@ import { GOOGLE_CLIENT_ID } from './constants/index.js';
 import { useSupabaseAuth } from './hooks/useSupabaseAuth.js';
 import { useGoogleAuth } from './hooks/useGoogleAuth.js';
 import { useProjects } from './hooks/useProjects.js';
+import { useVendors } from './hooks/useVendors.js';
 import { isSupabaseConfigured } from './lib/supabase.js';
 import Login from './views/Login.jsx';
 import PortfolioDash from './views/PortfolioDash.jsx';
@@ -21,9 +22,16 @@ function App(){
 
   const user = usesSupa ? sbAuth.user : gAuth.user;
   const accessToken = usesSupa ? sbAuth.accessToken : gAuth.accessToken;
-  const logout = usesSupa ? sbAuth.logout : gAuth.logout;
+  const rawLogout = usesSupa ? sbAuth.logout : gAuth.logout;
   const setUser = usesSupa ? sbAuth.setDevUser : gAuth.setUser;
   const loginWithGoogle = usesSupa ? sbAuth.login : null;
+  const logout = useCallback(async()=>{
+    setActiveId(null);
+    localStorage.removeItem("es_user");
+    localStorage.removeItem("es_projects");
+    localStorage.removeItem("es_vendors");
+    await rawLogout();
+  },[rawLogout]);
 
   // Initialize Google token client for non-Supabase mode
   useEffect(()=>{if(!usesSupa && GOOGLE_CLIENT_ID)gAuth.initTokenClient(GOOGLE_CLIENT_ID)},[usesSupa,GOOGLE_CLIENT_ID]);
@@ -44,9 +52,12 @@ function App(){
   useEffect(()=>{setThemeMode(themeMode)},[]);
   useEffect(()=>{document.documentElement.className=themeMode==='light'?'theme-light':''},[themeMode]);
 
-  // Projects
+  // Projects & Shared Vendors
   const orgId = usesSupa ? (sbAuth.profile?.org_id || 'local') : 'local';
   const { projects, loaded, createProject: createProj, updateProject: updateProj, deleteProject: deleteProj } = useProjects(orgId);
+  const { vendors: sharedVendors, addVendor: addSharedVendor, updateVendor: updateSharedVendor, removeVendor: removeSharedVendor } = useVendors(orgId);
+  const[saving,setSaving]=useState(false);
+  const[lastSaved,setLastSaved]=useState(null);
 
   const[activeId,setActiveId]=useState(null);
   const[showNew,setShowNew]=useState(false);
@@ -62,9 +73,10 @@ function App(){
 
   const updateProject=useCallback(updates=>{
     if(!activeId)return;
-    // Undo stack (keep local for now)
     setUndoStack(s=>[...s.slice(-MAX_UNDO),projects]);
+    setSaving(true);
     updateProj(activeId,updates);
+    setTimeout(()=>{setSaving(false);setLastSaved(new Date())},1200);
   },[activeId,updateProj,projects]);
 
   const deleteProject=useCallback(async(id)=>{
@@ -105,7 +117,7 @@ function App(){
     isSupabase={usesSupa}
   />;
 
-  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={logout}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={logout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>

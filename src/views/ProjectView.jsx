@@ -16,7 +16,7 @@ import ExpV from './ExpV.jsx';
 import AIV from './AIV.jsx';
 import SetV from './SetV.jsx';
 
-function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout}){
+function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved}){
   const[view,setView]=useState("dashboard");
   const[exp,setExp]=useState(new Set());
   const canEdit=user.role!=="viewer";
@@ -36,7 +36,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
   const addVendor=useCallback(v=>updateProject({vendors:[...(project.vendors||[]),v]}),[project.vendors,updateProject]);
   const handleDelete=()=>{if(confirm(`Delete "${project.name}"? This cannot be undone.`))deleteProject(project.id)};
   return<div className="scanlines retro-grid" style={{display:"flex",height:"100vh",background:T.bgGrad,color:T.cream,fontFamily:T.sans}}>
-    <Side view={view} setView={setView} comp={comp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout}/>
+    <Side view={view} setView={setView} comp={comp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout} saving={saving} lastSaved={lastSaved}/>
     <MobileNav view={view} setView={setView} project={project}/>
     <main className="main-content" style={{flex:1,overflow:"auto",padding:28}}><div key={view} className="view-enter">
       {view==="budget"&&<BudgetV cats={project.cats} ag={project.ag} feeP={project.feeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={project.clientBudget||0} onUpdateBudget={v=>updateProject({clientBudget:v})} reorderCat={reorderCat}/>}
