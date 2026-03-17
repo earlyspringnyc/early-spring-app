@@ -3,8 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+let supabase = null;
+let supabaseError = false;
 
-export const isSupabaseConfigured = () => !!supabase;
+if (supabaseUrl && supabaseAnonKey && supabaseAnonKey.startsWith('eyJ')) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+  } catch (e) {
+    console.error('Supabase init failed:', e);
+    supabaseError = true;
+  }
+}
+
+export { supabase };
+export const isSupabaseConfigured = () => !!supabase && !supabaseError;
