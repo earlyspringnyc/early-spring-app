@@ -7,21 +7,25 @@ export function useProjects(orgId) {
   const [projects, setProjects] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
-  const initialLoadDone = useRef(false);
+  const prevOrgId = useRef(null);
   const usesDb = isSupabaseConfigured() && orgId && orgId !== 'local';
 
-  // Load projects
+  // Load projects - reload when orgId changes (e.g. from 'local' to a real UUID)
   useEffect(() => {
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
+    // Skip if orgId hasn't actually changed
+    if (prevOrgId.current === orgId) return;
+    prevOrgId.current = orgId;
 
     if (usesDb) {
+      console.log('[projects] Loading from Supabase for org:', orgId);
+      setLoaded(false);
       db.getProjects(orgId).then(p => {
-        setProjects(p.length ? p : []);
+        console.log('[projects] Loaded', p.length, 'projects from Supabase');
+        setProjects(p);
         setLoaded(true);
       }).catch(e => {
-        console.error('Failed to load projects from Supabase:', e);
-        // Fallback to localStorage
+        console.error('[projects] Failed to load from Supabase:', e);
+        // Fallback to localStorage cache
         try {
           const saved = localStorage.getItem("es_projects");
           if (saved) setProjects(JSON.parse(saved));
@@ -45,19 +49,23 @@ export function useProjects(orgId) {
     }
   }, [orgId, usesDb]);
 
-  // Always save to localStorage as backup
+  // Always save to localStorage as write-through cache
   useEffect(() => {
     if (!loaded) return;
     try { localStorage.setItem("es_projects", JSON.stringify(projects)); } catch (e) {}
   }, [projects, loaded]);
 
-  // Debounced save to Supabase
+  // Immediate save to Supabase (with debounce for rapid updates)
   const saveToSupabase = useCallback((projectId, projectData) => {
     if (!usesDb) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      db.updateProject(projectId, projectData).catch(e => console.error('Save failed:', e));
-    }, 1000);
+    // Use per-project timers to avoid one project's save cancelling another's
+    const timerKey = `_saveTimer_${projectId}`;
+    if (saveTimer.current?.[timerKey]) clearTimeout(saveTimer.current[timerKey]);
+    if (!saveTimer.current) saveTimer.current = {};
+    saveTimer.current[timerKey] = setTimeout(() => {
+      console.log('[projects] Saving project to Supabase:', projectId);
+      db.updateProject(projectId, projectData).catch(e => console.error('[projects] Save failed:', e));
+    }, 500);
   }, [usesDb]);
 
   const createProject = useCallback(async (name, client, date, eventDate, logo, clientBudget, stage) => {
@@ -66,11 +74,12 @@ export function useProjects(orgId) {
       try {
         const saved = await db.createProject(orgId, p);
         if (saved) {
+          console.log('[projects] Created project in Supabase:', saved.id);
           setProjects(prev => [...prev, saved]);
           return saved.id;
         }
       } catch (e) {
-        console.error('Supabase create failed, saving locally:', e);
+        console.error('[projects] Supabase create failed, saving locally:', e);
       }
     }
     // Local fallback
@@ -92,7 +101,7 @@ export function useProjects(orgId) {
 
   const deleteProjectById = useCallback(async (projectId) => {
     if (usesDb) {
-      try { await db.deleteProject(projectId); } catch (e) { console.error('Delete failed:', e); }
+      try { await db.deleteProject(projectId); } catch (e) { console.error('[projects] Delete failed:', e); }
     }
     setProjects(prev => prev.filter(p => p.id !== projectId));
   }, [usesDb]);

@@ -40,23 +40,35 @@ export async function getOrCreateProfile(user) {
   if (!isSupabaseConfigured()) return null;
 
   // Check if profile exists
-  let { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*, organizations(*)')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (profile) return profile;
+  if (profileError) {
+    console.error('[db] Profile lookup failed:', profileError);
+  }
 
-  // Check if there's an invitation
-  const { data: invitation } = await supabase
+  if (profile) {
+    console.log('[db] Found existing profile:', profile.id, 'org:', profile.org_id);
+    return profile;
+  }
+
+  // Check if there's an invitation for this email
+  const { data: invitation, error: invError } = await supabase
     .from('invitations')
     .select('*')
     .eq('email', user.email)
     .eq('accepted', false)
     .maybeSingle();
 
+  if (invError) {
+    console.error('[db] Invitation lookup failed:', invError);
+  }
+
   if (invitation) {
+    console.log('[db] Found invitation for', user.email, 'to org:', invitation.org_id);
     const { data: newProfile, error } = await supabase
       .from('profiles')
       .insert({
@@ -70,17 +82,25 @@ export async function getOrCreateProfile(user) {
       .select('*, organizations(*)')
       .maybeSingle();
 
-    if (!error) {
+    if (error) {
+      console.error('[db] Profile creation via invitation failed:', error);
+      return null;
+    }
+
+    if (newProfile) {
+      // Mark invitation as accepted
       await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
+      console.log('[db] Created profile via invitation:', newProfile.id);
     }
     return newProfile;
   }
 
-  // Create new org and profile
+  // Create new org first, then profile
   const orgName = user.user_metadata?.full_name
     ? `${user.user_metadata.full_name}'s Team`
     : `${user.email.split('@')[0]}'s Team`;
 
+  console.log('[db] Creating new org:', orgName);
   const { data: org, error: orgError } = await supabase
     .from('organizations')
     .insert({ name: orgName })
@@ -88,9 +108,10 @@ export async function getOrCreateProfile(user) {
     .maybeSingle();
 
   if (orgError || !org) {
-    console.error('Org creation failed:', orgError);
+    console.error('[db] Org creation failed:', orgError);
     return null;
   }
+  console.log('[db] Created org:', org.id);
 
   const { data: newProfile, error: profError } = await supabase
     .from('profiles')
@@ -106,10 +127,13 @@ export async function getOrCreateProfile(user) {
     .maybeSingle();
 
   if (profError) {
-    console.error('Profile creation failed:', profError);
+    console.error('[db] Profile creation failed:', profError);
+    // Clean up the orphaned org
+    await supabase.from('organizations').delete().eq('id', org.id);
     return null;
   }
 
+  console.log('[db] Created profile:', newProfile?.id, 'org:', newProfile?.org_id);
   return newProfile;
 }
 
@@ -156,17 +180,21 @@ export async function inviteTeamMember(orgId, email, role, invitedBy) {
 
 export async function getProjects(orgId) {
   if (!isSupabaseConfigured()) return [];
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .select('*')
     .eq('org_id', orgId)
     .order('created_at', { ascending: false });
-  return (data || []).map(p => ({ ...p.data, id: p.id, _dbId: p.id, name: p.name, client: p.client }));
+  if (error) {
+    console.error('[db] Get projects failed:', error);
+    return [];
+  }
+  return (data || []).map(p => ({ ...(p.data || {}), id: p.id, _dbId: p.id, name: p.name, client: p.client }));
 }
 
 export async function createProject(orgId, projectData) {
   if (!isSupabaseConfigured()) return null;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .insert({
       org_id: orgId,
@@ -176,28 +204,34 @@ export async function createProject(orgId, projectData) {
     })
     .select()
     .single();
+  if (error) {
+    console.error('[db] Create project failed:', error);
+    return null;
+  }
   if (data) return { ...data.data, id: data.id, _dbId: data.id };
   return null;
 }
 
 export async function updateProject(projectId, projectData) {
   if (!isSupabaseConfigured()) return;
-  await supabase
+  const { error } = await supabase
     .from('projects')
     .update({
-      name: projectData.name,
-      client: projectData.client,
+      name: projectData.name || '',
+      client: projectData.client || '',
       data: projectData,
     })
     .eq('id', projectId);
+  if (error) console.error('[db] Update project failed:', error);
 }
 
 export async function deleteProject(projectId) {
   if (!isSupabaseConfigured()) return;
-  await supabase
+  const { error } = await supabase
     .from('projects')
     .delete()
     .eq('id', projectId);
+  if (error) console.error('[db] Delete project failed:', error);
 }
 
 // ============================================================
@@ -211,7 +245,7 @@ export async function getVendors(orgId) {
     .select('*')
     .eq('org_id', orgId)
     .order('name');
-  if (error) { console.error('Get vendors failed:', error); return []; }
+  if (error) { console.error('[db] Get vendors failed:', error); return []; }
   return data || [];
 }
 
@@ -230,7 +264,7 @@ export async function createVendor(orgId, vendor) {
     })
     .select()
     .maybeSingle();
-  if (error) { console.error('Create vendor failed:', error); return null; }
+  if (error) { console.error('[db] Create vendor failed:', error); return null; }
   // Map to app format
   return data ? { ...data, vendorType: data.vendor_type, w9Status: data.w9_status } : null;
 }
@@ -244,12 +278,14 @@ export async function updateVendorDb(vendorId, updates) {
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.vendorType !== undefined) dbUpdates.vendor_type = updates.vendorType;
   if (updates.w9Status !== undefined) dbUpdates.w9_status = updates.w9Status;
-  await supabase.from('vendors').update(dbUpdates).eq('id', vendorId);
+  const { error } = await supabase.from('vendors').update(dbUpdates).eq('id', vendorId);
+  if (error) console.error('[db] Update vendor failed:', error);
 }
 
 export async function deleteVendorDb(vendorId) {
   if (!isSupabaseConfigured()) return;
-  await supabase.from('vendors').delete().eq('id', vendorId);
+  const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
+  if (error) console.error('[db] Delete vendor failed:', error);
 }
 
 // ============================================================

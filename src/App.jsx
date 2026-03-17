@@ -54,6 +54,7 @@ function App(){
 
   // Projects & Shared Vendors
   const orgId = usesSupa ? (sbAuth.profile?.org_id || 'local') : 'local';
+  console.log('[app] Auth state:', { usesSupa, user: !!user, profile: sbAuth.profile?.id, orgId });
   const { projects, loaded, createProject: createProj, updateProject: updateProj, deleteProject: deleteProj } = useProjects(orgId);
   const { vendors: sharedVendors, addVendor: addSharedVendor, updateVendor: updateSharedVendor, removeVendor: removeSharedVendor } = useVendors(orgId);
   const[saving,setSaving]=useState(false);

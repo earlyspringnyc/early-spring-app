@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import * as db from '../lib/db.js';
 import { uid } from '../utils/uid.js';
@@ -6,22 +6,30 @@ import { uid } from '../utils/uid.js';
 export function useVendors(orgId) {
   const [vendors, setVendors] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const prevOrgId = useRef(null);
   const usesDb = isSupabaseConfigured() && orgId && orgId !== 'local';
 
-  // Load vendors
+  // Load vendors - reload when orgId changes
   useEffect(() => {
+    if (prevOrgId.current === orgId) return;
+    prevOrgId.current = orgId;
+
     if (usesDb) {
+      console.log('[vendors] Loading from Supabase for org:', orgId);
+      setLoaded(false);
       db.getVendors(orgId).then(v => {
         // Map DB format to app format
-        setVendors(v.map(vendor => ({
+        const mapped = v.map(vendor => ({
           ...vendor,
           vendorType: vendor.vendor_type || vendor.vendorType || 'other',
           w9Status: vendor.w9_status || vendor.w9Status || 'pending',
-        })));
+        }));
+        console.log('[vendors] Loaded', mapped.length, 'vendors from Supabase');
+        setVendors(mapped);
         setLoaded(true);
       }).catch(e => {
-        console.error('Failed to load vendors:', e);
-        // Fallback to localStorage
+        console.error('[vendors] Failed to load:', e);
+        // Fallback to localStorage cache
         try {
           const saved = localStorage.getItem("es_vendors");
           if (saved) setVendors(JSON.parse(saved));
@@ -37,7 +45,7 @@ export function useVendors(orgId) {
     }
   }, [orgId, usesDb]);
 
-  // Save to localStorage as backup
+  // Save to localStorage as write-through cache
   useEffect(() => {
     if (!loaded) return;
     try { localStorage.setItem("es_vendors", JSON.stringify(vendors)); } catch (e) {}
@@ -48,10 +56,11 @@ export function useVendors(orgId) {
       try {
         const saved = await db.createVendor(orgId, vendor);
         if (saved) {
+          console.log('[vendors] Created vendor in Supabase:', saved.id);
           setVendors(prev => [...prev, saved]);
           return saved;
         }
-      } catch (e) { console.error('Vendor create failed:', e); }
+      } catch (e) { console.error('[vendors] Vendor create failed:', e); }
     }
     // Local fallback
     const v = { id: uid(), ...vendor };
@@ -62,16 +71,20 @@ export function useVendors(orgId) {
   const updateVendor = useCallback(async (vendorId, updates) => {
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, ...updates } : v));
     if (usesDb) {
-      try { await db.updateVendorDb(vendorId, updates); } catch (e) { console.error('Vendor update failed:', e); }
+      try {
+        await db.updateVendorDb(vendorId, updates);
+      } catch (e) { console.error('[vendors] Vendor update failed:', e); }
     }
   }, [usesDb]);
 
   const removeVendor = useCallback(async (vendorId) => {
     setVendors(prev => prev.filter(v => v.id !== vendorId));
     if (usesDb) {
-      try { await db.deleteVendorDb(vendorId); } catch (e) { console.error('Vendor delete failed:', e); }
+      try {
+        await db.deleteVendorDb(vendorId);
+      } catch (e) { console.error('[vendors] Vendor delete failed:', e); }
     }
   }, [usesDb]);
 
-  return { vendors, loaded: loaded, addVendor, updateVendor, removeVendor };
+  return { vendors, loaded, addVendor, updateVendor, removeVendor };
 }

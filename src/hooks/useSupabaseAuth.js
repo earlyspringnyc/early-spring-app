@@ -9,6 +9,29 @@ import {
   getGoogleAccessToken,
 } from '../lib/db.js';
 
+const MAX_PROFILE_RETRIES = 3;
+const PROFILE_RETRY_DELAY = 1000;
+
+async function getOrCreateProfileWithRetry(user) {
+  for (let attempt = 1; attempt <= MAX_PROFILE_RETRIES; attempt++) {
+    try {
+      const p = await getOrCreateProfile(user);
+      if (p && p.org_id) {
+        console.log('[auth] Profile loaded on attempt', attempt, '- org:', p.org_id);
+        return p;
+      }
+      console.warn('[auth] Profile attempt', attempt, 'returned:', p);
+    } catch (e) {
+      console.error('[auth] Profile attempt', attempt, 'error:', e);
+    }
+    if (attempt < MAX_PROFILE_RETRIES) {
+      await new Promise(r => setTimeout(r, PROFILE_RETRY_DELAY * attempt));
+    }
+  }
+  console.error('[auth] All profile creation attempts failed for user:', user.id);
+  return null;
+}
+
 export function useSupabaseAuth() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -30,37 +53,51 @@ export function useSupabaseAuth() {
     }
 
     // Check existing session with timeout
-    const timeout = setTimeout(() => setLoading(false), 5000);
+    const timeout = setTimeout(() => {
+      console.warn('[auth] Session check timed out after 5s');
+      setLoading(false);
+    }, 5000);
+
     getSession().then(async (session) => {
       if (session?.user) {
+        console.log('[auth] Existing session found for:', session.user.email);
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        try {
-          const p = await getOrCreateProfile(session.user);
+        const p = await getOrCreateProfileWithRetry(session.user);
+        if (p) {
           setProfile(p);
-        } catch (e) { console.error('Profile error:', e); }
+        } else {
+          console.error('[auth] Could not load/create profile for existing session');
+        }
+      } else {
+        console.log('[auth] No existing session');
       }
       clearTimeout(timeout);
       setLoading(false);
     }).catch(e => {
-      console.error('Session error:', e);
+      console.error('[auth] Session error:', e);
       clearTimeout(timeout);
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = onAuthStateChange(async (event, session) => {
+      console.log('[auth] Auth state change:', event);
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        try {
-          const p = await getOrCreateProfile(session.user);
-          if (p) setProfile(p);
-        } catch (e) { console.error('Profile creation error:', e); }
+        const p = await getOrCreateProfileWithRetry(session.user);
+        if (p) {
+          setProfile(p);
+        } else {
+          console.error('[auth] Could not create profile after sign-in');
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
         setAccessToken(null);
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        setAccessToken(session.provider_token || null);
       }
     });
 
@@ -69,6 +106,7 @@ export function useSupabaseAuth() {
 
   const login = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
+    console.log('[auth] Initiating Google sign-in');
     await signInWithGoogle();
   }, []);
 
