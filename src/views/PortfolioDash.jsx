@@ -7,9 +7,11 @@ import { PlusI, LogOutI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card, Metric } from '../components/primitives/index.js';
 
-function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete}){
+function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage}){
   const sorted=[...projects].sort((a,b)=>b.createdAt-a.createdAt);
   const canCreate=user.role!=="viewer";
+  const[dragProjectId,setDragProjectId]=useState(null);
+  const[dropStage,setDropStage]=useState(null);
   const[tab,setTab]=useState("projects");
   const allComps=projects.map(p=>({p,c:calcProject(p)}));
   const totalRevenue=allComps.reduce((a,{c})=>a+c.grandTotal,0);
@@ -63,25 +65,30 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         :<div>
           {PROJECT_STAGES.map(stage=>{
             const stageProjects=sorted.filter(p=>(p.stage||"pitching")===stage);
-            if(stageProjects.length===0&&stage==="archived")return null;
-            return<div key={stage} style={{marginBottom:28}}>
+            const isDropTarget=dragProjectId&&dropStage===stage;
+            const showEmpty=stageProjects.length===0;
+            if(showEmpty&&stage==="archived"&&!dragProjectId)return null;
+            return<div key={stage} style={{marginBottom:28}}
+              onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setDropStage(stage)}}
+              onDragLeave={()=>setDropStage(null)}
+              onDrop={e=>{e.preventDefault();if(dragProjectId&&onUpdateStage){onUpdateStage(dragProjectId,stage)}setDragProjectId(null);setDropStage(null)}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:STAGE_COLORS[stage]}}/>
-                <h2 style={{fontSize:16,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>{STAGE_LABELS[stage]}</h2>
+                <div style={{width:10,height:10,borderRadius:"50%",background:STAGE_COLORS[stage],transition:"transform .2s",transform:isDropTarget?"scale(1.3)":"scale(1)"}}/>
+                <h2 style={{fontSize:16,fontWeight:600,color:isDropTarget?STAGE_COLORS[stage]:T.cream,letterSpacing:"-0.01em",transition:"color .2s"}}>{STAGE_LABELS[stage]}</h2>
                 <span style={{fontSize:11,color:T.dim}}>({stageProjects.length})</span>
               </div>
-              {stageProjects.length===0?<div style={{padding:"24px 20px",border:`1px dashed ${T.border}`,borderRadius:T.r,textAlign:"center"}}>
-                <p style={{fontSize:12,color:T.dim}}>No {STAGE_LABELS[stage].toLowerCase()} projects</p>
+              {showEmpty?<div style={{padding:"24px 20px",border:`2px dashed ${isDropTarget?STAGE_COLORS[stage]:T.border}`,borderRadius:T.r,textAlign:"center",transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}08`:"transparent"}}>
+                <p style={{fontSize:12,color:isDropTarget?STAGE_COLORS[stage]:T.dim}}>{isDropTarget?"Drop here to move to "+STAGE_LABELS[stage]:"No "+STAGE_LABELS[stage].toLowerCase()+" projects"}</p>
               </div>
-              :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:16}}>
+              :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:16,padding:isDropTarget?8:0,border:isDropTarget?`2px dashed ${STAGE_COLORS[stage]}`:"2px dashed transparent",borderRadius:T.r,transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}06`:"transparent"}}>
                 {stageProjects.map(p=>{const comp=calcProject(p);const hasData=comp.productionSubtotal.actualCost>0;const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;
-                  return<Card key={p.id} hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:1}}>
+                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab"}}>
                     <div style={{padding:"22px 24px 18px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
                           {p.logo&&<img src={p.logo} alt={p.client||p.name||"Client logo"} style={{width:28,height:28,borderRadius:4,objectFit:"contain",flexShrink:0}}/>}
                           <div style={{flex:1,minWidth:0}}><h3 style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</h3><p style={{fontSize:12,color:T.dim,fontFamily:T.serif}}>{p.client||"No client"}</p></div></div><div style={{display:"flex",gap:4,alignItems:"center"}}>{ov>0&&<span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,background:"rgba(248,113,113,.12)",color:T.neg}}>{ov} overdue</span>}<span style={{fontSize:8,fontWeight:700,padding:"2px 7px",borderRadius:6,background:`${STAGE_COLORS[stage]}15`,color:STAGE_COLORS[stage],textTransform:"uppercase"}}>{STAGE_LABELS[stage]}</span></div></div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:16}}><div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Grand Total</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div><div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Net Profit</div><div className="num" style={{fontSize:18,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div></div></div>
                     <div style={{padding:"10px 24px",background:"rgba(255,255,255,.015)",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:T.dim}}>{p.eventDate?`Event: ${p.eventDate}`:p.date||"No date"}</span><div style={{display:"flex",gap:8,alignItems:"center"}}>{onDuplicate&&<button onClick={e=>{e.stopPropagation();onDuplicate(p.id)}} style={{fontSize:10,color:T.dim,background:"none",border:"none",cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Duplicate</button>}{onDelete&&<button onClick={e=>{e.stopPropagation();if(confirm(`Delete "${p.name}"? This cannot be undone.`))onDelete(p.id)}} style={{fontSize:10,color:T.dim,background:"none",border:"none",cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.neg} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Delete</button>}<span style={{fontSize:10,color:T.gold,fontWeight:500}}>Open &rarr;</span></div></div>
-                  </Card>})}
+                  </Card></div>})}
               </div>}
             </div>})}
           {canCreate&&<div onClick={onNew} style={{borderRadius:T.r,border:`2px dashed ${T.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:40,cursor:"pointer",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}><div style={{width:36,height:36,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:10}}><PlusI size={16} color={T.gold}/></div><span style={{fontSize:13,fontWeight:500,color:T.dim}}>New Project</span></div>}
