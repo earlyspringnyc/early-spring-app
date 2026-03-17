@@ -53,8 +53,10 @@ export function useSupabaseAuth() {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        const p = await getOrCreateProfile(session.user);
-        setProfile(p);
+        try {
+          const p = await getOrCreateProfile(session.user);
+          if (p) setProfile(p);
+        } catch (e) { console.error('Profile creation error:', e); }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
@@ -94,8 +96,18 @@ export function useSupabaseAuth() {
     return token;
   }, []);
 
+  // Normalize user object so it always has name, email, role
+  const normalizedUser = profile ? profile : user ? {
+    ...user,
+    name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '',
+    email: user.email || '',
+    role: 'admin',
+    avatar_url: user.user_metadata?.avatar_url || '',
+    org_id: 'local',
+  } : null;
+
   return {
-    user: profile || user,
+    user: normalizedUser,
     rawUser: user,
     profile,
     accessToken,
