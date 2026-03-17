@@ -59,6 +59,13 @@ Available actions:
 - {"type":"add_txn","txnType":"income|expense","description":"...","amount":0,"date":"MM/DD/YYYY","category":"..."}
 - {"type":"add_ros","time":"14:00","item":"...","location":"...","lead":"...","duration":"30m"}
 - {"type":"update_fee","feePercent":0.20}
+- {"type":"update_item","category":"Venue","item":"Venue Rental","actualCost":15000,"margin":0.15}
+- {"type":"update_agency","item":"Creative Director","days":5,"dayRate":800,"margin":0.15}
+- {"type":"add_item","category":"Venue","name":"New Line Item","actualCost":0,"margin":0.15}
+
+For update_item: match by category name and item name. You can update actualCost, margin, budget, estCost.
+For update_agency: match by item name. You can update days, dayRate, margin.
+For add_item: adds a new line item to an existing budget category.
 
 You can include multiple action blocks. Always explain what you're doing before or after the action block. Keep responses concise. Use real numbers from the project data. If something looks off (margin too low, missing docs, timeline gaps), say so directly.`;
 

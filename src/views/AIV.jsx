@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import React from 'react';
 import T from '../theme/tokens.js';
-import { mkTask, mkDoc, mkTxn, mkROS } from '../data/factories.js';
+import { mkTask, mkDoc, mkTxn, mkROS, mkI } from '../data/factories.js';
 import { isOverdue } from '../utils/calc.js';
 import { Card } from '../components/primitives/index.js';
 import { serializeProject, AI_SYSTEM } from '../ai/serialize.js';
@@ -38,6 +38,40 @@ function AIV({project,updateProject,comp}){
         }else if(action.type==="update_fee"){
           updateProject({feeP:action.feePercent});
           executed.push("Updated agency fee to "+(action.feePercent*100)+"%");
+        }else if(action.type==="update_item"){
+          const cats=(project.cats||[]).map(c=>{
+            if(c.name.toLowerCase()!==action.category?.toLowerCase())return c;
+            return{...c,items:c.items.map(it=>{
+              if(it.name.toLowerCase()!==action.item?.toLowerCase())return it;
+              const updates={};
+              if(action.actualCost!==undefined)updates.actualCost=action.actualCost;
+              if(action.margin!==undefined)updates.margin=action.margin;
+              if(action.budget!==undefined)updates.budget=action.budget;
+              if(action.estCost!==undefined)updates.estCost=action.estCost;
+              return{...it,...updates};
+            })};
+          });
+          updateProject({cats});
+          executed.push("Updated "+action.item+" in "+action.category);
+        }else if(action.type==="update_agency"){
+          const ag=(project.ag||[]).map(it=>{
+            if(it.name.toLowerCase()!==action.item?.toLowerCase())return it;
+            const updates={};
+            if(action.days!==undefined)updates.days=action.days;
+            if(action.dayRate!==undefined)updates.dayRate=action.dayRate;
+            if(action.margin!==undefined)updates.margin=action.margin;
+            if(action.days!==undefined||action.dayRate!==undefined)updates.actualCost=(action.days??it.days)*(action.dayRate??it.dayRate);
+            return{...it,...updates};
+          });
+          updateProject({ag});
+          executed.push("Updated agency role: "+action.item);
+        }else if(action.type==="add_item"){
+          const cats=(project.cats||[]).map(c=>{
+            if(c.name.toLowerCase()!==action.category?.toLowerCase())return c;
+            return{...c,items:[...c.items,mkI(action.name||"New Item",action.actualCost||0,action.margin||0.15)]};
+          });
+          updateProject({cats});
+          executed.push("Added "+action.name+" to "+action.category);
         }
       }catch(e){executed.push("Failed to parse action")}
     }
