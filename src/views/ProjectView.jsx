@@ -16,7 +16,7 @@ import ExpV from './ExpV.jsx';
 import AIV from './AIV.jsx';
 import SetV from './SetV.jsx';
 
-function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken}){
+function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess}){
   const[view,setView]=useState("dashboard");
   const[exp,setExp]=useState(new Set());
   const canEdit=user.role!=="viewer";
@@ -41,7 +41,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     <main className="main-content" style={{flex:1,overflow:"auto",padding:28}}><div key={view} className="view-enter">
       {view==="budget"&&<BudgetV cats={project.cats} ag={project.ag} feeP={project.feeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={project.clientBudget||0} onUpdateBudget={v=>updateProject({clientBudget:v})} reorderCat={reorderCat}/>}
       {view==="dashboard"&&<DashV cats={project.cats} comp={comp} feeP={project.feeP} project={project}/>}
-      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
+      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit}/>}
       {view==="pnl"&&<PnLV project={project} updateProject={updateProject} comp={comp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
       {view==="docs"&&<DocsV project={project} updateProject={updateProject} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
