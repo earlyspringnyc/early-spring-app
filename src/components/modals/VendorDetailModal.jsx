@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import T from '../../theme/tokens.js';
 import { f$, f0 } from '../../utils/format.js';
 import { getPayStatus } from '../../utils/calc.js';
@@ -7,9 +7,9 @@ import { VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES, W9_COLORS, PAYMEN
 import { TrashI } from '../icons/index.js';
 import { Card, DatePick } from '../primitives/index.js';
 
-const VENDOR_DOC_TYPES = ["w9","coi","contract","estimate","invoice","license","permit","other"];
-const VENDOR_DOC_LABELS = {w9:"W-9",coi:"Certificate of Insurance",contract:"Contract",estimate:"Estimate",invoice:"Invoice",license:"License",permit:"Permit",other:"Other"};
-const VENDOR_DOC_COLORS = {w9:"#67E8F9",coi:"#6EE7B7",contract:"#93C5FD",estimate:"#FFEA97",invoice:"#FFEA97",license:"#D8B4FE",permit:"#FB923C",other:"rgba(250,250,249,.5)"};
+const VENDOR_DOC_TYPES = ["invoice","contract","estimate","coi","w9","license","permit","other"];
+const VENDOR_DOC_LABELS = {invoice:"Invoice",contract:"Contract",estimate:"Estimate",coi:"Certificate of Insurance",w9:"W-9",license:"License",permit:"Permit",other:"Other"};
+const VENDOR_DOC_COLORS = {invoice:"#FFEA97",contract:"#93C5FD",estimate:"#6EE7B7",coi:"#67E8F9",w9:"#D8B4FE",license:"#FB923C",permit:"#FBBF24",other:"rgba(250,250,249,.5)"};
 
 function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
   const v=(project.vendors||[]).find(v=>v.id===vendorId);
@@ -18,7 +18,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
   const[tab,setTab]=useState("overview");
   const[showUpload,setShowUpload]=useState(false);
   const[docName,setDocName]=useState("");
-  const[docType,setDocType]=useState("w9");
+  const[docType,setDocType]=useState("invoice");
   const[docNotes,setDocNotes]=useState("");
   const[docFile,setDocFile]=useState(null);
   const[docFileName,setDocFileName]=useState("");
@@ -29,6 +29,25 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
   const[editPhone,setEditPhone]=useState(v.phone||"");
   const[editNotes,setEditNotes]=useState(v.notes||"");
   const fileRef=useRef(null);
+  const[draggingDoc,setDraggingDoc]=useState(false);
+  const dragCounter=useRef(0);
+  const[viewingDoc,setViewingDoc]=useState(null);
+
+  const autoDetectDocType=(fileName)=>{const n=fileName.toLowerCase();if(n.includes("invoice")||n.includes("inv"))return"invoice";if(n.includes("contract")||n.includes("agreement")||n.includes("sow"))return"contract";if(n.includes("estimate")||n.includes("quote"))return"estimate";if(n.includes("coi")||n.includes("insurance")||n.includes("certificate"))return"coi";if(n.includes("w9")||n.includes("w-9"))return"w9";if(n.includes("license"))return"license";if(n.includes("permit"))return"permit";return"invoice"};
+
+  const handleDropFiles=useCallback((files)=>{
+    Array.from(files).forEach(file=>{const reader=new FileReader();reader.onload=ev=>{
+      const type=autoDetectDocType(file.name);const name=file.name.replace(/\.[^/.]+$/,"");
+      const doc={id:uid(),name,type,notes:"",fileName:file.name,fileData:ev.target.result,expiryDate:"",dateAdded:new Date().toLocaleDateString()};
+      const updatedVendors=(project.vendors||[]).map(vendor=>vendor.id===vendorId?{...vendor,documents:[...(vendor.documents||[]),doc]}:vendor);
+      updateProject({vendors:updatedVendors});
+    };reader.readAsDataURL(file)});
+  },[project.vendors,vendorId,updateProject]);
+
+  const onDocDragEnter=useCallback(e=>{e.preventDefault();e.stopPropagation();dragCounter.current++;setDraggingDoc(true)},[]);
+  const onDocDragLeave=useCallback(e=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDraggingDoc(false)},[]);
+  const onDocDragOver=useCallback(e=>{e.preventDefault();e.stopPropagation()},[]);
+  const onDocDrop=useCallback(e=>{e.preventDefault();e.stopPropagation();setDraggingDoc(false);dragCounter.current=0;if(e.dataTransfer.files?.length)handleDropFiles(e.dataTransfer.files)},[handleDropFiles]);
 
   const vendorDocs=(v.documents||[]);
   const projectDocs=(project.docs||[]).filter(d=>d.vendorId===vendorId);
@@ -135,7 +154,12 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
         </div>}
 
         {/* Documents Tab */}
-        {tab==="documents"&&<div>
+        {tab==="documents"&&<div onDragEnter={onDocDragEnter} onDragLeave={onDocDragLeave} onDragOver={onDocDragOver} onDrop={onDocDrop} style={{position:"relative",minHeight:200}}>
+          {draggingDoc&&<div style={{position:"absolute",inset:0,zIndex:10,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.rS,border:`3px dashed ${T.gold}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
+            <div style={{fontSize:32,opacity:.6}}>▧</div>
+            <div style={{fontSize:14,fontWeight:600,color:T.gold}}>Drop files here</div>
+            <div style={{fontSize:11,color:T.dim}}>Auto-detected as invoice, contract, W-9, etc.</div>
+          </div>}
           <input ref={fileRef} type="file" accept="*" onChange={handleFile} style={{display:"none"}}/>
           {canEdit&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:12,fontWeight:600,color:T.cream}}>Vendor Documents</div>
@@ -169,13 +193,14 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
                   <span style={{fontSize:10,color:T.dim}}>Added: {d.dateAdded}</span>
                 </div>
               </div>
-              {d.fileData&&<button onClick={()=>window.open(d.fileData,"_blank")} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>View</button>}
+              {d.fileData&&<button onClick={()=>setViewingDoc(d)} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>View</button>}
               {canEdit&&<button onClick={()=>removeVendorDoc(d.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={11} color={T.neg}/></button>}
             </div>)}
           </div>
           :<div onClick={()=>canEdit&&setShowUpload(true)} style={{textAlign:"center",padding:40,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:canEdit?"pointer":"default"}} onMouseEnter={e=>{if(canEdit){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
             <div style={{fontSize:24,opacity:.2,marginBottom:8}}>▧</div>
             <div style={{fontSize:13,color:T.dim}}>No documents uploaded</div>
+            {canEdit&&<div style={{fontSize:11,color:T.dim,marginTop:4,opacity:.6}}>Drag & drop files here or click Upload</div>}
             {canEdit&&<div style={{fontSize:11,color:T.dim,marginTop:4,opacity:.6}}>Upload W-9s, COIs, contracts, estimates, permits</div>}
           </div>}
 
@@ -220,6 +245,20 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
         </div>}
       </div>
     </div>
+    {viewingDoc&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)"}} onClick={()=>setViewingDoc(null)}>
+      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{width:"90vw",maxWidth:900,height:"85vh",borderRadius:T.r,background:"rgba(12,10,20,.95)",border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          <div><div style={{fontSize:14,fontWeight:600,color:T.cream}}>{viewingDoc.name||viewingDoc.fileName||"Document"}</div>{viewingDoc.fileName&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{viewingDoc.fileName}</div>}</div>
+          <div style={{display:"flex",gap:8}}>{viewingDoc.fileData&&<a href={viewingDoc.fileData} download={viewingDoc.fileName||viewingDoc.name||"document"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none"}}>Download</a>}<button onClick={()=>setViewingDoc(null)} aria-label="Close" style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4}}>×</button></div>
+        </div>
+        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"#111"}}>
+          {viewingDoc.fileData?.startsWith("data:image")?<img src={viewingDoc.fileData} alt={viewingDoc.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}/>
+          :viewingDoc.fileData?.startsWith("data:application/pdf")||viewingDoc.fileName?.endsWith(".pdf")?<iframe src={viewingDoc.fileData} style={{width:"100%",height:"100%",border:"none"}} title={viewingDoc.name}/>
+          :viewingDoc.fileData?<div style={{textAlign:"center",padding:40}}><div style={{fontSize:48,opacity:.2,marginBottom:16}}>▧</div><div style={{fontSize:14,color:T.cream,marginBottom:8}}>{viewingDoc.name}</div><p style={{fontSize:12,color:T.dim,marginBottom:16}}>Preview not available</p><a href={viewingDoc.fileData} download={viewingDoc.fileName||"document"} style={{padding:"10px 24px",borderRadius:T.rS,background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,fontSize:13,fontWeight:700,textDecoration:"none"}}>Download</a></div>
+          :<div style={{textAlign:"center",padding:40,color:T.dim}}>No file attached</div>}
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 
