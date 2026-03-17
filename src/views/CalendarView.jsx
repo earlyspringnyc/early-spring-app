@@ -8,7 +8,7 @@ import { searchTaskHistory } from '../utils/taskHistory.js';
 function taskColor(t){
   if(t.status==="done")return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
   if(t.status==="progress")return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
-  const cat=(t.category||"General").toLowerCase();
+  const cat=((t.category||"General")+" "+(t.name||"")).toLowerCase();
   // Meetings/calls — purple
   if(cat.includes("meeting")||cat.includes("call")||cat.includes("sync"))return{bg:"rgba(216,180,254,.12)",fg:"#D8B4FE"};
   // Creative/design — lavender
