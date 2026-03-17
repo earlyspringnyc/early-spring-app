@@ -3,6 +3,7 @@ import T from '../theme/tokens.js';
 import { ROLE_COLORS, ROLE_LABELS } from '../constants/index.js';
 import { getStoredUsers } from '../utils/storage.js';
 import { ESWordmark } from '../components/brand/index.js';
+import { MorganWordmark } from '../components/brand/MorganLogo.jsx';
 
 function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
   const[err,setErr]=useState("");const[showDemo,setShowDemo]=useState(false);
@@ -51,8 +52,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
     {dots.map((d,i)=><div key={i} style={{position:"absolute",left:`${d.x}%`,top:`${d.y}%`,width:d.s,height:d.s,borderRadius:"50%",background:d.c===0?T.gold:d.c===1?T.cyan:T.magenta,opacity:d.o,animation:`glow ${3+Math.random()*4}s ease-in-out infinite`}}/>)}
     <div className="fade-up modal-inner" style={{width:400,padding:44,borderRadius:T.r,background:"rgba(12,10,20,.85)",backdropFilter:"blur(40px)",border:`1px solid ${T.border}`,boxShadow:T.shadow,position:"relative",zIndex:1}}>
       <div style={{textAlign:"center",marginBottom:40}}>
-        <div style={{marginBottom:14}}><ESWordmark height={18} color={T.gold}/></div>
-        <h1 style={{fontSize:26,fontWeight:600,color:T.cream,fontFamily:T.serif,letterSpacing:"-0.01em"}}>Morgan</h1>
+        <div style={{marginBottom:16}}><MorganWordmark height={28} color={T.gold}/></div>
         <p style={{fontSize:12,color:T.dim,marginTop:8,fontFamily:T.serif,fontStyle:"italic"}}>Sign in with your Google account</p>
       </div>
       {err&&<p style={{fontSize:12,color:T.neg,marginBottom:14,textAlign:"center"}}>{err}</p>}

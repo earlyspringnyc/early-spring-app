@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import T from '../theme/tokens.js';
 import { ESWordmark } from '../components/brand/index.js';
+import { MorganWordmark, MorganIsotype } from '../components/brand/MorganLogo.jsx';
 
 /* ── Animated dots background (reused from Login) ── */
 const DOTS = Array.from({length:40},(_,i)=>({
@@ -159,7 +160,7 @@ function LandingPage({onGetStarted}){
     }}>
       <div style={{display:'flex',alignItems:'center',gap:10}}>
         <ESWordmark height={14} color={T.gold}/>
-        <span style={{fontSize:18,fontWeight:600,fontFamily:T.serif,color:T.cream,letterSpacing:'-0.01em'}}>Morgan</span>
+        <MorganIsotype size={28} color={T.gold}/>
       </div>
       <div style={{display:'flex',alignItems:'center',gap:24}}>
         <button onClick={()=>scrollTo('features')} style={{background:'none',border:'none',color:T.dim,fontSize:13,cursor:'pointer',fontFamily:T.sans,transition:'color .2s'}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Features</button>
@@ -172,10 +173,12 @@ function LandingPage({onGetStarted}){
     <header style={{...section,paddingTop:160,paddingBottom:120,textAlign:'center',position:'relative',minHeight:'90vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
       <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}><FloatingDots/></div>
       <div style={{position:'relative',zIndex:2}}>
-        <div style={{marginBottom:20}}><ESWordmark height={16} color={T.gold}/></div>
-        <h1 style={{fontSize:'clamp(48px,8vw,80px)',fontWeight:600,fontFamily:T.serif,letterSpacing:'-0.02em',lineHeight:1.05,marginBottom:20,color:T.cream}}>Morgan</h1>
-        <p style={{fontSize:'clamp(18px,2.5vw,24px)',fontFamily:T.serif,fontStyle:'italic',color:T.dim,marginBottom:16}}>Production management, reimagined.</p>
-        <p style={{fontSize:15,color:T.dim,maxWidth:520,margin:'0 auto 44px',lineHeight:1.7}}>The all-in-one tool for event production companies. Budget, timeline, vendors, and client deliverables — beautifully organized.</p>
+        <div style={{marginBottom:24}}><MorganWordmark height={32} color={T.gold}/></div>
+        <p style={{fontSize:'clamp(20px,3vw,28px)',fontFamily:T.serif,fontStyle:'italic',color:T.dim,marginBottom:20,letterSpacing:'-0.01em'}}>Production management, reimagined.</p>
+        <p style={{fontSize:16,color:T.dim,maxWidth:560,margin:'0 auto 20px',lineHeight:1.8}}>Morgan is the all-in-one platform for event production companies. Build budgets with real-time margin tracking, manage vendors and invoices, schedule timelines with calendar integration, and deliver polished client-facing proposals — all in one place.</p>
+        <div style={{display:'flex',gap:20,justifyContent:'center',flexWrap:'wrap',marginBottom:44}}>
+          {["Budget & Margins","Vendor Management","Timeline & Calendar","Client Deliverables","AI Assistant","Google Calendar"].map(f=><span key={f} style={{fontSize:11,color:T.gold,padding:'4px 12px',borderRadius:20,border:`1px solid rgba(255,234,151,.15)`,background:'rgba(255,234,151,.04)',fontFamily:T.sans}}>{f}</span>)}
+        </div>
         <div style={{display:'flex',gap:16,justifyContent:'center',flexWrap:'wrap'}}>
           <button onClick={onGetStarted} style={goldBtn} onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 6px 24px rgba(255,234,151,.25)'}} onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 2px 16px rgba(255,234,151,.18)'}}>Get Started</button>
           <button onClick={()=>scrollTo('how-it-works')} style={outlineBtn} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background='rgba(255,255,255,.03)'}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background='transparent'}}>See How It Works</button>
