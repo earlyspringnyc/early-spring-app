@@ -50,7 +50,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
       {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user}/>}
     </div></main>
-    {vendorDetailId&&<VendorDetailModal vendorId={vendorDetailId} project={project} onClose={()=>setVendorDetailId(null)} canEdit={canEdit}/>}
+    {vendorDetailId&&<VendorDetailModal vendorId={vendorDetailId} project={project} onClose={()=>setVendorDetailId(null)} canEdit={canEdit} updateProject={updateProject}/>}
   </div>;
 }
 
