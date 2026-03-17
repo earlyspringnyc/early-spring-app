@@ -7,6 +7,8 @@ function CalendarView({tasks,onAddTask,canEdit}){
   const[month,setMonth]=useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}});
   const[addDate,setAddDate]=useState(null);
   const[qN,setQN]=useState("");const[qE,setQE]=useState("");
+  const[calMode,setCalMode]=useState("month");
+  const[selectedDay,setSelectedDay]=useState(()=>new Date().getDate());
   const mNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const dNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const firstDay=new Date(month.y,month.m,1).getDay();
@@ -51,18 +53,64 @@ function CalendarView({tasks,onAddTask,canEdit}){
     </div>);
   }
 
+  const DayView=()=>{
+    const hours=[];for(let h=7;h<=22;h++)hours.push(h);
+    const dayTasks=(tasksByDay[selectedDay]||[]);
+    return<div style={{padding:6}}>
+      {hours.map(h=>(
+        <div key={h} style={{display:"flex",borderBottom:`1px solid ${T.border}`,minHeight:48}}>
+          <div style={{width:50,padding:"8px 8px 8px 0",textAlign:"right",fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>
+            {h>12?h-12:h}{h>=12?"pm":"am"}
+          </div>
+          <div style={{flex:1,padding:"4px 8px",borderLeft:`1px solid ${T.border}`}} onClick={()=>canEdit&&setAddDate(selectedDay)}>
+            {dayTasks.map(t=>
+              <div key={t.id} style={{fontSize:10,padding:"2px 6px",marginBottom:2,borderRadius:3,background:t.status==="done"?"rgba(52,211,153,.12)":"rgba(255,234,151,.1)",color:t.status==="done"?T.pos:T.gold}}>{t.name}</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>;
+  };
+
+  const WeekView=()=>{
+    const dayOfWeek=new Date(month.y,month.m,selectedDay||1).getDay();
+    const weekStart=(selectedDay||1)-dayOfWeek;
+    const days=[];for(let i=0;i<7;i++){const d=weekStart+i;if(d>=1&&d<=daysInMonth)days.push(d)}
+    return<div style={{display:"grid",gridTemplateColumns:`repeat(${days.length},1fr)`,gap:1,padding:6}}>
+      {days.map(d=>{
+        const dayTasks=tasksByDay[d]||[];
+        const tdy=isToday(d);
+        return<div key={d} onClick={()=>{setSelectedDay(d);canEdit&&setAddDate(addDate===d?null:d)}} style={{minHeight:200,padding:8,background:addDate===d?"rgba(255,234,151,.06)":"transparent",borderRadius:T.rS,cursor:canEdit?"pointer":"default",border:tdy?`1px solid rgba(255,234,151,.25)`:"1px solid transparent"}} onMouseEnter={e=>{if(addDate!==d)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(addDate!==d)e.currentTarget.style.background="transparent"}}>
+          <div style={{fontSize:10,fontWeight:tdy?700:400,color:tdy?T.gold:T.dim,marginBottom:6,fontFamily:T.mono,textAlign:"center"}}>{dNames[new Date(month.y,month.m,d).getDay()]} {d}</div>
+          {dayTasks.map(t=><div key={t.id+d} style={{fontSize:9,padding:"3px 6px",marginBottom:3,borderRadius:3,background:t.status==="done"?"rgba(52,211,153,.12)":t.status==="progress"?"rgba(34,211,238,.12)":"rgba(255,234,151,.1)",color:t.status==="done"?T.pos:t.status==="progress"?T.cyan:T.gold,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>)}
+        </div>;
+      })}
+    </div>;
+  };
+
   return<Card style={{padding:0,marginBottom:20,overflow:"visible"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:`1px solid ${T.border}`}}>
       <button onClick={prev} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 8px"}}>&larr;</button>
-      <span style={{fontSize:14,fontWeight:600,color:T.cream}}>{mNames[month.m]} {month.y}</span>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{display:"flex",gap:2,background:T.surface,borderRadius:T.rS,padding:1}}>
+          {[["day","Day"],["week","Week"],["month","Month"]].map(([k,l])=>
+            <button key={k} onClick={()=>setCalMode(k)} style={{padding:"4px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:calMode===k?600:400,fontFamily:T.sans,background:calMode===k?T.goldSoft:"transparent",color:calMode===k?T.gold:T.dim}}>{l}</button>
+          )}
+        </div>
+        <span style={{fontSize:14,fontWeight:600,color:T.cream}}>{mNames[month.m]} {month.y}</span>
+      </div>
       <button onClick={next} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 8px"}}>&rarr;</button>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${T.border}`}}>
-      {dNames.map(d=><div key={d} style={{textAlign:"center",padding:"8px 0",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>{d}</div>)}
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,padding:6}}>
-      {cells}
-    </div>
+    {calMode==="month"&&<>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${T.border}`}}>
+        {dNames.map(d=><div key={d} style={{textAlign:"center",padding:"8px 0",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>{d}</div>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,padding:6}}>
+        {cells}
+      </div>
+    </>}
+    {calMode==="week"&&<WeekView/>}
+    {calMode==="day"&&<DayView/>}
     {addDate&&canEdit&&<div style={{padding:"12px 18px",borderTop:`1px solid ${T.border}`,display:"flex",gap:8,alignItems:"center",position:"relative",zIndex:10}}>
       <span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{mNames[month.m]} {addDate}</span>
       <input autoFocus value={qN} onChange={e=>setQN(e.target.value)} placeholder="Task" onKeyDown={e=>e.key==="Enter"&&quickAdd()} style={{flex:1,padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>

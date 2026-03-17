@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0 } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
@@ -40,6 +40,17 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[newActionItem,setNewActionItem]=useState("");
   const filtered=filter==="all"?tasks:tasks.filter(t=>t.status===filter);
   const counts={all:tasks.length,todo:tasks.filter(t=>t.status==="todo").length,progress:tasks.filter(t=>t.status==="progress").length,done:tasks.filter(t=>t.status==="done").length};
+  const[layout,setLayout]=useState("stacked");
+  const[splitWidth,setSplitWidth]=useState(380);
+  const[dragging,setDragging]=useState(false);
+  const splitRef=useRef(null);
+  useEffect(()=>{
+    if(!dragging)return;
+    const onMove=(e)=>{if(!splitRef.current)return;const rect=splitRef.current.getBoundingClientRect();const newWidth=rect.right-e.clientX;setSplitWidth(Math.max(280,Math.min(600,newWidth)))};
+    const onUp=()=>setDragging(false);
+    window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);
+    return()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp)};
+  },[dragging]);
   const pct=tasks.length?Math.round((counts.done/tasks.length)*100):0;
   const addTask=(name,cat,assignee,start,end,linkedItemId="")=>{
     const n=name||nN.trim();if(!n)return;
@@ -107,6 +118,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <button onClick={()=>setShowClientTL(!showClientTL)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showClientTL?"transparent":"rgba(34,211,238,.1)",color:showClientTL?T.dim:T.cyan,border:`1px solid ${showClientTL?T.border:"rgba(34,211,238,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showClientTL?"Close":"Create Client Timeline"}</button>
         <button onClick={()=>setShowMeetingForm(!showMeetingForm)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",background:showMeetingForm?"transparent":"rgba(232,121,249,.1)",color:showMeetingForm?T.dim:T.magenta,border:`1px solid ${showMeetingForm?T.border:"rgba(232,121,249,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showMeetingForm?"Close":"Schedule Meeting"}</button>
+        <button onClick={()=>setLayout(l=>l==="stacked"?"split":"stacked")} style={{padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{layout==="stacked"?"Split View":"Stacked View"}</button>
         <button onClick={()=>setShowSuggestions(!showSuggestions)} style={{padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showSuggestions?"Hide":"Budget Items"}</button>
         <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
           {[["calendar","Calendar"],["gantt","Gantt"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
@@ -210,30 +222,38 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <button onClick={()=>addTask()} style={{padding:"9px 20px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Task</button>
     </Card>}
 
-    {/* Calendar / Gantt view */}
-    {viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} canEdit={canEdit}/>:<GanttChart tasks={tasks}/>}
-
-    {/* Task List - auto-generated from calendar input */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,marginTop:4}}>
-      <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Task List</span>
-      <div style={{display:"flex",gap:4}}>
-        {["all","todo","progress","done"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?T.goldSoft:"transparent",color:filter===f?T.gold:T.dim}}>{f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})</button>)}
-      </div>
-    </div>
-    <div style={{display:"flex",flexDirection:"column",gap:4}}>
-      {filtered.map(t=>{const ri=tasks.indexOf(t);const dateStr=t.startDate?(t.endDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
-        return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
-        <button onClick={()=>cycleStatus(ri)} style={{width:20,height:20,borderRadius:t.status==="done"?10:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-          {t.status==="done"&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
-        </button>
-        <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</div>
-          <div style={{display:"flex",gap:10,marginTop:3}}>{t.category&&<span style={{fontSize:10,color:T.dim}}>{t.category}</span>}{t.assignee&&<span style={{fontSize:10,color:T.cyan}}>{t.assignee}</span>}</div></div>
-        {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
-        <span style={{fontSize:9,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>
-        {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
-      </div>})}
-      {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No tasks with this status.</div>}
-    </div>
+    {/* Calendar / Gantt view + Task List */}
+    {(()=>{
+      const calendarContent=viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} canEdit={canEdit}/>:<GanttChart tasks={tasks}/>;
+      const taskListContent=<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,marginTop:layout==="split"?0:4}}>
+          <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Task List</span>
+          <div style={{display:"flex",gap:4}}>
+            {["all","todo","progress","done"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?T.goldSoft:"transparent",color:filter===f?T.gold:T.dim}}>{f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})</button>)}
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {filtered.map(t=>{const ri=tasks.indexOf(t);const dateStr=t.startDate?(t.endDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
+            return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+            <button onClick={()=>cycleStatus(ri)} style={{width:20,height:20,borderRadius:t.status==="done"?10:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              {t.status==="done"&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
+            </button>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</div>
+              <div style={{display:"flex",gap:10,marginTop:3}}>{t.category&&<span style={{fontSize:10,color:T.dim}}>{t.category}</span>}{t.assignee&&<span style={{fontSize:10,color:T.cyan}}>{t.assignee}</span>}</div></div>
+            {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
+            <span style={{fontSize:9,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>
+            {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+          </div>})}
+          {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No tasks with this status.</div>}
+        </div>
+      </>;
+      if(layout==="split")return<div ref={splitRef} style={{display:"flex",gap:0,alignItems:"flex-start"}}>
+        <div style={{flex:1,minWidth:0}}>{calendarContent}</div>
+        <div onMouseDown={()=>setDragging(true)} style={{width:6,cursor:"col-resize",background:dragging?T.gold:"transparent",borderRadius:3,flexShrink:0,alignSelf:"stretch",minHeight:200,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.border} onMouseLeave={e=>{if(!dragging)e.currentTarget.style.background="transparent"}}/>
+        <div style={{width:splitWidth,flexShrink:0,maxHeight:"70vh",overflow:"auto",position:"sticky",top:28}}>{taskListContent}</div>
+      </div>;
+      return<>{calendarContent}{taskListContent}</>;
+    })()}
 
     {/* Meetings */}
 {meetings.length>0&&<div style={{marginTop:24}}>

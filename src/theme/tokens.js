@@ -1,4 +1,4 @@
-const T={
+const dark={
   bg:"#08080C",bgGrad:"linear-gradient(180deg,#08080C 0%,#0C0A14 50%,#08080C 100%)",
   surface:"rgba(255,255,255,.025)",surfEl:"rgba(255,255,255,.04)",surfHov:"rgba(255,255,255,.065)",
   border:"rgba(255,255,255,.06)",borderGlow:"rgba(255,234,151,.15)",
@@ -12,5 +12,29 @@ const T={
   mono:"'SF Mono','JetBrains Mono','Fira Code','Menlo',monospace",
   serif:"'Century','Georgia','Times New Roman',serif",
 };
+
+const light={
+  bg:"#F5F4F1",bgGrad:"linear-gradient(180deg,#F5F4F1 0%,#EEECE7 50%,#F5F4F1 100%)",
+  surface:"rgba(0,0,0,.03)",surfEl:"rgba(0,0,0,.04)",surfHov:"rgba(0,0,0,.07)",
+  border:"rgba(0,0,0,.08)",borderGlow:"rgba(67,45,28,.2)",
+  gold:"#B8860B",goldSoft:"rgba(184,134,11,.08)",goldGlow:"0 0 20px rgba(184,134,11,.08)",
+  brown:"#432D1C",cyan:"#0891B2",magenta:"#9333EA",
+  cream:"#1A1A1A",dim:"rgba(26,26,26,.45)",dimH:"rgba(26,26,26,.7)",
+  pos:"#059669",neg:"#DC2626",blue:"#2563EB",
+  colors:["#B8860B","#059669","#0891B2","#9333EA","#DC2626","#EA580C","#2563EB","#65A30D","#D97706","#7C3AED"],
+  r:"12px",rS:"8px",shadow:"0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04)",
+  sans:"'Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif",
+  mono:"'SF Mono','JetBrains Mono','Fira Code','Menlo',monospace",
+  serif:"'Century','Georgia','Times New Roman',serif",
+};
+
+const T={...dark};
+
+export function setThemeMode(mode){
+  const source=mode==='light'?light:dark;
+  Object.assign(T,source);
+}
+
+export function getTheme(mode){return mode==='light'?light:dark;}
 
 export default T;

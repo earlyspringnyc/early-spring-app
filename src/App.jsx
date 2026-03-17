@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import T from './theme/tokens.js';
+import T, { setThemeMode } from './theme/tokens.js';
 import { uid } from './utils/uid.js';
 import { mkProject } from './data/defaults.js';
 import { GOOGLE_CLIENT_ID } from './constants/index.js';
@@ -14,6 +14,19 @@ const MAX_UNDO=15;
 function App(){
   const { user, setUser, accessToken, initTokenClient, requestCalendarAccess, logout } = useGoogleAuth();
   useEffect(()=>{if(GOOGLE_CLIENT_ID)initTokenClient(GOOGLE_CLIENT_ID)},[GOOGLE_CLIENT_ID,initTokenClient]);
+  const[themeMode,setThemeModeSt]=useState(()=>{
+    try{return localStorage.getItem('es_theme')||'dark'}catch(e){return'dark'}
+  });
+  const toggleTheme=useCallback(()=>{
+    setThemeModeSt(prev=>{
+      const next=prev==='dark'?'light':'dark';
+      setThemeMode(next);
+      try{localStorage.setItem('es_theme',next)}catch(e){}
+      return next;
+    });
+  },[]);
+  useEffect(()=>{setThemeMode(themeMode)},[]);
+  useEffect(()=>{document.documentElement.className=themeMode==='light'?'theme-light':''},[themeMode]);
   const[projects,setProjects]=useState(()=>{
     try{const saved=localStorage.getItem("es_projects");if(saved)return JSON.parse(saved)}catch(e){}
     return[mkProject("SeedAI House SXSW 2026","SeedAI","3/16/2026","3/9/2026")];
@@ -35,7 +48,7 @@ function App(){
   };window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[undo]);
 
   if(!user)return<Login onLogin={setUser} googleClientId={GOOGLE_CLIENT_ID}/>;
-  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
