@@ -46,9 +46,9 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
       </tbody>
     </table>
 
-    <table style="width:100%;background:#432D1C;border-radius:10px"><tr>
-      <td style="padding:20px 28px;font-size:14px;font-weight:700;color:#fff;letter-spacing:.06em">GRAND TOTAL</td>
-      <td style="padding:20px 28px;text-align:right;font-size:24px;font-weight:700;color:#fff;font-family:monospace">${f$(comp.grandTotal)}</td>
+    <table style="width:100%;background:#432D1C;border-radius:10px" cellpadding="0" cellspacing="0"><tr>
+      <td width="60%" style="padding:20px 28px;font-size:14px;font-weight:700;color:#fff;letter-spacing:.06em">GRAND TOTAL</td>
+      <td width="40%" style="padding:20px 28px;text-align:right;font-size:24px;font-weight:700;color:#fff;font-family:monospace">${f$(comp.grandTotal)}</td>
     </tr></table>
 
     <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #EEE">
