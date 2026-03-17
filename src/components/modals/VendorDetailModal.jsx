@@ -183,7 +183,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
           </div>}
 
           {vendorDocs.length>0?<div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {vendorDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+            {vendorDocs.map(d=><div key={d.id} onClick={()=>setViewingDoc(d)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
               <span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:6,background:`${VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other}22`,color:VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other,textTransform:"uppercase",flexShrink:0}}>{VENDOR_DOC_LABELS[d.type]||d.type}</span>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{d.name}</div>
@@ -193,7 +193,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
                   <span style={{fontSize:10,color:T.dim}}>Added: {d.dateAdded}</span>
                 </div>
               </div>
-              {d.fileData&&<button onClick={()=>setViewingDoc(d)} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>View</button>}
+              <button onClick={()=>setViewingDoc(d)} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>{d.fileData?"View":"Details"}</button>
               {canEdit&&<button onClick={()=>removeVendorDoc(d.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={11} color={T.neg}/></button>}
             </div>)}
           </div>
