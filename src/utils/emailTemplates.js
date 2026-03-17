@@ -15,19 +15,19 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#F5F4F1;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif">
 <div style="max-width:640px;margin:0 auto;padding:40px 20px">
   <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
-    <div style="display:flex;justify-content:space-between;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C">
-      <div>
+    <table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr>
+      <td style="vertical-align:top">
         <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">EARLY SPRING</div>
         <div style="font-size:24px;font-weight:700;color:#432D1C">Production Estimate</div>
         <div style="font-size:12px;color:#999;margin-top:4px">Prepared by Early Spring</div>
-      </div>
-      <div style="text-align:right;font-size:13px;color:#777;line-height:1.8">
+      </td>
+      <td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top">
         <div><strong style="color:#555">Project:</strong> ${project.name || '\u2014'}</div>
         <div><strong style="color:#555">Client:</strong> ${project.client || '\u2014'}</div>
         <div><strong style="color:#555">Date:</strong> ${project.date || new Date().toLocaleDateString()}</div>
         ${project.eventDate ? `<div><strong style="color:#555">Event:</strong> ${project.eventDate}</div>` : ''}
-      </div>
-    </div>
+      </td>
+    </tr></table>
 
     <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
       <thead><tr style="border-bottom:2px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Category</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Estimated Cost</th></tr></thead>
@@ -46,10 +46,10 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
       </tbody>
     </table>
 
-    <div style="background:#432D1C;border-radius:10px;padding:20px 28px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:14px;font-weight:700;color:#fff;letter-spacing:.06em">GRAND TOTAL</span>
-      <span style="font-size:24px;font-weight:700;color:#fff;font-family:monospace">${f$(comp.grandTotal)}</span>
-    </div>
+    <table style="width:100%;background:#432D1C;border-radius:10px"><tr>
+      <td style="padding:20px 28px;font-size:14px;font-weight:700;color:#fff;letter-spacing:.06em">GRAND TOTAL</td>
+      <td style="padding:20px 28px;text-align:right;font-size:24px;font-weight:700;color:#fff;font-family:monospace">${f$(comp.grandTotal)}</td>
+    </tr></table>
 
     <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #EEE">
       <div style="font-size:10px;color:#BBB">Early Spring LLC · 385 Van Brunt St, Floor 2, Brooklyn, NY 11231 · earlyspring.nyc</div>
@@ -74,18 +74,18 @@ export function timelineEmailHtml(project, tasks) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#F5F4F1;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif">
 <div style="max-width:700px;margin:0 auto;padding:40px 20px">
   <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
-    <div style="display:flex;justify-content:space-between;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C">
-      <div>
+    <table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr>
+      <td style="vertical-align:top">
         <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">EARLY SPRING</div>
         <div style="font-size:24px;font-weight:700;color:#432D1C">Project Timeline</div>
         <div style="font-size:12px;color:#999;margin-top:4px">Prepared by Early Spring</div>
-      </div>
-      <div style="text-align:right;font-size:13px;color:#777;line-height:1.8">
+      </td>
+      <td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top">
         <div><strong style="color:#555">Project:</strong> ${project.name || '\u2014'}</div>
         <div><strong style="color:#555">Client:</strong> ${project.client || '\u2014'}</div>
         ${project.eventDate ? `<div><strong style="color:#555">Event:</strong> ${project.eventDate}</div>` : ''}
-      </div>
-    </div>
+      </td>
+    </tr></table>
 
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="border-bottom:2px solid #E5E5E5">
