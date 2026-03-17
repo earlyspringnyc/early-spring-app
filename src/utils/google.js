@@ -12,9 +12,12 @@ export async function createCalendarEvent(accessToken, meeting) {
     // Calculate end time from duration
     const durMatch = (meeting.duration || '30m').match(/(\d+\.?\d*)(m|h)/);
     const durMinutes = durMatch ? (durMatch[2] === 'h' ? parseFloat(durMatch[1]) * 60 : parseInt(durMatch[1])) : 30;
-    const start = new Date(`${dateStr}T${time}:00`);
-    const end = new Date(start.getTime() + durMinutes * 60000);
-    endDate = end.toISOString().replace('Z', '');
+    // Calculate end time by adding minutes to the time string directly
+    const [startH, startM] = time.split(':').map(Number);
+    const totalMin = startH * 60 + startM + durMinutes;
+    const endH = Math.floor(totalMin / 60);
+    const endM = totalMin % 60;
+    endDate = `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`;
   } else {
     // Fallback to today
     const now = new Date();
