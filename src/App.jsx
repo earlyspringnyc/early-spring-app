@@ -26,12 +26,16 @@ function App(){
   const setUser = usesSupa ? sbAuth.setDevUser : gAuth.setUser;
   const loginWithGoogle = usesSupa ? sbAuth.login : null;
   const logout = useCallback(async()=>{
+    const hasUnsaved = activeId && saving;
+    if(!confirm(hasUnsaved?"You have unsaved changes. Sign out anyway?":"Are you sure you want to sign out?"))return;
     setActiveId(null);
     localStorage.removeItem("es_user");
     localStorage.removeItem("es_projects");
     localStorage.removeItem("es_vendors");
+    localStorage.removeItem("es_google_token");
     await rawLogout();
-  },[rawLogout]);
+    window.location.reload();
+  },[rawLogout,activeId,saving]);
 
   // Initialize Google token client for non-Supabase mode
   useEffect(()=>{if(!usesSupa && GOOGLE_CLIENT_ID)gAuth.initTokenClient(GOOGLE_CLIENT_ID)},[usesSupa,GOOGLE_CLIENT_ID]);
