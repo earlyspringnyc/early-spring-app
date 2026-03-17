@@ -10,8 +10,9 @@ import { ESWordmark } from '../components/brand/index.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 import GanttChart from './GanttChart.jsx';
 import CalendarView from './CalendarView.jsx';
+import { createCalendarEvent } from '../utils/google.js';
 
-function TimelineV({project,updateProject,canEdit}){
+function TimelineV({project,updateProject,canEdit,accessToken}){
   const tasks=project.timeline||[];
   const[filter,setFilter]=useState("all");
   const[showAdd,setShowAdd]=useState(false);
@@ -35,6 +36,7 @@ function TimelineV({project,updateProject,canEdit}){
   const[viewMeeting,setViewMeeting]=useState(null);
   const[meetingNotes,setMeetingNotes]=useState("");
   const[meetingSummary,setMeetingSummary]=useState("");
+  const[calSending,setCalSending]=useState(false);const[calStatus,setCalStatus]=useState("");
   const[newActionItem,setNewActionItem]=useState("");
   const filtered=filter==="all"?tasks:tasks.filter(t=>t.status===filter);
   const counts={all:tasks.length,todo:tasks.filter(t=>t.status==="todo").length,progress:tasks.filter(t=>t.status==="progress").length,done:tasks.filter(t=>t.status==="done").length};
@@ -75,7 +77,7 @@ function TimelineV({project,updateProject,canEdit}){
   const clientSelectAll=()=>setClientIncluded(new Set(tasks.map(t=>t.id)));
   const clientSelectNone=()=>setClientIncluded(new Set());
   const clientTasks=tasks.filter(t=>clientIncluded.has(t.id));
-  const sendClientTL=()=>{if(!clientEmail.trim())return;setClientSending(true);setTimeout(()=>{setClientSending(false);setClientSent(clientEmail);setClientEmail("")},1500)};
+  const sendClientTL=async()=>{if(!clientEmail.trim())return;if(!accessToken){setClientSent("");alert("Google access token required to send emails. Please sign in with Google OAuth.");return}setClientSending(true);try{const{sendEmail}=await import('../utils/google.js');const htmlBody=`<h2>Project Timeline — ${project.name||""}</h2><p>Please find the updated project timeline attached.</p><p>Client: ${project.client||""}</p><p>${clientTasks.length} tasks included.</p><p>— Early Spring</p>`;await sendEmail(accessToken,clientEmail.trim(),`Project Timeline: ${project.name||"Update"}`,htmlBody);setClientSent(clientEmail);setClientEmail("")}catch(e){setClientSent("");alert("Failed to send: "+(e.message||"Unknown error"))}finally{setClientSending(false)}};
 
   /* Print-ready client gantt */
   const ClientGanttPrint=()=>{
@@ -170,8 +172,9 @@ function TimelineV({project,updateProject,canEdit}){
   <div style={{marginBottom:12}}><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Agenda</label><textarea value={meetingAgenda} onChange={e=>setMeetingAgenda(e.target.value)} placeholder="Topics to discuss..." rows={3} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
   <div style={{display:"flex",gap:8,alignItems:"center"}}>
     <button onClick={addMeeting} disabled={!meetingTitle.trim()} style={{padding:"9px 20px",background:meetingTitle.trim()?`linear-gradient(135deg,${T.magenta},#C084FC)`:"rgba(255,255,255,.05)",color:meetingTitle.trim()?"#fff":"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:meetingTitle.trim()?"pointer":"default",fontFamily:T.sans}}>Schedule Meeting</button>
-    <button onClick={()=>{}} style={{padding:"9px 16px",border:`1px solid rgba(34,211,238,.2)`,background:"rgba(34,211,238,.06)",borderRadius:T.rS,color:T.cyan,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} title="Requires Google Calendar OAuth — available after deployment">Send Google Calendar Invite</button>
-    <span style={{fontSize:10,color:T.dim,fontFamily:T.serif}}>Calendar invite requires Google integration (coming soon)</span>
+    <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first (need access token)");return}if(!meetingTitle.trim()){setCalStatus("Enter a meeting title first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:meetingTitle.trim(),date:meetingDate,time:meetingTime,duration:meetingDuration,attendees:meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean),agenda:meetingAgenda,location:meetingLocation});setCalStatus("Calendar invite sent!");} catch(e){setCalStatus("Error: "+(e.message||"Failed to send"))}finally{setCalSending(false)}}} disabled={calSending} style={{padding:"9px 16px",border:`1px solid rgba(34,211,238,.2)`,background:calSending?"rgba(34,211,238,.02)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:T.cyan,fontSize:11,fontWeight:600,cursor:calSending?"default":"pointer",fontFamily:T.sans}}>{calSending?"Sending…":"Send Google Calendar Invite"}</button>
+    {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.serif}}>{calStatus}</span>}
+    {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.serif}}>Requires Google OAuth access token</span>}
   </div>
 </Card>}
 
@@ -280,9 +283,10 @@ function TimelineV({project,updateProject,canEdit}){
   <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14}}>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
       <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Integrations</div>
-      <button onClick={()=>{}} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:"rgba(34,211,238,.06)",borderRadius:T.rS,color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} title="Requires Google Calendar OAuth">Google Calendar</button>
+      <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:m.title,date:m.date,time:m.time,duration:m.duration,attendees:m.attendees||[],agenda:m.agenda,location:m.location});updateMeeting(m.id,{calendarSent:true});setCalStatus("Calendar invite sent!")}catch(e){setCalStatus("Error: "+(e.message||"Failed"))}finally{setCalSending(false)}}} disabled={calSending||m.calendarSent} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:m.calendarSent?"rgba(52,211,153,.06)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:m.calendarSent?T.pos:T.cyan,fontSize:10,fontWeight:600,cursor:calSending||m.calendarSent?"default":"pointer",fontFamily:T.sans}}>{m.calendarSent?"Sent to Calendar":calSending?"Sending…":"Google Calendar"}</button>
       <button onClick={()=>{}} style={{padding:"6px 12px",border:`1px solid rgba(255,234,151,.2)`,background:"rgba(255,234,151,.06)",borderRadius:T.rS,color:T.gold,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} title="Requires Fireflies API key">Import Fireflies Recording</button>
-      <span style={{fontSize:9,color:T.dim,fontFamily:T.serif}}>Available after deployment</span>
+      {calStatus&&<span style={{fontSize:9,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.serif}}>{calStatus}</span>}
+      {!calStatus&&!accessToken&&<span style={{fontSize:9,color:T.dim,fontFamily:T.serif}}>Requires Google OAuth</span>}
     </div>
   </div>
 </Card>})()}

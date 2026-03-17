@@ -3,6 +3,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/chat", "destination": "/api/chat" },
+    { "source": "/api/calendar", "destination": "/api/calendar" },
+    { "source": "/api/email", "destination": "/api/email" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -16,7 +16,7 @@ import ExpV from './ExpV.jsx';
 import AIV from './AIV.jsx';
 import SetV from './SetV.jsx';
 
-function ProjectView({project,updateProject,deleteProject,user,onBack}){
+function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken}){
   const[view,setView]=useState("dashboard");
   const[exp,setExp]=useState(new Set());
   const canEdit=user.role!=="viewer";
@@ -41,12 +41,12 @@ function ProjectView({project,updateProject,deleteProject,user,onBack}){
     <main className="main-content" style={{flex:1,overflow:"auto",padding:28}}><div key={view} className="view-enter">
       {view==="budget"&&<BudgetV cats={project.cats} ag={project.ag} feeP={project.feeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={project.clientBudget||0} onUpdateBudget={v=>updateProject({clientBudget:v})} reorderCat={reorderCat}/>}
       {view==="dashboard"&&<DashV cats={project.cats} comp={comp} feeP={project.feeP} project={project}/>}
-      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit}/>}
+      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit}/>}
       {view==="pnl"&&<PnLV project={project} updateProject={updateProject} comp={comp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
       {view==="docs"&&<DocsV project={project} updateProject={updateProject} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId}/>}
-      {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject}/>}
+      {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
       {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user}/>}
     </div></main>

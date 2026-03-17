@@ -20,4 +20,4 @@ export const ROLES = ["admin", "producer", "viewer"];
 export const ROLE_LABELS = { admin: "Admin", producer: "Producer", viewer: "Viewer" };
 export const ROLE_COLORS = { admin: T.gold, producer: T.cyan, viewer: T.dim };
 export const PERMISSION_LABELS = { budget: "Budget", timeline: "Timeline", vendors: "Vendors", pnl: "P&L", docs: "Documents", ros: "Run of Show", client: "Client View", ai: "AI Assistant", settings: "Settings" };
-export const GOOGLE_CLIENT_ID = ""; // Set after deployment
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";

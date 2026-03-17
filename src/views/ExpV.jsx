@@ -9,7 +9,7 @@ import { PlusI, DlI, TrashI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
 
-function ExpV({cats,ag,comp,feeP,project,updateProject}){
+function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[tab,setTab]=useState("budget");
   const tasks=project.timeline||[];
   const clientFiles=project.clientFiles||[];
@@ -49,7 +49,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject}){
   const updateFileCategory=(id,cat)=>updateProject({clientFiles:clientFiles.map(f=>f.id===id?{...f,category:cat}:f)});
   const filteredFiles=fileFilter==="all"?clientFiles:clientFiles.filter(f=>f.category===fileFilter);
   const fileCounts=CLIENT_FILE_CATS.reduce((a,c)=>{a[c]=clientFiles.filter(f=>f.category===c).length;return a},{});
-  const sendEmail=()=>{if(!emailTo.trim())return;setEmailSending(true);setTimeout(()=>{setEmailSending(false);setEmailSent(emailTo);setEmailTo("")},1500)};
+  const doSendEmail=async()=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required to send emails. Please sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=`<h2>Production Estimate — ${project.name||""}</h2><p>Client: ${project.client||""}</p><p>Grand Total: ${f$(comp.grandTotal)}</p><p>Please find the production estimate details in the attached document.</p><p>— Early Spring</p>`;await gmailSend(accessToken,emailTo.trim(),`Production Estimate: ${project.name||"Update"}`,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
 
   /* Client Timeline — Gantt for print */
   const ClientGantt=()=>{
@@ -104,8 +104,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject}){
     <Card style={{padding:16,marginBottom:16}}>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",flexShrink:0}}>Share via email</span>
-        <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase()}@example.com`} onKeyDown={e=>e.key==="Enter"&&sendEmail()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-        <button onClick={sendEmail} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 18px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending…":"Send"}</button>
+        <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase()}@example.com`} onKeyDown={e=>e.key==="Enter"&&doSendEmail()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+        <button onClick={doSendEmail} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 18px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending…":"Send"}</button>
       </div>
       {emailSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {emailSent}</div>}
     </Card>
