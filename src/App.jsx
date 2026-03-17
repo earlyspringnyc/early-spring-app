@@ -34,7 +34,6 @@ function App(){
     // Clear Supabase session storage
     const keys=Object.keys(localStorage).filter(k=>k.startsWith("sb-"));
     keys.forEach(k=>localStorage.removeItem(k));
-    setShowLogin(false);
     window.location.href=window.location.origin;
   },[rawLogout]);
 
