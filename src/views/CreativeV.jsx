@@ -109,7 +109,8 @@ function CreativeV({project,updateProject,canEdit}){
     if(!linkUrl.trim())return;
     const isFigma=linkUrl.includes("figma.com");
     const isCanva=linkUrl.includes("canva.com");
-    const name=linkName.trim()||(isFigma?"Figma Design":isCanva?"Canva Design":"Design Link");
+    const isFigmaSlides=isFigma&&(linkUrl.includes("/deck/")||linkUrl.includes("/slides/"));
+    const name=linkName.trim()||(isFigmaSlides?"Figma Slides":isFigma?"Figma Design":isCanva?"Canva Design":"Design Link");
     const cat=autoCategory(name);
     const asset={
       id:uid(),name,fileName:linkUrl,category:cat,
@@ -198,7 +199,7 @@ function CreativeV({project,updateProject,canEdit}){
             {/* Large thumbnail */}
             <div style={{height:200,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
               {a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-              :a.isFigma&&a.linkUrl?<iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title={a.name} loading="lazy"/>
+              :a.isFigma&&a.linkUrl?<div style={{width:"100%",height:"100%",position:"relative",cursor:"pointer"}} onClick={e=>{e.stopPropagation();window.open(a.linkUrl,"_blank")}}><iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title={a.name} loading="lazy"/><div style={{position:"absolute",bottom:6,right:6,padding:"3px 8px",borderRadius:4,background:"rgba(0,0,0,.6)",fontSize:9,color:"#fff",fontWeight:600}}>Open in Figma</div></div>
               :(()=>{const ft=a.fileType||"other";const ftc=FILE_TYPE_COLORS[ft]||T.dim;const ftl=FILE_TYPE_LABELS[ft]||"File";return<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                 {a.isVideo?<div style={{width:48,height:48,borderRadius:"50%",background:"rgba(255,255,255,.06)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:18,color:T.cream,marginLeft:2}}>&#9654;</span></div>
                 :<div style={{padding:"8px 16px",borderRadius:8,background:`${ftc}12`,border:`1px solid ${ftc}20`}}><span style={{fontSize:14,fontWeight:800,color:ftc,textTransform:"uppercase",fontFamily:T.mono}}>{a.fileExt||ftl}</span></div>}
