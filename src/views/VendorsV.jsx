@@ -22,14 +22,14 @@ const DOC_TYPE_META={
 
 function VendorsV({project,updateProject,canEdit,onVendorClick}){
   const vendors=project.vendors||[];const docs=project.docs||[];const txns=project.txns||[];
-  const[showAdd,setShowAdd]=useState(false);const[typeFilter,setTypeFilter]=useState("all");
-  const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");const[nContact,setNContact]=useState("");
+  const[showAdd,setShowAdd]=useState(false);const[typeFilter,setTypeFilter]=useState("all");const[vendorSearch,setVendorSearch]=useState("");
+  const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");const[nContact,setNContact]=useState("");const[nFinName,setNFinName]=useState("");const[nFinEmail,setNFinEmail]=useState("");
   const[uploadVendorId,setUploadVendorId]=useState(null);const[invName,setInvName]=useState("");const[invAmt,setInvAmt]=useState("");const[invDue,setInvDue]=useState("");const[invKind,setInvKind]=useState("deposit");const[invFile,setInvFile]=useState(null);const[invFileName,setInvFileName]=useState("");
   const[docType,setDocType]=useState("invoice");
   const fileRefs=useRef({});
   const invFileRef=useRef(null);
   const totalOutstanding=vendors.reduce((a,v)=>{const vDocs=docs.filter(d=>d.vendorId===v.id&&d.type==="invoice"&&d.status!=="paid");return a+vDocs.reduce((s,d)=>s+(d.amount-(d.paidAmount||0)),0)},0);
-  const addVendor=()=>{if(!nN.trim())return;updateProject({vendors:[...vendors,mkVendor(nN.trim(),nE,nP,nNo,"pending",nType,nContact)]});setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setNContact("");setShowAdd(false)};
+  const addVendor=()=>{if(!nN.trim())return;updateProject({vendors:[...vendors,{...mkVendor(nN.trim(),nE,nP,nNo,"pending",nType,nContact),financeContactName:nFinName,financeContactEmail:nFinEmail}]});setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setNContact("");setNFinName("");setNFinEmail("");setShowAdd(false)};
   const handleFileUpload=(vendorId,e)=>{
     const file=e.target.files[0];if(!file)return;
     const detected=detectDocType(file.name);
@@ -45,17 +45,18 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
   const handleInvFile=(e)=>{const file=e.target.files[0];if(!file)return;setInvFileName(file.name);setDocType(detectDocType(file.name));const reader=new FileReader();reader.onload=ev=>setInvFile(ev.target.result);reader.readAsDataURL(file)};
   const submitInvoice=()=>{if(!invName.trim()||!uploadVendorId)return;const doc=mkDoc(invName.trim(),docType,uploadVendorId,parseFloat(invAmt)||0,invDue,"pending","","",invKind,invFile);if(docType==="invoice"&&isOverdue(doc))doc.status="overdue";updateProject({docs:[...(project.docs||[]),doc]});setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("");setDocType("invoice");setUploadVendorId(null)};
   const removeVendor=id=>updateProject({vendors:vendors.filter(v=>v.id!==id)});
-  const filtered=vendors.filter(v=>typeFilter==="all"||v.vendorType===typeFilter);
+  const filtered=vendors.filter(v=>{const matchType=typeFilter==="all"||v.vendorType===typeFilter;if(!matchType)return false;if(!vendorSearch.trim())return true;const q=vendorSearch.toLowerCase();return(v.name||"").toLowerCase().includes(q)||(v.email||"").toLowerCase().includes(q)||(v.contactName||"").toLowerCase().includes(q)||(v.notes||"").toLowerCase().includes(q)});
   const getVendorStats=(v)=>{
     const vDocs=docs.filter(d=>d.vendorId===v.id);
     const invoices=vDocs.filter(d=>d.type==="invoice");
     const totalInvoiced=invoices.reduce((a,d)=>a+d.amount,0);
     const totalPaid=invoices.reduce((a,d)=>a+(d.paidAmount||0),0);
-    return{invoices:invoices.length,totalInvoiced,totalPaid,outstanding:totalInvoiced-totalPaid,docCount:vDocs.length};
+    const totalContracted=(project.cats||[]).reduce((a,c)=>a+c.items.filter(i=>i.vendorId===v.id).reduce((s,i)=>s+i.actualCost,0),0);
+    return{invoices:invoices.length,totalInvoiced,totalPaid,outstanding:totalInvoiced-totalPaid,docCount:vDocs.length,totalContracted};
   };
   const getVendorDocs=(v)=>docs.filter(d=>d.vendorId===v.id);
 
-  const cols="2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(70px,.8fr) minmax(70px,.8fr) minmax(90px,.6fr)";
+  const cols="2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(70px,.8fr) minmax(70px,.8fr) minmax(70px,.8fr) minmax(90px,.6fr)";
 
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
@@ -80,6 +81,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       <button onClick={addVendor} style={{padding:"9px 20px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Vendor</button>
     </Card>}
     <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16}}>
+      <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors…" style={{padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${vendorSearch?T.borderGlow:T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",width:180}}/>
       <div style={{position:"relative"}}>
         <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{padding:"7px 28px 7px 10px",borderRadius:T.rS,background:typeFilter!=="all"?`${VENDOR_TYPE_COLORS[typeFilter]||T.gold}12`:T.surface,border:`1px solid ${typeFilter!=="all"?`${VENDOR_TYPE_COLORS[typeFilter]||T.gold}33`:T.border}`,color:typeFilter!=="all"?VENDOR_TYPE_COLORS[typeFilter]||T.gold:T.dim,fontSize:11,fontWeight:typeFilter!=="all"?600:400,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
           <option value="all">All Types</option>
@@ -93,7 +95,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
     </div>
     <Card style={{overflow:"hidden"}}>
       <div style={{display:"grid",gridTemplateColumns:cols,padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,alignItems:"center"}}>
-        {["Vendor","Type","Contact","Email","Invoiced","Outstanding",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>=4?"right":"left"}}>{h}</span>)}
+        {["Vendor","Type","Contact","Email","Contracted","Invoiced","Outstanding",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>=4?"right":"left"}}>{h}</span>)}
       </div>
       {filtered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No vendors{typeFilter!=="all"?" match this filter":""}.</div>}
       {filtered.map(v=>{const s=getVendorStats(v);const vDocs=getVendorDocs(v);return<div key={v.id}>

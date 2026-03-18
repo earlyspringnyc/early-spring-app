@@ -89,6 +89,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const cycleStatus=idx=>{const order=["todo","progress","roadblocked","done"];const cur=tasks[idx].status;updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status:order[(order.indexOf(cur)+1)%order.length]}:t)})};
   const setTaskStatus=(idx,status)=>{updateProject({timeline:tasks.map((t,i)=>i===idx?{...t,status}:t)})};
   const removeTask=idx=>updateProject({timeline:tasks.filter((_,i)=>i!==idx)});
+  const[selectedTasks,setSelectedTasks]=useState(new Set());
+  const[bulkMode,setBulkMode]=useState(false);
   const[editDateId,setEditDateId]=useState(null);
   const updateTaskDates=(taskId,startDate,endDate)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,startDate:startDate||t.startDate,endDate:endDate||t.endDate}:t)});setEditDateId(null)};
   const addMeeting=(titleOverride)=>{
@@ -119,6 +121,11 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const addTaskFromBudgetItem=(item)=>{
     addTask(item.name,item.catName,"","","",item.id);
   };
+  const toggleSelectTask=(id)=>setSelectedTasks(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
+  const selectAllFiltered=()=>setSelectedTasks(new Set(filtered.map(t=>t.id)));
+  const clearSelection=()=>setSelectedTasks(new Set());
+  const bulkSetStatus=(status)=>{updateProject({timeline:tasks.map(t=>selectedTasks.has(t.id)?{...t,status}:t)});clearSelection();setBulkMode(false)};
+  const bulkDelete=()=>{if(!confirm(`Delete ${selectedTasks.size} tasks?`))return;updateProject({timeline:tasks.filter(t=>!selectedTasks.has(t.id))});clearSelection();setBulkMode(false)};
   const toggleClientTask=id=>setClientIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const clientSelectAll=()=>setClientIncluded(new Set(tasks.map(t=>t.id)));
   const clientSelectNone=()=>setClientIncluded(new Set());
@@ -153,9 +160,10 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
     const isEditingDate=editDateId===t.id;
     return<div key={t.id} style={{position:"relative"}}>
-      <div onClick={()=>openEditTask(t)} style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,borderTop:`3px solid ${cc}`,padding:"16px 18px",transition:"all .15s",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.borderColor=T.borderGlow}} onMouseLeave={e=>{e.currentTarget.style.background=T.surfEl;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.borderTopColor=cc}}>
+      <div onClick={()=>bulkMode?toggleSelectTask(t.id):openEditTask(t)} style={{background:bulkMode&&selectedTasks.has(t.id)?`${T.gold}12`:T.surfEl,borderRadius:T.r,border:`1px solid ${bulkMode&&selectedTasks.has(t.id)?T.gold:T.border}`,borderTop:`3px solid ${cc}`,padding:"16px 18px",transition:"all .15s",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.borderColor=T.borderGlow}} onMouseLeave={e=>{e.currentTarget.style.background=bulkMode&&selectedTasks.has(t.id)?`${T.gold}12`:T.surfEl;e.currentTarget.style.borderColor=bulkMode&&selectedTasks.has(t.id)?T.gold:T.border;e.currentTarget.style.borderTopColor=cc}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {bulkMode&&<input type="checkbox" checked={selectedTasks.has(t.id)} onChange={()=>toggleSelectTask(t.id)} onClick={e=>e.stopPropagation()} style={{accentColor:T.gold,cursor:"pointer",width:14,height:14,flexShrink:0}}/>}
             <button onClick={e=>{e.stopPropagation();cycleStatus(ri)}} style={{width:18,height:18,borderRadius:t.status==="done"?9:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
               {t.status==="done"&&<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
             </button>
@@ -185,7 +193,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
     const isEditingDate=editDateId===t.id;
     return<div key={t.id}>
-      <div onClick={()=>openEditTask(t)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:isEditingDate?`${T.rS} ${T.rS} 0 0`:T.rS,borderLeft:`3px solid ${cc}`,border:`1px solid ${isEditingDate?T.borderGlow:T.border}`,borderLeftWidth:3,borderLeftColor:cc,borderBottom:isEditingDate?"none":`1px solid ${T.border}`,transition:"all .15s",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+      <div onClick={()=>bulkMode?toggleSelectTask(t.id):openEditTask(t)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:bulkMode&&selectedTasks.has(t.id)?`${T.gold}12`:T.surfEl,borderRadius:isEditingDate?`${T.rS} ${T.rS} 0 0`:T.rS,borderLeft:`3px solid ${cc}`,border:`1px solid ${bulkMode&&selectedTasks.has(t.id)?T.gold:isEditingDate?T.borderGlow:T.border}`,borderLeftWidth:3,borderLeftColor:cc,borderBottom:isEditingDate?"none":`1px solid ${T.border}`,transition:"all .15s",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=bulkMode&&selectedTasks.has(t.id)?`${T.gold}12`:T.surfEl}>
+        {bulkMode&&<input type="checkbox" checked={selectedTasks.has(t.id)} onChange={()=>toggleSelectTask(t.id)} onClick={e=>e.stopPropagation()} style={{accentColor:T.gold,cursor:"pointer",width:14,height:14,flexShrink:0}}/>}
         <button onClick={e=>{e.stopPropagation();cycleStatus(ri)}} style={{width:18,height:18,borderRadius:t.status==="done"?9:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
           {t.status==="done"&&<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
         </button>
@@ -297,10 +306,22 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       </div>
     </div>
 
+    {/* ══ Bulk action bar ══ */}
+    {bulkMode&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",marginBottom:8,background:T.surface,borderRadius:T.rS,border:`1px solid ${T.borderGlow}`,flexWrap:"wrap"}}>
+      <span style={{fontSize:11,fontWeight:600,color:T.cream,fontFamily:T.sans}}>{selectedTasks.size} selected</span>
+      <button onClick={selectAllFiltered} style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Select All</button>
+      <button onClick={clearSelection} style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Clear</button>
+      <span style={{width:1,height:16,background:T.border,margin:"0 4px"}}/>
+      {["todo","progress","done"].map(s=><button key={s} onClick={()=>bulkSetStatus(s)} disabled={!selectedTasks.size} style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${STATUS_COLORS[s]}44`,background:`${STATUS_COLORS[s]}18`,color:STATUS_COLORS[s],fontSize:10,fontWeight:600,cursor:selectedTasks.size?"pointer":"default",opacity:selectedTasks.size?1:.4,fontFamily:T.sans}}>{STATUS_LABELS[s]}</button>)}
+      <button onClick={bulkDelete} disabled={!selectedTasks.size} style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${T.neg}44`,background:`${T.neg}18`,color:T.neg,fontSize:10,fontWeight:600,cursor:selectedTasks.size?"pointer":"default",opacity:selectedTasks.size?1:.4,fontFamily:T.sans}}>Delete</button>
+      <button onClick={()=>{setBulkMode(false);clearSelection()}} style={{marginLeft:"auto",padding:"4px 10px",borderRadius:14,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+    </div>}
+
     {/* ══ LAYER 2 — Toolbar ══ */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
       {/* Left: status filter pills */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {canEdit&&<button onClick={()=>{setBulkMode(b=>!b);clearSelection()}} style={{padding:"4px 12px",borderRadius:14,border:`1px solid ${bulkMode?T.gold:T.border}`,background:bulkMode?T.goldSoft:"transparent",color:bulkMode?T.gold:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}}>Select</button>}
         {["all","todo","progress","roadblocked","done"].map(f=>
           <button key={f} onClick={()=>setFilter(f)} style={filterPillStyle(f)}>
             {f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})

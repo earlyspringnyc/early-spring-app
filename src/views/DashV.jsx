@@ -7,15 +7,15 @@ import { INVOICE_KIND_COLORS, INVOICE_KIND_LABELS } from '../constants/index.js'
 import { Card, Metric, DonutChart } from '../components/primitives/index.js';
 
 /* ── Bento cell helper ── */
-const Cell=({children,area,style={},accent})=>(
-  <div style={{gridArea:area,background:accent||T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between",transition:"all .2s",...style}}>{children}</div>
+const Cell=({children,area,style={},accent,onClick})=>(
+  <div onClick={onClick} style={{gridArea:area,background:accent||T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between",transition:"all .2s",...style}}>{children}</div>
 );
 const Label=({children})=><div style={{fontSize:10,fontWeight:600,color:T.dim,letterSpacing:".12em",textTransform:"uppercase",fontFamily:T.mono,marginBottom:6}}>{children}</div>;
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,color,fontFamily:T.mono,lineHeight:1,letterSpacing:"-0.04em"}}>{children}</div>;
 const Slash=({children})=><span style={{fontSize:14,fontWeight:400,color:T.dim,fontFamily:T.mono,marginLeft:6}}>/ {children}</span>;
 const Pill=({children,color=T.gold,bg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-function DashV({cats,comp,feeP,project}){
+function DashV({cats,comp,feeP,project,onNavigate}){
   const docs=project?.docs||[];const tasks=project?.timeline||[];
   const overdueDocs=docs.filter(d=>(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))&&d.type==="invoice");
   const upcomingDocs=docs.filter(d=>{if(d.status==="paid"||!d.dueDate)return false;const p=d.dueDate.split("/");if(p.length!==3)return false;const due=new Date(p[2],p[0]-1,p[1]);const now=new Date();const diff=daysBetween(now,due);return diff>=0&&diff<=14&&d.status!=="paid"}).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
@@ -83,7 +83,7 @@ function DashV({cats,comp,feeP,project}){
       </Cell>
 
       {/* Tasks overview */}
-      <Cell area="tasks">
+      <Cell area="tasks" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("timeline")}>
         <Label>Tasks</Label>
         <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}>
           <Big size={48}>{tasksDone}</Big>
@@ -125,7 +125,7 @@ function DashV({cats,comp,feeP,project}){
       :<div style={{gridArea:"alerts"}}/>}
 
       {/* ── Secondary metrics row ── */}
-      <Cell area="prod">
+      <Cell area="prod" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
         <Label>Production Cost</Label>
         <div style={{marginTop:10}}><Big size={32}>{f0(comp.productionSubtotal.actualCost)}</Big></div>
       </Cell>
