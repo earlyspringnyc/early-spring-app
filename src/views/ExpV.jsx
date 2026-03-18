@@ -248,7 +248,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   /* Export helpers for estimate */
   const exportEstimateXLSX=async()=>{
     const XLSX=await import('xlsx');
-    const rows=[["Category","Item","Description","Client Price"]];
+    const rows=[["Category","Item","Description","Cost"]];
     cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
     rows.push([]);rows.push(["","","PRODUCTION SUBTOTAL",comp.productionSubtotal.clientPrice]);
     ag.forEach(it=>{rows.push(["Agency",it.name,"",ci(it).clientPrice])});
@@ -260,7 +260,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     XLSX.writeFile(wb,(project.name||"estimate")+"-client-estimate.xlsx");
   };
   const exportEstimateCSV=()=>{
-    const rows=[["Category","Item","Description","Client Price"]];
+    const rows=[["Category","Item","Description","Cost"]];
     cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
     rows.push([]);rows.push(["","","GRAND TOTAL",comp.grandTotal]);
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
@@ -305,7 +305,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     {/* Live table — dark theme, client-facing columns only */}
     <Card style={{overflow:"hidden",marginBottom:8}}>
       <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-        {["Item","Description","Client Price"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===2?"right":"left"}}>{h}</span>)}
+        {["Item","Description","Cost"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===2?"right":"left"}}>{h}</span>)}
       </div>
       {cats.map((c,ci2)=>{const t=ct(c.items).totals;const accent=["#F59E0B","#14B8A6","#8B5CF6","#EC4899","#06B6D4","#6366F1","#10B981","#F47264"][ci2%8];return<React.Fragment key={c.id}>
         <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:`${accent}08`,borderLeft:`3px solid ${accent}`}}>
