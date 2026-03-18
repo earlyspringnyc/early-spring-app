@@ -8,6 +8,7 @@ import { mkClientFile } from '../data/factories.js';
 import { PlusI, DlI, TrashI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
+import CalendarView from './CalendarView.jsx';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
@@ -29,6 +30,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[newContactName,setNewContactName]=useState("");const[newContactEmail,setNewContactEmail]=useState("");const[newContactRole,setNewContactRole]=useState("");const[newContactPhone,setNewContactPhone]=useState("");
   const[showExportMenu,setShowExportMenu]=useState(false);
   const[showShareMenu,setShowShareMenu]=useState(false);
+  const[showTaskPicker,setShowTaskPicker]=useState(false);
   const[contactSugs,setContactSugs]=useState([]);
   const[showContactSugs,setShowContactSugs]=useState(false);
   const[linkCopied,setLinkCopied]=useState(false);
@@ -378,77 +380,60 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     </div>
   </div>;
 
-  /* ══ PRODUCTION (CLIENT TIMELINE) VIEW ══ */
+  /* ══ PRODUCTION (CLIENT) VIEW ══ */
   if(activeView==="timeline"){
-    /* Auto-filter: only show client-relevant tasks (deliverables, feedback, kickoffs, meetings) */
     const CLIENT_KEYWORDS=["deliverable","delivery","handoff","final","feedback","review","revision","approval","kick","kickoff","kick-off","launch","presentation","client","meeting","call","sync","milestone","deadline","due"];
     const isClientRelevant=(t)=>{const s=((t.name||"")+" "+(t.category||"")).toLowerCase();return CLIENT_KEYWORDS.some(k=>s.includes(k))};
     const autoFiltered=tasks.filter(t=>included.has(t.id));
     const suggestedTasks=tasks.filter(isClientRelevant);
-    const autoSelectRelevant=()=>setIncluded(new Set(suggestedTasks.map(t=>t.id)));
 
     return<div>
     <BackBtn/>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Production</h2>
-      <div style={{display:"flex",gap:8}}>
-        <div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
-          {[["gantt","Gantt"],["calendar","Calendar"],["both","Both"]].map(([k,l])=><button key={k} onClick={()=>setTlFormat(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:tlFormat===k?600:400,fontFamily:T.sans,background:tlFormat===k?T.goldSoft:"transparent",color:tlFormat===k?T.gold:T.dim}}>{l}</button>)}
-        </div>
-        <ShareBar onSend={sendTimeline}/>
+    {/* Header — clean, one line */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Production</h2>
+        <span style={{fontSize:12,color:T.dim}}>{autoFiltered.length} milestone{autoFiltered.length!==1?"s":""}</span>
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <button onClick={()=>setShowTaskPicker(!showTaskPicker)} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${showTaskPicker?T.borderGlow:T.border}`,background:"transparent",color:showTaskPicker?T.cream:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showTaskPicker?"Done":"Edit Tasks"}</button>
+        <button onClick={copyLink} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
+        <button onClick={()=>window.print()} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
       </div>
     </div>
 
-    {/* Smart filters */}
-    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
-      <button onClick={autoSelectRelevant} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:600,fontFamily:T.sans,background:"rgba(20,184,166,.12)",color:"#14B8A6"}}>Client Milestones Only</button>
-      <button onClick={selectAll} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>All Tasks</button>
-      <button onClick={selectNone} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Clear</button>
-      <span style={{fontSize:11,color:T.dim,marginLeft:"auto"}}>{included.size} of {tasks.length} selected</span>
-    </div>
-
-    {/* Task pills for manual toggle */}
-    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:16}}>
-      {tasks.map(t=>{const relevant=isClientRelevant(t);return<button key={t.id} onClick={()=>toggleTask(t.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:included.has(t.id)?(relevant?"rgba(20,184,166,.12)":T.goldSoft):"rgba(255,255,255,.03)",color:included.has(t.id)?(relevant?"#14B8A6":T.gold):T.dim,fontWeight:included.has(t.id)?500:400}}>{t.name}</button>})}
-    </div>
-
-    {/* Live table view */}
-    <Card style={{overflow:"hidden",marginBottom:16}}>
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr .8fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-        {["Task","Start","End","Status"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>0?"center":"left"}}>{h}</span>)}
+    {/* Task picker — only when editing */}
+    {showTaskPicker&&<Card style={{padding:16,marginBottom:16}}>
+      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:10}}>
+        <button onClick={()=>setIncluded(new Set(suggestedTasks.map(t=>t.id)))} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:600,fontFamily:T.sans,background:"rgba(20,184,166,.12)",color:"#14B8A6"}}>Milestones Only</button>
+        <button onClick={selectAll} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>All</button>
+        <button onClick={selectNone} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>None</button>
       </div>
-      {autoFiltered.filter(t=>parseD(t.startDate)).sort((a,b)=>(a.startDate||"").localeCompare(b.startDate||"")).map(t=>{
-        const relevant=isClientRelevant(t);
-        const statusColor=t.status==="done"?T.pos:t.status==="progress"?T.cyan:t.status==="roadblocked"?T.neg:T.dim;
-        return<div key={t.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr .8fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {relevant&&<div style={{width:6,height:6,borderRadius:"50%",background:"#14B8A6",flexShrink:0}}/>}
-            <span style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.name}</span>
-            {t.category&&<Pill color={T.dim} size="xs">{t.category}</Pill>}
-          </div>
-          <span style={{fontSize:11,color:T.dim,fontFamily:T.mono,textAlign:"center"}}>{t.startDate||"\u2014"}</span>
-          <span style={{fontSize:11,color:T.dim,fontFamily:T.mono,textAlign:"center"}}>{t.endDate||"\u2014"}</span>
-          <div style={{textAlign:"center"}}><Pill color={statusColor} size="xs">{STATUS_LABELS[t.status]}</Pill></div>
-        </div>})}
-      {autoFiltered.filter(t=>!parseD(t.startDate)).map(t=><div key={t.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr .8fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center",opacity:.6}}>
-        <span style={{fontSize:12,color:T.dim}}>{t.name}</span>
-        <span style={{fontSize:10,color:T.dim,textAlign:"center"}}>No date</span>
-        <span/>
-        <div style={{textAlign:"center"}}><Pill color={T.dim} size="xs">{STATUS_LABELS[t.status]}</Pill></div>
-      </div>)}
-      {autoFiltered.length===0&&<div style={{padding:30,textAlign:"center",color:T.dim,fontSize:12}}>No tasks selected. Click "Client Milestones Only" to auto-select deliverables, feedback dates, and kickoffs.</div>}
-    </Card>
-
-    {/* Gantt/Calendar print preview */}
-    {autoFiltered.length>0&&<Card style={{padding:0,overflow:"hidden"}}>
-      <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Preview</span>
-      </div>
-      <div style={{background:"#fff",padding:32,color:"#111"}}>
-        {(tlFormat==="gantt"||tlFormat==="both")&&<div style={{marginBottom:tlFormat==="both"?24:0}}>{tlFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#1E293B",marginBottom:10,textTransform:"uppercase",letterSpacing:".06em"}}>Gantt</div>}<ClientGantt/></div>}
-        {(tlFormat==="calendar"||tlFormat==="both")&&<div>{tlFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#1E293B",marginBottom:10,marginTop:8,textTransform:"uppercase",letterSpacing:".06em"}}>Calendar</div>}<ClientCalendar/></div>}
+      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+        {tasks.map(t=>{const rel=isClientRelevant(t);return<button key={t.id} onClick={()=>toggleTask(t.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:included.has(t.id)?(rel?"rgba(20,184,166,.12)":T.goldSoft):"rgba(255,255,255,.03)",color:included.has(t.id)?(rel?"#14B8A6":T.gold):T.dim,fontWeight:included.has(t.id)?500:400}}>{t.name}</button>})}
       </div>
     </Card>}
+
+    {/* Calendar with filtered tasks */}
+    <div style={{marginBottom:16}}>
+      <CalendarView tasks={autoFiltered} onAddTask={()=>{}} onEditTask={()=>{}} onDeleteTask={()=>{}} canEdit={false}/>
+    </div>
+
+    {/* Task list — block style */}
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {autoFiltered.sort((a,b)=>(a.startDate||"9999").localeCompare(b.startDate||"9999")).map(t=>{
+        const statusColor=t.status==="done"?T.pos:t.status==="progress"?T.cyan:t.status==="roadblocked"?T.neg:T.dim;
+        const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
+        return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,borderLeft:`3px solid ${statusColor}`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+          <div style={{flex:1,minWidth:0}}>
+            <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{t.name}</span>
+            {t.category&&<span style={{marginLeft:8}}><Pill color={T.dim} size="xs">{t.category}</Pill></span>}
+          </div>
+          {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
+          <Pill color={statusColor} size="xs">{STATUS_LABELS[t.status]}</Pill>
+        </div>})}
+      {autoFiltered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:12}}>No milestones selected. Click "Edit Tasks" to choose which tasks to show.</div>}
+    </div>
   </div>}
 
   /* ══ FILES VIEW ══ */
