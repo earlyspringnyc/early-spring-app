@@ -73,7 +73,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:26,height:26,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
             <span style={{fontSize:11,color:T.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:100}}>{user.name||user.email||""}</span>
-            <button onClick={onLogout} style={{background:"none",border:"none",cursor:"pointer",padding:4,flexShrink:0}}><LogOutI size={12} color={T.dim}/></button>
+            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,cursor:"pointer",padding:"5px 10px",flexShrink:0,fontSize:10,color:T.dim,fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.neg;e.currentTarget.style.color=T.neg}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><LogOutI size={11} color="currentColor"/>Sign Out</button>
           </div>
         </div>
       </div>
