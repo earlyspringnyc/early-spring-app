@@ -110,22 +110,21 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     closePopover();
   };
 
-  const openPopover=(d,e)=>{
-    if(!canEdit)return;
-    if(addDate===d){closePopover();return}
-    const cell=e.currentTarget;
-    const calRect=calRef.current?.getBoundingClientRect()||{left:0,top:0};
+  const positionPopover=(cell)=>{
+    const calRect=calRef.current?.getBoundingClientRect()||{left:0,top:0,width:600};
     const cellRect=cell.getBoundingClientRect();
-    // Position popover near the cell
     let left=cellRect.left-calRect.left;
     let top=cellRect.bottom-calRect.top+4;
-    // Keep popover within calendar bounds
     if(left+300>calRect.width)left=calRect.width-310;
     if(left<0)left=0;
-    setPopoverPos({left,top});
+    return{left,top};
+  };
+  const openPopover=(d,e,endDate)=>{
+    if(!canEdit)return;
+    if(addDate===d&&!endDate){closePopover();return}
+    setPopoverPos(positionPopover(e.currentTarget));
     setAddDate(d);setQN("");setShowMore(false);setIsMeeting(false);
-    // Only reset end date if not coming from a drag range
-    if(!isDragging&&!dragStart)setQE("");
+    if(endDate)setQE(endDate);else setQE("");
   };
 
   const onCellMouseDown=(d)=>{if(!canEdit)return;setDragStart(d);setDragEnd(d);setIsDragging(true)};
@@ -140,9 +139,9 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     setIsDragging(false);
     const min=Math.min(dragStart||d,d);
     const max=Math.max(dragStart||d,d);
-    setAddDate(min);
-    if(max>min)setQE(fmtDate(max));else setQE("");
-    openPopover(min,e);
+    const endDate=max>min?fmtDate(max):"";
+    openPopover(min,e,endDate);
+    setDragStart(null);setDragEnd(null);
   };
 
   const cells=[];
