@@ -35,7 +35,8 @@ async function getOrCreateProfileWithRetry(user) {
 export function useSupabaseAuth() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [accessToken, setAccessToken] = useState(null);
+  const [accessToken, setAccessTokenRaw] = useState(()=>{try{return localStorage.getItem("es_google_token")||null}catch(e){return null}});
+  const setAccessToken=(t)=>{setAccessTokenRaw(t);try{if(t)localStorage.setItem("es_google_token",t);else localStorage.removeItem("es_google_token")}catch(e){}};
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -130,8 +131,10 @@ export function useSupabaseAuth() {
   // Refresh Google token
   const refreshToken = useCallback(async () => {
     const token = await getGoogleAccessToken();
-    setAccessToken(token);
-    return token;
+    if(token){setAccessToken(token);return token}
+    // Fallback to stored token
+    try{const stored=localStorage.getItem("es_google_token");if(stored)return stored}catch(e){}
+    return null;
   }, []);
 
   // Normalize user object so it always has name, email, role
