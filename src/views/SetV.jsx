@@ -23,18 +23,36 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
     setLoadingDrives(false);
   };
 
+  const[driveCreating,setDriveCreating]=useState(false);
+  const[driveCreated,setDriveCreated]=useState(false);
+
   const setDriveLocation=async(driveId,driveName)=>{
-    // driveId=null means "My Drive"
     updateProject({driveLocation:{driveId,driveName:driveName||"My Drive"}});
-    // Recreate folder structure in the chosen location
+    setDriveCreating(true);
     if(accessToken){
       try{
-        const{createProjectFoldersInDrive}=await import('../utils/drive.js');
+        const{createProjectFoldersInDrive,shareWithTeam}=await import('../utils/drive.js');
         const folderIds=await createProjectFoldersInDrive(accessToken,project.name||"Untitled",driveId);
-        if(folderIds)updateProject({driveFolders:folderIds});
+        if(folderIds){
+          updateProject({driveFolders:folderIds});
+          // Share with team based on roles
+          if(!driveId){
+            const team=getStoredUsers();
+            if(team.length)await shareWithTeam(accessToken,folderIds,team);
+          }
+          setDriveCreated(true);
+          setTimeout(()=>setDriveCreated(false),3000);
+        }
       }catch(e){console.error("[drive]",e)}
     }
+    setDriveCreating(false);
     setDriveSetup(false);
+  };
+
+  const setupDriveQuick=async()=>{
+    if(!accessToken){alert("Sign in with Google to set up Drive");return}
+    const driveLoc=(()=>{try{const s=localStorage.getItem("es_drive_location");return s?JSON.parse(s):null}catch(e){return null}})();
+    await setDriveLocation(driveLoc?.driveId||null,driveLoc?.driveName||"My Drive");
   };
   const[team,setTeam]=useState(getStoredUsers);
   const[showAddUser,setShowAddUser]=useState(false);
@@ -84,13 +102,23 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
     </Card>
     <Card style={{padding:28,marginBottom:16}}>
       <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Google Drive</div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div>
-          <div style={{fontSize:12,color:T.cream,fontWeight:500}}>{project.driveLocation?.driveName||"My Drive"}</div>
-          <div style={{fontSize:10,color:T.dim,marginTop:2}}>{project.driveFolders?"Folder structure created":"Not set up yet"}</div>
+      {!project.driveFolders?<div>
+        <p style={{fontSize:12,color:T.dim,marginBottom:14}}>Create a folder structure on Google Drive for this project. Files will be organized by category and shared with team members based on their roles.</p>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={setupDriveQuick} disabled={driveCreating} style={{padding:"10px 20px",borderRadius:T.rS,background:driveCreating?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:driveCreating?T.dim:T.brown,border:driveCreating?`1px solid ${T.border}`:"none",fontSize:12,fontWeight:700,cursor:driveCreating?"default":"pointer",fontFamily:T.sans}}>{driveCreating?"Creating folders...":"Set up Google Drive"}</button>
+          <button onClick={()=>{setDriveSetup(!driveSetup);if(!driveSetup)loadSharedDrives()}} style={{padding:"10px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Choose location</button>
+          {driveCreated&&<span style={{fontSize:11,color:T.pos,fontWeight:600}}>Done!</span>}
         </div>
-        <button onClick={()=>{setDriveSetup(!driveSetup);if(!driveSetup)loadSharedDrives()}} style={{padding:"7px 14px",borderRadius:T.rS,background:driveSetup?"transparent":T.goldSoft,color:driveSetup?T.dim:T.gold,border:`1px solid ${driveSetup?T.border:T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{driveSetup?"Cancel":"Change Location"}</button>
-      </div>
+      </div>:<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>&#128193;</span>
+          <div>
+            <div style={{fontSize:12,color:T.cream,fontWeight:500}}>{project.driveLocation?.driveName||"My Drive"}</div>
+            <div style={{fontSize:10,color:T.pos,marginTop:2}}>Folder structure active</div>
+          </div>
+        </div>
+        <button onClick={()=>{setDriveSetup(!driveSetup);if(!driveSetup)loadSharedDrives()}} style={{padding:"7px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{driveSetup?"Cancel":"Change"}</button>
+      </div>}
       {driveSetup&&<div style={{borderTop:`1px solid ${T.border}`,paddingTop:14}}>
         <div style={{fontSize:10,color:T.dim,marginBottom:10}}>Choose where Morgan stores project files:</div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
