@@ -135,14 +135,17 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
               :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))",gap:14,padding:isDropTarget?8:0,border:isDropTarget?`2px dashed ${STAGE_COLORS[stage]}`:"2px dashed transparent",borderRadius:T.r,transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}06`:"transparent"}}>
                 {stageProjects.map((p,pi)=>{const comp=calcProject(p);const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;const tasksDone=(p.timeline||[]).filter(t=>t.status==="done").length;const tasksTotal=(p.timeline||[]).length;const taskPct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
                   const cardColors=[
-                    [`${STAGE_COLORS[stage]}08`,`${STAGE_COLORS[stage]}15`],
-                    ["rgba(125,211,252,.05)","rgba(125,211,252,.12)"],
-                    ["rgba(196,181,253,.05)","rgba(196,181,253,.12)"],
-                    ["rgba(74,222,128,.05)","rgba(74,222,128,.12)"],
-                    ["rgba(253,186,116,.05)","rgba(253,186,116,.12)"],
+                    ["rgba(99,102,241,.14)","rgba(99,102,241,.25)","#6366F1"],
+                    ["rgba(20,184,166,.14)","rgba(20,184,166,.25)","#14B8A6"],
+                    ["rgba(244,114,100,.12)","rgba(244,114,100,.22)","#F47264"],
+                    ["rgba(245,158,11,.12)","rgba(245,158,11,.22)","#F59E0B"],
+                    ["rgba(16,185,129,.14)","rgba(16,185,129,.25)","#10B981"],
+                    ["rgba(139,92,246,.14)","rgba(139,92,246,.25)","#8B5CF6"],
+                    ["rgba(236,72,153,.12)","rgba(236,72,153,.22)","#EC4899"],
+                    ["rgba(6,182,212,.14)","rgba(6,182,212,.25)","#06B6D4"],
                   ];
-                  const[cardBg,cardBorder]=cardColors[pi%cardColors.length];
-                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab",background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${STAGE_COLORS[stage]}`}}>
+                  const[cardBg,cardBorder,cardAccent]=cardColors[pi%cardColors.length];
+                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab",background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
                     <div style={{padding:"22px 24px 18px"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:12}}>
                         <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
@@ -162,7 +165,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                       </div>
                       {tasksTotal>0&&<div style={{marginTop:16}}>
                         <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:10,color:T.dim}}>{tasksDone}/{tasksTotal} tasks</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
-                        <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:`linear-gradient(90deg,${STAGE_COLORS[stage]},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+                        <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:`linear-gradient(90deg,${cardAccent},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
                       </div>}
                     </div>
                     <div style={{padding:"10px 24px",background:"rgba(255,255,255,.02)",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
