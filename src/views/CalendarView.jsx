@@ -123,7 +123,9 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     if(left+300>calRect.width)left=calRect.width-310;
     if(left<0)left=0;
     setPopoverPos({left,top});
-    setAddDate(d);setQN("");setQE("");setShowMore(false);setIsMeeting(false);
+    setAddDate(d);setQN("");setShowMore(false);setIsMeeting(false);
+    // Only reset end date if not coming from a drag range
+    if(!isDragging&&!dragStart)setQE("");
   };
 
   const onCellMouseDown=(d)=>{if(!canEdit)return;setDragStart(d);setDragEnd(d);setIsDragging(true)};

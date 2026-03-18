@@ -16,12 +16,11 @@ function DetailsInput({value,onChange,canEdit}){
   return<div style={{padding:"4px 0",fontSize:10,color:T.dim,opacity:.2}}>{"\u2014"}</div>;
 }
 
-function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs,vendors,onAddVendor,onVendorClick,isContingency,contBase,onReorder,accent}){
+function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs,vendors,onAddVendor,onVendorClick,isContingency,contBase,onReorder,accent,onSetCatMargin}){
   const{items,totals}=comp;
   const[dragItem,setDragItem]=useState(null);const[overItem,setOverItem]=useState(null);
-  const[showCatMargin,setShowCatMargin]=useState(false);
   const[catMargin,setCatMargin]=useState(()=>{if(!items.length)return 15;return Math.round((items[0].margin||0)*100)});
-  const applyCatMargin=()=>{items.forEach((_,idx)=>onUp(idx,{margin:catMargin/100}));setShowCatMargin(false)};
+  const applyCatMargin=()=>{if(onSetCatMargin)onSetCatMargin(catMargin/100)};
   const cols=isAg?"2.2fr .7fr .9fr .9fr .55fr .9fr .9fr":"1.6fr 1.2fr .8fr .7fr .45fr .7fr .7fr .5fr";
   const ac=accent||T.gold;
   return<div style={{marginBottom:5}}>
