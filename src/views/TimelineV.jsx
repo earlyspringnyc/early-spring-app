@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0 } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
@@ -29,6 +29,14 @@ const catColor=(cat)=>{
   const key=Object.keys(CAT_COLORS).find(k=>cat.toLowerCase().includes(k.toLowerCase()));
   return key?CAT_COLORS[key]:T.colors[Math.abs([...cat].reduce((a,c)=>a+c.charCodeAt(0),0))%T.colors.length];
 };
+
+/* ── Drag handle component ── */
+const DragHandle=({onDragStart})=><div
+  draggable
+  onDragStart={onDragStart}
+  style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"grab",padding:"0 6px",opacity:0,transition:"opacity .15s",userSelect:"none",fontSize:14,color:T.dim,letterSpacing:2,lineHeight:1}}
+  className="drag-handle"
+>⋮⋮</div>;
 
 function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAccess}){
   const tasks=project.timeline||[];
@@ -66,6 +74,19 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[splitWidth,setSplitWidth]=useState(380);
   const[dragging,setDragging]=useState(false);
   const splitRef=useRef(null);
+
+  /* ── Section order drag state ── */
+  const[sectionOrder,setSectionOrder]=useState(["calendar","tasks","meetings"]);
+  const[draggedSection,setDraggedSection]=useState(null);
+  const[dropTarget,setDropTarget]=useState(null);
+
+  const handleSectionDragStart=(e,sectionKey)=>{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",sectionKey);setDraggedSection(sectionKey)};
+  const handleSectionDragOver=(e,sectionKey)=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(sectionKey!==draggedSection)setDropTarget(sectionKey)};
+  const handleSectionDrop=(e,sectionKey)=>{e.preventDefault();if(!draggedSection||draggedSection===sectionKey){setDraggedSection(null);setDropTarget(null);return}
+    setSectionOrder(prev=>{const newOrder=[...prev];const fromIdx=newOrder.indexOf(draggedSection);const toIdx=newOrder.indexOf(sectionKey);newOrder.splice(fromIdx,1);newOrder.splice(toIdx,0,draggedSection);return newOrder});
+    setDraggedSection(null);setDropTarget(null)};
+  const handleSectionDragEnd=()=>{setDraggedSection(null);setDropTarget(null)};
+
   useEffect(()=>{
     if(!dragging)return;
     const onMove=(e)=>{if(!splitRef.current)return;const rect=splitRef.current.getBoundingClientRect();const newWidth=rect.right-e.clientX;setSplitWidth(Math.max(280,Math.min(600,newWidth)))};
@@ -201,6 +222,25 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     </div>;
   };
 
+  /* ── Inline meeting block for block view ── */
+  const renderMeetingBlock=(m)=>{
+    return<div key={`meeting-${m.id}`}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,borderLeft:"3px solid #C4B5FD",border:`1px solid ${T.border}`,borderLeftWidth:3,borderLeftColor:"#C4B5FD",transition:"all .15s",cursor:"pointer"}} onClick={()=>{if(viewMeeting===m.id){saveMeetingNotes(m.id);setViewMeeting(null)}else{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:"#C4B5FD",flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</span>
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+          <Pill color="#C4B5FD" size="xs">Meeting</Pill>
+          {m.time&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
+          {m.duration&&<span style={{fontSize:10,color:T.dim}}>{m.duration}</span>}
+        </div>
+        <span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{m.date||"No date"}</span>
+        {canEdit&&<button onClick={e=>{e.stopPropagation();removeMeeting(m.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}
+      </div>
+    </div>;
+  };
+
   const renderTaskTable=()=>(
     <div style={{borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden"}}>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -222,29 +262,80 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     </div>
   );
 
+  /* ── Status filter pill colors ── */
+  const filterPillStyle=(f)=>{
+    const active=filter===f;
+    const colorMap={all:T.gold,todo:"rgba(250,250,249,.6)",progress:"#22D3EE",roadblocked:"#F87171",done:"#34D399"};
+    const bgMap={all:T.goldSoft,todo:"rgba(250,250,249,.08)",progress:"rgba(34,211,238,.1)",roadblocked:"rgba(248,113,113,.1)",done:"rgba(52,211,153,.1)"};
+    const activeBgMap={all:`${T.gold}28`,todo:"rgba(250,250,249,.15)",progress:"rgba(34,211,238,.2)",roadblocked:"rgba(248,113,113,.2)",done:"rgba(52,211,153,.2)"};
+    return{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:active?700:500,fontFamily:T.sans,background:active?activeBgMap[f]:bgMap[f],color:active?colorMap[f]:T.dim,transition:"all .15s"};
+  };
+
+  /* ── Section wrapper with drag handle ── */
+  const SectionWrap=({sectionKey,children})=>(
+    <div
+      onDragOver={e=>handleSectionDragOver(e,sectionKey)}
+      onDrop={e=>handleSectionDrop(e,sectionKey)}
+      onDragEnd={handleSectionDragEnd}
+      style={{position:"relative",opacity:draggedSection===sectionKey?.5:1,transition:"opacity .15s"}}
+      onMouseEnter={e=>{const h=e.currentTarget.querySelector('.drag-handle');if(h)h.style.opacity="0.5"}}
+      onMouseLeave={e=>{const h=e.currentTarget.querySelector('.drag-handle');if(h)h.style.opacity="0"}}
+    >
+      {dropTarget===sectionKey&&<div style={{height:3,background:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,marginBottom:4}}/>}
+      <div style={{display:"flex",alignItems:"flex-start"}}>
+        <DragHandle onDragStart={e=>handleSectionDragStart(e,sectionKey)}/>
+        <div style={{flex:1,minWidth:0}}>{children}</div>
+      </div>
+    </div>
+  );
+
+  /* ── Build merged list for block view (tasks + inline meetings) ── */
+  const getMergedBlockItems=()=>{
+    const items=[];
+    filtered.forEach(t=>{items.push({type:"task",data:t,sortDate:t.startDate||"9999"})});
+    if(taskView==="block"&&meetings.length>0){
+      meetings.forEach(m=>{items.push({type:"meeting",data:m,sortDate:m.date||"9999"})});
+    }
+    items.sort((a,b)=>(a.sortDate||"").localeCompare(b.sortDate||""));
+    return items;
+  };
+
   return<div>
+    {/* inject hover style for drag handles */}
+    <style>{`.drag-handle:hover{opacity:0.8!important}`}</style>
+
     {/* ── Header ── */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div>
-        <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Timeline / Tracker</h1>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginTop:6}}>
-          <span style={{fontSize:12,color:T.dim}}>{tasks.length} tasks</span>
-          <span style={{fontSize:18,fontWeight:700,fontFamily:T.mono,color:T.cream}}>{pct}%</span>
-          <span style={{fontSize:12,color:T.dim}}>complete</span>
-        </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+        <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans,margin:0}}>Production</h1>
+        <span style={{fontSize:12,color:T.dim}}>{tasks.length} task{tasks.length!==1?"s":""}</span>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <button onClick={()=>setShowClientTL(!showClientTL)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showClientTL?"transparent":"rgba(34,211,238,.1)",color:showClientTL?T.dim:T.cyan,border:`1px solid ${showClientTL?T.border:"rgba(34,211,238,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showClientTL?"Close":"Create Client Timeline"}</button>
-        {/* Calendar / Gantt / Off toggle */}
-        <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
-          {[["calendar","Calendar"],["gantt","Gantt"],["off","Off"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
-        </div>
-        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Manual"}</button>}
+        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},${T.cyan})`,color:showAdd?T.dim:"#fff",border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Task"}</button>}
       </div>
     </div>
 
-    {/* ── Progress bar ── */}
-    <div style={{height:4,background:T.surface,borderRadius:2,marginBottom:20,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${T.gold},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+    {/* ── Progress section ── */}
+    <div style={{display:"flex",alignItems:"center",gap:24,marginBottom:20,padding:"16px 20px",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+      <span style={{fontSize:36,fontWeight:700,fontFamily:T.mono,color:T.cream,lineHeight:1,minWidth:70,letterSpacing:"-0.02em"}}>{pct}%</span>
+      <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+        {[["todo","To Do",STATUS_COLORS.todo],["progress","In Progress",STATUS_COLORS.progress],["roadblocked","Blocked",STATUS_COLORS.roadblocked],["done","Done",STATUS_COLORS.done]].map(([key,label,color])=>
+          counts[key]>0&&<div key={key} style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>
+            <span style={{fontSize:12,color:T.dimH,fontFamily:T.sans}}>{counts[key]} {label}</span>
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* ── Status filter pills ── */}
+    <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+      {["all","todo","progress","roadblocked","done"].map(f=>
+        <button key={f} onClick={()=>setFilter(f)} style={filterPillStyle(f)}>
+          {f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})
+        </button>
+      )}
+    </div>
 
     {/* Client Timeline Creator */}
     {showClientTL&&<Card style={{padding:20,marginBottom:16,borderColor:"rgba(34,211,238,.15)",background:"rgba(34,211,238,.02)"}}>
@@ -267,7 +358,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",paddingTop:12,borderTop:`1px solid ${T.border}`}}>
         <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@example.com" onKeyDown={e=>e.key==="Enter"&&sendClientTL()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-        <button onClick={sendClientTL} disabled={!clientEmail.trim()||clientSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:clientEmail.trim()&&!clientSending?"rgba(34,211,238,.15)":"rgba(255,255,255,.05)",color:clientEmail.trim()&&!clientSending?T.cyan:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:clientEmail.trim()&&!clientSending?"pointer":"default",fontFamily:T.sans}}>{clientSending?"Sending…":"Send Email"}</button>
+        <button onClick={sendClientTL} disabled={!clientEmail.trim()||clientSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:clientEmail.trim()&&!clientSending?"rgba(34,211,238,.15)":"rgba(255,255,255,.05)",color:clientEmail.trim()&&!clientSending?T.cyan:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:clientEmail.trim()&&!clientSending?"pointer":"default",fontFamily:T.sans}}>{clientSending?"Sending...":"Send Email"}</button>
         <button onClick={()=>window.print()} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}><span style={{display:"flex",alignItems:"center",gap:4}}><DlI size={12}/>PDF</span></button>
       </div>
       {clientSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {clientSent}</div>}
@@ -335,7 +426,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <button onClick={()=>{if(isMeeting){addMeeting(nN)}else{addTask()}}} style={{padding:"9px 20px",background:isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{isMeeting?"Schedule Meeting":"Add Task"}</button>
     </Card>}
 
-    {/* Calendar / Gantt view + Task List — draggable side-by-side */}
+    {/* ── Draggable sections ── */}
     {(()=>{
       const calendarMeeting=(title,date,time,duration,attendees,agenda)=>{addMeeting(title);};
       const editTask=(taskId,updates)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,...updates}:t)})};
@@ -351,51 +442,99 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           <div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
             {[["card","Card"],["block","Block"],["table","Table"]].map(([k,l])=><button key={k} onClick={()=>setTaskView(k)} style={{padding:"4px 12px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:taskView===k?600:400,fontFamily:T.sans,background:taskView===k?T.goldSoft:"transparent",color:taskView===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
           </div>
-        </div>
-        <div style={{display:"flex",gap:4}}>
-          {["all","todo","progress","roadblocked","done"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 10px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===f?600:400,fontFamily:T.sans,background:filter===f?(f==="roadblocked"?"rgba(248,113,113,.1)":T.goldSoft):"transparent",color:filter===f?(f==="roadblocked"?T.neg:T.gold):T.dim}}>{f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})</button>)}
+          <button onClick={()=>setShowClientTL(!showClientTL)} style={{padding:"4px 12px",borderRadius:18,border:`1px solid ${showClientTL?"rgba(34,211,238,.3)":T.border}`,cursor:"pointer",fontSize:10,fontWeight:showClientTL?600:400,fontFamily:T.sans,background:showClientTL?"rgba(34,211,238,.1)":"transparent",color:showClientTL?T.cyan:T.dim}}>{showClientTL?"Close Client TL":"Client Timeline"}</button>
+          <button onClick={()=>setShowSuggestions(!showSuggestions)} style={{padding:"4px 12px",borderRadius:18,border:`1px solid ${showSuggestions?`${T.gold}33`:T.border}`,cursor:"pointer",fontSize:10,fontWeight:showSuggestions?600:400,fontFamily:T.sans,background:showSuggestions?T.goldSoft:"transparent",color:showSuggestions?T.gold:T.dim}}>{showSuggestions?"Hide Suggestions":"Budget Items"}</button>
         </div>
       </div>;
 
       /* ── Render tasks based on view mode ── */
       const taskListContent=<>
         {taskListHeader}
-        {taskView==="table"?renderTaskTable():
+        {tasks.length===0&&!showAdd?
+          <div style={{textAlign:"center",padding:"48px 20px",color:T.dim}}>
+            <div style={{fontSize:14,marginBottom:12}}>No tasks yet. Add your first task to start tracking production.</div>
+            {canEdit&&<button onClick={()=>setShowAdd(true)} style={{padding:"10px 20px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
+          </div>
+        :taskView==="table"?renderTaskTable():
         <div style={taskView==="card"?{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}:{display:"flex",flexDirection:"column",gap:4}}>
-          {filtered.map(t=>{const ri=tasks.indexOf(t);return taskView==="card"?renderTaskCard(t,ri):renderTaskBlock(t,ri)})}
-          {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13,gridColumn:"1/-1"}}>No tasks with this status.</div>}
+          {taskView==="block"?
+            getMergedBlockItems().map(item=>item.type==="task"?renderTaskBlock(item.data,tasks.indexOf(item.data)):renderMeetingBlock(item.data))
+          :filtered.map(t=>{const ri=tasks.indexOf(t);return taskView==="card"?renderTaskCard(t,ri):renderTaskBlock(t,ri)})}
+          {filtered.length===0&&tasks.length>0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13,gridColumn:"1/-1"}}>No tasks with this status.</div>}
         </div>}
       </>;
 
-      if(calendarContent&&layout==="split")return<div ref={splitRef} style={{display:"flex",gap:0,alignItems:"flex-start"}}>
-        <div style={{flex:1,minWidth:0}}>{calendarContent}</div>
-        <div onMouseDown={()=>setDragging(true)} style={{width:6,cursor:"col-resize",background:dragging?T.gold:"transparent",borderRadius:3,flexShrink:0,alignSelf:"stretch",minHeight:200,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.border} onMouseLeave={e=>{if(!dragging)e.currentTarget.style.background="transparent"}}/>
-        <div style={{width:splitWidth,flexShrink:0,maxHeight:"70vh",overflow:"auto",position:"sticky",top:28}}>{taskListContent}</div>
-      </div>;
-      return<>{calendarContent}{taskListContent}</>;
-    })()}
-
-    {/* Meetings */}
-{meetings.length>0&&<div style={{marginTop:24}}>
-  <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:12}}>Meetings ({meetings.length})</div>
-  <div style={{display:"flex",flexDirection:"column",gap:4}}>
-    {meetings.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(m=><div key={m.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:viewMeeting===m.id?T.surfHov:T.surfEl,borderRadius:T.rS,border:`1px solid ${viewMeeting===m.id?"rgba(232,121,249,.15)":T.border}`,cursor:"pointer",transition:"all .15s"}} onClick={()=>{if(viewMeeting===m.id){saveMeetingNotes(m.id);setViewMeeting(null)}else{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}}} onMouseEnter={e=>{if(viewMeeting!==m.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(viewMeeting!==m.id)e.currentTarget.style.background=T.surfEl}}>
-      <div style={{width:8,height:8,borderRadius:"50%",background:T.magenta,flexShrink:0}}/>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</div>
-        <div style={{display:"flex",gap:10,marginTop:3}}>
-          {m.date&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
-          {m.time&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
-          {m.duration&&<span style={{fontSize:10,color:T.dim}}>{m.duration}</span>}
-          {m.location&&<span style={{fontSize:10,color:T.cyan}}>{m.location}</span>}
+      /* ── Calendar section with embedded toggle ── */
+      const calendarSection=<div style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Calendar</span>
+          <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
+            {[["calendar","Calendar"],["gantt","Gantt"],["off","Off"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
+          </div>
         </div>
-      </div>
-      {m.attendees&&m.attendees.length>0&&<span style={{fontSize:10,color:T.dim}}>{m.attendees.length} attendee{m.attendees.length>1?"s":""}</span>}
-      <Pill color={m.calendarSent?T.pos:T.magenta}>{m.calendarSent?"Sent":"Scheduled"}</Pill>
-      {canEdit&&<button onClick={e=>{e.stopPropagation();removeMeeting(m.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
-    </div>)}
-  </div>
-</div>}
+        {calendarContent}
+      </div>;
+
+      /* ── Meetings section ── */
+      const meetingsSection=meetings.length>0?<div>
+        <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:12}}>Meetings ({meetings.length})</div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {meetings.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(m=><div key={m.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:viewMeeting===m.id?T.surfHov:T.surfEl,borderRadius:T.rS,border:`1px solid ${viewMeeting===m.id?"rgba(232,121,249,.15)":T.border}`,cursor:"pointer",transition:"all .15s"}} onClick={()=>{if(viewMeeting===m.id){saveMeetingNotes(m.id);setViewMeeting(null)}else{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}}} onMouseEnter={e=>{if(viewMeeting!==m.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(viewMeeting!==m.id)e.currentTarget.style.background=T.surfEl}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:T.magenta,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</div>
+              <div style={{display:"flex",gap:10,marginTop:3}}>
+                {m.date&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
+                {m.time&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
+                {m.duration&&<span style={{fontSize:10,color:T.dim}}>{m.duration}</span>}
+                {m.location&&<span style={{fontSize:10,color:T.cyan}}>{m.location}</span>}
+              </div>
+            </div>
+            {m.attendees&&m.attendees.length>0&&<span style={{fontSize:10,color:T.dim}}>{m.attendees.length} attendee{m.attendees.length>1?"s":""}</span>}
+            <Pill color={m.calendarSent?T.pos:T.magenta}>{m.calendarSent?"Sent":"Scheduled"}</Pill>
+            {canEdit&&<button onClick={e=>{e.stopPropagation();removeMeeting(m.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+          </div>)}
+        </div>
+      </div>:null;
+
+      /* ── Section map ── */
+      const sectionMap={
+        calendar:calendarSection,
+        tasks:taskListContent,
+        meetings:meetingsSection,
+      };
+
+      /* ── Split layout for calendar + tasks ── */
+      if(calendarContent&&layout==="split"){
+        return<>
+          <SectionWrap sectionKey="calendar">
+            <div ref={splitRef} style={{display:"flex",gap:0,alignItems:"flex-start"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Calendar</span>
+                  <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
+                    {[["calendar","Calendar"],["gantt","Gantt"],["off","Off"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
+                  </div>
+                </div>
+                {calendarContent}
+              </div>
+              <div onMouseDown={()=>setDragging(true)} style={{width:6,cursor:"col-resize",background:dragging?T.gold:"transparent",borderRadius:3,flexShrink:0,alignSelf:"stretch",minHeight:200,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.border} onMouseLeave={e=>{if(!dragging)e.currentTarget.style.background="transparent"}}/>
+              <div style={{width:splitWidth,flexShrink:0,maxHeight:"70vh",overflow:"auto",position:"sticky",top:28}}>{taskListContent}</div>
+            </div>
+          </SectionWrap>
+          {meetingsSection&&<SectionWrap sectionKey="meetings"><div style={{marginTop:24}}>{meetingsSection}</div></SectionWrap>}
+        </>;
+      }
+
+      /* ── Stacked layout with draggable sections ── */
+      return<div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {sectionOrder.map(key=>{
+          const content=sectionMap[key];
+          if(!content)return null;
+          return<SectionWrap key={key} sectionKey={key}>{content}</SectionWrap>;
+        })}
+      </div>;
+    })()}
 
 {/* Meeting Detail View */}
 {viewMeeting&&(()=>{const m=meetings.find(mt=>mt.id===viewMeeting);if(!m)return null;return<Card style={{padding:20,marginTop:12,borderColor:"rgba(232,121,249,.15)",background:"rgba(232,121,249,.02)"}}>
@@ -435,7 +574,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14}}>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
       <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Integrations</div>
-      <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:m.title,date:m.date,time:m.time,duration:m.duration,attendees:m.attendees||[],agenda:m.agenda,location:m.location});updateMeeting(m.id,{calendarSent:true});setCalStatus("Calendar invite sent!")}catch(e){setCalStatus("Error: "+(e.message||"Failed"))}finally{setCalSending(false)}}} disabled={calSending||m.calendarSent} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:m.calendarSent?"rgba(52,211,153,.06)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:m.calendarSent?T.pos:T.cyan,fontSize:10,fontWeight:600,cursor:calSending||m.calendarSent?"default":"pointer",fontFamily:T.sans}}>{m.calendarSent?"Sent to Calendar":calSending?"Sending…":"Google Calendar"}</button>
+      <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:m.title,date:m.date,time:m.time,duration:m.duration,attendees:m.attendees||[],agenda:m.agenda,location:m.location});updateMeeting(m.id,{calendarSent:true});setCalStatus("Calendar invite sent!")}catch(e){setCalStatus("Error: "+(e.message||"Failed"))}finally{setCalSending(false)}}} disabled={calSending||m.calendarSent} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:m.calendarSent?"rgba(52,211,153,.06)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:m.calendarSent?T.pos:T.cyan,fontSize:10,fontWeight:600,cursor:calSending||m.calendarSent?"default":"pointer",fontFamily:T.sans}}>{m.calendarSent?"Sent to Calendar":calSending?"Sending...":"Google Calendar"}</button>
       <button onClick={()=>{}} style={{padding:"6px 12px",border:`1px solid rgba(255,234,151,.2)`,background:"rgba(255,234,151,.06)",borderRadius:T.rS,color:T.gold,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} title="Requires Fireflies API key">Import Fireflies Recording</button>
       {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.sans}}>{calStatus}</span>}
       {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.sans}}>Requires Google OAuth</span>}

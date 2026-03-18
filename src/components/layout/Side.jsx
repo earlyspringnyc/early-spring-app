@@ -12,7 +12,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
   const navItems=[
     {id:"dashboard",label:"Dashboard",icon:"◐"},
     {id:"budget",label:"Budget",icon:"◈"},
-    {id:"timeline",label:"Timeline",icon:"▤"},
+    {id:"timeline",label:"Production",icon:"▤"},
     {id:"vendors",label:"Vendors",icon:"◆"},
     {id:"pnl",label:"P&L + Cash",icon:"◇"},
     {id:"docs",label:"Documents",icon:"▧"},
