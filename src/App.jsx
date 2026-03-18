@@ -12,10 +12,15 @@ import LandingPage from './views/LandingPage.jsx';
 import PortfolioDash from './views/PortfolioDash.jsx';
 import ProjectView from './views/ProjectView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
+import SharedClientView from './views/SharedClientView.jsx';
 
 const MAX_UNDO=15;
 
 function App(){
+  // Check for share link
+  const shareToken=new URLSearchParams(window.location.search).get("share");
+  if(shareToken)return<SharedClientView token={shareToken}/>;
+
   // Auth: use Supabase when configured, otherwise fall back to old auth
   const sbAuth = useSupabaseAuth();
   const gAuth = useGoogleAuth();

@@ -48,7 +48,12 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     }else{setShowContactSugs(false)}
   };
   const pickContact=(email)=>{const parts=emailTo.split(",");parts[parts.length-1]=email;setEmailTo(parts.join(", ")+", ");setShowContactSugs(false)};
-  const copyLink=()=>{navigator.clipboard?.writeText(window.location.href);setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000)};
+  const copyLink=()=>{
+    let token=project.shareToken;
+    if(!token){token=Math.random().toString(36).slice(2)+Date.now().toString(36);if(updateProject)updateProject({shareToken:token})}
+    const url=`${window.location.origin}?share=${token}`;
+    navigator.clipboard?.writeText(url);setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000);
+  };
   const toggleTask=id=>setIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setIncluded(new Set(tasks.map(t=>t.id)));
   const selectNone=()=>setIncluded(new Set());
