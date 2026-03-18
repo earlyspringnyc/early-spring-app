@@ -165,7 +165,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
     <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview · drag cards to rearrange</p></div>
 
     {/* ── Draggable Card Grid ── */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
       {cardOrder.filter(id=>CARDS[id]).map(id=>{const render=CARDS[id];return render?<div key={id}>{render()}</div>:null})}
     </div>
 
@@ -294,7 +294,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       };
 
       return<>
-        {activeWidgets.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16,gridAutoRows:"minmax(140px,auto)"}}>
+        {activeWidgets.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:16,gridAutoRows:"minmax(140px,auto)"}}>
           {activeWidgets.map(wid=>renderWidget(wid))}
         </div>}
 
