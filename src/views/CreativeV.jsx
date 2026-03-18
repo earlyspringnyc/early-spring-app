@@ -5,6 +5,10 @@ import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
 
 /* ── PDF page renderer using pdf.js ── */
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
 function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
   const canvasRef=useRef(null);
   const[pdf,setPdf]=useState(null);
@@ -14,18 +18,6 @@ function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
 
   useEffect(()=>{
     if(!fileData&&!driveLink)return;
-    const loadPdfJs=async()=>{
-      if(!window.pdfjsLib){
-        await new Promise((resolve,reject)=>{
-          const script=document.createElement("script");
-          script.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-          script.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";resolve()};
-          script.onerror=reject;
-          document.head.appendChild(script);
-        });
-      }
-      await loadPdf();
-    };
     const loadPdf=async()=>{
       try{
         setLoading(true);setError(null);
@@ -40,14 +32,14 @@ function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
         } else {
           setError("No PDF data available");setLoading(false);return;
         }
-        const doc=await window.pdfjsLib.getDocument(loadArg).promise;
+        const doc=await pdfjsLib.getDocument(loadArg).promise;
         setPdf(doc);
         setTotalPages(doc.numPages);
         if(onTotalPages)onTotalPages(doc.numPages);
         setLoading(false);
       }catch(e){console.error("[pdf]",e);setError("Could not load PDF");setLoading(false)}
     };
-    loadPdfJs();
+    loadPdf();
   },[fileData,driveLink]);
 
   useEffect(()=>{
