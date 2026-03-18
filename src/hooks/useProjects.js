@@ -27,7 +27,7 @@ export function useProjects(orgId) {
         console.log('[projects] Loaded', p.length, 'projects from Supabase');
         if (p.length > 0) {
           markHasProjects();
-          setProjects(p);
+          setProjects(p.map(restoreFileData));
         } else if (!hasHadProjects()) {
           // First time ever — create sample
           console.log('[projects] First-time user — creating sample project');
@@ -82,6 +82,54 @@ export function useProjects(orgId) {
     try { localStorage.setItem("es_projects", JSON.stringify(projects)); } catch (e) {}
   }, [projects, loaded]);
 
+  // Strip large file data before saving to Supabase to prevent payload too large errors
+  const stripFileData = (data) => {
+    const stripped = { ...data };
+    // Strip base64 fileData from creative assets (keep metadata)
+    if (stripped.creativeAssets) {
+      stripped.creativeAssets = stripped.creativeAssets.map(a => {
+        if (a.fileData && a.fileData.length > 50000) {
+          // Store in localStorage keyed by asset ID
+          try { localStorage.setItem(`es_file_${a.id}`, a.fileData); } catch (e) {}
+          return { ...a, fileData: null, _hasLocalFile: true };
+        }
+        return a;
+      });
+    }
+    // Strip base64 from docs too
+    if (stripped.docs) {
+      stripped.docs = stripped.docs.map(d => {
+        if (d.fileData && d.fileData.length > 50000) {
+          try { localStorage.setItem(`es_file_${d.id}`, d.fileData); } catch (e) {}
+          return { ...d, fileData: null, _hasLocalFile: true };
+        }
+        return d;
+      });
+    }
+    return stripped;
+  };
+
+  // Restore file data from localStorage
+  const restoreFileData = (data) => {
+    if (data.creativeAssets) {
+      data.creativeAssets = data.creativeAssets.map(a => {
+        if (a._hasLocalFile && !a.fileData) {
+          try { const f = localStorage.getItem(`es_file_${a.id}`); if (f) return { ...a, fileData: f }; } catch (e) {}
+        }
+        return a;
+      });
+    }
+    if (data.docs) {
+      data.docs = data.docs.map(d => {
+        if (d._hasLocalFile && !d.fileData) {
+          try { const f = localStorage.getItem(`es_file_${d.id}`); if (f) return { ...d, fileData: f }; } catch (e) {}
+        }
+        return d;
+      });
+    }
+    return data;
+  };
+
   // Immediate save to Supabase (with debounce for rapid updates)
   const saveToSupabase = useCallback((projectId, projectData) => {
     if (!usesDb) return;
@@ -91,7 +139,7 @@ export function useProjects(orgId) {
     if (!saveTimer.current) saveTimer.current = {};
     saveTimer.current[timerKey] = setTimeout(() => {
       console.log('[projects] Saving project to Supabase:', projectId);
-      db.updateProject(projectId, projectData).catch(e => console.error('[projects] Save failed:', e));
+      db.updateProject(projectId, stripFileData(projectData)).catch(e => console.error('[projects] Save failed:', e));
     }, 500);
   }, [usesDb]);
 

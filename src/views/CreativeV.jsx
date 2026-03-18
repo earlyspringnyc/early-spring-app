@@ -5,38 +5,50 @@ import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
 
 /* ── PDF page renderer using pdf.js ── */
-function PdfViewer({fileData,currentPage,onPageChange,onTotalPages}){
+function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
   const canvasRef=useRef(null);
   const[pdf,setPdf]=useState(null);
   const[totalPages,setTotalPages]=useState(0);
   const[loading,setLoading]=useState(true);
+  const[error,setError]=useState(null);
 
   useEffect(()=>{
-    if(!fileData)return;
-    // Load pdf.js from CDN if not loaded
+    if(!fileData&&!driveLink)return;
     const loadPdfJs=async()=>{
       if(!window.pdfjsLib){
-        const script=document.createElement("script");
-        script.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-        script.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";loadPdf()};
-        document.head.appendChild(script);
-      } else loadPdf();
+        await new Promise((resolve,reject)=>{
+          const script=document.createElement("script");
+          script.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          script.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";resolve()};
+          script.onerror=reject;
+          document.head.appendChild(script);
+        });
+      }
+      await loadPdf();
     };
     const loadPdf=async()=>{
       try{
-        setLoading(true);
-        const data=atob(fileData.split(",")[1]);
-        const arr=new Uint8Array(data.length);
-        for(let i=0;i<data.length;i++)arr[i]=data.charCodeAt(i);
-        const doc=await window.pdfjsLib.getDocument({data:arr}).promise;
+        setLoading(true);setError(null);
+        let loadArg;
+        if(fileData&&fileData.includes(",")){
+          const raw=atob(fileData.split(",")[1]);
+          const arr=new Uint8Array(raw.length);
+          for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+          loadArg={data:arr};
+        } else if(driveLink){
+          loadArg={url:driveLink};
+        } else {
+          setError("No PDF data available");setLoading(false);return;
+        }
+        const doc=await window.pdfjsLib.getDocument(loadArg).promise;
         setPdf(doc);
         setTotalPages(doc.numPages);
         if(onTotalPages)onTotalPages(doc.numPages);
         setLoading(false);
-      }catch(e){console.error("[pdf]",e);setLoading(false)}
+      }catch(e){console.error("[pdf]",e);setError("Could not load PDF");setLoading(false)}
     };
     loadPdfJs();
-  },[fileData]);
+  },[fileData,driveLink]);
 
   useEffect(()=>{
     if(!pdf||!canvasRef.current)return;
@@ -51,8 +63,8 @@ function PdfViewer({fileData,currentPage,onPageChange,onTotalPages}){
     renderPage();
   },[pdf,currentPage]);
 
-  if(loading)return<div style={{color:T.dim,fontSize:13}}>Loading PDF...</div>;
-  if(!pdf)return<div style={{color:T.dim,fontSize:13}}>Could not load PDF</div>;
+  if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:T.dim,fontSize:13}}>Loading PDF...</div>;
+  if(error||!pdf)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:T.dim,fontSize:13}}>{error||"Could not load PDF"}</div>;
 
   return<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,width:"100%",height:"100%",overflow:"auto"}}>
     <canvas ref={canvasRef} style={{maxWidth:"100%",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>
@@ -209,7 +221,7 @@ function CreativeV({project,updateProject,canEdit}){
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* Main content */}
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24,background:"rgba(0,0,0,.3)"}}>
-          {a.isPdf&&a.fileData?<PdfViewer fileData={a.fileData} currentPage={deckPage} onPageChange={setDeckPage} onTotalPages={n=>setTotalPdfPages(n)}/>
+          {a.isPdf&&(a.fileData||a.driveLink)?<PdfViewer fileData={a.fileData} driveLink={a.driveLink} currentPage={deckPage} onPageChange={setDeckPage} onTotalPages={n=>setTotalPdfPages(n)}/>
           :a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>
           :a.isVideo&&a.fileData?<video src={a.fileData} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:8}}/>
           :a.isFigma&&a.linkUrl?<iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",borderRadius:8}} title={a.name} allowFullScreen/>

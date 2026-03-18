@@ -222,7 +222,13 @@ export async function updateProject(projectId, projectData) {
       data: projectData,
     })
     .eq('id', projectId);
-  if (error) console.error('[db] Update project failed:', error);
+  if (error) {
+    console.error('[db] Update project failed:', error);
+    // Surface the error so the user knows
+    if (error.message?.includes('too large') || error.code === '54000') {
+      console.error('[db] Project data may be too large. Consider moving files to Google Drive.');
+    }
+  }
 }
 
 export async function deleteProject(projectId) {
