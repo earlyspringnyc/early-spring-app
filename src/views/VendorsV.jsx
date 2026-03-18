@@ -78,6 +78,10 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
           </select></div>
         <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Notes</label><input value={nNo} onChange={e=>setNNo2(e.target.value)} placeholder="Optional notes" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
       </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Finance Contact Name</label><input value={nFinName} onChange={e=>setNFinName(e.target.value)} placeholder="John Doe" onKeyDown={e=>e.key==="Enter"&&addVendor()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Finance Contact Email</label><input value={nFinEmail} onChange={e=>setNFinEmail(e.target.value)} placeholder="finance@co.com" onKeyDown={e=>e.key==="Enter"&&addVendor()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+      </div>
       <button onClick={addVendor} style={{padding:"9px 20px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Vendor</button>
     </Card>}
     <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16}}>
@@ -103,7 +107,8 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
           <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{v.notes}</div>}</div>
           <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],display:"inline-block",lineHeight:1.4,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
           <div style={{fontSize:12,color:T.cream}}>{v.contactName||"\u2014"}</div>
-          <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.email||"\u2014"}</div>
+          <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>{v.email||"\u2014"}{!v.email&&<span title="Email required" style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"rgba(245,158,11,.12)",borderRadius:20,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>!</span>}</div>
+          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{s.totalContracted>0?f0(s.totalContracted):"\u2014"}</span>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{s.totalInvoiced>0?f0(s.totalInvoiced):"\u2014"}</span>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:s.outstanding>0?T.neg:T.dim,fontWeight:s.outstanding>0?600:400}}>{s.outstanding>0?f0(s.outstanding):"\u2014"}</span>
           <div style={{display:"flex",gap:6,justifyContent:"flex-end",alignItems:"center"}}>
