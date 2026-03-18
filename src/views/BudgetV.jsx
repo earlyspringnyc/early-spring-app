@@ -53,11 +53,22 @@ function BudgetV(p){
     XLSX.utils.book_append_sheet(wb,ws,"Production Budget");
     XLSX.writeFile(wb,(p.project?.name||"budget")+"-production-budget.xlsx");
   };
+  const exportCSV=async()=>{
+    const rows=[["Category","Item","Description","Vendor","Actual Cost","Margin %","Client Price","Variance"]];
+    p.cats.forEach(c=>{c.items.forEach(it=>{const cp=it.actualCost===0?0:it.actualCost*(1+it.margin);const variance=cp-it.actualCost;const vendorName=(p.vendors||[]).find(v=>v.id===it.vendorId)?.name||"";rows.push([c.name,it.name,it.details||"",vendorName,it.actualCost,(it.margin*100)+"%",cp,variance])})});
+    rows.push([]);rows.push(["","","","","GRAND TOTAL","",p.comp.grandTotal,""]);rows.push(["","","","","NET PROFIT","",p.comp.netProfit,""]);
+    const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(p.project?.name||"budget")+"-production-budget.csv";a.click();URL.revokeObjectURL(url);setShowExportMenu(false);
+  };
+  const exportPDF=()=>{window.print();setShowExportMenu(false)};
+  const[dragSection,setDragSection]=useState(null);
+  const[overSection,setOverSection]=useState(null);
   const[showAddSection,setShowAddSection]=useState(false);
   const[editingBudget,setEditingBudget]=useState(false);
   const[budgetDraft,setBudgetDraft]=useState("");
   const[confirmBudget,setConfirmBudget]=useState(false);
   const[showMarginSlider,setShowMarginSlider]=useState(false);
+  const[showExportMenu,setShowExportMenu]=useState(false);
   const budgetRef=useRef(null);
   const startEditBudget=()=>{if(!canEdit)return;setBudgetDraft(String(p.clientBudget||""));setEditingBudget(true);setConfirmBudget(false);setTimeout(()=>budgetRef.current?.select(),50)};
   const proposeBudget=()=>{const v=parseFloat(budgetDraft.replace(/[^0-9.\-]/g,""))||0;if(v===(p.clientBudget||0)){setEditingBudget(false);return}setConfirmBudget(true)};
@@ -76,16 +87,11 @@ function BudgetV(p){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
       <div>
         <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6}}>
-          <span style={{fontSize:12,color:T.dim}}>{canEdit?"Internal view with live margins":"View-only"}</span>
-          {p.saving&&<Pill color={T.gold} size="xs">Saving...</Pill>}
-          {!p.saving&&p.lastSaved&&<Pill color={T.pos} size="xs">Saved</Pill>}
-        </div>
+        <p style={{fontSize:12,color:T.dim,marginTop:6}}>{canEdit?"Internal view with live margins":"View-only"}</p>
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        {canEdit&&<button onClick={()=>setShowMarginSlider(!showMarginSlider)} style={{padding:"8px 14px",background:"transparent",color:showMarginSlider?T.gold:T.dim,border:`1px solid ${showMarginSlider?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Margins</button>}
-        <button onClick={exportXLS} style={{padding:"8px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>Export .xlsx</button>
-        {canEdit&&<button onClick={()=>setShowAddSection(true)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Section</button>}
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {p.saving&&<Pill color={T.gold} size="xs">Saving...</Pill>}
+        {!p.saving&&p.lastSaved&&<Pill color={T.pos} size="xs">Saved</Pill>}
       </div>
     </div>
 
@@ -98,7 +104,7 @@ function BudgetV(p){
           {confirmBudget?<div style={{marginTop:10}}>
             <div style={{fontSize:11,color:T.gold,marginBottom:8}}>Update to {f0(parseFloat(budgetDraft.replace(/[^0-9.\-]/g,""))||0)}?</div>
             <div style={{display:"flex",gap:6}}>
-              <button onClick={confirmBudgetChange} style={{padding:"5px 14px",borderRadius:T.rS,border:"none",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Confirm</button>
+              <button onClick={confirmBudgetChange} style={{padding:"5px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Confirm</button>
               <button onClick={cancelBudget} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
             </div>
           </div>:<div style={{marginTop:6,fontSize:10,color:T.dim}}>Enter to update</div>}
@@ -122,21 +128,17 @@ function BudgetV(p){
       </div>
     </div>
 
-    {/* ── Margin slider (collapsible) ── */}
-    {showMarginSlider&&canEdit&&<div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",marginBottom:16,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
-      <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>Set All Margins</span>
-      <input type="range" min="0" max="40" step="1" value={globalMargin} onChange={e=>setGlobalMargin(parseInt(e.target.value))} style={{flex:1,maxWidth:200}}/>
-      <span className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono,minWidth:40}}>{globalMargin}%</span>
-      <button onClick={()=>{p.setAllMargins(globalMargin/100);setShowMarginSlider(false)}} style={{padding:"6px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Apply</button>
-    </div>}
-
-    {/* ── Column headers ── */}
-    <div style={{display:"flex",justifyContent:"flex-end",gap:20,marginBottom:10,paddingRight:18}}>
-      {[["Actual",T.dim],["Client",T.gold],["Variance",T.pos]].map(([l,c])=><span key={l} style={{fontSize:10,fontWeight:600,color:c,letterSpacing:".08em",textTransform:"uppercase",opacity:.6}}>{l}</span>)}
+    {/* ── Column headers + Add Section ── */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingRight:18}}>
+      {canEdit&&<button onClick={()=>setShowAddSection(true)} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Add Section</button>}
+      {!canEdit&&<div/>}
+      <div style={{display:"flex",gap:20}}>
+        {[["Actual",T.dim],["Client",T.gold],["Variance",T.pos]].map(([l,c])=><span key={l} style={{fontSize:10,fontWeight:600,color:c,letterSpacing:".08em",textTransform:"uppercase",opacity:.6}}>{l}</span>)}
+      </div>
     </div>
 
-    {/* ── Categories ── */}
-    {(()=>{const contBase=p.cats.filter(c=>c.name.toLowerCase()!=="contingency").reduce((a,c)=>a+ct(c.items).totals.actualCost,0);return p.cats.map((c,ci2)=>{const isCont=c.name.toLowerCase()==="contingency";const accent=CAT_ACCENTS[ci2%CAT_ACCENTS.length];return<Cat key={c.id} cat={c} comp={ct(c.items)} open={p.exp.has(c.id)} toggle={()=>p.tog(c.id)} onUp={(ii,u)=>p.uCat(ci2,ii,u)} onAdd={()=>p.aCat(ci2)} onRm={ii=>p.rCat(ci2,ii)} onRemoveCat={()=>p.rmCat(ci2)} canEdit={canEdit} docs={p.docs} vendors={p.vendors} onAddVendor={p.onAddVendor} onVendorClick={p.onVendorClick} isContingency={isCont} contBase={contBase} onReorder={(from,to)=>p.reorderCat(ci2,from,to)} accent={accent}/>})})()}
+    {/* ── Categories (draggable sections) ── */}
+    {(()=>{const contBase=p.cats.filter(c=>c.name.toLowerCase()!=="contingency").reduce((a,c)=>a+ct(c.items).totals.actualCost,0);return p.cats.map((c,ci2)=>{const isCont=c.name.toLowerCase()==="contingency";const accent=CAT_ACCENTS[ci2%CAT_ACCENTS.length];return<div key={c.id} draggable={canEdit} onDragStart={e=>{setDragSection(ci2);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverSection(ci2)}} onDrop={e=>{e.preventDefault();if(dragSection!==null&&dragSection!==ci2&&p.reorderSection)p.reorderSection(dragSection,ci2);setDragSection(null);setOverSection(null)}} onDragEnd={()=>{setDragSection(null);setOverSection(null)}} style={{opacity:dragSection===ci2?.4:1,borderTop:overSection===ci2&&dragSection!==null?`2px solid ${accent}`:"2px solid transparent",transition:"opacity .15s"}}><Cat cat={c} comp={ct(c.items)} open={p.exp.has(c.id)} toggle={()=>p.tog(c.id)} onUp={(ii,u)=>p.uCat(ci2,ii,u)} onAdd={()=>p.aCat(ci2)} onRm={ii=>p.rCat(ci2,ii)} onRemoveCat={()=>p.rmCat(ci2)} canEdit={canEdit} docs={p.docs} vendors={p.vendors} onAddVendor={p.onAddVendor} onVendorClick={p.onVendorClick} isContingency={isCont} contBase={contBase} onReorder={(from,to)=>p.reorderCat(ci2,from,to)} accent={accent}/></div>})})()}
 
     {/* ── Subtotals ── */}
     <div style={{marginTop:6}}><SB label="Production Subtotal" actual={p.comp.productionSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance}/></div>
@@ -164,6 +166,28 @@ function BudgetV(p){
       <span style={{flex:1,fontSize:12,fontWeight:700,letterSpacing:".1em",color:T.pos,textTransform:"uppercase"}}>Net Profit</span>
       <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.pos,fontWeight:700}}>{f0(p.comp.netProfit)}</span>
     </div>
+
+    {/* ── Bottom tools: Margins + Export ── */}
+    <div style={{display:"flex",gap:10,alignItems:"center",marginTop:24,flexWrap:"wrap"}}>
+      {canEdit&&<button onClick={()=>setShowMarginSlider(!showMarginSlider)} style={{padding:"8px 14px",background:"transparent",color:showMarginSlider?T.gold:T.dim,border:`1px solid ${showMarginSlider?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Margins</button>}
+      <div style={{position:"relative"}}>
+        <button onClick={()=>setShowExportMenu(!showExportMenu)} style={{padding:"8px 14px",background:"transparent",color:showExportMenu?T.cream:T.dim,border:`1px solid ${showExportMenu?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
+        {showExportMenu&&<div style={{position:"absolute",bottom:"100%",left:0,marginBottom:4,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",overflow:"hidden",zIndex:20,minWidth:140}}>
+          {[["XLSX",()=>{exportXLS();setShowExportMenu(false)},"Spreadsheet"],["CSV",exportCSV,"Comma-separated"],["PDF",exportPDF,"Print to PDF"]].map(([label,fn,sub])=>
+            <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>
+              <span style={{fontSize:10,color:T.dim,marginTop:1}}>{sub}</span>
+            </button>)}
+        </div>}
+      </div>
+    </div>
+
+    {showMarginSlider&&canEdit&&<div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",marginTop:10,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
+      <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>Set All Margins</span>
+      <input type="range" min="0" max="40" step="1" value={globalMargin} onChange={e=>setGlobalMargin(parseInt(e.target.value))} style={{flex:1,maxWidth:200}}/>
+      <span className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono,minWidth:40}}>{globalMargin}%</span>
+      <button onClick={()=>{p.setAllMargins(globalMargin/100);setShowMarginSlider(false)}} style={{padding:"6px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Apply</button>
+    </div>}
 
     {/* ── Version History ── */}
     {canEdit&&<div style={{marginTop:24}}>
