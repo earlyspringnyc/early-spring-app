@@ -1,124 +1,93 @@
 import { useState, useRef, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
-import { TrashI } from '../components/icons/index.js';
+import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
 
-const CATS=[
-  {id:"floorplan",label:"Floor Plans",color:"#6366F1"},
-  {id:"rendering",label:"Renderings",color:"#14B8A6"},
-  {id:"moodboard",label:"Mood Boards",color:"#EC4899"},
-  {id:"signage",label:"Signage",color:"#F59E0B"},
-  {id:"collateral",label:"Collateral",color:"#8B5CF6"},
-  {id:"social",label:"Social",color:"#06B6D4"},
-  {id:"video",label:"Video",color:"#F47264"},
-  {id:"print",label:"Print-Ready",color:"#10B981"},
-  {id:"other",label:"Other",color:T.dim},
+/* ── Categories ── */
+const SECTIONS=[
+  {id:"decks",label:"Decks & Presentations",color:"#A259FF",icon:"\uD83D\uDCCA",desc:"Pitch decks, mood boards, client presentations"},
+  {id:"graphic",label:"Graphic Design",color:"#F59E0B",icon:"\uD83C\uDFA8",desc:"Signage, branding, collateral, print files"},
+  {id:"3d",label:"3D & Environmental",color:"#14B8A6",icon:"\uD83D\uDDBC\uFE0F",desc:"Renderings, floor plans, CAD, scenic design"},
+  {id:"photo-video",label:"Photo & Video",color:"#F47264",icon:"\uD83C\uDFA5",desc:"Photography, videography, edits, social content"},
+  {id:"other",label:"Other Files",color:T.dim,icon:"\uD83D\uDCC1",desc:"Anything else"},
 ];
 
+const STATUS_META={draft:{label:"Draft",color:T.dim},review:{label:"In Review",color:"#F59E0B"},approved:{label:"Approved",color:T.pos},sent:{label:"Sent to Client",color:T.cyan}};
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-const autoCategory=(fileName)=>{
+const autoSection=(fileName)=>{
   const n=fileName.toLowerCase();
-  if(n.includes("floor")||n.includes("plan")||n.includes("layout")||n.includes("cad"))return"floorplan";
-  if(n.includes("render")||n.includes("3d")||n.includes("visual"))return"rendering";
-  if(n.includes("mood")||n.includes("board")||n.includes("inspo")||n.includes("reference"))return"moodboard";
-  if(n.includes("sign")||n.includes("banner")||n.includes("wayfind"))return"signage";
-  if(n.includes("collateral")||n.includes("brochure")||n.includes("pamphlet"))return"collateral";
-  if(n.includes("social")||n.includes("instagram")||n.includes("story")||n.includes("reel")||n.includes("tiktok"))return"social";
-  if(n.includes("video")||n.includes("edit")||n.includes("cut")||n.includes(".mp4")||n.includes(".mov"))return"video";
-  if(n.includes("print")||n.includes("artwork")||n.includes("bleed")||n.includes("cmyk"))return"print";
+  if(n.includes("deck")||n.includes("pitch")||n.includes("presentation")||n.includes("mood")||n.includes("board")||n.includes("keynote")||n.includes(".key")||n.includes(".pptx")||n.includes(".ppt"))return"decks";
+  if(n.includes("sign")||n.includes("banner")||n.includes("collateral")||n.includes("print")||n.includes("brochure")||n.includes("logo")||n.includes("brand")||n.includes("vinyl")||n.includes("wrap"))return"graphic";
+  if(n.includes("render")||n.includes("3d")||n.includes("floor")||n.includes("plan")||n.includes("cad")||n.includes("scenic")||n.includes(".dwg")||n.includes(".skp")||n.includes(".stl"))return"3d";
+  if(n.includes("photo")||n.includes("video")||n.includes(".mp4")||n.includes(".mov")||n.includes("edit")||n.includes("social")||n.includes("reel")||n.includes("tiktok"))return"photo-video";
+  return"other";
+};
+
+const getFileType=(file)=>{
+  const ext=(file.name||"").split(".").pop().toLowerCase();
+  const mime=file.type||"";
+  if(mime.startsWith("image/")||["png","jpg","jpeg","tiff","svg","webp"].includes(ext))return"image";
+  if(mime.startsWith("video/")||["mp4","mov","prores","mxf"].includes(ext))return"video";
+  if(ext==="pdf"||mime==="application/pdf")return"pdf";
   return"other";
 };
 
 function CreativeV({project,updateProject,canEdit}){
   const assets=project.creativeAssets||[];
-  const[filter,setFilter]=useState("all");
-  const[viewMode,setViewMode]=useState("grid");
+  const[activeSection,setActiveSection]=useState(null);
   const[dragging,setDragging]=useState(false);
-  const[viewing,setViewing]=useState(null);
-  const[editingAsset,setEditingAsset]=useState(null);
-  const[editName,setEditName]=useState("");
-  const[editCat,setEditCat]=useState("");
-  const[editNotes,setEditNotes]=useState("");
-  const[editClientVisible,setEditClientVisible]=useState(false);
+  const[viewingAsset,setViewingAsset]=useState(null);
+  const[deckPage,setDeckPage]=useState(0);
+  const[commentText,setCommentText]=useState("");
+  const[showLinkInput,setShowLinkInput]=useState(false);
+  const[linkUrl,setLinkUrl]=useState("");
+  const[linkName,setLinkName]=useState("");
   const fileRef=useRef(null);
   const dragCounter=useRef(0);
 
-  const[statusFilter,setStatusFilter]=useState("all");
-  const STATUS_META={draft:{label:"Draft",color:T.dim},review:{label:"In Review",color:"#F59E0B"},approved:{label:"Approved",color:T.pos},sent:{label:"Sent to Client",color:T.cyan}};
-  const preFiltered=filter==="all"?assets:assets.filter(a=>a.category===filter);
-  const filtered=statusFilter==="all"?preFiltered:preFiltered.filter(a=>(a.status||"draft")===statusFilter);
-  const catCounts=CATS.reduce((a,c)=>{a[c.id]=assets.filter(f=>f.category===c.id).length;return a},{});
+  const sectionAssets=(sectionId)=>assets.filter(a=>(a.section||a.category||"other")===sectionId);
 
-  /* File type detection */
-  const getFileType=(file)=>{
-    const ext=(file.name||"").split(".").pop().toLowerCase();
-    const mime=file.type||"";
-    if(mime.startsWith("image/")||["png","jpg","jpeg","tiff","tif","svg","webp"].includes(ext))return"image";
-    if(mime.startsWith("video/")||["mp4","mov","prores","mxf"].includes(ext))return"video";
-    if(ext==="pdf"||mime==="application/pdf")return"pdf";
-    if(["ai","eps"].includes(ext))return"illustrator";
-    if(["psd","psb"].includes(ext))return"photoshop";
-    if(ext==="indd")return"indesign";
-    if(["dwg","dxf"].includes(ext))return"cad";
-    if(["skp"].includes(ext))return"sketchup";
-    if(["step","stp","stl","obj"].includes(ext))return"3d";
-    if(["fig"].includes(ext))return"figma";
-    if(["pptx","ppt"].includes(ext))return"powerpoint";
-    if(["key","keynote"].includes(ext))return"keynote";
-    if(["sketch"].includes(ext))return"sketch";
-    return"other";
-  };
-  const FILE_TYPE_LABELS={image:"Image",video:"Video",pdf:"PDF",illustrator:"Illustrator",photoshop:"Photoshop",indesign:"InDesign",cad:"CAD",sketchup:"SketchUp","3d":"3D",figma:"Figma",powerpoint:"PowerPoint",keynote:"Keynote",sketch:"Sketch",link:"Link",other:"File"};
-  const FILE_TYPE_COLORS={image:"#4ADE80",video:"#F47264",pdf:"#F59E0B",illustrator:"#FF9A00",photoshop:"#31A8FF",indesign:"#FF3366",cad:"#06B6D4",sketchup:"#005F9E","3d":"#8B5CF6",figma:"#A259FF",powerpoint:"#D24726",keynote:"#009DFF",sketch:"#FDAD00",link:"#7DD3FC",other:T.dim};
-
-  const handleFiles=useCallback((files)=>{
+  const handleFiles=useCallback((files,targetSection)=>{
     const newAssets=[];
     Array.from(files).forEach(file=>{
       const reader=new FileReader();
       reader.onload=ev=>{
-        const cat=autoCategory(file.name);
+        const section=targetSection||autoSection(file.name);
         const ft=getFileType(file);
         const ext=(file.name||"").split(".").pop().toLowerCase();
         const sizeKB=Math.round(file.size/1024);
-        const sizeMB=(sizeKB/1024).toFixed(1);
         newAssets.push({
           id:uid(),name:file.name.replace(/\.[^/.]+$/,""),fileName:file.name,
-          category:cat,fileData:ev.target.result,
+          section,fileData:ev.target.result,
           fileType:ft,fileExt:ext,
-          fileSize:sizeKB>1024?`${sizeMB} MB`:`${sizeKB} KB`,
+          fileSize:sizeKB>1024?`${(sizeKB/1024).toFixed(1)} MB`:`${sizeKB} KB`,
           isImage:ft==="image",isVideo:ft==="video",isPdf:ft==="pdf",
-          notes:"",clientVisible:false,status:"draft",
+          isFigma:false,isCanva:false,linkUrl:"",
+          notes:"",status:"draft",
+          comments:[],
           dateAdded:new Date().toLocaleDateString(),
           versions:[{id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()}],
         });
-        if(newAssets.length===files.length){
-          updateProject({creativeAssets:[...assets,...newAssets]});
-        }
+        if(newAssets.length===files.length)updateProject({creativeAssets:[...assets,...newAssets]});
       };
       reader.readAsDataURL(file);
     });
   },[assets,updateProject]);
 
-  /* Add link (Figma/Canva) */
-  const[showLinkInput,setShowLinkInput]=useState(false);
-  const[linkUrl,setLinkUrl]=useState("");
-  const[linkName,setLinkName]=useState("");
-  const addLink=()=>{
+  const addLink=(targetSection)=>{
     if(!linkUrl.trim())return;
     const isFigma=linkUrl.includes("figma.com");
     const isCanva=linkUrl.includes("canva.com");
-    const isFigmaSlides=isFigma&&(linkUrl.includes("/deck/")||linkUrl.includes("/slides/"));
-    const name=linkName.trim()||(isFigmaSlides?"Figma Slides":isFigma?"Figma Design":isCanva?"Canva Design":"Design Link");
-    const cat=autoCategory(name);
+    const name=linkName.trim()||(isFigma?"Figma Design":isCanva?"Canva Design":"Design Link");
     const asset={
-      id:uid(),name,fileName:linkUrl,category:cat,
+      id:uid(),name,fileName:linkUrl,section:targetSection||"decks",
       fileData:null,linkUrl:linkUrl.trim(),
       fileType:"link",fileExt:isFigma?"fig":isCanva?"canva":"link",
       fileSize:"",isImage:false,isVideo:false,isPdf:false,
       isFigma,isCanva,
-      notes:"",clientVisible:false,status:"draft",
+      notes:"",status:"draft",comments:[],
       dateAdded:new Date().toLocaleDateString(),versions:[],
     };
     updateProject({creativeAssets:[...assets,asset]});
@@ -127,192 +96,206 @@ function CreativeV({project,updateProject,canEdit}){
 
   const removeAsset=id=>updateProject({creativeAssets:assets.filter(a=>a.id!==id)});
   const updateAsset=(id,updates)=>updateProject({creativeAssets:assets.map(a=>a.id===id?{...a,...updates}:a)});
-  const toggleClientVisible=id=>updateAsset(id,{clientVisible:!assets.find(a=>a.id===id)?.clientVisible});
 
-  const openEdit=(a)=>{setEditingAsset(a.id);setEditName(a.name);setEditCat(a.category);setEditNotes(a.notes||"");setEditClientVisible(a.clientVisible||false)};
-  const saveEdit=()=>{if(!editingAsset)return;updateAsset(editingAsset,{name:editName,category:editCat,notes:editNotes,clientVisible:editClientVisible});setEditingAsset(null)};
-
-  // Upload new version
-  const uploadVersion=(assetId,file)=>{
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      const asset=assets.find(a=>a.id===assetId);if(!asset)return;
-      const newVersion={id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()};
-      updateAsset(assetId,{fileData:ev.target.result,fileName:file.name,versions:[...(asset.versions||[]),newVersion]});
-    };
-    reader.readAsDataURL(file);
+  const addComment=(assetId,page)=>{
+    if(!commentText.trim())return;
+    const comment={id:uid(),text:commentText.trim(),page,date:new Date().toLocaleDateString(),author:"You"};
+    updateAsset(assetId,{comments:[...(assets.find(a=>a.id===assetId)?.comments||[]),comment]});
+    setCommentText("");
   };
 
+  const removeComment=(assetId,commentId)=>{
+    const a=assets.find(a=>a.id===assetId);
+    if(!a)return;
+    updateAsset(assetId,{comments:(a.comments||[]).filter(c=>c.id!==commentId)});
+  };
+
+  // Drag handlers for section views
   const onDragEnter=useCallback(e=>{e.preventDefault();e.stopPropagation();dragCounter.current++;setDragging(true)},[]);
   const onDragLeave=useCallback(e=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDragging(false)},[]);
   const onDragOver=useCallback(e=>{e.preventDefault();e.stopPropagation()},[]);
-  const onDrop=useCallback(e=>{e.preventDefault();e.stopPropagation();setDragging(false);dragCounter.current=0;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files)},[handleFiles]);
 
-  const catColor=(cat)=>(CATS.find(c=>c.id===cat)||CATS[CATS.length-1]).color;
-  const catLabel=(cat)=>(CATS.find(c=>c.id===cat)||CATS[CATS.length-1]).label;
+  // Stats
+  const totalAssets=assets.length;
+  const reviewCount=assets.filter(a=>a.status==="review").length;
+  const approvedCount=assets.filter(a=>a.status==="approved").length;
 
-  return<div onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop} style={{position:"relative",minHeight:"50vh"}}>
-    <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf,.psd,.ai,.indd,.svg,.dwg,.skp,.step,.pptx,.key,.tiff,.tif,.webp,.mov,.mp4" onChange={e=>{if(e.target.files?.length)handleFiles(e.target.files);e.target.value=""}} style={{display:"none"}}/>
+  const BackBtn=()=><button onClick={()=>{setActiveSection(null);setViewingAsset(null)}} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:12,fontFamily:T.sans,padding:0,marginBottom:16}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>&larr; Back to Creative</button>;
 
-    {/* Drag overlay */}
-    {dragging&&<div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.r,border:`3px dashed ${T.magenta}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
-      <div style={{fontSize:40,opacity:.6}}>&#9733;</div>
-      <div style={{fontSize:18,fontWeight:600,color:T.magenta}}>Drop creative assets</div>
-      <div style={{fontSize:12,color:T.dim}}>Images, videos, PDFs, design files</div>
-    </div>}
+  /* ══ ASSET VIEWER (full screen overlay for PDFs/images with commenting) ══ */
+  if(viewingAsset){
+    const a=assets.find(x=>x.id===viewingAsset);
+    if(!a)return<div><BackBtn/><p style={{color:T.dim}}>Asset not found</p></div>;
+    const comments=(a.comments||[]);
+    const pageComments=comments.filter(c=>c.page===deckPage);
+    const statusM=STATUS_META[a.status||"draft"];
 
-    {/* Header */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-      <div>
-        <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Creative</h1>
-        <p style={{fontSize:12,color:T.dim,marginTop:4}}>{assets.length} asset{assets.length!==1?"s":""}</p>
-      </div>
-      <div style={{display:"flex",gap:6}}>
-        {canEdit&&<button onClick={()=>setShowLinkInput(!showLinkInput)} style={{padding:"8px 14px",background:"transparent",color:showLinkInput?T.cream:T.dim,border:`1px solid ${showLinkInput?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showLinkInput?"Cancel":"+ Link"}</button>}
-        {canEdit&&<button onClick={()=>fileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Upload</button>}
-      </div>
-    </div>
-
-    {/* Link input */}
-    {showLinkInput&&<Card style={{padding:16,marginBottom:16}}>
-      <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Add Figma or Canva Link</div>
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
-        <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://figma.com/design/... or canva.com/..." onKeyDown={e=>e.key==="Enter"&&addLink()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-        <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>Name (optional)</div><input value={linkName} onChange={e=>setLinkName(e.target.value)} placeholder="Floor Plan v2" onKeyDown={e=>e.key==="Enter"&&addLink()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-        <button onClick={addLink} disabled={!linkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:linkUrl.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:linkUrl.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${linkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:linkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
-      </div>
-    </Card>}
-
-    {/* Category filters */}
-    <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-      <button onClick={()=>setFilter("all")} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter==="all"?600:400,fontFamily:T.sans,background:filter==="all"?T.goldSoft:"transparent",color:filter==="all"?T.gold:T.dim}}>All ({assets.length})</button>
-      {CATS.map(c=>catCounts[c.id]>0&&<button key={c.id} onClick={()=>setFilter(c.id)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:filter===c.id?600:400,fontFamily:T.sans,background:filter===c.id?`${c.color}18`:"transparent",color:filter===c.id?c.color:T.dim}}>{c.label} ({catCounts[c.id]})</button>)}
-      <span style={{width:1,height:16,background:T.border,margin:"0 4px",alignSelf:"center"}}/>
-      {Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>setStatusFilter(statusFilter===k?"all":k)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:statusFilter===k?600:400,fontFamily:T.sans,background:statusFilter===k?`${v.color}18`:"transparent",color:statusFilter===k?v.color:T.dim}}>{v.label}</button>)}
-    </div>
-
-    {/* Asset cards — large format like Client section */}
-    {filtered.length>0?
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        {filtered.map(a=>{const cc=catColor(a.category);const sm=STATUS_META[a.status||"draft"];
-          return<div key={a.id} style={{borderRadius:T.r,border:`1px solid ${T.border}`,borderLeft:`3px solid ${cc}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onClick={()=>setViewing(a)} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-            {/* Large thumbnail */}
-            <div style={{height:200,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
-              {a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-              :a.isFigma&&a.linkUrl?<div style={{width:"100%",height:"100%",position:"relative"}}>
-                <iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none"}} title={a.name} loading="lazy" allowFullScreen/>
-                <button onClick={e=>{e.stopPropagation();window.open(a.linkUrl,"_blank")}} style={{position:"absolute",bottom:6,right:6,padding:"4px 10px",borderRadius:4,background:"rgba(0,0,0,.7)",border:"none",fontSize:9,color:"#fff",fontWeight:600,cursor:"pointer",backdropFilter:"blur(4px)"}}>Open in Figma</button>
-              </div>
-              :(()=>{const ft=a.fileType||"other";const ftc=FILE_TYPE_COLORS[ft]||T.dim;const ftl=FILE_TYPE_LABELS[ft]||"File";return<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-                {a.isVideo?<div style={{width:48,height:48,borderRadius:"50%",background:"rgba(255,255,255,.06)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:18,color:T.cream,marginLeft:2}}>&#9654;</span></div>
-                :<div style={{padding:"8px 16px",borderRadius:8,background:`${ftc}12`,border:`1px solid ${ftc}20`}}><span style={{fontSize:14,fontWeight:800,color:ftc,textTransform:"uppercase",fontFamily:T.mono}}>{a.fileExt||ftl}</span></div>}
-                <span style={{fontSize:9,color:T.dim,maxWidth:"80%",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.fileName}</span>
-                {a.fileSize&&<span style={{fontSize:8,color:T.dim,opacity:.5}}>{a.fileSize}</span>}
-              </div>})()}
-              {/* Status + category overlay */}
-              <div style={{position:"absolute",top:10,right:10,display:"flex",gap:4}}>
-                {a.status&&a.status!=="draft"&&<Pill color={sm?.color||T.dim} size="xs">{sm?.label||"Draft"}</Pill>}
-              </div>
-              <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"12px 16px",background:"linear-gradient(transparent,rgba(0,0,0,.75))",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-                <Pill color={cc} size="xs">{catLabel(a.category)}</Pill>
-                {a.versions?.length>1&&<span style={{fontSize:9,color:"rgba(255,255,255,.5)",fontFamily:T.mono}}>v{a.versions.length}</span>}
-              </div>
-            </div>
-            {/* Info */}
-            <div style={{padding:"16px 18px"}}>
-              <div style={{fontSize:14,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4}}>{a.name}</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:10,color:T.dim}}>{a.dateAdded}</span>
-                {a.notes&&<span style={{fontSize:10,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>· {a.notes}</span>}
-              </div>
-            </div>
-          </div>})}
-      </div>
-
-    :<div onClick={()=>canEdit&&fileRef.current?.click()} style={{textAlign:"center",padding:60,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:canEdit?"pointer":"default"}} onMouseEnter={e=>{if(canEdit){e.currentTarget.style.borderColor=T.magenta;e.currentTarget.style.background=`rgba(236,72,153,.03)`}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
-      <div style={{fontSize:40,opacity:.15,marginBottom:12}}>&#9733;</div>
-      <div style={{fontSize:15,fontWeight:500,color:T.cream,marginBottom:6}}>No creative assets yet</div>
-      <p style={{fontSize:12,color:T.dim}}>Upload floor plans, renderings, mood boards, signage, video, and more.</p>
-      {canEdit&&<p style={{fontSize:11,color:T.dim,marginTop:8,opacity:.6}}>Drag & drop files or click to upload</p>}
-    </div>}
-
-    {/* Asset viewer/editor modal */}
-    {viewing&&<div style={{position:"fixed",inset:0,zIndex:200,display:"flex",background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)"}} onClick={()=>{setViewing(null);setEditingAsset(null)}}>
-      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{display:"flex",flex:1,maxWidth:1100,margin:"auto",height:"90vh",borderRadius:T.r,overflow:"hidden",background:"rgba(12,10,20,.95)",border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)"}}>
-        {/* Preview */}
-        <div style={{flex:1,background:"#0A0A0C",display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto"}}>
-          {viewing.isImage&&viewing.fileData?<img src={viewing.fileData} alt={viewing.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}/>
-          :viewing.isPdf&&viewing.fileData?<iframe src={viewing.fileData} style={{width:"100%",height:"100%",border:"none"}} title={viewing.name}/>
-          :viewing.isVideo&&viewing.fileData?<video src={viewing.fileData} controls style={{maxWidth:"100%",maxHeight:"100%"}}/>
-          :<div style={{textAlign:"center",padding:40}}><div style={{fontSize:48,opacity:.15,marginBottom:16}}>&#9634;</div><div style={{fontSize:14,color:T.cream}}>{viewing.name}</div><p style={{fontSize:12,color:T.dim,marginTop:8}}>Preview not available</p></div>}
+    return<div style={{position:"fixed",inset:0,zIndex:200,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setViewingAsset(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16}}>&times;</button>
+          <span style={{fontSize:14,fontWeight:600,color:T.cream}}>{a.name}</span>
+          <Pill color={statusM.color} size="xs">{statusM.label}</Pill>
         </div>
-        {/* Side panel */}
-        <div style={{width:300,borderLeft:`1px solid ${T.border}`,padding:24,overflow:"auto",display:"flex",flexDirection:"column"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-            <div>
-              {editingAsset===viewing.id?<input autoFocus value={editName} onChange={e=>setEditName(e.target.value)} style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px solid ${T.cyan}`,color:T.cream,fontSize:16,fontWeight:600,fontFamily:T.sans,outline:"none",padding:"2px 0",marginBottom:4}}/>
-              :<div style={{fontSize:16,fontWeight:600,color:T.cream,marginBottom:4}}>{viewing.name}</div>}
-              <Pill color={catColor(editingAsset===viewing.id?editCat:viewing.category)} size="xs">{catLabel(editingAsset===viewing.id?editCat:viewing.category)}</Pill>
-            </div>
-            <button onClick={()=>{setViewing(null);setEditingAsset(null)}} style={{background:"none",border:"none",color:T.dim,fontSize:18,cursor:"pointer"}}>×</button>
+        <div style={{display:"flex",gap:6}}>
+          {canEdit&&Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>updateAsset(a.id,{status:k})} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${(a.status||"draft")===k?v.color+"40":T.border}`,background:(a.status||"draft")===k?`${v.color}12`:"transparent",color:(a.status||"draft")===k?v.color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{v.label}</button>)}
+          {a.linkUrl&&<button onClick={()=>window.open(a.linkUrl,"_blank")} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Open Link</button>}
+        </div>
+      </div>
+
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        {/* Main content */}
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24,background:"rgba(0,0,0,.3)"}}>
+          {a.isPdf&&a.fileData?<iframe src={a.fileData} style={{width:"100%",height:"100%",border:"none",borderRadius:8}} title={a.name}/>
+          :a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>
+          :a.isVideo&&a.fileData?<video src={a.fileData} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:8}}/>
+          :a.isFigma&&a.linkUrl?<iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",borderRadius:8}} title={a.name} allowFullScreen/>
+          :<div style={{textAlign:"center",color:T.dim}}><div style={{fontSize:48,marginBottom:12,opacity:.2}}>{a.fileExt?.toUpperCase()||"FILE"}</div><div style={{fontSize:13}}>Preview not available</div>{a.linkUrl&&<button onClick={()=>window.open(a.linkUrl,"_blank")} style={{marginTop:12,padding:"8px 16px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Open Link</button>}</div>}
+        </div>
+
+        {/* Comments sidebar */}
+        <div style={{width:300,borderLeft:`1px solid ${T.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
+          <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.border}`}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".06em"}}>Comments ({comments.length})</div>
           </div>
-
-          {editingAsset===viewing.id?<>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Category</div>
-              <select value={editCat} onChange={e=>setEditCat(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",appearance:"none",cursor:"pointer"}}>
-                {CATS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            </div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Notes</div>
-              <textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} placeholder="Add notes..." rows={3} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-              <button onClick={()=>setEditClientVisible(!editClientVisible)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:editClientVisible?600:400,background:editClientVisible?"rgba(6,182,212,.12)":"rgba(255,255,255,.04)",color:editClientVisible?T.cyan:T.dim}}>{editClientVisible?"Client Visible":"Make Client Visible"}</button>
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={saveEdit} style={{padding:"7px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
-              <button onClick={()=>setEditingAsset(null)} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
-            </div>
-          </>:<>
-            <div style={{fontSize:10,color:T.dim,marginBottom:16,lineHeight:1.5}}>
-              <div>{viewing.fileName}</div>
-              <div style={{marginTop:4}}>Added {viewing.dateAdded}</div>
-              {viewing.notes&&<div style={{marginTop:8,padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.dimH}}>{viewing.notes}</div>}
-            </div>
-            {/* Versions */}
-            {viewing.versions?.length>1&&<div style={{marginBottom:16}}>
-              <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Versions ({viewing.versions.length})</div>
-              {viewing.versions.map((v,i)=><div key={v.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
-                <span style={{fontSize:10,color:i===viewing.versions.length-1?T.cream:T.dim}}>v{i+1} — {v.date}</span>
-                {i===viewing.versions.length-1&&<Pill color={T.pos} size="xs">Current</Pill>}
-              </div>)}
-            </div>}
-            {/* Approval status */}
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Status</div>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                {Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>{updateAsset(viewing.id,{status:k,clientVisible:k==="approved"||k==="sent"});setViewing({...viewing,status:k,clientVisible:k==="approved"||k==="sent"})}} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:9,fontWeight:(viewing.status||"draft")===k?700:400,background:(viewing.status||"draft")===k?`${v.color}22`:"rgba(255,255,255,.03)",color:(viewing.status||"draft")===k?v.color:T.dim,fontFamily:T.sans}}>{v.label}</button>)}
+          <div style={{flex:1,overflow:"auto",padding:"12px 16px"}}>
+            {comments.length===0&&<div style={{fontSize:11,color:T.dim,textAlign:"center",padding:20}}>No comments yet</div>}
+            {comments.map(c=><div key={c.id} style={{padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:6}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={{fontSize:10,fontWeight:600,color:T.cyan}}>{c.author}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:9,color:T.dim}}>{c.date}</span>
+                  {canEdit&&<button onClick={()=>removeComment(a.id,c.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={9} color={T.neg}/></button>}
+                </div>
               </div>
-              <div style={{fontSize:9,color:T.dim,marginTop:6}}>
-                {(viewing.status==="approved"||viewing.status==="sent")?"This asset is visible in the Client section.":"Approve to make visible to clients."}
-              </div>
-            </div>
-
-            <div style={{marginTop:"auto",display:"flex",flexDirection:"column",gap:6}}>
-              {canEdit&&<button onClick={()=>openEdit(viewing)} style={{width:"100%",padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:T.sans}}>Edit Details</button>}
-              {canEdit&&<label style={{width:"100%",padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:T.sans,textAlign:"center",display:"block"}}>
-                Upload New Version
-                <input type="file" style={{display:"none"}} onChange={e=>{if(e.target.files?.[0]){uploadVersion(viewing.id,e.target.files[0]);e.target.value=""}}}/>
-              </label>}
-              {viewing.fileData&&<a href={viewing.fileData} download={viewing.fileName||viewing.name} style={{width:"100%",padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:11,fontWeight:500,textDecoration:"none",textAlign:"center",display:"block"}}>Download</a>}
-              {canEdit&&<button onClick={()=>{removeAsset(viewing.id);setViewing(null)}} style={{width:"100%",padding:"8px 0",borderRadius:T.rS,border:`1px solid rgba(248,113,113,.2)`,background:"transparent",color:T.neg,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:T.sans}}>Delete</button>}
-            </div>
-          </>}
+              <div style={{fontSize:12,color:T.cream,lineHeight:1.5}}>{c.text}</div>
+            </div>)}
+          </div>
+          <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`}}>
+            <textarea value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Add a comment..." rows={2} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"none",marginBottom:6}}/>
+            <button onClick={()=>addComment(a.id,deckPage)} disabled={!commentText.trim()} style={{width:"100%",padding:"7px 0",borderRadius:T.rS,background:commentText.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:commentText.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${commentText.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:commentText.trim()?"pointer":"default",fontFamily:T.sans}}>Comment</button>
+          </div>
         </div>
       </div>
+    </div>;
+  }
+
+  /* ══ SECTION DETAIL VIEW ══ */
+  if(activeSection){
+    const sec=SECTIONS.find(s=>s.id===activeSection);
+    const sAssets=sectionAssets(activeSection);
+    const reviewInSection=sAssets.filter(a=>a.status==="review").length;
+
+    return<div onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={e=>{e.preventDefault();e.stopPropagation();setDragging(false);dragCounter.current=0;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,activeSection)}} style={{position:"relative",minHeight:"50vh"}}>
+      {dragging&&<div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.r,border:`3px dashed ${sec.color}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+        <div style={{fontSize:40,opacity:.6}}>&#8593;</div>
+        <div style={{fontSize:18,fontWeight:600,color:sec.color}}>Drop files here</div>
+        <div style={{fontSize:12,color:T.dim}}>{sec.desc}</div>
+      </div>}
+      <BackBtn/>
+      <input ref={fileRef} type="file" multiple accept="*" onChange={e=>{if(e.target.files?.length)handleFiles(e.target.files,activeSection);e.target.value=""}} style={{display:"none"}}/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div>
+          <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>{sec.label}</h2>
+          <p style={{fontSize:12,color:T.dim,marginTop:4}}>{sAssets.length} files{reviewInSection>0?` · ${reviewInSection} awaiting review`:""}</p>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {activeSection==="decks"&&<button onClick={()=>setShowLinkInput(!showLinkInput)} style={{padding:"8px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Figma / Link</button>}
+          <button onClick={()=>fileRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload</button>
+        </div>
+      </div>
+
+      {showLinkInput&&<Card style={{padding:16,marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Add Figma, Canva, or URL</div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
+          <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://figma.com/..." onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+          <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>Name</div><input value={linkName} onChange={e=>setLinkName(e.target.value)} placeholder="Mood Board v2" onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+          <button onClick={()=>addLink(activeSection)} disabled={!linkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:linkUrl.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:linkUrl.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${linkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:linkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+        </div>
+      </Card>}
+
+      {/* File list */}
+      {sAssets.length>0?<Card style={{overflow:"hidden"}}>
+        {sAssets.map((a,idx)=>{
+          const statusM=STATUS_META[a.status||"draft"];
+          const commentCount=(a.comments||[]).length;
+          return<div key={a.id} onClick={()=>{setViewingAsset(a.id);setDeckPage(0)}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px",borderBottom:idx<sAssets.length-1?`1px solid ${T.border}`:"none",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            {/* Thumbnail */}
+            <div style={{width:48,height:48,borderRadius:T.rS,background:"rgba(0,0,0,.2)",overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {a.isImage&&a.fileData?<img src={a.fileData} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              :a.isFigma?<span style={{fontSize:10,fontWeight:800,color:"#A259FF",fontFamily:T.mono}}>FIG</span>
+              :<span style={{fontSize:10,fontWeight:700,color:T.dim,fontFamily:T.mono}}>{(a.fileExt||"?").toUpperCase()}</span>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+              <div style={{fontSize:10,color:T.dim,marginTop:2}}>{a.fileSize||a.fileName} · {a.dateAdded}</div>
+            </div>
+            {commentCount>0&&<span style={{fontSize:10,color:T.cyan,fontFamily:T.mono}}>{commentCount} comment{commentCount>1?"s":""}</span>}
+            <Pill color={statusM.color} size="xs">{statusM.label}</Pill>
+            {canEdit&&<select value={a.status||"draft"} onChange={e=>{e.stopPropagation();updateAsset(a.id,{status:e.target.value})}} onClick={e=>e.stopPropagation()} style={{padding:"3px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
+              {Object.entries(STATUS_META).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+            </select>}
+            {canEdit&&<button onClick={e=>{e.stopPropagation();removeAsset(a.id)}} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.15)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"}><TrashI size={11} color={T.neg}/></button>}
+          </div>
+        })}
+      </Card>
+      :<div onClick={()=>fileRef.current.click()} style={{textAlign:"center",padding:48,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=sec.color;e.currentTarget.style.background=`${sec.color}06`}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
+        <div style={{fontSize:24,opacity:.2,marginBottom:8}}>{sec.icon}</div>
+        <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No files yet</div>
+        <p style={{fontSize:12,color:T.dim}}>Drag and drop or click to upload</p>
+      </div>}
+    </div>;
+  }
+
+  /* ══ MAIN GRID VIEW ══ */
+  const cardStyle=(color)=>({borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,cursor:"pointer",transition:"all .2s",borderLeft:`3px solid ${color}`});
+  const cardHover=e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow;e.currentTarget.style.borderColor=T.borderGlow};
+  const cardLeave=e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=T.border};
+
+  return<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
+      <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Creative & Design</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>{totalAssets} assets{reviewCount>0?` · ${reviewCount} awaiting review`:""}{approvedCount>0?` · ${approvedCount} approved`:""}</p></div>
+    </div>
+
+    {/* Progress */}
+    {totalAssets>0&&<div style={{display:"flex",gap:6,marginBottom:20}}>
+      {Object.entries(STATUS_META).map(([k,v])=>{
+        const count=assets.filter(a=>(a.status||"draft")===k).length;
+        if(!count)return null;
+        return<div key={k} style={{flex:count,height:4,borderRadius:2,background:v.color,opacity:.6,transition:"flex .4s ease"}} title={`${v.label}: ${count}`}/>;
+      })}
     </div>}
+
+    {/* Section cards */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      {SECTIONS.map(sec=>{
+        const sAssets=sectionAssets(sec.id);
+        const review=sAssets.filter(a=>a.status==="review").length;
+        const approved=sAssets.filter(a=>a.status==="approved").length;
+        return<div key={sec.id} onClick={()=>setActiveSection(sec.id)} style={cardStyle(sec.color)} onMouseEnter={cardHover} onMouseLeave={cardLeave}
+          onDragEnter={e=>{e.preventDefault();e.currentTarget.style.borderColor=sec.color;e.currentTarget.style.background=`${sec.color}08`}}
+          onDragLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}
+          onDragOver={e=>e.preventDefault()}
+          onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,sec.id)}}>
+          <div style={{padding:"24px 26px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>{sec.label}</div>
+              <span style={{fontSize:20}}>{sec.icon}</span>
+            </div>
+            <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:10}}>
+              <span className="num" style={{fontSize:32,fontWeight:700,color:sec.color,fontFamily:T.mono}}>{sAssets.length}</span>
+              <span style={{fontSize:12,color:T.dim}}>files</span>
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {review>0&&<Pill color="#F59E0B" size="xs">{review} in review</Pill>}
+              {approved>0&&<Pill color={T.pos} size="xs">{approved} approved</Pill>}
+              {sAssets.length===0&&<span style={{fontSize:11,color:T.dim}}>{sec.desc}</span>}
+            </div>
+          </div>
+        </div>
+      })}
+    </div>
   </div>;
 }
 
