@@ -149,7 +149,7 @@ export function mkSampleProject() {
     eventDate: fmtDate(eventDate),
     logo: "",
     clientBudget: 250000,
-    stage: "current",
+    stage: "awarded",
     currency: "USD",
     cats,
     ag,
