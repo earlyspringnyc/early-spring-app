@@ -7,16 +7,43 @@ import { mkVendor, mkDoc } from '../data/factories.js';
 import { TrashI } from '../components/icons/index.js';
 import { Card, Metric, DatePick } from '../components/primitives/index.js';
 
+/* Auto-detect doc type from filename */
+const detectDocType=(fileName)=>{
+  const f=(fileName||"").toLowerCase();
+  if(/w[\-_\s]?9|w9/i.test(f))return"w9";
+  if(/contract|agreement|sow|scope/i.test(f))return"contract";
+  return"invoice";
+};
+const DOC_TYPE_META={
+  invoice:{label:"Invoice",color:"#FBBF24"},
+  contract:{label:"Contract",color:"#60A5FA"},
+  w9:{label:"W-9",color:"#22D3EE"},
+};
+
 function VendorsV({project,updateProject,canEdit,onVendorClick}){
   const vendors=project.vendors||[];const docs=project.docs||[];const txns=project.txns||[];
   const[showAdd,setShowAdd]=useState(false);const[typeFilter,setTypeFilter]=useState("all");
-  const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");
+  const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");const[nContact,setNContact]=useState("");
   const[uploadVendorId,setUploadVendorId]=useState(null);const[invName,setInvName]=useState("");const[invAmt,setInvAmt]=useState("");const[invDue,setInvDue]=useState("");const[invKind,setInvKind]=useState("deposit");const[invFile,setInvFile]=useState(null);const[invFileName,setInvFileName]=useState("");
+  const[docType,setDocType]=useState("invoice");
+  const fileRefs=useRef({});
   const invFileRef=useRef(null);
   const totalOutstanding=vendors.reduce((a,v)=>{const vDocs=docs.filter(d=>d.vendorId===v.id&&d.type==="invoice"&&d.status!=="paid");return a+vDocs.reduce((s,d)=>s+(d.amount-(d.paidAmount||0)),0)},0);
-  const addVendor=()=>{if(!nN.trim())return;updateProject({vendors:[...vendors,mkVendor(nN.trim(),nE,nP,nNo,"pending",nType)]});setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setShowAdd(false)};
-  const handleInvFile=(e)=>{const file=e.target.files[0];if(!file)return;setInvFileName(file.name);const reader=new FileReader();reader.onload=ev=>setInvFile(ev.target.result);reader.readAsDataURL(file)};
-  const submitInvoice=()=>{if(!invName.trim()||!uploadVendorId)return;const doc=mkDoc(invName.trim(),"invoice",uploadVendorId,parseFloat(invAmt)||0,invDue,"pending","","",invKind,invFile);if(isOverdue(doc))doc.status="overdue";updateProject({docs:[...(project.docs||[]),doc]});setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("");setUploadVendorId(null)};
+  const addVendor=()=>{if(!nN.trim())return;updateProject({vendors:[...vendors,mkVendor(nN.trim(),nE,nP,nNo,"pending",nType,nContact)]});setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setNContact("");setShowAdd(false)};
+  const handleFileUpload=(vendorId,e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const detected=detectDocType(file.name);
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const fileData=ev.target.result;
+      const doc=mkDoc(file.name,detected,vendorId,0,"","pending","","","",fileData);
+      if(detected==="invoice")doc.invoiceKind="deposit";
+      updateProject({docs:[...(project.docs||[]),doc]});
+    };
+    reader.readAsDataURL(file);
+  };
+  const handleInvFile=(e)=>{const file=e.target.files[0];if(!file)return;setInvFileName(file.name);setDocType(detectDocType(file.name));const reader=new FileReader();reader.onload=ev=>setInvFile(ev.target.result);reader.readAsDataURL(file)};
+  const submitInvoice=()=>{if(!invName.trim()||!uploadVendorId)return;const doc=mkDoc(invName.trim(),docType,uploadVendorId,parseFloat(invAmt)||0,invDue,"pending","","",invKind,invFile);if(docType==="invoice"&&isOverdue(doc))doc.status="overdue";updateProject({docs:[...(project.docs||[]),doc]});setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("");setDocType("invoice");setUploadVendorId(null)};
   const removeVendor=id=>updateProject({vendors:vendors.filter(v=>v.id!==id)});
   const filtered=vendors.filter(v=>typeFilter==="all"||v.vendorType===typeFilter);
   const getVendorStats=(v)=>{
@@ -24,9 +51,12 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
     const invoices=vDocs.filter(d=>d.type==="invoice");
     const totalInvoiced=invoices.reduce((a,d)=>a+d.amount,0);
     const totalPaid=invoices.reduce((a,d)=>a+(d.paidAmount||0),0);
-    const itemCount=(project.cats||[]).reduce((a,c)=>a+c.items.filter(i=>i.vendorId===v.id).length,0);
-    return{invoices:invoices.length,totalInvoiced,totalPaid,outstanding:totalInvoiced-totalPaid,itemCount,docCount:vDocs.length};
+    return{invoices:invoices.length,totalInvoiced,totalPaid,outstanding:totalInvoiced-totalPaid,docCount:vDocs.length};
   };
+  const getVendorDocs=(v)=>docs.filter(d=>d.vendorId===v.id);
+
+  const cols="2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(70px,.8fr) minmax(70px,.8fr) minmax(90px,.6fr)";
+
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Vendors</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>{vendors.length} vendors</p></div>
@@ -37,8 +67,8 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       <Metric label="Outstanding" value={f0(totalOutstanding)} color={totalOutstanding>0?T.neg:T.dim} glow={totalOutstanding>0}/>
     </div>
     {showAdd&&<Card style={{padding:20,marginBottom:16}}>
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
-        {[["Vendor Name",nN,setNN3,"ABC Productions"],["Email",nE,setNE2,"vendor@co.com"],["Phone",nP,setNP,"(555) 000-0000"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input autoFocus={l==="Vendor Name"} value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addVendor()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>)}
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:12,marginBottom:12}}>
+        {[["Vendor Name",nN,setNN3,"ABC Productions"],["Contact Name",nContact,setNContact,"Jane Smith"],["Email",nE,setNE2,"vendor@co.com"],["Phone",nP,setNP,"(555) 000-0000"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input autoFocus={l==="Vendor Name"} value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addVendor()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:12,marginBottom:12}}>
         <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Vendor Type</label>
@@ -47,7 +77,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
           </select></div>
         <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Notes</label><input value={nNo} onChange={e=>setNNo2(e.target.value)} placeholder="Optional notes" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
       </div>
-      <button onClick={addVendor} style={{padding:"9px 20px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Vendor</button>
+      <button onClick={addVendor} style={{padding:"9px 20px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Vendor</button>
     </Card>}
     <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16}}>
       <div style={{position:"relative"}}>
@@ -62,42 +92,54 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",background:showAdd?"transparent":T.goldSoft,color:showAdd?T.dim:T.gold,border:`1px solid ${showAdd?T.border:T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}}>{showAdd?"Cancel":"+ Add Vendor"}</button>}
     </div>
     <Card style={{overflow:"hidden"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1.8fr .7fr .7fr .6fr .7fr .7fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-        {["Vendor","Type","Contact","Items","Invoiced","Outstanding",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>2?"right":"left"}}>{h}</span>)}
+      <div style={{display:"grid",gridTemplateColumns:cols,padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,alignItems:"center"}}>
+        {["Vendor","Type","Contact","Email","Invoiced","Outstanding",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>=4?"right":"left"}}>{h}</span>)}
       </div>
       {filtered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No vendors{typeFilter!=="all"?" match this filter":""}.</div>}
-      {filtered.map(v=>{const s=getVendorStats(v);return<div key={v.id}>
-        <div style={{display:"grid",gridTemplateColumns:"1.8fr .7fr .7fr .6fr .7fr .7fr .5fr",padding:"12px 18px",borderBottom:uploadVendorId===v.id?"none":`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",background:uploadVendorId===v.id?T.surfHov:"transparent"}} onClick={()=>onVendorClick&&onVendorClick(v.id)} onMouseEnter={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background="transparent"}}>
+      {filtered.map(v=>{const s=getVendorStats(v);const vDocs=getVendorDocs(v);return<div key={v.id}>
+        <div style={{display:"grid",gridTemplateColumns:cols,padding:"14px 18px",borderBottom:uploadVendorId===v.id?"none":`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",background:uploadVendorId===v.id?T.surfHov:"transparent",transition:"background .1s"}} onClick={()=>onVendorClick&&onVendorClick(v.id)} onMouseEnter={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background="transparent"}}>
           <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{v.notes}</div>}</div>
-          <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],whiteSpace:"nowrap"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
-          <div style={{fontSize:11,color:T.dim}}>{v.email||v.phone||"\u2014"}</div>
-          <span className="num" style={{textAlign:"right",fontSize:12,color:T.dim}}>{s.itemCount}</span>
+          <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],display:"inline-block",lineHeight:1.4,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
+          <div style={{fontSize:12,color:T.cream}}>{v.contactName||"\u2014"}</div>
+          <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.email||"\u2014"}</div>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{s.totalInvoiced>0?f0(s.totalInvoiced):"\u2014"}</span>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:s.outstanding>0?T.neg:T.dim,fontWeight:s.outstanding>0?600:400}}>{s.outstanding>0?f0(s.outstanding):"\u2014"}</span>
-          <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-            {canEdit&&<button onClick={e=>{e.stopPropagation();setUploadVendorId(uploadVendorId===v.id?null:v.id);setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("")}} style={{background:"none",border:`1px solid ${uploadVendorId===v.id?T.cyan:T.border}`,borderRadius:T.rS,padding:"3px 8px",cursor:"pointer",fontSize:10,fontWeight:600,color:uploadVendorId===v.id?T.cyan:T.dim,transition:"all .15s"}} onMouseEnter={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.borderColor=T.cyan;e.currentTarget.style.color=T.cyan}} onMouseLeave={e=>{if(uploadVendorId!==v.id){e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}}>{uploadVendorId===v.id?"Cancel":"+ Invoice"}</button>}
-            {canEdit&&<button title="Delete vendor" onClick={e=>{e.stopPropagation();if(confirm(`Remove "${v.name}"?`))removeVendor(v.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+          <div style={{display:"flex",gap:6,justifyContent:"flex-end",alignItems:"center"}}>
+            {canEdit&&<><input ref={el=>{if(el)fileRefs.current[v.id]=el}} type="file" accept=".pdf,.png,.jpg,.jpeg,.heic,.doc,.docx" onChange={e=>handleFileUpload(v.id,e)} style={{display:"none"}}/>
+            <button onClick={e=>{e.stopPropagation();fileRefs.current[v.id]?.click()}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rS,padding:"5px 12px",cursor:"pointer",fontSize:10,fontWeight:600,color:T.dim,transition:"all .15s",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>&#8593; Upload</button></>}
+            {canEdit&&<button title="Delete vendor" onClick={e=>{e.stopPropagation();if(confirm(`Remove "${v.name}"?`))removeVendor(v.id)}} style={{background:"rgba(248,113,113,.06)",border:`1px solid rgba(248,113,113,.15)`,borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)";e.currentTarget.style.borderColor="rgba(248,113,113,.3)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)";e.currentTarget.style.borderColor="rgba(248,113,113,.15)"}}><TrashI size={12} color={T.neg}/></button>}
           </div>
         </div>
+        {/* Show recently uploaded docs for this vendor */}
+        {vDocs.length>0&&uploadVendorId===v.id&&<div style={{padding:"10px 18px 14px",background:T.surface,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Documents ({vDocs.length})</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {vDocs.map(d=>{const meta=DOC_TYPE_META[d.type]||DOC_TYPE_META.invoice;return<span key={d.id} style={{fontSize:10,padding:"4px 10px",borderRadius:8,background:`${meta.color}15`,color:meta.color,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+              <span style={{width:5,height:5,borderRadius:"50%",background:meta.color}}/>{d.name}<span style={{fontWeight:400,opacity:.7,marginLeft:2}}>{meta.label}</span>
+            </span>})}
+          </div>
+        </div>}
         {uploadVendorId===v.id&&<div style={{padding:"16px 18px",background:T.surface,borderBottom:`1px solid ${T.border}`}}>
-          <div style={{fontSize:11,fontWeight:600,color:T.cyan,marginBottom:12,textTransform:"uppercase",letterSpacing:".08em"}}>Upload Invoice for {v.name}</div>
+          <div style={{fontSize:11,fontWeight:600,color:T.cyan,marginBottom:12,textTransform:"uppercase",letterSpacing:".08em"}}>Add Document for {v.name}</div>
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Invoice Name</label><input autoFocus value={invName} onChange={e=>setInvName(e.target.value)} placeholder="Invoice #1042" onKeyDown={e=>e.key==="Enter"&&submitInvoice()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+            <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Document Name</label><input autoFocus value={invName} onChange={e=>setInvName(e.target.value)} placeholder="Invoice #1042" onKeyDown={e=>e.key==="Enter"&&submitInvoice()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
             <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Amount</label><input value={invAmt} onChange={e=>setInvAmt(e.target.value)} placeholder="25000" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.mono,outline:"none"}}/></div>
             <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Due Date</label><DatePick value={invDue} onChange={setInvDue} compact/></div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,marginBottom:12}}>
-            <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Invoice Type</label>
-              <div style={{display:"flex",gap:4}}>{INVOICE_KINDS.map(k=><button key={k} onClick={()=>setInvKind(k)} style={{flex:1,padding:"7px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:invKind===k?700:400,fontFamily:T.sans,background:invKind===k?`${INVOICE_KIND_COLORS[k]}22`:"transparent",color:invKind===k?INVOICE_KIND_COLORS[k]:T.dim,textTransform:"capitalize",transition:"all .15s"}}>{INVOICE_KIND_LABELS[k]}</button>)}</div></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:10,marginBottom:12}}>
+            <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Document Type</label>
+              <div style={{display:"flex",gap:4}}>{["invoice","contract","w9"].map(t=>{const meta=DOC_TYPE_META[t];return<button key={t} onClick={()=>setDocType(t)} style={{flex:1,padding:"7px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:docType===t?700:400,fontFamily:T.sans,background:docType===t?`${meta.color}22`:"transparent",color:docType===t?meta.color:T.dim,transition:"all .15s"}}>{meta.label}</button>})}</div></div>
+            {docType==="invoice"&&<div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Invoice Type</label>
+              <div style={{display:"flex",gap:4}}>{INVOICE_KINDS.map(k=><button key={k} onClick={()=>setInvKind(k)} style={{flex:1,padding:"7px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontWeight:invKind===k?700:400,fontFamily:T.sans,background:invKind===k?`${INVOICE_KIND_COLORS[k]}22`:"transparent",color:invKind===k?INVOICE_KIND_COLORS[k]:T.dim,textTransform:"capitalize",transition:"all .15s"}}>{INVOICE_KIND_LABELS[k]}</button>)}</div></div>}
             <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Attach File (PDF, PNG, JPG)</label>
-              <input ref={invFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.heic" onChange={handleInvFile} style={{display:"none"}}/>
+              <input ref={invFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.heic,.doc,.docx" onChange={handleInvFile} style={{display:"none"}}/>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <button onClick={()=>invFileRef.current.click()} style={{padding:"7px 14px",borderRadius:T.rS,border:`1px dashed ${invFile?T.pos:T.border}`,background:invFile?"rgba(52,211,153,.06)":"transparent",color:invFile?T.pos:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}}>{invFile?"Replace file":"Choose file…"}</button>
                 {invFileName&&<span style={{fontSize:11,color:T.pos,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{invFileName}</span>}
               </div></div>
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={submitInvoice} disabled={!invName.trim()} style={{padding:"8px 18px",background:invName.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:invName.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:invName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Invoice</button>
+            <button onClick={submitInvoice} disabled={!invName.trim()} style={{padding:"8px 18px",background:invName.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:invName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${invName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:invName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Document</button>
             <button onClick={()=>setUploadVendorId(null)} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
           </div>
         </div>}
