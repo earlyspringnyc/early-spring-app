@@ -181,32 +181,36 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
         </div>
       </div>
 
-      {/* ── Pitch Deck — cover fills entire card ── */}
-      <div onClick={()=>setActiveView("deck")} style={{...cardStyle("#8B5CF6"),position:"relative",minHeight:280}} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
-        {deck?.fileData?<>
-          <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#f8f8fa"}}>
-            {deck.fileData.startsWith("data:application/pdf")?<iframe src={deck.fileData+"#toolbar=0&navpanes=0&scrollbar=0&view=FitH"} style={{width:"200%",height:"200%",border:"none",pointerEvents:"none",position:"absolute",top:0,left:0,transform:"scale(0.5)",transformOrigin:"top left"}} title="Deck preview"/>
-            :deck.fileData.startsWith("data:image")?<img src={deck.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Deck"/>
-            :<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%"}}><span style={{fontSize:48,opacity:.15}}>&#9634;</span></div>}
-          </div>
-          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"20px 26px",background:"linear-gradient(transparent,rgba(0,0,0,.8))"}}>
-            <div style={{fontSize:10,fontWeight:600,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div>
-            <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{deck.name}</div>
-          </div>
-        </>
-        :figmaUrl?<>
-          <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#f8f8fa"}}>
-            <iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(figmaUrl)}`} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title="Figma preview" loading="lazy"/>
-          </div>
-          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"20px 26px",background:"linear-gradient(transparent,rgba(0,0,0,.8))"}}>
-            <div style={{fontSize:10,fontWeight:600,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div>
-            <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>Figma Slides</div>
-          </div>
-        </>
-        :<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:280,background:`rgba(139,92,246,.04)`}}>
-          <div style={{textAlign:"center"}}><div style={{fontSize:48,opacity:.1,marginBottom:10}}>&#9634;</div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div><div style={{fontSize:12,color:T.dim}}>Upload deck or add Figma link</div></div>
-        </div>}
-      </div>
+      {/* ── Creative & Design Assets ── */}
+      {(()=>{
+        const allAssets=project.creativeAssets||[];
+        const approved=allAssets.filter(a=>a.status==="approved"||a.status==="sent"||a.clientVisible);
+        const inReview=allAssets.filter(a=>a.status==="review");
+        const firstImage=approved.find(a=>a.isImage&&a.fileData);
+        return<div onClick={()=>setActiveView("creative")} style={{...cardStyle("#8B5CF6"),position:"relative",minHeight:280}} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+          {firstImage?<>
+            <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#0A0A0C"}}>
+              <img src={firstImage.fileData} style={{width:"100%",height:"100%",objectFit:"cover",opacity:.6}} alt=""/>
+            </div>
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 40%,rgba(0,0,0,.85) 100%)"}}/>
+            <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"20px 26px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <div style={{fontSize:10,fontWeight:600,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".08em"}}>Creative & Design</div>
+                {inReview.length>0&&<span style={{fontSize:8,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(245,158,11,.2)",color:"#F59E0B",textTransform:"uppercase"}}>&#9679; {inReview.length} awaiting review</span>}
+              </div>
+              <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{approved.length} approved asset{approved.length!==1?"s":""}</div>
+            </div>
+          </>
+          :<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:280,background:"rgba(139,92,246,.04)",position:"relative"}}>
+            {inReview.length>0&&<div style={{position:"absolute",top:16,right:16}}><span style={{fontSize:8,fontWeight:700,padding:"3px 10px",borderRadius:20,background:"rgba(245,158,11,.2)",color:"#F59E0B",textTransform:"uppercase"}}>&#9679; {inReview.length} awaiting review</span></div>}
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:48,opacity:.1,marginBottom:10}}>&#9733;</div>
+              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Creative & Design</div>
+              <div style={{fontSize:12,color:T.dim}}>{allAssets.length>0?`${allAssets.length} assets — none approved yet`:"No assets uploaded yet"}</div>
+            </div>
+          </div>}
+        </div>;
+      })()}
 
       {/* ── Files ── */}
       <div onClick={()=>setActiveView("files")} style={cardStyle("#EC4899")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
@@ -599,54 +603,58 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     </div></Card>}
   </div>;
 
-  /* ══ DECK VIEW ══ */
-  if(activeView==="deck"){
-    const handleDeckUpload=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{updateProject({pitchDeck:{name:file.name,fileData:ev.target.result,dateUploaded:new Date().toLocaleDateString()}})};reader.readAsDataURL(file);e.target.value=""};
-    const sendDeck=async()=>{if(!deckEmail.trim()||!deck)return;if(!accessToken){alert("Google access token required.");return}setDeckSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const{orgN}=getOrgInfo();const htmlBody=`<h2>Pitch Deck — ${project.name||""}</h2><p>Please find our pitch deck attached.</p><p>— ${orgN}</p>`;await gmailSend(accessToken,deckEmail.trim(),`Pitch Deck: ${project.name||""}`,htmlBody);setDeckSent(deckEmail);setDeckEmail("")}catch(e){alert("Failed: "+(e.message||"Error"))}finally{setDeckSending(false)}};
-    const saveFigmaUrl=()=>{updateProject({figmaDeckUrl:figmaUrl})};
+  /* ══ CREATIVE & DESIGN VIEW ══ */
+  if(activeView==="creative"){
+    const allAssets=project.creativeAssets||[];
+    const approved=allAssets.filter(a=>a.status==="approved"||a.status==="sent"||a.clientVisible);
+    const inReview=allAssets.filter(a=>a.status==="review");
+    const STATUS_META={draft:{label:"Draft",color:T.dim},review:{label:"In Review",color:"#F59E0B"},approved:{label:"Approved",color:T.pos},sent:{label:"Sent",color:T.cyan}};
     return<div>
       <BackBtn/>
-      <input ref={deckRef} type="file" accept=".pdf,.pptx,.key,.png,.jpg" onChange={handleDeckUpload} style={{display:"none"}}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Pitch Deck</h2>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>deckRef.current?.click()} style={{padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{deck?"Replace":"Upload"}</button>
-          {deck&&<button onClick={()=>updateProject({pitchDeck:null})} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid rgba(248,113,113,.2)`,background:"transparent",color:T.neg,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Remove</button>}
-        </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Creative & Design</h2>
+        {inReview.length>0&&<Pill color="#F59E0B">&#9679; {inReview.length} awaiting review</Pill>}
       </div>
 
-      {/* Figma URL input */}
-      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16}}>
-        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>Figma</span>
-        <input value={figmaUrl} onChange={e=>setFigmaUrl(e.target.value)} placeholder="Paste Figma slides URL..." onBlur={saveFigmaUrl} onKeyDown={e=>e.key==="Enter"&&saveFigmaUrl()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-      </div>
-
-      {/* Preview */}
-      {deck?.fileData?<div style={{borderRadius:T.r,overflow:"hidden",border:`1px solid ${T.border}`,marginBottom:16}}>
-        {deck.fileData.startsWith("data:application/pdf")?<iframe src={deck.fileData} style={{width:"100%",height:"70vh",border:"none"}} title="Deck"/>
-        :deck.fileData.startsWith("data:image")?<img src={deck.fileData} style={{width:"100%",maxHeight:"70vh",objectFit:"contain",background:"#f8f8fa"}} alt="Deck"/>
-        :<div style={{padding:60,textAlign:"center"}}><div style={{fontSize:40,opacity:.15,marginBottom:12}}>&#9634;</div><div style={{fontSize:14,color:T.cream,marginBottom:8}}>{deck.name}</div><p style={{fontSize:12,color:T.dim}}>Preview not available</p>{deck.fileData&&<a href={deck.fileData} download={deck.name} style={{display:"inline-block",marginTop:12,padding:"10px 20px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:12,fontWeight:600,textDecoration:"none"}}>Download</a>}</div>}
-        <div style={{padding:"12px 18px",background:T.surfEl,borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><span style={{fontSize:13,fontWeight:500,color:T.cream}}>{deck.name}</span><span style={{fontSize:10,color:T.dim,marginLeft:8}}>Uploaded {deck.dateUploaded}</span></div>
-          {deck.fileData&&<button onClick={()=>window.open(deck.fileData,"_blank")} style={{padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Open</button>}
+      {/* In Review — needs attention */}
+      {inReview.length>0&&<div style={{marginBottom:20}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#F59E0B",textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Awaiting Review</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))",gap:10}}>
+          {inReview.map(a=><div key={a.id} style={{borderRadius:T.rS,border:`1px solid rgba(245,158,11,.2)`,background:"rgba(245,158,11,.03)",overflow:"hidden"}}>
+            <div style={{height:100,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+              {a.isImage&&a.fileData?<img src={a.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:<div style={{fontSize:20,color:T.dim,opacity:.2}}>&#9634;</div>}
+            </div>
+            <div style={{padding:"8px 10px"}}>
+              <div style={{fontSize:11,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+              <div style={{fontSize:9,color:"#F59E0B",marginTop:2}}>Needs approval</div>
+            </div>
+          </div>)}
         </div>
-      </div>
-      :figmaUrl?<div style={{borderRadius:T.r,overflow:"hidden",border:`1px solid ${T.border}`,marginBottom:16}}>
-        <iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(figmaUrl)}`} style={{width:"100%",height:"70vh",border:"none"}} title="Figma deck" allowFullScreen/>
-      </div>
-      :<div onClick={()=>deckRef.current?.click()} style={{textAlign:"center",padding:60,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:"pointer",marginBottom:16}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
-        <div style={{fontSize:40,opacity:.15,marginBottom:12}}>&#9634;</div>
-        <div style={{fontSize:15,fontWeight:500,color:T.cream,marginBottom:6}}>Upload Pitch Deck</div>
-        <p style={{fontSize:12,color:T.dim}}>PDF, PowerPoint, Keynote, or image</p>
-        <p style={{fontSize:11,color:T.dim,marginTop:8}}>Or paste a Figma Slides URL above</p>
       </div>}
 
-      {/* Send to client */}
-      {deck&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"12px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
-        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>Send</span>
-        <input value={deckEmail} onChange={e=>setDeckEmail(e.target.value)} placeholder={`${clientName.toLowerCase().replace(/\s/g,"")}@email.com`} onKeyDown={e=>e.key==="Enter"&&sendDeck()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-        <button onClick={sendDeck} disabled={!deckEmail.trim()||deckSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:deckEmail.trim()&&!deckSending?T.goldSoft:"rgba(255,255,255,.05)",color:deckEmail.trim()&&!deckSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${deckEmail.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:deckEmail.trim()&&!deckSending?"pointer":"default",fontFamily:T.sans}}>{deckSending?"Sending...":"Send"}</button>
-        {deckSent&&<span style={{fontSize:10,color:T.pos}}>Sent</span>}
+      {/* Approved / Sent */}
+      {approved.length>0?<div>
+        <div style={{fontSize:10,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Approved Assets ({approved.length})</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))",gap:10}}>
+          {approved.map(a=>{const sm=STATUS_META[a.status||"approved"];return<div key={a.id} style={{borderRadius:T.rS,border:`1px solid ${T.border}`,overflow:"hidden",background:T.surfEl}}>
+            <div style={{height:120,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
+              {a.isImage&&a.fileData?<img src={a.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
+              :a.isVideo?<div style={{fontSize:28,color:T.dim,opacity:.3}}>&#9654;</div>
+              :<div style={{fontSize:20,color:T.dim,opacity:.2}}>&#9634;</div>}
+              <div style={{position:"absolute",top:6,right:6}}><Pill color={sm?.color||T.pos} size="xs">{sm?.label||"Approved"}</Pill></div>
+            </div>
+            <div style={{padding:"10px 12px"}}>
+              <div style={{fontSize:12,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+              <div style={{fontSize:9,color:T.dim,marginTop:2}}>{a.dateAdded}</div>
+              {a.fileData&&<a href={a.fileData} download={a.fileName||a.name} onClick={e=>e.stopPropagation()} style={{fontSize:9,color:T.cyan,marginTop:4,display:"block",textDecoration:"none"}}>Download</a>}
+            </div>
+          </div>})}
+        </div>
+      </div>
+      :<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:12,border:`1px dashed ${T.border}`,borderRadius:T.r}}>
+        <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#9733;</div>
+        <div style={{fontSize:13,marginBottom:4}}>No approved assets yet</div>
+        <p style={{fontSize:11,opacity:.6}}>Approve assets in the Creative page to make them visible here.</p>
       </div>}
     </div>;
   }
