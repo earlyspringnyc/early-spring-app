@@ -73,23 +73,25 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const removeCard=(id)=>{const next=cardOrder.filter(c=>c!==id);setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})};
   const DragCell=({id,span=1,children,style:sx={},onClick})=>(
     <div onDragOver={e=>{e.preventDefault();setDropTarget(id)}} onDrop={e=>{e.preventDefault();handleCardDrop(id)}} onClick={onClick}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.4';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='.4'}}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.5';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='1'}}
       onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='0';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0'}}
-      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${dropTarget===id&&dragCard?T.gold:T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",opacity:dragCard===id?.4:1,position:"relative",overflow:"hidden",minHeight:140,...sx}}>
+      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",opacity:dragCard===id?.4:1,position:"relative",overflow:"hidden",minHeight:140,...sx}}>
+      {/* Drop indicator line */}
+      {dropTarget===id&&dragCard&&dragCard!==id&&<div style={{position:"absolute",left:-7,top:0,bottom:0,width:3,borderRadius:2,background:`linear-gradient(180deg,${T.gold},${T.cyan})`,zIndex:5}}/>}
       {/* Drag handle */}
       <div className="drag-grip" draggable onDragStart={e=>{e.stopPropagation();setDragCard(id);e.dataTransfer.effectAllowed="move";const el=e.currentTarget.parentElement;if(el){e.dataTransfer.setDragImage(el,20,20)}}} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}}
         style={{position:"absolute",left:0,top:0,bottom:0,width:16,display:"flex",alignItems:"center",justifyContent:"center",cursor:"grab",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.08),transparent)"}}
-        onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.cursor="grab"}}
-        onMouseLeave={e=>{e.currentTarget.style.opacity='.4'}}
+        onMouseEnter={e=>{e.currentTarget.style.opacity='1'}}
+        onMouseLeave={e=>{e.currentTarget.style.opacity='.5'}}
         onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",flexDirection:"column",gap:2}}>
           {[0,1,2].map(i=><div key={i} style={{display:"flex",gap:2}}><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/></div>)}
         </div>
       </div>
-      {/* Remove button */}
-      <button className="card-remove" onClick={e=>{e.stopPropagation();removeCard(id)}} style={{position:"absolute",top:8,right:8,width:18,height:18,borderRadius:9,background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.15)",color:T.neg,fontSize:10,cursor:"pointer",opacity:0,transition:"opacity .15s",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}} onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.opacity='.4';e.currentTarget.style.background="rgba(248,113,113,.08)"}}>&times;</button>
+      {/* Remove button — always slightly visible */}
+      <button className="card-remove" onClick={e=>{e.stopPropagation();removeCard(id)}} style={{position:"absolute",top:8,right:8,width:20,height:20,borderRadius:10,background:"rgba(248,113,113,.12)",border:"1px solid rgba(248,113,113,.2)",color:T.neg,fontSize:11,fontWeight:700,cursor:"pointer",opacity:0,transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.25)";e.currentTarget.style.transform="scale(1.1)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.12)";e.currentTarget.style.transform="scale(1)"}}>&times;</button>
       {/* Content */}
-      <div style={{padding:"24px 28px",flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+      <div style={{padding:"20px 24px",flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
         {children}
       </div>
     </div>
@@ -201,17 +203,20 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
           const now=new Date();
           const localTime=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true});
           const clientTime=tzClient?new Date(now.toLocaleString("en-US",{timeZone:tzClient})).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true}):null;
-          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+          const tzLabel=tzClient?tzClient.split("/").pop().replace("_"," "):"";
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`,minHeight:140}}>
             {header}
-            <div style={{display:"flex",gap:16}}>
+            <div style={{display:"flex",gap:20}}>
               <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>You</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{localTime}</div></div>
               <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Client</div>
-                {clientTime?<div className="num" style={{fontSize:20,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{clientTime}</div>
-                :<select value={tzClient} onChange={e=>{setTzClient(e.target.value);updateProject&&updateProject({clientTimezone:e.target.value})}} style={{padding:"4px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:10,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>
-                  <option value="">Set timezone</option>
-                  {["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Toronto","Europe/London","Europe/Paris","Europe/Berlin","Asia/Dubai","Asia/Riyadh","Asia/Tokyo","Asia/Singapore","Asia/Hong_Kong","Australia/Sydney","Pacific/Auckland"].map(tz=><option key={tz} value={tz}>{tz.replace("_"," ").split("/").pop()}</option>)}
-                </select>}
+                {clientTime&&<div className="num" style={{fontSize:20,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{clientTime}</div>}
               </div>
+            </div>
+            <div style={{marginTop:8}}>
+              <select value={tzClient} onChange={e=>{setTzClient(e.target.value);updateProject&&updateProject({clientTimezone:e.target.value})}} style={{padding:"5px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:tzClient?T.cream:T.dim,fontSize:10,fontFamily:T.sans,outline:"none",cursor:"pointer",width:"100%"}}>
+                <option value="">Select client timezone</option>
+                {["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Toronto","Europe/London","Europe/Paris","Europe/Berlin","Asia/Dubai","Asia/Riyadh","Asia/Tokyo","Asia/Singapore","Asia/Hong_Kong","Australia/Sydney","Pacific/Auckland"].map(tz=><option key={tz} value={tz}>{tz.replace("_"," ").split("/").pop()} ({tz.split("/")[0]})</option>)}
+              </select>
             </div>
           </div>;
         }
