@@ -72,7 +72,7 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
           :<><DetailsInput value={it.details||""} onChange={v=>onUp(idx,{details:v})} canEdit={canEdit}/><div style={{paddingRight:4}}><VendorSelect value={it.vendorId} onChange={v=>onUp(idx,{vendorId:v})} vendors={vendors} onAddVendor={onAddVendor} disabled={!canEdit} compact/></div></>}
         <NI value={it.actualCost} onChange={v=>onUp(idx,{actualCost:v})} disabled={!canEdit}/>
         <NI value={it.margin} fmt="%" onChange={v=>onUp(idx,{margin:v>1?v/100:v})} disabled={!canEdit}/>
-        <div className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:500}}>{f$(it.clientPrice)}</div>
+        <NI value={it.clientPrice} onChange={v=>{const m=it.margin||0;const actual=m>0?v/(1+m):v;onUp(idx,{actualCost:actual})}} disabled={!canEdit} color={T.gold}/>
         <div className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:it.variance>0?T.pos:T.dim,fontWeight:500}}>{f$(it.variance)}</div>
         {!isAg&&(()=>{const ps=getPayStatus(it.id,docs);return<div style={{textAlign:"right"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 7px",borderRadius:20,background:`${PAYMENT_COLORS[ps]}18`,color:PAYMENT_COLORS[ps],textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{PAYMENT_LABELS[ps]}</span></div>})()}
       </div>)}
