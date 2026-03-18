@@ -41,6 +41,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[filter,setFilter]=useState("all");
   const[showAdd,setShowAdd]=useState(false);
   const[viewMode,setViewMode]=useState("calendar");
+  const[calBelow,setCalBelow]=useState(false);
   const[taskView,setTaskView]=useState("card"); // card | block | table
   const[nN,setNN]=useState("");const[nC,setNC]=useState("General");const[nA,setNA]=useState("");const[nS,setNS]=useState("");const[nE,setNE]=useState("");
   const[showClientTL,setShowClientTL]=useState(false);
@@ -338,6 +339,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         {isListView&&<div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
           {[["card","Card"],["block","Block"],["table","Table"]].map(([k,l])=><button key={k} onClick={()=>setTaskView(k)} style={{padding:"4px 12px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:taskView===k?600:400,fontFamily:T.sans,background:taskView===k?T.goldSoft:"transparent",color:taskView===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
         </div>}
+        {/* Swap calendar/tasks order */}
+        {showCalOrGantt&&<button onClick={()=>setCalBelow(b=>!b)} title={calBelow?"Move calendar up":"Move calendar down"} style={{width:32,height:32,borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>{calBelow?"↑":"↓"}</button>}
         {/* "..." menu */}
         <div ref={menuRef} style={{position:"relative"}}>
           <button onClick={()=>setShowMenu(!showMenu)} style={{width:32,height:32,borderRadius:20,border:`1px solid ${T.border}`,background:showMenu?T.surfHov:"transparent",color:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,letterSpacing:2,lineHeight:1}}>...</button>
@@ -441,31 +444,32 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     </Card>}
 
     {/* ══ LAYER 3 — Content ══ */}
-    {/* Calendar / Gantt on top when active */}
-    {showCalOrGantt&&<div style={{marginBottom:16}}>
-      {viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>
-      :<GanttChart tasks={tasks}/>}
-    </div>}
+    {(()=>{
+      const calendarBlock=showCalOrGantt&&<div style={{marginBottom:16}}>
+        {viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>
+        :<GanttChart tasks={tasks}/>}
+      </div>;
 
-    {/* Task list */}
-    {tasks.length===0&&!showAdd?
-      <div style={{textAlign:"center",padding:"48px 20px",color:T.dim}}>
-        <div style={{fontSize:14,marginBottom:12}}>No tasks yet</div>
-        {canEdit&&<button onClick={()=>{setViewMode("list");setShowAdd(true)}} style={{padding:"10px 20px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
-      </div>
-    :<div>
-      {/* Task list header with optional + button */}
-      {isListView&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
-        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{width:28,height:28,borderRadius:14,border:`1px solid ${showAdd?T.gold+"55":T.border}`,background:showAdd?T.goldSoft:"transparent",color:showAdd?T.gold:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,lineHeight:1}}>{showAdd?"\u00d7":"+"}</button>}
-      </div>}
-      {taskView==="table"?renderTaskTable():
-      <div style={taskView==="card"?{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}:{display:"flex",flexDirection:"column",gap:4}}>
-        {taskView==="block"?
-          getMergedBlockItems().map(item=>item.type==="task"?renderTaskBlock(item.data,tasks.indexOf(item.data)):renderMeetingBlock(item.data))
-        :filtered.map(t=>{const ri=tasks.indexOf(t);return taskView==="card"?renderTaskCard(t,ri):renderTaskBlock(t,ri)})}
-        {filtered.length===0&&tasks.length>0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13,gridColumn:"1/-1"}}>No tasks with this status.</div>}
-      </div>}
-    </div>}
+      const taskListBlock=tasks.length===0&&!showAdd?
+        <div style={{textAlign:"center",padding:"48px 20px",color:T.dim}}>
+          <div style={{fontSize:14,marginBottom:12}}>No tasks yet</div>
+          {canEdit&&<button onClick={()=>{setViewMode("list");setShowAdd(true)}} style={{padding:"10px 20px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
+        </div>
+      :<div>
+        {isListView&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+          {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{width:28,height:28,borderRadius:14,border:`1px solid ${showAdd?T.gold+"55":T.border}`,background:showAdd?T.goldSoft:"transparent",color:showAdd?T.gold:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,lineHeight:1}}>{showAdd?"\u00d7":"+"}</button>}
+        </div>}
+        {taskView==="table"?renderTaskTable():
+        <div style={taskView==="card"?{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}:{display:"flex",flexDirection:"column",gap:4}}>
+          {taskView==="block"?
+            getMergedBlockItems().map(item=>item.type==="task"?renderTaskBlock(item.data,tasks.indexOf(item.data)):renderMeetingBlock(item.data))
+          :filtered.map(t=>{const ri=tasks.indexOf(t);return taskView==="card"?renderTaskCard(t,ri):renderTaskBlock(t,ri)})}
+          {filtered.length===0&&tasks.length>0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13,gridColumn:"1/-1"}}>No tasks with this status.</div>}
+        </div>}
+      </div>;
+
+      return calBelow?<>{taskListBlock}{calendarBlock}</>:<>{calendarBlock}{taskListBlock}</>;
+    })()}
 
     {/* ══ Meeting Detail Modal Overlay ══ */}
     {viewMeeting&&(()=>{const m=meetings.find(mt=>mt.id===viewMeeting);if(!m)return null;return<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)"}}>
