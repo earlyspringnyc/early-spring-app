@@ -93,13 +93,13 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const cellRefs=useRef({});
 
   const onPointerDown=useCallback((e,cardKey,slotIdx)=>{
-    if(e.button!==0)return;
+    if(e.button!==0||!editing)return;
     const el=e.currentTarget;
     el.setPointerCapture(e.pointerId);
     const rects=[];
     for(let i=0;i<order.length;i++){const cel=cellRefs.current[i];if(cel)rects[i]=cel.getBoundingClientRect();else rects[i]=null}
     dragRef.current={active:false,cardKey,slotIdx,startX:e.clientX,startY:e.clientY,el,rects};
-  },[order.length]);
+  },[order.length,editing]);
 
   const onPointerMove=useCallback((e)=>{
     const dr=dragRef.current;if(!dr.cardKey)return;
@@ -122,7 +122,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
         const next=[...order];[next[dr.slotIdx],next[overIdx]]=[next[overIdx],next[dr.slotIdx]];
         saveOrder(next);
       }
-    } else if(!editing) {
+    } else {
       const nav=ALL_CARDS[dr.cardKey]?.nav;
       if(onNavigate&&nav)onNavigate(nav);
     }
@@ -289,18 +289,21 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
         const isDrag=dragState.dragging&&dragState.dragIdx===slotIdx;
         return<div key={cardKey} ref={el=>cellRefs.current[slotIdx]=el} data-slot={slotIdx}
           onPointerDown={e=>onPointerDown(e,cardKey,slotIdx)}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
+          onPointerMove={editing?onPointerMove:undefined}
+          onPointerUp={editing?onPointerUp:undefined}
+          onClick={!editing?()=>{const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
+          onMouseEnter={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}}}
+          onMouseLeave={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=(cardBorderStyle[cardKey]||{}).borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}}
           style={{
             gridColumn:slot.col,gridRow:slot.row,
             background:cardAccent[cardKey]||T.surfEl,
             borderRadius:T.r,
-            border:`1px solid ${isOver?T.borderGlow:T.border}`,
+            border:`1px solid ${isOver?T.borderGlow:editing?`${T.cyan}25`:T.border}`,
             padding:cardPadding[cardKey]||"24px 28px",
             display:"flex",flexDirection:"column",justifyContent:"space-between",
             transition:isDrag?"none":"all .2s",
-            cursor:dragState.dragging?(isDrag?"grabbing":"default"):"pointer",
-            touchAction:"none",
+            cursor:editing?(dragState.dragging?(isDrag?"grabbing":"default"):"grab"):"pointer",
+            touchAction:editing?"none":"auto",
             boxShadow:isOver?`0 0 20px ${T.borderGlow}`:"none",
             outline:isOver?`2px solid ${T.borderGlow}`:"none",
             position:"relative",
