@@ -80,7 +80,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
 
       {/* ── Welcome ── */}
       <div style={{marginBottom:28}}>
-        <h1 style={{fontSize:"clamp(22px, 4vw, 30px)",fontWeight:700,color:T.cream,letterSpacing:"-0.03em"}}>{getGreeting()}, {firstName}.</h1>
+        <h1 style={{fontSize:"clamp(26px, 5vw, 36px)",fontWeight:700,color:T.cream,letterSpacing:"-0.03em"}}>{getGreeting()}, {firstName}{getGreeting()==="Working hard"?"?":"."}</h1>
         {statusLine&&<p style={{fontSize:12,color:T.dim,marginTop:6}}>{statusLine}</p>}
       </div>
 
