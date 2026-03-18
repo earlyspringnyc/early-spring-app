@@ -27,6 +27,7 @@ const WIDGETS={
   vendors:{id:"vendors",label:"Top Vendors",icon:"\u25C6",color:"#14B8A6",desc:"Vendors by spend"},
   burndown:{id:"burndown",label:"Task Burndown",icon:"\uD83D\uDCC9",color:"#EC4899",desc:"Completion over time"},
   collection:{id:"collection",label:"Collection",icon:"\uD83D\uDCB0",color:"#10B981",desc:"Revenue collected vs billed"},
+  creative:{id:"creative",label:"Creative Review",icon:"\uD83C\uDFA8",color:"#8B5CF6",desc:"Assets awaiting approval"},
 };
 
 function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
@@ -50,135 +51,125 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const tasksDone=tasks.filter(t=>t.status==="done").length;
   const budgetPct=totalBudget>0?Math.round((spendToDate/totalBudget)*100):0;
 
-  return<div>
-    <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview and financial snapshot</p></div>
+  /* ── Drag state for card reorder ── */
+  const DEFAULT_ORDER=["budget","spend","owed","client","tasks","alerts","prod","margin","blended","profit","donut","comp"];
+  const[cardOrder,setCardOrder]=useState(()=>project?.dashCardOrder||DEFAULT_ORDER);
+  const[dragCard,setDragCard]=useState(null);
+  const[dropTarget,setDropTarget]=useState(null);
 
-    {/* ── Bento Grid ── */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gridTemplateRows:"auto",gridTemplateAreas:`
-      "budget budget spend spend"
-      "owed   client tasks  tasks"
-      "alerts alerts alerts alerts"
-      "prod   margin blended profit"
-      "donut  donut  comp   comp"
-    `,gap:10,marginBottom:20}}>
+  const handleCardDrop=(targetId)=>{
+    if(!dragCard||dragCard===targetId)return;
+    const order=[...cardOrder];
+    const fromIdx=order.indexOf(dragCard);
+    const toIdx=order.indexOf(targetId);
+    if(fromIdx<0||toIdx<0)return;
+    order.splice(fromIdx,1);
+    order.splice(toIdx,0,dragCard);
+    setCardOrder(order);
+    updateProject&&updateProject({dashCardOrder:order});
+    setDragCard(null);setDropTarget(null);
+  };
 
-      {/* Hero: Client Budget Allocation */}
-      <Cell area="budget" accent={T.goldSoft} style={{borderColor:T.borderGlow,cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Client Budget Allocation</Label>
-        <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}>
-          <Big color={T.gold} size={48}>{f0(totalBudget)}</Big>
-        </div>
-        <div style={{marginTop:16,height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(budgetPct,100)}%`,background:comp.grandTotal>totalBudget?`linear-gradient(90deg,${T.neg},#FF6B6B)`:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,transition:"width .6s ease"}}/></div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{budgetPct}% allocated</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{f0(Math.max(0,totalBudget-comp.grandTotal))} remaining</span></div>
-      </Cell>
+  const removeCard=(id)=>{const next=cardOrder.filter(c=>c!==id);setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})};
+  const DragCell=({id,span=1,children,style:sx={},onClick})=>(
+    <div draggable onDragStart={()=>setDragCard(id)} onDragOver={e=>{e.preventDefault();setDropTarget(id)}} onDrop={()=>handleCardDrop(id)} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}} onClick={onClick}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='.5'}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0'}}
+      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${dropTarget===id&&dragCard?T.gold:T.border}`,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between",transition:"all .2s",cursor:onClick?"pointer":"grab",opacity:dragCard===id?.4:1,gridColumn:span>1?`span ${span}`:"auto",position:"relative",...sx}}>
+      <button className="card-remove" onClick={e=>{e.stopPropagation();removeCard(id)}} style={{position:"absolute",top:8,right:8,width:18,height:18,borderRadius:9,background:"rgba(248,113,113,.1)",border:"none",color:T.neg,fontSize:10,cursor:"pointer",opacity:0,transition:"opacity .15s",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2}} onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='.5'}>&times;</button>
+      {children}
+    </div>
+  );
 
-      {/* Current Project Total */}
-      {(()=>{const overBudget=comp.grandTotal>totalBudget&&totalBudget>0;return<Cell area="spend" style={{cursor:"pointer",borderLeft:overBudget?`3px solid ${T.neg}`:`3px solid ${T.pos}`}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Current Project Total</Label>
-        <div style={{display:"flex",alignItems:"baseline",marginTop:12}}>
-          <Big size={40} color={overBudget?T.neg:T.pos}>{f0(comp.grandTotal)}</Big>
-          <Slash>{f0(totalBudget)}</Slash>
-        </div>
-        <div style={{fontSize:11,color:overBudget?T.neg:T.pos,marginTop:14,fontFamily:T.mono}}>{overBudget?`${f0(comp.grandTotal-totalBudget)} over budget`:"Within budget"}</div>
-      </Cell>})()}
-
-      {/* Amount Owed */}
-      <Cell area="owed" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("vendors")}>
-        <Label>Owed to Vendors</Label>
-        <div style={{marginTop:12}}><Big color={amountOwed>0?T.neg:T.dim} size={36}>{f0(amountOwed)}</Big></div>
-        {overdueDocs.length>0&&<div style={{marginTop:12}}><Pill color={T.neg}>{overdueDocs.length} overdue</Pill></div>}
-      </Cell>
-
-      {/* Due from Client */}
-      <Cell area="client" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("pnl")}>
-        <Label>Due from Client</Label>
-        <div style={{marginTop:12}}><Big color={amountDueFromClient>0?T.gold:T.pos} size={36}>{f0(Math.max(0,amountDueFromClient))}</Big></div>
-        <div style={{fontSize:11,color:T.dim,marginTop:12,fontFamily:T.mono}}>{totalIncome>0?`${f0(totalIncome)} collected`:"No payments received"}</div>
-      </Cell>
-
-      {/* Tasks overview */}
-      <Cell area="tasks" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("timeline")}>
-        <Label>Tasks</Label>
-        <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}>
-          <Big size={48}>{tasksDone}</Big>
-          <Slash>{tasks.length}</Slash>
-        </div>
-        <div style={{display:"flex",gap:6,marginTop:14,flexWrap:"wrap"}}>
-          {tasks.filter(t=>t.status==="progress").length>0&&<Pill color={T.cyan}>{tasks.filter(t=>t.status==="progress").length} in progress</Pill>}
-          {tasks.filter(t=>t.status==="roadblocked").length>0&&<Pill color={T.neg}>{tasks.filter(t=>t.status==="roadblocked").length} blocked</Pill>}
-          {tasks.filter(t=>t.status==="todo").length>0&&<Pill color={T.dim}>{tasks.filter(t=>t.status==="todo").length} to do</Pill>}
-        </div>
-      </Cell>
-
-      {/* ── Alerts row ── */}
-      {(overdueDocs.length>0||unpaidInvoices.length>0||allUpcoming.length>0||overdueTasks.length>0)?
-      <div style={{gridArea:"alerts",display:"flex",flexDirection:"column",gap:10}}>
-        {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div onClick={()=>onNavigate&&onNavigate("pnl")} style={{background:overdueDocs.length>0?"rgba(248,113,113,.04)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(248,113,113,.15)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{overdueDocs.length>0?"Invoice Alerts":"Unpaid Invoices"}</span><Pill color={overdueDocs.length>0?T.neg:T.gold}>{overdueDocs.length+unpaidInvoices.length}</Pill></div>
-          {overdueDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(248,113,113,.05)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Overdue</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:700,color:T.neg}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
-          </div>)}
-          {unpaidInvoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.gold}>Pending</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}>{d.dueDate&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span>}<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
-          </div>)}
-        </div>}
-        {(allUpcoming.length>0||overdueTasks.length>0)&&<div onClick={()=>onNavigate&&onNavigate("timeline")} style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px",cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>Upcoming Deadlines</span><Pill color={T.gold}>{overdueTasks.length+allUpcoming.length}</Pill></div>
-          {overdueTasks.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(248,113,113,.05)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Late</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.name}</span></div>
-            <span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {t.endDate}</span>
-          </div>)}
-          {allUpcoming.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={d._isTask?T.cyan:T.gold}>{d._isTask?"Task":"Invoice"}</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{!d._isTask&&d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}</div>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d._isTask?d.endDate:d.dueDate}</span>{!d._isTask&&<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount)}</span>}</div>
-          </div>)}
-        </div>}
+  /* ── Card renderers ── */
+  const CARDS={
+    budget:()=><DragCell id="budget" span={2} style={{background:T.goldSoft,borderColor:T.borderGlow}} onClick={()=>onNavigate&&onNavigate("budget")}>
+      <Label>Client Budget Allocation</Label>
+      <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}><Big color={T.gold} size={48}>{f0(totalBudget)}</Big></div>
+      <div style={{marginTop:16,height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(budgetPct,100)}%`,background:comp.grandTotal>totalBudget?`linear-gradient(90deg,${T.neg},#FF6B6B)`:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,transition:"width .6s ease"}}/></div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{budgetPct}% allocated</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{f0(Math.max(0,totalBudget-comp.grandTotal))} remaining</span></div>
+    </DragCell>,
+    spend:()=>{const overBudget=comp.grandTotal>totalBudget&&totalBudget>0;return<DragCell id="spend" span={2} style={{borderLeft:overBudget?`3px solid ${T.neg}`:`3px solid ${T.pos}`}} onClick={()=>onNavigate&&onNavigate("budget")}>
+      <Label>Current Project Total</Label>
+      <div style={{display:"flex",alignItems:"baseline",marginTop:12}}><Big size={40} color={overBudget?T.neg:T.pos}>{f0(comp.grandTotal)}</Big><Slash>{f0(totalBudget)}</Slash></div>
+      <div style={{fontSize:11,color:overBudget?T.neg:T.pos,marginTop:14,fontFamily:T.mono}}>{overBudget?`${f0(comp.grandTotal-totalBudget)} over budget`:"Within budget"}</div>
+    </DragCell>},
+    owed:()=><DragCell id="owed" onClick={()=>onNavigate&&onNavigate("vendors")}>
+      <Label>Owed to Vendors</Label>
+      <div style={{marginTop:12}}><Big color={amountOwed>0?T.neg:T.dim} size={36}>{f0(amountOwed)}</Big></div>
+      {overdueDocs.length>0&&<div style={{marginTop:12}}><Pill color={T.neg}>{overdueDocs.length} overdue</Pill></div>}
+    </DragCell>,
+    client:()=><DragCell id="client" onClick={()=>onNavigate&&onNavigate("pnl")}>
+      <Label>Due from Client</Label>
+      <div style={{marginTop:12}}><Big color={amountDueFromClient>0?T.gold:T.pos} size={36}>{f0(Math.max(0,amountDueFromClient))}</Big></div>
+      <div style={{fontSize:11,color:T.dim,marginTop:12,fontFamily:T.mono}}>{totalIncome>0?`${f0(totalIncome)} collected`:"No payments received"}</div>
+    </DragCell>,
+    tasks:()=><DragCell id="tasks" span={2} onClick={()=>onNavigate&&onNavigate("timeline")}>
+      <Label>Tasks</Label>
+      <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}><Big size={48}>{tasksDone}</Big><Slash>{tasks.length}</Slash></div>
+      <div style={{display:"flex",gap:6,marginTop:14,flexWrap:"wrap"}}>
+        {tasks.filter(t=>t.status==="progress").length>0&&<Pill color={T.cyan}>{tasks.filter(t=>t.status==="progress").length} in progress</Pill>}
+        {tasks.filter(t=>t.status==="roadblocked").length>0&&<Pill color={T.neg}>{tasks.filter(t=>t.status==="roadblocked").length} blocked</Pill>}
+        {tasks.filter(t=>t.status==="todo").length>0&&<Pill color={T.dim}>{tasks.filter(t=>t.status==="todo").length} to do</Pill>}
       </div>
-      :<div style={{gridArea:"alerts"}}/>}
-
-      {/* ── Secondary metrics row ── */}
-      <Cell area="prod" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Production Cost</Label>
-        <div style={{marginTop:10}}><Big size={32}>{f0(comp.productionSubtotal.actualCost)}</Big></div>
-      </Cell>
-      <Cell area="margin" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Client Total</Label>
-        <div style={{marginTop:10}}><Big size={32} color={T.gold}>{f0(comp.grandTotal)}</Big></div>
-      </Cell>
-      <Cell area="blended" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Blended Margin</Label>
-        <div style={{marginTop:10}}><Big size={32} color={T.cyan}>{blended.toFixed(1)}%</Big></div>
-      </Cell>
-      <Cell area="profit" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("pnl")}>
-        <Label>Net Profit</Label>
-        <div style={{marginTop:10}}><Big size={32} color={T.pos}>{f0(comp.netProfit)}</Big></div>
-      </Cell>
-
-      {/* ── Charts row ── */}
-      <Cell area="donut" style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Spend Distribution</Label>
-        <div style={{display:"flex",justifyContent:"center",marginTop:16,marginBottom:16}}><DonutChart data={pieData} size={160} thickness={22}/></div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>{pieData.map((d,i)=><span key={i} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.dim}}><span style={{width:7,height:7,borderRadius:"50%",background:d.color,display:"inline-block"}}/>{d.name.length>14?d.name.split(" ")[0]:d.name}</span>)}</div>
-      </Cell>
-
-      <Cell area="comp" style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Profit Composition</Label>
-        <div style={{display:"flex",alignItems:"center",gap:28,marginTop:12}}>
-          <DonutChart data={profitParts} size={150} thickness={20}/>
-          <div style={{flex:1}}>
-            {profitParts.map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom:i<profitParts.length-1?`1px solid ${T.border}`:"none"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{width:8,height:8,borderRadius:3,background:d.color}}/><span style={{fontSize:13,color:T.cream}}>{d.name}</span></div>
-              <span className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:600,color:T.cream}}>{f0(d.value)}</span>
+    </DragCell>,
+    alerts:()=>(overdueDocs.length>0||unpaidInvoices.length>0||allUpcoming.length>0||overdueTasks.length>0)?
+      <DragCell id="alerts" span={4} style={{padding:0,background:"transparent",border:"none"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div onClick={()=>onNavigate&&onNavigate("pnl")} style={{background:overdueDocs.length>0?"rgba(248,113,113,.04)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(248,113,113,.15)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{overdueDocs.length>0?"Invoice Alerts":"Unpaid Invoices"}</span><Pill color={overdueDocs.length>0?T.neg:T.gold}>{overdueDocs.length+unpaidInvoices.length}</Pill></div>
+            {overdueDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(248,113,113,.05)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Overdue</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:700,color:T.neg}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
             </div>)}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:16,marginTop:6,borderTop:`2px solid ${T.border}`}}>
-              <span style={{fontSize:13,fontWeight:700,color:T.gold}}>Net Profit</span>
-              <span className="num" style={{fontSize:22,fontFamily:T.mono,fontWeight:700,color:T.gold}}>{f0(comp.netProfit)}</span>
-            </div>
+            {unpaidInvoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.gold}>Pending</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span></div>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>{d.dueDate&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span>}<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
+            </div>)}
+          </div>}
+          {(allUpcoming.length>0||overdueTasks.length>0)&&<div onClick={()=>onNavigate&&onNavigate("timeline")} style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>Upcoming Deadlines</span><Pill color={T.gold}>{overdueTasks.length+allUpcoming.length}</Pill></div>
+            {overdueTasks.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(248,113,113,.05)"}}><div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Late</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.name}</span></div><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {t.endDate}</span></div>)}
+            {allUpcoming.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={d._isTask?T.cyan:T.gold}>{d._isTask?"Task":"Invoice"}</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span></div>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d._isTask?d.endDate:d.dueDate}</span>{!d._isTask&&<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount)}</span>}</div>
+            </div>)}
+          </div>}
+        </div>
+      </DragCell>:<DragCell id="alerts" span={4} style={{display:"none"}}/>,
+    prod:()=><DragCell id="prod" onClick={()=>onNavigate&&onNavigate("budget")}><Label>Production Cost</Label><div style={{marginTop:10}}><Big size={32}>{f0(comp.productionSubtotal.actualCost)}</Big></div></DragCell>,
+    margin:()=><DragCell id="margin" onClick={()=>onNavigate&&onNavigate("budget")}><Label>Client Total</Label><div style={{marginTop:10}}><Big size={32} color={T.gold}>{f0(comp.grandTotal)}</Big></div></DragCell>,
+    blended:()=><DragCell id="blended" onClick={()=>onNavigate&&onNavigate("budget")}><Label>Blended Margin</Label><div style={{marginTop:10}}><Big size={32} color={T.cyan}>{blended.toFixed(1)}%</Big></div></DragCell>,
+    profit:()=><DragCell id="profit" onClick={()=>onNavigate&&onNavigate("pnl")}><Label>Net Profit</Label><div style={{marginTop:10}}><Big size={32} color={T.pos}>{f0(comp.netProfit)}</Big></div></DragCell>,
+    donut:()=><DragCell id="donut" span={2} style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
+      <Label>Spend Distribution</Label>
+      <div style={{display:"flex",justifyContent:"center",marginTop:16,marginBottom:16}}><DonutChart data={pieData} size={160} thickness={22}/></div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>{pieData.map((d,i)=><span key={i} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.dim}}><span style={{width:7,height:7,borderRadius:"50%",background:d.color,display:"inline-block"}}/>{d.name.length>14?d.name.split(" ")[0]:d.name}</span>)}</div>
+    </DragCell>,
+    comp:()=><DragCell id="comp" span={2} style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
+      <Label>Profit Composition</Label>
+      <div style={{display:"flex",alignItems:"center",gap:28,marginTop:12}}>
+        <DonutChart data={profitParts} size={150} thickness={20}/>
+        <div style={{flex:1}}>
+          {profitParts.map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom:i<profitParts.length-1?`1px solid ${T.border}`:"none"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{width:8,height:8,borderRadius:3,background:d.color}}/><span style={{fontSize:13,color:T.cream}}>{d.name}</span></div>
+            <span className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:600,color:T.cream}}>{f0(d.value)}</span>
+          </div>)}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:16,marginTop:6,borderTop:`2px solid ${T.border}`}}>
+            <span style={{fontSize:13,fontWeight:700,color:T.gold}}>Net Profit</span>
+            <span className="num" style={{fontSize:22,fontFamily:T.mono,fontWeight:700,color:T.gold}}>{f0(comp.netProfit)}</span>
           </div>
         </div>
-      </Cell>
+      </div>
+    </DragCell>,
+  };
+
+  return<div>
+    <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview · drag cards to rearrange</p></div>
+
+    {/* ── Draggable Bento Grid ── */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+      {cardOrder.filter(id=>CARDS[id]).map(id=>{const render=CARDS[id];return render?<div key={id}>{render()}</div>:null})}
     </div>
 
     {/* ── Custom Widgets ── */}
@@ -190,7 +181,9 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       const[linkUrl,setLinkUrl]=useState("");
       const[tzClient,setTzClient]=useState(project?.clientTimezone||"");
 
-      const addWidget=(id)=>{if(!activeWidgets.includes(id))updateProject&&updateProject({dashWidgets:[...activeWidgets,id]})};
+      const DEFAULT_CARD_META={budget:{label:"Client Budget",icon:"\uD83D\uDCB0",color:"#F59E0B",desc:"Budget allocation"},spend:{label:"Project Total",icon:"\uD83D\uDCCA",color:"#14B8A6",desc:"Current grand total"},owed:{label:"Owed to Vendors",icon:"\u25C6",color:"#F47264",desc:"Outstanding vendor invoices"},client:{label:"Due from Client",icon:"\uD83D\uDCB0",color:"#94A3B8",desc:"Client payment status"},tasks:{label:"Tasks",icon:"\u2611",color:"#06B6D4",desc:"Task completion overview"},alerts:{label:"Alerts",icon:"\u26A0",color:"#F87171",desc:"Overdue & upcoming deadlines"},prod:{label:"Production Cost",icon:"\u25C8",color:"#94A3B8",desc:"Total production spend"},margin:{label:"Client Total",icon:"\u25C8",color:"#F59E0B",desc:"Grand total at client price"},blended:{label:"Blended Margin",icon:"\u25C8",color:"#7DD3FC",desc:"Overall margin percentage"},profit:{label:"Net Profit",icon:"\u25C8",color:"#4ADE80",desc:"Bottom line"},donut:{label:"Spend Distribution",icon:"\uD83D\uDFE0",color:"#6366F1",desc:"Spend by category chart"},comp:{label:"Profit Composition",icon:"\uD83D\uDFE2",color:"#14B8A6",desc:"Margin breakdown chart"}};
+      const removedDefaults=DEFAULT_ORDER.filter(id=>!cardOrder.includes(id));
+      const addWidget=(id)=>{if(DEFAULT_CARD_META[id]){const next=[...cardOrder,id];setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})}else if(!activeWidgets.includes(id)){updateProject&&updateProject({dashWidgets:[...activeWidgets,id]})}};
       const removeWidget=(id)=>{updateProject&&updateProject({dashWidgets:activeWidgets.filter(w=>w!==id)})};
 
       const renderWidget=(wid)=>{
@@ -273,6 +266,20 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
             <div style={{fontSize:10,color:T.dim,marginTop:4}}>{pct}% collected</div>
           </div>;
         }
+        if(wid==="creative"){
+          const assets=project?.creativeAssets||[];
+          const inReview=assets.filter(a=>a.status==="review");
+          const approved=assets.filter(a=>a.status==="approved"||a.status==="sent");
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`,cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("creative")}>
+            {header}
+            {inReview.length>0?<div>
+              <div style={{fontSize:18,fontWeight:700,color:"#F59E0B",fontFamily:T.mono,marginBottom:4}}>{inReview.length}</div>
+              <div style={{fontSize:10,color:"#F59E0B"}}>awaiting review</div>
+              {approved.length>0&&<div style={{fontSize:9,color:T.dim,marginTop:4}}>{approved.length} approved</div>}
+            </div>
+            :<div style={{fontSize:11,color:T.dim}}>{approved.length>0?`${approved.length} approved, none pending`:"No assets yet"}</div>}
+          </div>;
+        }
         // Generic fallback
         return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
           {header}
@@ -293,6 +300,12 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
           {showPicker&&<div style={{position:"absolute",left:0,bottom:"calc(100% + 6px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",width:320,padding:12}}>
             <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Available Widgets</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {/* Removed default cards */}
+              {removedDefaults.map(id=>{const m=DEFAULT_CARD_META[id];return<button key={id} onClick={()=>{addWidget(id);setShowPicker(false)}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"all .15s",textAlign:"left"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=m.color;e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}>
+                <span style={{fontSize:16}}>{m.icon}</span>
+                <div><div style={{fontSize:11,fontWeight:600,color:T.cream}}>{m.label}</div><div style={{fontSize:9,color:T.dim}}>{m.desc}</div></div>
+              </button>})}
+              {/* Custom widgets */}
               {Object.values(WIDGETS).filter(w=>!activeWidgets.includes(w.id)).map(w=>
                 <button key={w.id} onClick={()=>{addWidget(w.id);setShowPicker(false)}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"all .15s",textAlign:"left"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=w.color;e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}>
                   <span style={{fontSize:16}}>{w.icon}</span>
@@ -300,7 +313,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
                 </button>
               )}
             </div>
-            {Object.values(WIDGETS).filter(w=>!activeWidgets.includes(w.id)).length===0&&<div style={{textAlign:"center",padding:12,color:T.dim,fontSize:11}}>All widgets added</div>}
+            {removedDefaults.length===0&&Object.values(WIDGETS).filter(w=>!activeWidgets.includes(w.id)).length===0&&<div style={{textAlign:"center",padding:12,color:T.dim,fontSize:11}}>All widgets added</div>}
           </div>}
         </div>
       </>;
