@@ -8,9 +8,10 @@ import { NI, VendorSelect } from '../components/primitives/index.js';
 
 function DetailsInput({value,onChange,canEdit}){
   const[editing,setEditing]=useState(false);
+  const[expanded,setExpanded]=useState(false);
   const[tmp,setTmp]=useState(value);
   if(editing)return<input autoFocus value={tmp} onChange={e=>setTmp(e.target.value)} onBlur={()=>{onChange(tmp);setEditing(false)}} onKeyDown={e=>{if(e.key==="Enter"){onChange(tmp);setEditing(false)}if(e.key==="Escape")setEditing(false)}} style={{width:"100%",padding:"5px 8px",fontSize:11,color:T.cream,background:T.surface,border:`1px solid ${T.cyan}`,borderRadius:T.rS,outline:"none",fontFamily:T.sans}}/>;
-  if(value)return<div onClick={()=>canEdit&&setEditing(true)} style={{fontSize:11,color:T.dim,fontStyle:"italic",padding:"4px 0",cursor:canEdit?"pointer":"default",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{value}</div>;
+  if(value)return<div title={value} onClick={()=>{if(canEdit&&expanded)setEditing(true);else setExpanded(!expanded)}} style={{fontSize:11,color:T.dim,fontStyle:"italic",padding:"4px 0",cursor:"pointer",overflow:expanded?"visible":"hidden",textOverflow:expanded?"unset":"ellipsis",whiteSpace:expanded?"normal":"nowrap",lineHeight:expanded?1.5:undefined,background:expanded?T.surface:"transparent",borderRadius:expanded?T.rS:0,padding:expanded?"6px 8px":"4px 0",margin:expanded?"-2px -8px":"0",transition:"all .15s"}}>{value}{expanded&&canEdit&&<span style={{fontSize:9,color:T.cyan,marginLeft:6,fontStyle:"normal"}}>click to edit</span>}</div>;
   if(canEdit)return<button onClick={()=>{setTmp("");setEditing(true)}} style={{fontSize:10,color:T.dim,opacity:.4,background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontFamily:T.sans,fontStyle:"italic"}}>Add description...</button>;
   return<div style={{padding:"4px 0",fontSize:10,color:T.dim,opacity:.2}}>{"\u2014"}</div>;
 }
