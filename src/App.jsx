@@ -27,12 +27,15 @@ function App(){
   const setUser = usesSupa ? sbAuth.setDevUser : gAuth.setUser;
   const loginWithGoogle = usesSupa ? sbAuth.login : null;
   const doLogout = useCallback(()=>{
+    // Data is already saved to localStorage on every change (write-through cache)
+    // Only clear auth tokens, NOT project data
     localStorage.removeItem("es_user");
     localStorage.removeItem("es_google_token");
     const keys=Object.keys(localStorage).filter(k=>k.startsWith("sb-"));
     keys.forEach(k=>localStorage.removeItem(k));
     try{ rawLogout(); }catch(e){}
-    window.location.href=window.location.origin;
+    // Small delay to let any pending Supabase saves flush
+    setTimeout(()=>{window.location.href=window.location.origin},300);
   },[rawLogout]);
 
   // Initialize Google token client for non-Supabase mode
