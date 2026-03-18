@@ -59,6 +59,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[meetingAttendees,setMeetingAttendees]=useState("");
   const[meetingAgenda,setMeetingAgenda]=useState("");
   const[meetingLocation,setMeetingLocation]=useState("");
+  const[isClientMeetingFlag,setIsClientMeetingFlag]=useState(false);
   const[viewMeeting,setViewMeeting]=useState(null);
   const[meetingNotes,setMeetingNotes]=useState("");
   const[meetingSummary,setMeetingSummary]=useState("");
@@ -86,10 +87,10 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const addMeeting=(titleOverride)=>{
     const title=(titleOverride||meetingTitle).trim();
     if(!title)return;
-    const m=mkMeeting(title,meetingDate,meetingTime,meetingDuration,meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean),meetingAgenda,meetingLocation);
+    const m=mkMeeting(title,meetingDate,meetingTime,meetingDuration,meetingAttendees.split(",").map(s=>s.trim()).filter(Boolean),meetingAgenda,meetingLocation,isClientMeetingFlag);
     updateProject({meetings:[...(project.meetings||[]),m]});
     addTask(title,"Meeting","",meetingDate,meetingDate);
-    setMeetingTitle("");setMeetingDate("");setMeetingTime("");setMeetingDuration("30m");setMeetingAttendees("");setMeetingAgenda("");setMeetingLocation("");setIsMeeting(false);
+    setMeetingTitle("");setMeetingDate("");setMeetingTime("");setMeetingDuration("30m");setMeetingAttendees("");setMeetingAgenda("");setMeetingLocation("");setIsMeeting(false);setIsClientMeetingFlag(false);
   };
   const removeMeeting=id=>updateProject({meetings:(project.meetings||[]).filter(m=>m.id!==id)});
   const updateMeeting=(id,updates)=>updateProject({meetings:(project.meetings||[]).map(m=>m.id===id?{...m,...updates}:m)});
@@ -401,6 +402,10 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
             </div>}
           </div>})()}</div>
         <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Agenda</label><textarea value={meetingAgenda} onChange={e=>setMeetingAgenda(e.target.value)} placeholder="Topics to discuss..." rows={2} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
+          <button onClick={()=>setIsClientMeetingFlag(!isClientMeetingFlag)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:isClientMeetingFlag?600:400,background:isClientMeetingFlag?"rgba(6,182,212,.12)":"rgba(255,255,255,.04)",color:isClientMeetingFlag?T.cyan:T.dim,fontFamily:T.sans}}>{isClientMeetingFlag?"Client Meeting":"Mark as Client Meeting"}</button>
+          {isClientMeetingFlag&&<span style={{fontSize:10,color:T.cyan}}>Will appear in Client section</span>}
+        </div>
       </div>}
       <button onClick={()=>{if(isMeeting){addMeeting(nN)}else{addTask()}}} style={{padding:"9px 20px",background:isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{isMeeting?"Schedule Meeting":"Add Task"}</button>
     </Card>}

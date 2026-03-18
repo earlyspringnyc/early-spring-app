@@ -230,21 +230,21 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>
 
       {/* ── Meeting Notes ── */}
-      <div onClick={()=>setActiveView("meetings")} style={cardStyle("#06B6D4")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+      {(()=>{const allMtgs=project.meetings||[];const cEmails=(project.clientContacts||[]).map(c=>(c.email||"").toLowerCase()).filter(Boolean);const clientMtgs=allMtgs.filter(m=>m.isClientMeeting||(cEmails.length>0&&(m.attendees||[]).some(a=>cEmails.includes((a||"").toLowerCase()))));return<div onClick={()=>setActiveView("meetings")} style={cardStyle("#06B6D4")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
         <div style={{padding:"24px 26px"}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Meeting Notes</div>
           <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:14}}>
-            <span className="num" style={{fontSize:32,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{(project.meetings||[]).length}</span>
-            <span style={{fontSize:12,color:T.dim}}>meetings</span>
+            <span className="num" style={{fontSize:32,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{clientMtgs.length}</span>
+            <span style={{fontSize:12,color:T.dim}}>client meeting{clientMtgs.length!==1?"s":""}</span>
           </div>
-          {(project.meetings||[]).slice(0,4).map(m=><div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
+          {clientMtgs.slice(0,4).map(m=><div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:"#C4B5FD",flexShrink:0}}/>
             <span style={{fontSize:11,color:T.dim,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</span>
             {m.date&&<span style={{fontSize:9,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{m.date}</span>}
           </div>)}
-          {(project.meetings||[]).length===0&&<div style={{fontSize:11,color:T.dim}}>No meetings logged yet</div>}
+          {clientMtgs.length===0&&<div style={{fontSize:11,color:T.dim}}>No client meetings yet</div>}
         </div>
-      </div>
+      </div>})()}
 
       {/* ── Contacts ── */}
       <div onClick={()=>setActiveView("contacts")} style={{...cardStyle("#06B6D4"),gridColumn:"1/-1"}} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
@@ -477,36 +477,64 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
 
   /* ══ MEETINGS VIEW ══ */
   if(activeView==="meetings"){
-    const meetings=project.meetings||[];
-    const sorted=[...meetings].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const allMeetings=project.meetings||[];
+    const clientEmails=(project.clientContacts||[]).map(c=>(c.email||"").toLowerCase()).filter(Boolean);
+    /* Auto-detect: meeting is client-facing if explicitly flagged OR if any attendee email matches a client contact */
+    const isClientMeeting=(m)=>{
+      if(m.isClientMeeting)return true;
+      if(clientEmails.length>0&&m.attendees&&m.attendees.length>0){
+        return m.attendees.some(a=>clientEmails.includes((a||"").toLowerCase()));
+      }
+      return false;
+    };
+    const clientMeetings=allMeetings.filter(isClientMeeting);
+    const sorted=[...clientMeetings].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const toggleClientFlag=(meetingId)=>{
+      const updated=(project.meetings||[]).map(m=>m.id===meetingId?{...m,isClientMeeting:!m.isClientMeeting}:m);
+      updateProject({meetings:updated});
+    };
     return<div>
       <BackBtn/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Meeting Notes</h2>
-        <Pill color={T.cyan}>{meetings.length} meeting{meetings.length!==1?"s":""}</Pill>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Pill color={T.cyan}>{clientMeetings.length} client meeting{clientMeetings.length!==1?"s":""}</Pill>
+          {allMeetings.length>clientMeetings.length&&<span style={{fontSize:10,color:T.dim}}>{allMeetings.length-clientMeetings.length} internal hidden</span>}
+        </div>
       </div>
-      {/* Fireflies integration prompt */}
+      {/* How it works */}
+      {clientEmails.length===0&&clientMeetings.length===0&&<Card style={{padding:"14px 18px",marginBottom:12,borderLeft:`3px solid ${T.gold}`}}>
+        <div style={{fontSize:11,color:T.dim,lineHeight:1.5}}>Add client contacts with email addresses to auto-detect client meetings. You can also manually mark any meeting as client-facing from the Production page.</div>
+      </Card>}
+      {/* Fireflies */}
       <Card style={{padding:"14px 18px",marginBottom:16,borderLeft:"3px solid #06B6D4"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".06em"}}>Fireflies Integration</span>
-          <span style={{fontSize:11,color:T.dim}}>Automatically import call recordings, transcripts, and summaries</span>
+          <span style={{fontSize:11,color:T.dim}}>Auto-import call recordings, transcripts, and summaries</span>
           <button onClick={()=>{}} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:T.rS,border:`1px solid rgba(6,182,212,.2)`,background:"rgba(6,182,212,.06)",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Connect Fireflies</button>
         </div>
       </Card>
+      {/* Untagged meetings — offer to mark as client */}
+      {(()=>{const untagged=allMeetings.filter(m=>!isClientMeeting(m));if(!untagged.length)return null;return<Card style={{padding:"14px 18px",marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Other Meetings — mark as client-facing?</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+          {untagged.map(m=><button key={m.id} onClick={()=>toggleClientFlag(m.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"rgba(255,255,255,.04)",color:T.dim,fontWeight:400}} onMouseEnter={e=>{e.currentTarget.style.background=T.goldSoft;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.04)";e.currentTarget.style.color=T.dim}}>{m.title}{m.date?` · ${m.date}`:""}</button>)}
+        </div>
+      </Card>})()}
       {sorted.length>0?<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {sorted.map(m=><Card key={m.id} style={{padding:"20px 22px",borderLeft:"3px solid #C4B5FD"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
             <div>
-              <div style={{fontSize:15,fontWeight:600,color:T.cream}}>{m.title}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:15,fontWeight:600,color:T.cream}}>{m.title}</span>{m.isClientMeeting&&<Pill color={T.cyan} size="xs">Client</Pill>}</div>
               <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap"}}>
                 {m.date&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
                 {m.time&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
                 {m.duration&&<span style={{fontSize:11,color:T.dim}}>{m.duration}</span>}
                 {m.location&&<span style={{fontSize:11,color:T.cyan}}>{m.location}</span>}
               </div>
-              {m.attendees&&m.attendees.length>0&&<div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>{m.attendees.map((a,i)=><Pill key={i} color={T.dim} size="xs">{a}</Pill>)}</div>}
+              {m.attendees&&m.attendees.length>0&&<div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>{m.attendees.map((a,i)=>{const isClient=clientEmails.includes((a||"").toLowerCase());return<Pill key={i} color={isClient?T.cyan:T.dim} size="xs">{a}</Pill>})}</div>}
             </div>
-            <Pill color={m.calendarSent?T.pos:"#C4B5FD"} size="xs">{m.calendarSent?"Sent":"Scheduled"}</Pill>
+            <button onClick={()=>toggleClientFlag(m.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.dim,fontFamily:T.sans,padding:"2px 6px"}} onMouseEnter={e=>e.currentTarget.style.color=T.neg} onMouseLeave={e=>e.currentTarget.style.color=T.dim} title="Remove from client meetings">×</button>
           </div>
           {m.summary&&<div style={{padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,marginBottom:8}}>
             <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Summary</div>
@@ -527,8 +555,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>
       :<Card style={{padding:40}}><div style={{textAlign:"center"}}>
         <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#9900;</div>
-        <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No meetings logged</div>
-        <p style={{fontSize:12,color:T.dim}}>Meetings from the Production page will appear here</p>
+        <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No client meetings</div>
+        <p style={{fontSize:12,color:T.dim,maxWidth:300,margin:"0 auto"}}>Meetings are auto-detected when attendees match your client contacts. You can also manually tag meetings as client-facing.</p>
       </div></Card>}
     </div>;
   }
