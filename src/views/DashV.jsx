@@ -8,7 +8,7 @@ import { Card, Metric, DonutChart } from '../components/primitives/index.js';
 
 /* ── Bento cell helper ── */
 const Cell=({children,area,style={},accent,onClick})=>(
-  <div onClick={onClick} style={{gridArea:area,background:accent||T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between",transition:"all .2s",...style}}>{children}</div>
+  <div onClick={onClick} onMouseEnter={e=>{if(onClick){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}}} onMouseLeave={e=>{if(onClick){e.currentTarget.style.borderColor=style.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}} style={{gridArea:area,background:accent||T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between",transition:"all .2s",cursor:onClick?"pointer":"default",...style}}>{children}</div>
 );
 const Label=({children})=><div style={{fontSize:10,fontWeight:600,color:T.dim,letterSpacing:".12em",textTransform:"uppercase",fontFamily:T.mono,marginBottom:6}}>{children}</div>;
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,color,fontFamily:T.mono,lineHeight:1,letterSpacing:"-0.04em"}}>{children}</div>;
@@ -143,13 +143,13 @@ function DashV({cats,comp,feeP,project,onNavigate}){
       </Cell>
 
       {/* ── Charts row ── */}
-      <Cell area="donut" style={{padding:"28px 32px"}}>
+      <Cell area="donut" style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
         <Label>Spend Distribution</Label>
         <div style={{display:"flex",justifyContent:"center",marginTop:16,marginBottom:16}}><DonutChart data={pieData} size={160} thickness={22}/></div>
         <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>{pieData.map((d,i)=><span key={i} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.dim}}><span style={{width:7,height:7,borderRadius:"50%",background:d.color,display:"inline-block"}}/>{d.name.length>14?d.name.split(" ")[0]:d.name}</span>)}</div>
       </Cell>
 
-      <Cell area="comp" style={{padding:"28px 32px"}}>
+      <Cell area="comp" style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
         <Label>Profit Composition</Label>
         <div style={{display:"flex",alignItems:"center",gap:28,marginTop:12}}>
           <DonutChart data={profitParts} size={150} thickness={20}/>
