@@ -75,9 +75,9 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
     <div onDragOver={e=>{e.preventDefault();setDropTarget(id)}} onDrop={e=>{e.preventDefault();handleCardDrop(id)}} onClick={onClick}
       onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.4';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='.4'}}
       onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='0';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0'}}
-      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${dropTarget===id&&dragCard?T.gold:T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",opacity:dragCard===id?.4:1,gridColumn:span>1?`span ${span}`:"auto",position:"relative",overflow:"hidden",...sx}}>
+      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${dropTarget===id&&dragCard?T.gold:T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",opacity:dragCard===id?.4:1,position:"relative",overflow:"hidden",minHeight:140,...sx}}>
       {/* Drag handle */}
-      <div className="drag-grip" draggable onDragStart={e=>{e.stopPropagation();setDragCard(id)}} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}}
+      <div className="drag-grip" draggable onDragStart={e=>{e.stopPropagation();setDragCard(id);e.dataTransfer.effectAllowed="move";const el=e.currentTarget.parentElement;if(el){e.dataTransfer.setDragImage(el,20,20)}}} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}}
         style={{position:"absolute",left:0,top:0,bottom:0,width:16,display:"flex",alignItems:"center",justifyContent:"center",cursor:"grab",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.08),transparent)"}}
         onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.cursor="grab"}}
         onMouseLeave={e=>{e.currentTarget.style.opacity='.4'}}
@@ -97,13 +97,13 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
 
   /* ── Card renderers ── */
   const CARDS={
-    budget:()=><DragCell id="budget" span={2} style={{background:T.goldSoft,borderColor:T.borderGlow}} onClick={()=>onNavigate&&onNavigate("budget")}>
+    budget:()=><DragCell id="budget" span={1} style={{background:T.goldSoft,borderColor:T.borderGlow}} onClick={()=>onNavigate&&onNavigate("budget")}>
       <Label>Client Budget Allocation</Label>
       <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}><Big color={T.gold} size={48}>{f0(totalBudget)}</Big></div>
       <div style={{marginTop:16,height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(budgetPct,100)}%`,background:comp.grandTotal>totalBudget?`linear-gradient(90deg,${T.neg},#FF6B6B)`:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,transition:"width .6s ease"}}/></div>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{budgetPct}% allocated</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{f0(Math.max(0,totalBudget-comp.grandTotal))} remaining</span></div>
     </DragCell>,
-    spend:()=>{const overBudget=comp.grandTotal>totalBudget&&totalBudget>0;return<DragCell id="spend" span={2} style={{borderLeft:overBudget?`3px solid ${T.neg}`:`3px solid ${T.pos}`}} onClick={()=>onNavigate&&onNavigate("budget")}>
+    spend:()=>{const overBudget=comp.grandTotal>totalBudget&&totalBudget>0;return<DragCell id="spend" span={1} style={{borderLeft:overBudget?`3px solid ${T.neg}`:`3px solid ${T.pos}`}} onClick={()=>onNavigate&&onNavigate("budget")}>
       <Label>Current Project Total</Label>
       <div style={{display:"flex",alignItems:"baseline",marginTop:12}}><Big size={40} color={overBudget?T.neg:T.pos}>{f0(comp.grandTotal)}</Big><Slash>{f0(totalBudget)}</Slash></div>
       <div style={{fontSize:11,color:overBudget?T.neg:T.pos,marginTop:14,fontFamily:T.mono}}>{overBudget?`${f0(comp.grandTotal-totalBudget)} over budget`:"Within budget"}</div>
@@ -118,7 +118,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       <div style={{marginTop:12}}><Big color={amountDueFromClient>0?T.gold:T.pos} size={36}>{f0(Math.max(0,amountDueFromClient))}</Big></div>
       <div style={{fontSize:11,color:T.dim,marginTop:12,fontFamily:T.mono}}>{totalIncome>0?`${f0(totalIncome)} collected`:"No payments received"}</div>
     </DragCell>,
-    tasks:()=><DragCell id="tasks" span={2} onClick={()=>onNavigate&&onNavigate("timeline")}>
+    tasks:()=><DragCell id="tasks" span={1} onClick={()=>onNavigate&&onNavigate("timeline")}>
       <Label>Tasks</Label>
       <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}><Big size={48}>{tasksDone}</Big><Slash>{tasks.length}</Slash></div>
       <div style={{display:"flex",gap:6,marginTop:14,flexWrap:"wrap"}}>
@@ -128,7 +128,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       </div>
     </DragCell>,
     alerts:()=>(overdueDocs.length>0||unpaidInvoices.length>0||allUpcoming.length>0||overdueTasks.length>0)?
-      <DragCell id="alerts" span={4} style={{padding:0,background:"transparent",border:"none"}}>
+      <DragCell id="alerts" span={1} style={{padding:0,background:"transparent",border:"none"}}>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div onClick={()=>onNavigate&&onNavigate("pnl")} style={{background:overdueDocs.length>0?"rgba(248,113,113,.04)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(248,113,113,.15)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{overdueDocs.length>0?"Invoice Alerts":"Unpaid Invoices"}</span><Pill color={overdueDocs.length>0?T.neg:T.gold}>{overdueDocs.length+unpaidInvoices.length}</Pill></div>
@@ -150,17 +150,17 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
             </div>)}
           </div>}
         </div>
-      </DragCell>:<DragCell id="alerts" span={4} style={{display:"none"}}/>,
+      </DragCell>:<DragCell id="alerts" span={1} style={{display:"none"}}/>,
     prod:()=><DragCell id="prod" onClick={()=>onNavigate&&onNavigate("budget")}><Label>Production Cost</Label><div style={{marginTop:10}}><Big size={32}>{f0(comp.productionSubtotal.actualCost)}</Big></div></DragCell>,
     margin:()=><DragCell id="margin" onClick={()=>onNavigate&&onNavigate("budget")}><Label>Client Total</Label><div style={{marginTop:10}}><Big size={32} color={T.gold}>{f0(comp.grandTotal)}</Big></div></DragCell>,
     blended:()=><DragCell id="blended" onClick={()=>onNavigate&&onNavigate("budget")}><Label>Blended Margin</Label><div style={{marginTop:10}}><Big size={32} color={T.cyan}>{blended.toFixed(1)}%</Big></div></DragCell>,
     profit:()=><DragCell id="profit" onClick={()=>onNavigate&&onNavigate("pnl")}><Label>Net Profit</Label><div style={{marginTop:10}}><Big size={32} color={T.pos}>{f0(comp.netProfit)}</Big></div></DragCell>,
-    donut:()=><DragCell id="donut" span={2} style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
+    donut:()=><DragCell id="donut" span={1} style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
       <Label>Spend Distribution</Label>
       <div style={{display:"flex",justifyContent:"center",marginTop:16,marginBottom:16}}><DonutChart data={pieData} size={160} thickness={22}/></div>
       <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>{pieData.map((d,i)=><span key={i} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.dim}}><span style={{width:7,height:7,borderRadius:"50%",background:d.color,display:"inline-block"}}/>{d.name.length>14?d.name.split(" ")[0]:d.name}</span>)}</div>
     </DragCell>,
-    comp:()=><DragCell id="comp" span={2} style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
+    comp:()=><DragCell id="comp" span={1} style={{padding:"28px 32px"}} onClick={()=>onNavigate&&onNavigate("budget")}>
       <Label>Profit Composition</Label>
       <div style={{display:"flex",alignItems:"center",gap:28,marginTop:12}}>
         <DonutChart data={profitParts} size={150} thickness={20}/>
@@ -181,8 +181,8 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   return<div>
     <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview · drag cards to rearrange</p></div>
 
-    {/* ── Draggable Bento Grid ── */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+    {/* ── Draggable Card Grid ── */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12,marginBottom:20}}>
       {cardOrder.filter(id=>CARDS[id]).map(id=>{const render=CARDS[id];return render?<div key={id}>{render()}</div>:null})}
     </div>
 

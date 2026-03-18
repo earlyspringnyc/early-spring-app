@@ -22,7 +22,15 @@ import SetV from './SetV.jsx';
 
 function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved,onUpdateUser}){
   const[view,setViewRaw]=useState(()=>{try{return sessionStorage.getItem("es_view")||"dashboard"}catch(e){return"dashboard"}});
-  const setView=useCallback(v=>{setViewRaw(v);try{sessionStorage.setItem("es_view",v)}catch(e){}},[]);
+  const setView=useCallback(v=>{setViewRaw(v);try{sessionStorage.setItem("es_view",v)}catch(e){};window.history.pushState({view:v},"","")},[]);
+  // Handle browser back/forward
+  useEffect(()=>{
+    const onPop=(e)=>{const v=e.state?.view;if(v)setViewRaw(v)};
+    window.addEventListener("popstate",onPop);
+    // Push initial state
+    window.history.replaceState({view},"","");
+    return()=>window.removeEventListener("popstate",onPop);
+  },[]);
   const[exp,setExp]=useState(new Set());
   const canEdit=user.role!=="viewer";
   const tog=useCallback(id=>setExp(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n}),[]);
