@@ -48,6 +48,63 @@ const PROJECT_FOLDERS = {
   'Vendor Documents': [],
 };
 
+/* ── Create folders in a specific shared drive ── */
+export async function createProjectFoldersInDrive(token, projectName, sharedDriveId) {
+  if (sharedDriveId) {
+    return createProjectFoldersShared(token, projectName, sharedDriveId);
+  }
+  return createProjectFolders(token, projectName);
+}
+
+async function createProjectFoldersShared(token, projectName, driveId) {
+  console.log('[drive] Creating folder structure in shared drive:', driveId);
+
+  // Find or create Morgan folder in shared drive
+  const findInShared = async (name, parentId) => {
+    const q = parentId
+      ? `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+      : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const res = await fetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${driveId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.files?.[0]?.id || null;
+  };
+
+  const createInShared = async (name, parentId) => {
+    const existing = await findInShared(name, parentId);
+    if (existing) return existing;
+    const body = { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId || driveId] };
+    const res = await fetch(`${DRIVE_API}/files?supportsAllDrives=true`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { console.error('[drive] Create folder failed:', await res.text()); return null; }
+    return (await res.json()).id;
+  };
+
+  const morganId = await createInShared('Morgan', driveId);
+  if (!morganId) return null;
+  const projectId = await createInShared(projectName, morganId);
+  if (!projectId) return null;
+
+  const folderIds = { _morgan: morganId, _root: projectId, _driveId: driveId };
+  for (const [parent, children] of Object.entries(PROJECT_FOLDERS)) {
+    const parentFolderId = await createInShared(parent, projectId);
+    if (parentFolderId) {
+      folderIds[parent] = parentFolderId;
+      for (const child of children) {
+        const childId = await createInShared(child, parentFolderId);
+        if (childId) folderIds[`${parent}/${child}`] = childId;
+      }
+    }
+  }
+  console.log('[drive] Shared drive folder structure created:', Object.keys(folderIds).length, 'folders');
+  return folderIds;
+}
+
 export async function createProjectFolders(token, projectName) {
   console.log('[drive] Creating folder structure for:', projectName);
   const morganId = await createFolder(token, 'Morgan', null);
@@ -172,7 +229,8 @@ export async function uploadToDrive(token, fileData, fileName, folderIds, docTyp
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${parts[1]}\r\n--${boundary}--`;
 
   try {
-    const res = await fetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id,webViewLink`, {
+    const supportsShared = folderIds._driveId ? '&supportsAllDrives=true' : '';
+    const res = await fetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id,webViewLink${supportsShared}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

@@ -12,9 +12,11 @@ const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="x
 
 const getGreeting=()=>{const h=new Date().getHours();if(h<4)return"Burning the midnight oil";if(h<9)return"You're up early";if(h<12)return"Good morning";if(h<17)return"Good afternoon";if(h<20)return"Good evening";return"Working hard"};
 
-function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage}){
+function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken}){
   const sorted=[...projects].sort((a,b)=>b.createdAt-a.createdAt);
   const canCreate=user.role!=="viewer";
+  const[drivePickerOpen,setDrivePickerOpen]=useState(false);
+  const[availDrives,setAvailDrives]=useState([]);
   const[dragProjectId,setDragProjectId]=useState(null);
   const[dropStage,setDropStage]=useState(null);
   const[tab,setTab]=useState("projects");
@@ -207,6 +209,40 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
 
       {/* ── Dashboard tab ── */}
       {tab==="dashboard"&&<div className="fade-up">
+        {/* Google Drive location */}
+        {(()=>{
+          const driveLoc=(()=>{try{const s=localStorage.getItem("es_drive_location");return s?JSON.parse(s):null}catch(e){return null}})();
+          const saveDriveLoc=(loc)=>{try{localStorage.setItem("es_drive_location",JSON.stringify(loc))}catch(e){}};
+          return<Card style={{padding:"16px 20px",marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:16}}>&#128193;</span>
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:T.cream}}>Google Drive: {driveLoc?.driveName||"My Drive"}</div>
+                  <div style={{fontSize:10,color:T.dim}}>Project files are stored here for your team</div>
+                </div>
+              </div>
+              <button onClick={async()=>{
+                if(!accessToken){alert("Sign in with Google first");return}
+                setDrivePickerOpen(!drivePickerOpen);
+                if(!drivePickerOpen){
+                  try{const res=await fetch("https://www.googleapis.com/drive/v3/drives?pageSize=50",{headers:{Authorization:`Bearer ${accessToken}`}});if(res.ok){const data=await res.json();setAvailDrives(data.drives||[])}}catch(e){}
+                }
+              }} style={{padding:"6px 12px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Change</button>
+            </div>
+            {drivePickerOpen&&<div style={{marginTop:12,borderTop:`1px solid ${T.border}`,paddingTop:12,display:"flex",flexDirection:"column",gap:4}}>
+              <button onClick={()=>{saveDriveLoc({driveId:null,driveName:"My Drive"});setDrivePickerOpen(false)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:!driveLoc?.driveId?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${!driveLoc?.driveId?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>&#128193;</span><div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>My Drive</div><div style={{fontSize:10,color:T.dim}}>Personal Drive</div></div></div>
+                {!driveLoc?.driveId&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
+              </button>
+              {availDrives.map(d=><button key={d.id} onClick={()=>{saveDriveLoc({driveId:d.id,driveName:d.name});setDrivePickerOpen(false)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:driveLoc?.driveId===d.id?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${driveLoc?.driveId===d.id?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>&#128101;</span><div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{d.name}</div><div style={{fontSize:10,color:T.dim}}>Shared Drive — all members can access</div></div></div>
+                {driveLoc?.driveId===d.id&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
+              </button>)}
+              {availDrives.length===0&&<div style={{padding:10,fontSize:11,color:T.dim}}>No shared drives found. Available with Google Workspace.</div>}
+            </div>}
+          </Card>
+        })()}
         {allOverdue.length>0&&<div style={{padding:"14px 18px",marginBottom:16,borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em"}}>Overdue Invoices</span><Pill color={T.neg} size="xs">{allOverdue.length}</Pill></div>
           {allOverdue.map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>

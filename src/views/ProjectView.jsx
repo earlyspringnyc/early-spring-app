@@ -68,7 +68,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
       {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project} onUpdateUser={onUpdateUser}/>}
-      {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user}/>}
+      {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user} accessToken={accessToken}/>}
     </div></main>
     {vendorDetailId&&<VendorDetailModal vendorId={vendorDetailId} project={project} onClose={()=>setVendorDetailId(null)} canEdit={canEdit} updateProject={updateProject}/>}
   </div>;

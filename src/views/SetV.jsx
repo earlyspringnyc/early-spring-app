@@ -7,8 +7,35 @@ import { getStoredUsers, saveUsers } from '../utils/storage.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 
-function SetV({project,updateProject,onDelete,user}){
+function SetV({project,updateProject,onDelete,user,accessToken}){
   const isAdmin=user?.role==="admin";
+  const[sharedDrives,setSharedDrives]=useState([]);
+  const[loadingDrives,setLoadingDrives]=useState(false);
+  const[driveSetup,setDriveSetup]=useState(false);
+
+  const loadSharedDrives=async()=>{
+    if(!accessToken)return;
+    setLoadingDrives(true);
+    try{
+      const res=await fetch("https://www.googleapis.com/drive/v3/drives?pageSize=50",{headers:{Authorization:`Bearer ${accessToken}`}});
+      if(res.ok){const data=await res.json();setSharedDrives(data.drives||[])}
+    }catch(e){console.error("[drive] Failed to load shared drives:",e)}
+    setLoadingDrives(false);
+  };
+
+  const setDriveLocation=async(driveId,driveName)=>{
+    // driveId=null means "My Drive"
+    updateProject({driveLocation:{driveId,driveName:driveName||"My Drive"}});
+    // Recreate folder structure in the chosen location
+    if(accessToken){
+      try{
+        const{createProjectFoldersInDrive}=await import('../utils/drive.js');
+        const folderIds=await createProjectFoldersInDrive(accessToken,project.name||"Untitled",driveId);
+        if(folderIds)updateProject({driveFolders:folderIds});
+      }catch(e){console.error("[drive]",e)}
+    }
+    setDriveSetup(false);
+  };
   const[team,setTeam]=useState(getStoredUsers);
   const[showAddUser,setShowAddUser]=useState(false);
   const[nuEmail,setNuEmail]=useState("");const[nuName,setNuName]=useState("");const[nuRole,setNuRole]=useState("producer");
@@ -54,6 +81,37 @@ function SetV({project,updateProject,onDelete,user}){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em"}}>Agency Fee</span><span className="num" style={{fontSize:20,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{fp(project.feeP)}</span></div>
       <input type="range" min="0" max=".40" step=".01" value={project.feeP} onChange={e=>updateProject({feeP:parseFloat(e.target.value)})}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.dim,marginTop:6}}><span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span></div>
+    </Card>
+    <Card style={{padding:28,marginBottom:16}}>
+      <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Google Drive</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div>
+          <div style={{fontSize:12,color:T.cream,fontWeight:500}}>{project.driveLocation?.driveName||"My Drive"}</div>
+          <div style={{fontSize:10,color:T.dim,marginTop:2}}>{project.driveFolders?"Folder structure created":"Not set up yet"}</div>
+        </div>
+        <button onClick={()=>{setDriveSetup(!driveSetup);if(!driveSetup)loadSharedDrives()}} style={{padding:"7px 14px",borderRadius:T.rS,background:driveSetup?"transparent":T.goldSoft,color:driveSetup?T.dim:T.gold,border:`1px solid ${driveSetup?T.border:T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{driveSetup?"Cancel":"Change Location"}</button>
+      </div>
+      {driveSetup&&<div style={{borderTop:`1px solid ${T.border}`,paddingTop:14}}>
+        <div style={{fontSize:10,color:T.dim,marginBottom:10}}>Choose where Morgan stores project files:</div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <button onClick={()=>setDriveLocation(null,"My Drive")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:!project.driveLocation?.driveId?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${!project.driveLocation?.driveId?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:16}}>&#128193;</span>
+              <div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>My Drive</div><div style={{fontSize:10,color:T.dim}}>Personal Google Drive</div></div>
+            </div>
+            {!project.driveLocation?.driveId&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
+          </button>
+          {loadingDrives&&<div style={{padding:12,fontSize:11,color:T.dim}}>Loading shared drives...</div>}
+          {sharedDrives.map(d=><button key={d.id} onClick={()=>setDriveLocation(d.id,d.name)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:project.driveLocation?.driveId===d.id?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${project.driveLocation?.driveId===d.id?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:16}}>&#128101;</span>
+              <div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{d.name}</div><div style={{fontSize:10,color:T.dim}}>Shared Drive</div></div>
+            </div>
+            {project.driveLocation?.driveId===d.id&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
+          </button>)}
+          {!loadingDrives&&sharedDrives.length===0&&<div style={{padding:12,fontSize:11,color:T.dim}}>No shared drives found. Shared drives are available with Google Workspace.</div>}
+        </div>
+      </div>}
     </Card>
     {isAdmin&&<Card style={{padding:28,marginBottom:16}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>

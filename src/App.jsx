@@ -79,15 +79,26 @@ function App(){
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
 
+  // Org-level Drive location setting
+  const getDriveLocation=()=>{try{const s=localStorage.getItem("es_drive_location");return s?JSON.parse(s):null}catch(e){return null}};
+
   const createProject=useCallback(async(name,client,date,eventDate,logo,clientBudget,stage)=>{
     const id=await createProj(name,client,date,eventDate,logo,clientBudget,stage);
     if(id){
       setActiveId(id);
       // Create Google Drive folder structure in background
       if(accessToken){
-        import('./utils/drive.js').then(async({createProjectFolders})=>{
-          const folderIds=await createProjectFolders(accessToken,name||"Untitled Project");
-          if(folderIds)updateProj(id,{driveFolders:folderIds});
+        const driveLoc=getDriveLocation();
+        const sharedDriveId=driveLoc?.driveId||null;
+        import('./utils/drive.js').then(async({createProjectFoldersInDrive,shareWithTeam})=>{
+          const folderIds=await createProjectFoldersInDrive(accessToken,name||"Untitled Project",sharedDriveId);
+          if(folderIds){
+            updateProj(id,{driveFolders:folderIds,driveLocation:driveLoc});
+            // Auto-share Morgan folder with team members (personal Drive only — shared drives handle this natively)
+            if(!sharedDriveId&&folderIds._morgan){
+              try{const team=JSON.parse(localStorage.getItem("es_users")||"[]");const emails=team.map(u=>u.email).filter(Boolean);if(emails.length)shareWithTeam(accessToken,folderIds._morgan,emails)}catch(e){}
+            }
+          }
         }).catch(e=>console.error('[drive] Folder creation failed:',e));
       }
     }
@@ -144,7 +155,7 @@ function App(){
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
-  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
