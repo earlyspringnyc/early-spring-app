@@ -118,12 +118,7 @@ function CreativeV({project,updateProject,canEdit}){
         <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Creative</h1>
         <p style={{fontSize:12,color:T.dim,marginTop:4}}>{assets.length} asset{assets.length!==1?"s":""}</p>
       </div>
-      <div style={{display:"flex",gap:8}}>
-        <div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
-          {[["grid","Grid"],["list","List"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim}}>{l}</button>)}
-        </div>
-        {canEdit&&<button onClick={()=>fileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Upload</button>}
-      </div>
+      {canEdit&&<button onClick={()=>fileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Upload</button>}
     </div>
 
     {/* Category filters */}
@@ -134,44 +129,36 @@ function CreativeV({project,updateProject,canEdit}){
       {Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>setStatusFilter(statusFilter===k?"all":k)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:statusFilter===k?600:400,fontFamily:T.sans,background:statusFilter===k?`${v.color}18`:"transparent",color:statusFilter===k?v.color:T.dim}}>{v.label}</button>)}
     </div>
 
-    {/* Asset grid */}
-    {filtered.length>0?viewMode==="grid"?
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",gap:12}}>
-        {filtered.map(a=>{const cc=catColor(a.category);return<div key={a.id} style={{borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onClick={()=>setViewing(a)} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-          {/* Thumbnail */}
-          <div style={{height:140,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
-            {a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-            :a.isVideo?<div style={{fontSize:32,color:T.dim,opacity:.3}}>&#9654;</div>
-            :a.isPdf?<div style={{fontSize:10,fontWeight:700,color:T.dim,opacity:.3,textTransform:"uppercase"}}>PDF</div>
-            :<div style={{fontSize:24,color:T.dim,opacity:.2}}>&#9634;</div>}
-            {(a.status&&a.status!=="draft")&&<div style={{position:"absolute",top:6,right:6}}><Pill color={STATUS_META[a.status||"draft"]?.color||T.dim} size="xs">{STATUS_META[a.status||"draft"]?.label||"Draft"}</Pill></div>}
-            <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"6px 10px",background:"linear-gradient(transparent,rgba(0,0,0,.7)"}}>
-              <Pill color={cc} size="xs">{catLabel(a.category)}</Pill>
+    {/* Asset cards — large format like Client section */}
+    {filtered.length>0?
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        {filtered.map(a=>{const cc=catColor(a.category);const sm=STATUS_META[a.status||"draft"];
+          return<div key={a.id} style={{borderRadius:T.r,border:`1px solid ${T.border}`,borderLeft:`3px solid ${cc}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onClick={()=>setViewing(a)} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
+            {/* Large thumbnail */}
+            <div style={{height:200,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
+              {a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              :a.isVideo?<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{width:48,height:48,borderRadius:"50%",background:"rgba(255,255,255,.08)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:20,color:T.cream,marginLeft:3}}>&#9654;</span></div><span style={{fontSize:10,color:T.dim}}>{a.fileName}</span></div>
+              :a.isPdf?<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><div style={{fontSize:28,fontWeight:800,color:T.dim,opacity:.2}}>PDF</div><span style={{fontSize:10,color:T.dim}}>{a.fileName}</span></div>
+              :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><div style={{fontSize:28,color:T.dim,opacity:.15}}>&#9634;</div><span style={{fontSize:10,color:T.dim}}>{a.fileName}</span></div>}
+              {/* Status + category overlay */}
+              <div style={{position:"absolute",top:10,right:10,display:"flex",gap:4}}>
+                {a.status&&a.status!=="draft"&&<Pill color={sm?.color||T.dim} size="xs">{sm?.label||"Draft"}</Pill>}
+              </div>
+              <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"12px 16px",background:"linear-gradient(transparent,rgba(0,0,0,.75))",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+                <Pill color={cc} size="xs">{catLabel(a.category)}</Pill>
+                {a.versions?.length>1&&<span style={{fontSize:9,color:"rgba(255,255,255,.5)",fontFamily:T.mono}}>v{a.versions.length}</span>}
+              </div>
             </div>
-          </div>
-          {/* Info */}
-          <div style={{padding:"10px 12px"}}>
-            <div style={{fontSize:12,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
-            <div style={{fontSize:9,color:T.dim,marginTop:3}}>{a.dateAdded}{a.versions?.length>1?` · v${a.versions.length}`:""}</div>
-          </div>
-        </div>})}
+            {/* Info */}
+            <div style={{padding:"16px 18px"}}>
+              <div style={{fontSize:14,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4}}>{a.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:10,color:T.dim}}>{a.dateAdded}</span>
+                {a.notes&&<span style={{fontSize:10,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>· {a.notes}</span>}
+              </div>
+            </div>
+          </div>})}
       </div>
-    :<Card style={{overflow:"hidden"}}>
-      <div style={{display:"grid",gridTemplateColumns:"auto 2fr 1fr 1fr .5fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-        {["","Name","Category","Date",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>{h}</span>)}
-      </div>
-      {filtered.map(a=>{const cc=catColor(a.category);return<div key={a.id} onClick={()=>setViewing(a)} style={{display:"grid",gridTemplateColumns:"auto 2fr 1fr 1fr .5fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{width:36,height:36,borderRadius:6,overflow:"hidden",background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",marginRight:12}}>
-          {a.isImage&&a.fileData?<img src={a.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{fontSize:10,color:T.dim,opacity:.3}}>&#9634;</div>}
-        </div>
-        <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{a.name}</div>{a.notes&&<div style={{fontSize:10,color:T.dim,marginTop:1}}>{a.notes}</div>}</div>
-        <Pill color={cc} size="xs">{catLabel(a.category)}</Pill>
-        <span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{a.dateAdded}</span>
-        <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-          {a.clientVisible&&<Pill color={T.cyan} size="xs">Client</Pill>}
-        </div>
-      </div>})}
-    </Card>
 
     :<div onClick={()=>canEdit&&fileRef.current?.click()} style={{textAlign:"center",padding:60,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:canEdit?"pointer":"default"}} onMouseEnter={e=>{if(canEdit){e.currentTarget.style.borderColor=T.magenta;e.currentTarget.style.background=`rgba(236,72,153,.03)`}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
       <div style={{fontSize:40,opacity:.15,marginBottom:12}}>&#9733;</div>
