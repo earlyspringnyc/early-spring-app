@@ -54,7 +54,7 @@ const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontS
 const Slash=({children})=><span style={{fontSize:14,fontWeight:400,color:T.dim,fontFamily:T.mono,marginLeft:6}}>/ {children}</span>;
 const Pill=({children,color=T.gold,bg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken}){
+function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requestCalendarAccess}){
   const docs=project?.docs||[];const tasks=project?.timeline||[];
   const overdueDocs=docs.filter(d=>(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))&&d.type==="invoice");
   const upcomingDocs=docs.filter(d=>{if(d.status==="paid"||!d.dueDate)return false;const p=d.dueDate.split("/");if(p.length!==3)return false;const due=new Date(p[2],p[0]-1,p[1]);const now=new Date();const diff=daysBetween(now,due);return diff>=0&&diff<=14&&d.status!=="paid"}).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
@@ -303,7 +303,12 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken}){
           {gcalEvents.length>0&&<span style={{fontSize:9,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(66,133,244,.12)",color:"#4285F4"}}>Google Calendar</span>}
           {gcalLoading&&<span style={{fontSize:9,color:T.dim}}>Syncing...</span>}
         </div>
-        {sorted.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim}}>{accessToken?"No upcoming events":"Connect Google to see calendar"}</div>
+        {sorted.length===0?<div style={{marginTop:12}}>
+          {accessToken?<div style={{fontSize:12,color:T.dim}}>No upcoming events</div>
+          :<div><div style={{fontSize:12,color:T.dim,marginBottom:8}}>Connect Google Calendar to see events</div>
+            {requestCalendarAccess&&<button onClick={e=>{e.stopPropagation();requestCalendarAccess()}} style={{padding:"6px 14px",borderRadius:T.rS,background:"rgba(66,133,244,.12)",border:"1px solid rgba(66,133,244,.25)",color:"#4285F4",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Connect Calendar</button>}
+          </div>}
+        </div>
         :<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:4}}>
           {sorted.map(m=><div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderRadius:T.rS,background:T.surfHov||"rgba(255,255,255,.02)"}}>
             <div style={{flex:1,minWidth:0}}>
