@@ -351,9 +351,8 @@ function CreativeV({project,updateProject,canEdit}){
           onDragOver={e=>e.preventDefault()}
           onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,sec.id)}}>
           <div style={{padding:"24px 26px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+            <div style={{marginBottom:14}}>
               <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>{sec.label}</div>
-              <span style={{fontSize:20}}>{sec.icon}</span>
             </div>
             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:10}}>
               <span className="num" style={{fontSize:32,fontWeight:700,color:sec.color,fontFamily:T.mono}}>{sAssets.length}</span>
