@@ -108,6 +108,22 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
 
   const dismissAnalysis=()=>{setAnalysisResult(null);setAnalysisVendorId("")};
 
+  // Scan all unanalyzed documents
+  const[scanProgress,setScanProgress]=useState(null); // {current, total}
+  const scanAllDocs=async()=>{
+    const unscanned=docs.filter(d=>d.fileData&&d.amount===0&&d.status!=="paid");
+    if(!unscanned.length)return;
+    setScanProgress({current:0,total:unscanned.length});
+    for(let i=0;i<unscanned.length;i++){
+      setScanProgress({current:i+1,total:unscanned.length});
+      await analyzeDoc(unscanned[i].fileData,unscanned[i].name||"document",unscanned[i].id);
+      // Small delay to avoid rate limits
+      if(i<unscanned.length-1)await new Promise(r=>setTimeout(r,500));
+    }
+    setScanProgress(null);
+  };
+  const unscannedCount=docs.filter(d=>d.fileData&&d.amount===0&&d.status!=="paid").length;
+
   // File handling for drag-and-drop / upload
   const handleFiles=useCallback((files)=>{
     Array.from(files).forEach(file=>{
@@ -180,7 +196,10 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Finance</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>P&L, cash flow, documents, and payments</p></div>
       <div style={{display:"flex",gap:8}}>
-        {canEdit&&tab==="documents"&&<button onClick={()=>fileInputRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>Upload Files</button>}
+        {canEdit&&tab==="documents"&&<>
+          {unscannedCount>0&&<button onClick={scanAllDocs} disabled={!!scanProgress} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:scanProgress?"transparent":`rgba(74,222,128,.08)`,color:scanProgress?T.dim:T.pos,border:`1px solid ${scanProgress?"transparent":"rgba(74,222,128,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:scanProgress?"default":"pointer",fontFamily:T.sans}}>{scanProgress?`Scanning ${scanProgress.current}/${scanProgress.total}...`:`Scan All (${unscannedCount})`}</button>}
+          <button onClick={()=>fileInputRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>Upload Files</button>
+        </>}
         {canEdit&&tab==="transactions"&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Entry"}</button>}
         {canEdit&&tab==="documents"&&<button onClick={()=>setShowDocAdd(!showDocAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showDocAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showDocAdd?T.dim:T.brown,border:showDocAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showDocAdd?"Cancel":"+ Add Document"}</button>}
       </div>
