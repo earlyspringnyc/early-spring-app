@@ -26,23 +26,70 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
   const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");const[nContact,setNContact]=useState("");const[nFinName,setNFinName]=useState("");const[nFinEmail,setNFinEmail]=useState("");
   const[uploadVendorId,setUploadVendorId]=useState(null);const[invName,setInvName]=useState("");const[invAmt,setInvAmt]=useState("");const[invDue,setInvDue]=useState("");const[invKind,setInvKind]=useState("deposit");const[invFile,setInvFile]=useState(null);const[invFileName,setInvFileName]=useState("");
   const[docType,setDocType]=useState("invoice");
+  const[analyzing,setAnalyzing]=useState(null); // vendorId being analyzed
   const fileRefs=useRef({});
   const invFileRef=useRef(null);
+
+  /* AI document analysis — extract invoice details */
+  const analyzeDocument=async(fileData,fileName,vendorId)=>{
+    setAnalyzing(vendorId);
+    try{
+      const isImage=fileData.startsWith("data:image");
+      const isPdf=fileData.startsWith("data:application/pdf");
+      if(!isImage&&!isPdf){setAnalyzing(null);return null}
+      const content=isImage?[{type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},{type:"text",text:"Extract from this document: 1) document type (invoice/contract/w9), 2) total amount as a number, 3) due date in MM/DD/YYYY format, 4) invoice/document number, 5) vendor name. Return ONLY valid JSON like: {\"type\":\"invoice\",\"amount\":1234.56,\"dueDate\":\"03/15/2026\",\"number\":\"INV-001\",\"vendor\":\"ABC Co\"}"}]
+      :[{type:"text",text:"The user uploaded a PDF named '"+fileName+"'. Based on the filename, determine: 1) document type (invoice/contract/w9), 2) any amount or date hints from the name. Return ONLY valid JSON like: {\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"number\":\"\",\"vendor\":\"\"}"}];
+      const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
+      if(!res.ok){setAnalyzing(null);return null}
+      const data=await res.json();
+      const text=data.content[0].text;
+      const jsonMatch=text.match(/\{[\s\S]*\}/);
+      if(!jsonMatch){setAnalyzing(null);return null}
+      const parsed=JSON.parse(jsonMatch[0]);
+      setAnalyzing(null);
+      return parsed;
+    }catch(e){setAnalyzing(null);return null}
+  };
   const totalOutstanding=vendors.reduce((a,v)=>{const vDocs=docs.filter(d=>d.vendorId===v.id&&d.type==="invoice"&&d.status!=="paid");return a+vDocs.reduce((s,d)=>s+(d.amount-(d.paidAmount||0)),0)},0);
   const addVendor=()=>{if(!nN.trim())return;updateProject({vendors:[...vendors,{...mkVendor(nN.trim(),nE,nP,nNo,"pending",nType,nContact),financeContactName:nFinName,financeContactEmail:nFinEmail}]});setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setNContact("");setNFinName("");setNFinEmail("");setShowAdd(false)};
-  const handleFileUpload=(vendorId,e)=>{
+  const handleFileUpload=async(vendorId,e)=>{
     const file=e.target.files[0];if(!file)return;
     const detected=detectDocType(file.name);
     const reader=new FileReader();
-    reader.onload=ev=>{
+    reader.onload=async ev=>{
       const fileData=ev.target.result;
-      const doc=mkDoc(file.name,detected,vendorId,0,"","pending","","","",fileData);
+      const doc=mkDoc(file.name.replace(/\.[^/.]+$/,""),detected,vendorId,0,"","pending","","","",fileData);
       if(detected==="invoice")doc.invoiceKind="deposit";
+      // Add doc immediately
       updateProject({docs:[...(project.docs||[]),doc]});
+      // Analyze in background
+      const analysis=await analyzeDocument(fileData,file.name,vendorId);
+      if(analysis){
+        // Update the doc with extracted data
+        const updatedDocs=(project.docs||[]).concat(doc).map(d=>{
+          if(d.id!==doc.id)return d;
+          const updates={};
+          if(analysis.type)updates.type=analysis.type;
+          if(analysis.amount&&analysis.amount>0)updates.amount=analysis.amount;
+          if(analysis.dueDate)updates.dueDate=analysis.dueDate;
+          if(analysis.number)updates.name=analysis.number+" — "+(d.name||file.name);
+          return{...d,...updates};
+        });
+        updateProject({docs:updatedDocs});
+      }
     };
     reader.readAsDataURL(file);
+    e.target.value="";
   };
-  const handleInvFile=(e)=>{const file=e.target.files[0];if(!file)return;setInvFileName(file.name);setDocType(detectDocType(file.name));const reader=new FileReader();reader.onload=ev=>setInvFile(ev.target.result);reader.readAsDataURL(file)};
+  const handleInvFile=async(e)=>{const file=e.target.files[0];if(!file)return;setInvFileName(file.name);setDocType(detectDocType(file.name));if(!invName)setInvName(file.name.replace(/\.[^/.]+$/,""));const reader=new FileReader();reader.onload=async ev=>{setInvFile(ev.target.result);
+    const analysis=await analyzeDocument(ev.target.result,file.name,uploadVendorId);
+    if(analysis){
+      if(analysis.amount&&analysis.amount>0)setInvAmt(String(analysis.amount));
+      if(analysis.dueDate)setInvDue(analysis.dueDate);
+      if(analysis.type)setDocType(analysis.type);
+      if(analysis.number)setInvName(analysis.number);
+    }
+  };reader.readAsDataURL(file)};
   const submitInvoice=()=>{if(!invName.trim()||!uploadVendorId)return;const doc=mkDoc(invName.trim(),docType,uploadVendorId,parseFloat(invAmt)||0,invDue,"pending","","",invKind,invFile);if(docType==="invoice"&&isOverdue(doc))doc.status="overdue";updateProject({docs:[...(project.docs||[]),doc]});setInvName("");setInvAmt("");setInvDue("");setInvKind("deposit");setInvFile(null);setInvFileName("");setDocType("invoice");setUploadVendorId(null)};
   const removeVendor=id=>updateProject({vendors:vendors.filter(v=>v.id!==id)});
   const filtered=vendors.filter(v=>{const matchType=typeFilter==="all"||v.vendorType===typeFilter;if(!matchType)return false;if(!vendorSearch.trim())return true;const q=vendorSearch.toLowerCase();return(v.name||"").toLowerCase().includes(q)||(v.email||"").toLowerCase().includes(q)||(v.contactName||"").toLowerCase().includes(q)||(v.notes||"").toLowerCase().includes(q)});
@@ -52,7 +99,9 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
     const totalInvoiced=invoices.reduce((a,d)=>a+d.amount,0);
     const totalPaid=invoices.reduce((a,d)=>a+(d.paidAmount||0),0);
     const totalContracted=(project.cats||[]).reduce((a,c)=>a+c.items.filter(i=>i.vendorId===v.id).reduce((s,i)=>s+i.actualCost,0),0);
-    return{invoices:invoices.length,totalInvoiced,totalPaid,outstanding:totalInvoiced-totalPaid,docCount:vDocs.length,totalContracted};
+    const discrepancy=totalContracted>0&&totalInvoiced>0?Math.abs(totalInvoiced-totalContracted):0;
+    const hasDiscrepancy=discrepancy>0&&(discrepancy/Math.max(totalContracted,totalInvoiced))>0.01; // >1% difference
+    return{invoices:invoices.length,totalInvoiced,totalPaid,outstanding:totalInvoiced-totalPaid,docCount:vDocs.length,totalContracted,hasDiscrepancy,discrepancy};
   };
   const getVendorDocs=(v)=>docs.filter(d=>d.vendorId===v.id);
 
@@ -110,10 +159,10 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
           <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>{v.email||"\u2014"}{!v.email&&<span title="Email required" style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"rgba(245,158,11,.12)",borderRadius:20,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>!</span>}</div>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{s.totalContracted>0?f0(s.totalContracted):"\u2014"}</span>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{s.totalInvoiced>0?f0(s.totalInvoiced):"\u2014"}</span>
-          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:s.outstanding>0?T.neg:T.dim,fontWeight:s.outstanding>0?600:400}}>{s.outstanding>0?f0(s.outstanding):"\u2014"}</span>
+          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:s.outstanding>0?T.neg:T.dim,fontWeight:s.outstanding>0?600:400}}>{s.outstanding>0?f0(s.outstanding):"\u2014"}{s.hasDiscrepancy&&<span title={`Invoice total (${f0(s.totalInvoiced)}) differs from budget (${f0(s.totalContracted)}) by ${f0(s.discrepancy)}`} style={{marginLeft:4,fontSize:9,fontWeight:700,color:"#F59E0B",background:"rgba(245,158,11,.12)",borderRadius:20,width:14,height:14,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>!</span>}</span>
           <div style={{display:"flex",gap:6,justifyContent:"flex-end",alignItems:"center"}}>
             {canEdit&&<><input ref={el=>{if(el)fileRefs.current[v.id]=el}} type="file" accept=".pdf,.png,.jpg,.jpeg,.heic,.doc,.docx" onChange={e=>handleFileUpload(v.id,e)} style={{display:"none"}}/>
-            <button onClick={e=>{e.stopPropagation();fileRefs.current[v.id]?.click()}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rS,padding:"5px 12px",cursor:"pointer",fontSize:10,fontWeight:600,color:T.dim,transition:"all .15s",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>&#8593; Upload</button></>}
+            <button onClick={e=>{e.stopPropagation();fileRefs.current[v.id]?.click()}} style={{background:analyzing===v.id?"rgba(6,182,212,.08)":T.surface,border:`1px solid ${analyzing===v.id?"rgba(6,182,212,.3)":T.border}`,borderRadius:T.rS,padding:"5px 12px",cursor:analyzing===v.id?"default":"pointer",fontSize:10,fontWeight:600,color:analyzing===v.id?T.cyan:T.dim,transition:"all .15s",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>{if(analyzing!==v.id){e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}}} onMouseLeave={e=>{if(analyzing!==v.id){e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}}>{analyzing===v.id?"Analyzing...":"↑ Upload"}</button></>}
             {canEdit&&<button title="Delete vendor" onClick={e=>{e.stopPropagation();if(confirm(`Remove "${v.name}"?`))removeVendor(v.id)}} style={{background:"rgba(248,113,113,.06)",border:`1px solid rgba(248,113,113,.15)`,borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)";e.currentTarget.style.borderColor="rgba(248,113,113,.3)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)";e.currentTarget.style.borderColor="rgba(248,113,113,.15)"}}><TrashI size={12} color={T.neg}/></button>}
           </div>
         </div>
