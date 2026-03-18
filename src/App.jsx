@@ -26,12 +26,12 @@ function App(){
   const rawLogout = usesSupa ? sbAuth.logout : gAuth.logout;
   const setUser = usesSupa ? sbAuth.setDevUser : gAuth.setUser;
   const loginWithGoogle = usesSupa ? sbAuth.login : null;
-  const doLogout = useCallback(async()=>{
+  const doLogout = useCallback(()=>{
     localStorage.removeItem("es_user");
     localStorage.removeItem("es_google_token");
-    try{ await rawLogout(); }catch(e){ console.error('[app] Logout error:', e); }
     const keys=Object.keys(localStorage).filter(k=>k.startsWith("sb-"));
     keys.forEach(k=>localStorage.removeItem(k));
+    try{ rawLogout(); }catch(e){}
     window.location.href=window.location.origin;
   },[rawLogout]);
 
