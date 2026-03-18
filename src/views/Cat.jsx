@@ -19,6 +19,9 @@ function DetailsInput({value,onChange,canEdit}){
 function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs,vendors,onAddVendor,onVendorClick,isContingency,contBase,onReorder,accent}){
   const{items,totals}=comp;
   const[dragItem,setDragItem]=useState(null);const[overItem,setOverItem]=useState(null);
+  const[showCatMargin,setShowCatMargin]=useState(false);
+  const[catMargin,setCatMargin]=useState(()=>{if(!items.length)return 15;return Math.round((items[0].margin||0)*100)});
+  const applyCatMargin=()=>{items.forEach((_,idx)=>onUp(idx,{margin:catMargin/100}));setShowCatMargin(false)};
   const cols=isAg?"2.2fr .7fr .9fr .9fr .55fr .9fr .9fr":"1.6fr 1.2fr .8fr .7fr .45fr .7fr .7fr .5fr";
   const ac=accent||T.gold;
   return<div style={{marginBottom:5}}>
@@ -51,6 +54,14 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
         </div>})}
     </div>
     :open&&<div className="fade-up budget-scroll" style={{border:`1px solid ${T.border}`,borderTop:"none",borderLeft:`3px solid ${ac}`,borderRadius:`0 0 ${T.rS} ${T.rS}`,background:T.surface}}>
+      {/* Category margin control */}
+      {canEdit&&!isAg&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 18px",borderBottom:`1px solid ${T.border}`,background:`${ac}06`}}>
+        <span style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em"}}>Category Margin</span>
+        <input type="range" min="0" max="40" step="1" value={catMargin} onChange={e=>setCatMargin(parseInt(e.target.value))} style={{flex:1,maxWidth:140}}/>
+        <input value={catMargin} onChange={e=>{const v=parseInt(e.target.value)||0;setCatMargin(Math.max(0,Math.min(100,v)))}} style={{width:36,padding:"3px 4px",borderRadius:4,background:T.surfEl,border:`1px solid ${T.border}`,color:T.gold,fontSize:12,fontFamily:T.mono,fontWeight:700,textAlign:"center",outline:"none"}}/>
+        <span style={{fontSize:12,fontWeight:700,color:T.gold}}>%</span>
+        <button onClick={applyCatMargin} style={{padding:"4px 10px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Apply</button>
+      </div>}
       <div style={{display:"grid",gridTemplateColumns:cols,padding:"10px 18px",borderBottom:`1px solid ${T.border}`}}>
         {["Item",...(isAg?["Days","Day Rate"]:["Description","Vendor"]),"Actual","Margin","Client","Variance",...(isAg?[]:["Status"])].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===0||(!isAg&&i===1)?"left":"right"}}>{h}</span>)}
       </div>

@@ -148,9 +148,15 @@ function BudgetV(p){
     <SB label="Total Production & Agency Cost" actual={p.comp.productionSubtotal.actualCost+p.comp.agencyCostsSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice+p.comp.agencyCostsSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance+p.comp.agencyCostsSubtotal.variance}/>
 
     {/* ── Agency Fee ── */}
-    <div style={{display:"flex",alignItems:"center",padding:"14px 18px",marginTop:5,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
-      <span style={{fontSize:11,fontWeight:700,letterSpacing:".1em",color:T.cream,textTransform:"uppercase"}}>Agency Fee</span>
-      <div style={{marginLeft:12,width:56}}><NI value={p.feeP} fmt="%" onChange={v=>p.setFeeP(v>1?v/100:v)} disabled={!canEdit}/></div>
+    <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",marginTop:5,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,flexWrap:"wrap"}}>
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:".1em",color:T.cream,textTransform:"uppercase",flexShrink:0}}>Agency Fee</span>
+      {canEdit?<>
+        <input type="range" min="0" max="25" step="0.5" value={Math.round(p.feeP*100)} onChange={e=>p.setFeeP(parseInt(e.target.value)/100)} style={{flex:1,maxWidth:160}}/>
+        <div style={{display:"flex",alignItems:"center",gap:2}}>
+          <input value={Math.round(p.feeP*100)} onChange={e=>{const v=parseFloat(e.target.value)||0;p.setFeeP(Math.max(0,Math.min(100,v))/100)}} style={{width:36,padding:"4px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.gold,fontSize:14,fontFamily:T.mono,fontWeight:700,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:14,fontWeight:700,color:T.gold}}>%</span>
+        </div>
+      </>:<div style={{marginLeft:12}}><NI value={p.feeP} fmt="%" onChange={()=>{}} disabled/></div>}
       <div style={{flex:1}}/>
       <span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f0(p.comp.agencyFee.clientPrice)}</span>
     </div>
