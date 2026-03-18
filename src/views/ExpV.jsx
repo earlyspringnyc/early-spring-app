@@ -24,6 +24,9 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[deckEmail,setDeckEmail]=useState("");const[deckSending,setDeckSending]=useState(false);const[deckSent,setDeckSent]=useState("");
   const[figmaUrl,setFigmaUrl]=useState(project.figmaDeckUrl||"");
   const deck=project.pitchDeck||null;
+  const clientContacts=project.clientContacts||[];
+  const[editingContacts,setEditingContacts]=useState(false);
+  const[newContactName,setNewContactName]=useState("");const[newContactEmail,setNewContactEmail]=useState("");const[newContactRole,setNewContactRole]=useState("");const[newContactPhone,setNewContactPhone]=useState("");
   const toggleTask=id=>setIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setIncluded(new Set(tasks.map(t=>t.id)));
   const selectNone=()=>setIncluded(new Set());
@@ -96,9 +99,20 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     return<table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{borderBottom:"2px solid #E5E5E5"}}>{["Task","Start","End","Status"].map((h,i)=><th key={i} style={{textAlign:i>0?"center":"left",padding:"8px 4px",fontWeight:600,color:"#555",fontSize:10,textTransform:"uppercase",letterSpacing:".06em"}}>{h}</th>)}</tr></thead>
       <tbody>{dated.map(t=><tr key={t.id} style={{borderBottom:"1px solid #F0F0F0"}}><td style={{padding:"10px 4px",color:"#333"}}>{t.name}</td><td style={{padding:"10px 4px",color:"#555",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.startDate}</td><td style={{padding:"10px 4px",color:"#555",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.endDate||"\u2014"}</td><td style={{padding:"10px 4px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:8,background:t.status==="done"?"#E8F5E9":t.status==="progress"?"#E0F7FA":"#F1F5F9",color:t.status==="done"?"#2E7D32":t.status==="progress"?"#00838F":"#475569",textTransform:"uppercase"}}>{STATUS_LABELS[t.status]}</span></td></tr>)}</tbody></table>};
 
+  const addContact=()=>{if(!newContactName.trim())return;const c={id:Date.now().toString(),name:newContactName.trim(),email:newContactEmail,role:newContactRole,phone:newContactPhone};updateProject({clientContacts:[...clientContacts,c]});setNewContactName("");setNewContactEmail("");setNewContactRole("");setNewContactPhone("")};
+  const removeContact=id=>updateProject({clientContacts:clientContacts.filter(c=>c.id!==id)});
+
+  const cb=project.clientBudget||0;
+  const totalSpend=comp.productionSubtotal.actualCost+comp.agencyCostsSubtotal.actualCost+comp.agencyFee.actualCost;
+  const spendPct=cb>0?Math.min(Math.round((totalSpend/cb)*100),100):0;
+
+  const cardStyle=(accent)=>({borderRadius:T.r,border:`1px solid ${T.border}`,borderLeft:`3px solid ${accent}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl});
+  const cardHover=(e)=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow};
+  const cardLeave=(e)=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"};
+
   /* ══ GRID VIEW (default) ══ */
   if(!activeView)return<div>
-    <div style={{marginBottom:24}}>
+    <div style={{marginBottom:28}}>
       <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Client: {clientName}</h1>
       <div style={{display:"flex",gap:12,marginTop:6,alignItems:"center"}}>
         <span style={{fontSize:12,color:T.dim}}>{project.name}</span>
@@ -106,89 +120,124 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:14}}>
-      {/* Estimate card */}
-      <div onClick={()=>setActiveView("budget")} style={{borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-        <div style={{padding:"20px 22px",borderBottom:`1px solid ${T.border}`}}>
-          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Production Estimate</div>
-          <div className="num" style={{fontSize:28,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div>
-        </div>
-        <div style={{padding:"12px 22px",background:"rgba(255,255,255,.01)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.dim}}>
-            <span>{cats.length} categories</span>
-            <span>{cats.reduce((a,c)=>a+c.items.length,0)} line items</span>
-          </div>
-          {/* Mini table preview */}
-          <div style={{marginTop:10}}>
-            {cats.slice(0,3).map(c=>{const t=ct(c.items).totals;return<div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:10}}>
-              <span style={{color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{c.name}</span>
-              <span style={{color:T.cream,fontFamily:T.mono,flexShrink:0,marginLeft:8}}>{f0(t.clientPrice)}</span>
-            </div>})}
-            {cats.length>3&&<div style={{fontSize:10,color:T.dim,paddingTop:3}}>+{cats.length-3} more</div>}
-          </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      {/* ── Estimate ── */}
+      <div onClick={()=>setActiveView("budget")} style={cardStyle("#F59E0B")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+        <div style={{padding:"24px 26px"}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Production Estimate</div>
+          <div className="num" style={{fontSize:32,fontWeight:700,color:T.gold,fontFamily:T.mono,marginBottom:12}}>{f0(comp.grandTotal)}</div>
+          {cb>0&&<div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{spendPct}% of budget</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{f0(cb)} budget</span></div>
+            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${spendPct}%`,background:spendPct>90?`linear-gradient(90deg,${T.neg},#FF6B6B)`:"linear-gradient(90deg,#F59E0B,#FBBF24)",borderRadius:2}}/></div>
+          </div>}
+          {cats.slice(0,4).map(c=>{const t=ct(c.items).totals;return<div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:11}}>
+            <span style={{color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{c.name}</span>
+            <span style={{color:T.cream,fontFamily:T.mono,flexShrink:0,marginLeft:8}}>{f0(t.clientPrice)}</span>
+          </div>})}
+          {cats.length>4&&<div style={{fontSize:10,color:T.dim,paddingTop:4}}>+{cats.length-4} more</div>}
         </div>
       </div>
 
-      {/* Timeline card */}
-      <div onClick={()=>setActiveView("timeline")} style={{borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-        <div style={{padding:"20px 22px",borderBottom:`1px solid ${T.border}`}}>
-          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Timeline</div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6}}>
-            <span className="num" style={{fontSize:28,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{tasks.length}</span>
+      {/* ── Timeline ── */}
+      <div onClick={()=>setActiveView("timeline")} style={cardStyle("#14B8A6")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+        <div style={{padding:"24px 26px"}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Production</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:12}}>
+            <span className="num" style={{fontSize:32,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{tasks.length}</span>
             <span style={{fontSize:12,color:T.dim}}>tasks</span>
-            <span style={{fontSize:12,color:T.dim,marginLeft:4}}>{taskPct}% complete</span>
           </div>
-        </div>
-        <div style={{padding:"12px 22px",background:"rgba(255,255,255,.01)"}}>
-          {/* Mini gantt preview */}
-          {tasks.filter(t=>parseD(t.startDate)).slice(0,4).map(t=>{const tc=t.status==="done"?T.pos:t.status==="progress"?T.cyan:T.dim;return<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"3px 0"}}>
+          {tasks.length>0&&<div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{tasksDone} done</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
+            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:"linear-gradient(90deg,#14B8A6,#4ADE80)",borderRadius:2}}/></div>
+          </div>}
+          {tasks.filter(t=>parseD(t.startDate)).slice(0,5).map(t=>{const tc=t.status==="done"?T.pos:t.status==="progress"?T.cyan:T.dim;return<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:tc,flexShrink:0}}/>
-            <span style={{fontSize:10,color:T.dim,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
+            <span style={{fontSize:11,color:T.dim,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
             <span style={{fontSize:9,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{t.startDate}</span>
           </div>})}
           {tasks.length===0&&<div style={{fontSize:11,color:T.dim,padding:"8px 0"}}>No tasks yet</div>}
-          {tasks.length>4&&<div style={{fontSize:10,color:T.dim,paddingTop:3}}>+{tasks.length-4} more</div>}
         </div>
       </div>
 
-      {/* Files card */}
-      <div onClick={()=>setActiveView("files")} style={{borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-        <div style={{padding:"20px 22px",borderBottom:`1px solid ${T.border}`}}>
-          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Files</div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6}}>
-            <span className="num" style={{fontSize:28,fontWeight:700,color:T.magenta,fontFamily:T.mono}}>{clientFiles.length}</span>
+      {/* ── Pitch Deck — cover fills entire card ── */}
+      <div onClick={()=>setActiveView("deck")} style={{...cardStyle("#8B5CF6"),position:"relative",minHeight:280}} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+        {deck?.fileData?<>
+          <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#f8f8fa"}}>
+            {deck.fileData.startsWith("data:application/pdf")?<iframe src={deck.fileData+"#toolbar=0&navpanes=0&scrollbar=0&view=FitH"} style={{width:"200%",height:"200%",border:"none",pointerEvents:"none",position:"absolute",top:0,left:0,transform:"scale(0.5)",transformOrigin:"top left"}} title="Deck preview"/>
+            :deck.fileData.startsWith("data:image")?<img src={deck.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Deck"/>
+            :<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%"}}><span style={{fontSize:48,opacity:.15}}>&#9634;</span></div>}
+          </div>
+          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"20px 26px",background:"linear-gradient(transparent,rgba(0,0,0,.8))"}}>
+            <div style={{fontSize:10,fontWeight:600,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div>
+            <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{deck.name}</div>
+          </div>
+        </>
+        :figmaUrl?<>
+          <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#f8f8fa"}}>
+            <iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(figmaUrl)}`} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title="Figma preview" loading="lazy"/>
+          </div>
+          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"20px 26px",background:"linear-gradient(transparent,rgba(0,0,0,.8))"}}>
+            <div style={{fontSize:10,fontWeight:600,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div>
+            <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>Figma Slides</div>
+          </div>
+        </>
+        :<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:280,background:`rgba(139,92,246,.04)`}}>
+          <div style={{textAlign:"center"}}><div style={{fontSize:48,opacity:.1,marginBottom:10}}>&#9634;</div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div><div style={{fontSize:12,color:T.dim}}>Upload deck or add Figma link</div></div>
+        </div>}
+      </div>
+
+      {/* ── Files ── */}
+      <div onClick={()=>setActiveView("files")} style={cardStyle("#EC4899")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+        <div style={{padding:"24px 26px"}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Files</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:14}}>
+            <span className="num" style={{fontSize:32,fontWeight:700,color:T.magenta,fontFamily:T.mono}}>{clientFiles.length}</span>
             <span style={{fontSize:12,color:T.dim}}>files</span>
           </div>
-        </div>
-        <div style={{padding:"12px 22px",background:"rgba(255,255,255,.01)"}}>
-          {clientFiles.length>0?<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {CLIENT_FILE_CATS.filter(c=>fileCounts[c]>0).map(c=><Pill key={c} color={CLIENT_FILE_COLORS[c]} size="xs">{CLIENT_FILE_LABELS[c]} ({fileCounts[c]})</Pill>)}
-          </div>:<div style={{fontSize:11,color:T.dim,padding:"8px 0"}}>Upload RFPs, briefs, decks, contracts</div>}
-          {clientFiles.length>0&&<div style={{marginTop:8}}>
-            {clientFiles.slice(0,3).map(f=><div key={f.id} style={{fontSize:10,color:T.dim,padding:"2px 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>)}
-            {clientFiles.length>3&&<div style={{fontSize:10,color:T.dim}}>+{clientFiles.length-3} more</div>}
-          </div>}
+          {clientFiles.length>0?<>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+              {CLIENT_FILE_CATS.filter(c=>fileCounts[c]>0).map(c=><Pill key={c} color={CLIENT_FILE_COLORS[c]} size="xs">{CLIENT_FILE_LABELS[c]} ({fileCounts[c]})</Pill>)}
+            </div>
+            {clientFiles.slice(0,4).map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0"}}>
+              <div style={{width:5,height:5,borderRadius:"50%",background:CLIENT_FILE_COLORS[f.category]||T.dim,flexShrink:0}}/>
+              <span style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
+            </div>)}
+            {clientFiles.length>4&&<div style={{fontSize:10,color:T.dim,paddingTop:3}}>+{clientFiles.length-4} more</div>}
+          </>:<div style={{fontSize:11,color:T.dim}}>Upload RFPs, briefs, decks, contracts</div>}
         </div>
       </div>
-      {/* Deck card */}
-      <div onClick={()=>setActiveView("deck")} style={{borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden",cursor:"pointer",transition:"all .2s",background:T.surfEl}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-        {deck?.fileData?<div style={{height:160,overflow:"hidden",position:"relative",background:"#f8f8fa"}}>
-          {deck.fileData.startsWith("data:application/pdf")?<iframe src={deck.fileData+"#toolbar=0&navpanes=0&scrollbar=0&view=FitH"} style={{width:"100%",height:300,border:"none",pointerEvents:"none",position:"absolute",top:0,left:0,transform:"scale(0.55)",transformOrigin:"top left"}} title="Deck preview"/>
-          :deck.fileData.startsWith("data:image")?<img src={deck.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Deck"/>
-          :<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%"}}><span style={{fontSize:32,opacity:.2}}>&#9634;</span></div>}
-          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"8px 16px",background:"linear-gradient(transparent,rgba(0,0,0,.6))"}}>
-            <span style={{fontSize:11,fontWeight:600,color:"#fff"}}>{deck.name}</span>
+
+      {/* ── Meeting Notes ── */}
+      <div onClick={()=>setActiveView("meetings")} style={cardStyle("#06B6D4")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+        <div style={{padding:"24px 26px"}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Meeting Notes</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:14}}>
+            <span className="num" style={{fontSize:32,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{(project.meetings||[]).length}</span>
+            <span style={{fontSize:12,color:T.dim}}>meetings</span>
           </div>
+          {(project.meetings||[]).slice(0,4).map(m=><div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:"#C4B5FD",flexShrink:0}}/>
+            <span style={{fontSize:11,color:T.dim,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</span>
+            {m.date&&<span style={{fontSize:9,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{m.date}</span>}
+          </div>)}
+          {(project.meetings||[]).length===0&&<div style={{fontSize:11,color:T.dim}}>No meetings logged yet</div>}
         </div>
-        :figmaUrl?<div style={{height:160,overflow:"hidden",position:"relative",background:"#f8f8fa"}}>
-          <iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(figmaUrl)}`} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title="Figma preview" loading="lazy"/>
-        </div>
-        :<div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",background:T.surface}}>
-          <div style={{textAlign:"center"}}><div style={{fontSize:32,opacity:.15,marginBottom:6}}>&#9634;</div><div style={{fontSize:11,color:T.dim}}>Upload deck or add Figma link</div></div>
-        </div>}
-        <div style={{padding:"14px 22px"}}>
-          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Pitch Deck</div>
-          <div style={{fontSize:12,color:T.cream}}>{deck?deck.name:figmaUrl?"Figma Slides":"No deck uploaded"}</div>
+      </div>
+
+      {/* ── Contacts ── */}
+      <div onClick={()=>setActiveView("contacts")} style={{...cardStyle("#06B6D4"),gridColumn:"1/-1"}} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+        <div style={{padding:"24px 26px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Client Contacts</div><span style={{fontSize:12,color:T.dim}}>{clientContacts.length} contact{clientContacts.length!==1?"s":""}</span></div>
+          </div>
+          {clientContacts.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",gap:10}}>
+            {clientContacts.map(c=><div key={c.id} style={{padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{c.name}</div>
+              {c.role&&<div style={{fontSize:10,color:T.cyan,marginTop:2}}>{c.role}</div>}
+              {c.email&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{c.email}</div>}
+            </div>)}
+          </div>
+          :<div style={{fontSize:11,color:T.dim}}>Add key contacts at the client</div>}
         </div>
       </div>
     </div>
@@ -283,6 +332,102 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No files yet</div>
       <p style={{fontSize:12,color:T.dim}}>Upload RFPs, briefs, design files, contracts, decks</p>
     </div>}
+  </div>;
+
+  /* ══ MEETINGS VIEW ══ */
+  if(activeView==="meetings"){
+    const meetings=project.meetings||[];
+    const sorted=[...meetings].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    return<div>
+      <BackBtn/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Meeting Notes</h2>
+        <Pill color={T.cyan}>{meetings.length} meeting{meetings.length!==1?"s":""}</Pill>
+      </div>
+      {/* Fireflies integration prompt */}
+      <Card style={{padding:"14px 18px",marginBottom:16,borderLeft:"3px solid #06B6D4"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".06em"}}>Fireflies Integration</span>
+          <span style={{fontSize:11,color:T.dim}}>Automatically import call recordings, transcripts, and summaries</span>
+          <button onClick={()=>{}} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:T.rS,border:`1px solid rgba(6,182,212,.2)`,background:"rgba(6,182,212,.06)",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Connect Fireflies</button>
+        </div>
+      </Card>
+      {sorted.length>0?<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {sorted.map(m=><Card key={m.id} style={{padding:"20px 22px",borderLeft:"3px solid #C4B5FD"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:600,color:T.cream}}>{m.title}</div>
+              <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap"}}>
+                {m.date&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
+                {m.time&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
+                {m.duration&&<span style={{fontSize:11,color:T.dim}}>{m.duration}</span>}
+                {m.location&&<span style={{fontSize:11,color:T.cyan}}>{m.location}</span>}
+              </div>
+              {m.attendees&&m.attendees.length>0&&<div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>{m.attendees.map((a,i)=><Pill key={i} color={T.dim} size="xs">{a}</Pill>)}</div>}
+            </div>
+            <Pill color={m.calendarSent?T.pos:"#C4B5FD"} size="xs">{m.calendarSent?"Sent":"Scheduled"}</Pill>
+          </div>
+          {m.summary&&<div style={{padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,marginBottom:8}}>
+            <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Summary</div>
+            <div style={{fontSize:12,color:T.dimH,lineHeight:1.5}}>{m.summary}</div>
+          </div>}
+          {m.notes&&<div style={{padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,marginBottom:8}}>
+            <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Notes</div>
+            <div style={{fontSize:12,color:T.dimH,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.notes}</div>
+          </div>}
+          {(m.actionItems||[]).length>0&&<div>
+            <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Action Items</div>
+            {m.actionItems.map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0"}}>
+              <div style={{width:14,height:14,borderRadius:a.done?7:3,border:`2px solid ${a.done?T.pos:T.dim}`,background:a.done?T.pos:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{a.done&&<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}</div>
+              <span style={{fontSize:12,color:a.done?T.dim:T.cream,textDecoration:a.done?"line-through":"none"}}>{a.text}</span>
+            </div>)}
+          </div>}
+        </Card>)}
+      </div>
+      :<Card style={{padding:40}}><div style={{textAlign:"center"}}>
+        <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#9900;</div>
+        <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No meetings logged</div>
+        <p style={{fontSize:12,color:T.dim}}>Meetings from the Production page will appear here</p>
+      </div></Card>}
+    </div>;
+  }
+
+  /* ══ CONTACTS VIEW ══ */
+  if(activeView==="contacts")return<div>
+    <BackBtn/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Client Contacts</h2>
+      <button onClick={()=>setEditingContacts(!editingContacts)} style={{padding:"8px 14px",background:editingContacts?"transparent":T.goldSoft,color:editingContacts?T.dim:T.gold,border:`1px solid ${editingContacts?T.border:T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{editingContacts?"Done":"+ Add"}</button>
+    </div>
+    {editingContacts&&<Card style={{padding:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Name</div><input autoFocus value={newContactName} onChange={e=>setNewContactName(e.target.value)} placeholder="Jane Smith" onKeyDown={e=>e.key==="Enter"&&addContact()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Role</div><input value={newContactRole} onChange={e=>setNewContactRole(e.target.value)} placeholder="Producer" onKeyDown={e=>e.key==="Enter"&&addContact()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Email</div><input value={newContactEmail} onChange={e=>setNewContactEmail(e.target.value)} placeholder="jane@client.com" onKeyDown={e=>e.key==="Enter"&&addContact()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Phone</div><input value={newContactPhone} onChange={e=>setNewContactPhone(e.target.value)} placeholder="(555) 000-0000" onKeyDown={e=>e.key==="Enter"&&addContact()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+      </div>
+      <button onClick={addContact} disabled={!newContactName.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:newContactName.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:newContactName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${newContactName.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:newContactName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Contact</button>
+    </Card>}
+    {clientContacts.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:12}}>
+      {clientContacts.map(c=><Card key={c.id} style={{padding:"20px 22px",borderLeft:"3px solid #06B6D4"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:4}}>{c.name}</div>
+            {c.role&&<Pill color={T.cyan} size="xs">{c.role}</Pill>}
+          </div>
+          <button onClick={()=>removeContact(c.id)} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)"}}><TrashI size={11} color={T.neg}/></button>
+        </div>
+        <div style={{marginTop:12}}>
+          {c.email&&<div style={{fontSize:12,color:T.cyan,marginBottom:4}}>{c.email}</div>}
+          {c.phone&&<div style={{fontSize:12,color:T.dim}}>{c.phone}</div>}
+        </div>
+      </Card>)}
+    </div>
+    :<Card style={{padding:40}}><div style={{textAlign:"center"}}>
+      <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#128100;</div>
+      <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No contacts yet</div>
+      <p style={{fontSize:12,color:T.dim}}>Add key people at the client organization</p>
+    </div></Card>}
   </div>;
 
   /* ══ DECK VIEW ══ */
