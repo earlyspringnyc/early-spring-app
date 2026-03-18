@@ -153,12 +153,42 @@ export async function shareFolderWithUser(token, folderId, email, role = 'writer
   }
 }
 
-/* ── Share Morgan folder with all team members ── */
+/* ── Role-based folder access ── */
 
-export async function shareWithTeam(token, morganFolderId, teamEmails) {
-  if (!token || !morganFolderId || !teamEmails?.length) return;
-  for (const email of teamEmails) {
-    await shareFolderWithUser(token, morganFolderId, email);
+const ROLE_FOLDER_ACCESS = {
+  admin:    ['Finance', 'Creative', 'Production', 'Client', 'Vendor Documents'],
+  producer: ['Finance', 'Creative', 'Production', 'Client', 'Vendor Documents'],
+  creative: ['Creative', 'Production'],
+  finance:  ['Finance', 'Vendor Documents'],
+  viewer:   ['Client'],
+  client:   ['Client'],
+  vendor:   [],
+};
+
+/* ── Share project folders with a team member based on role ── */
+
+export async function shareProjectWithMember(token, folderIds, email, role) {
+  if (!token || !folderIds || !email) return;
+  const folders = ROLE_FOLDER_ACCESS[role] || ROLE_FOLDER_ACCESS.viewer;
+  const accessLevel = role === 'viewer' || role === 'client' ? 'reader' : 'writer';
+
+  for (const folderName of folders) {
+    const folderId = folderIds[folderName];
+    if (folderId) {
+      await shareFolderWithUser(token, folderId, email, accessLevel);
+    }
+  }
+  console.log('[drive] Shared with', email, 'role:', role, '→', folders.length, 'folders');
+}
+
+/* ── Share project folders with all team members by role ── */
+
+export async function shareWithTeam(token, folderIds, teamMembers) {
+  if (!token || !folderIds || !teamMembers?.length) return;
+  for (const member of teamMembers) {
+    if (member.email) {
+      await shareProjectWithMember(token, folderIds, member.email, member.role || 'viewer');
+    }
   }
 }
 

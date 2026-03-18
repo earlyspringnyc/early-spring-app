@@ -94,9 +94,9 @@ function App(){
           const folderIds=await createProjectFoldersInDrive(accessToken,name||"Untitled Project",sharedDriveId);
           if(folderIds){
             updateProj(id,{driveFolders:folderIds,driveLocation:driveLoc});
-            // Auto-share Morgan folder with team members (personal Drive only — shared drives handle this natively)
-            if(!sharedDriveId&&folderIds._morgan){
-              try{const team=JSON.parse(localStorage.getItem("es_users")||"[]");const emails=team.map(u=>u.email).filter(Boolean);if(emails.length)shareWithTeam(accessToken,folderIds._morgan,emails)}catch(e){}
+            // Auto-share folders with team members based on roles
+            if(!sharedDriveId){
+              try{const team=JSON.parse(localStorage.getItem("es_users")||"[]");if(team.length)shareWithTeam(accessToken,folderIds,team)}catch(e){}
             }
           }
         }).catch(e=>console.error('[drive] Folder creation failed:',e));
