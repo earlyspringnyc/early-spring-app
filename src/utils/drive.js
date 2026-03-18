@@ -48,15 +48,17 @@ const PROJECT_FOLDERS = {
   'Vendor Documents': [],
 };
 
+const STAGE_FOLDER_NAMES = { pitching: 'Pitching', awarded: 'Awarded', current: 'Awarded', wrapped: 'Wrapped', archived: 'Archived' };
+
 /* ── Create folders in a specific shared drive ── */
-export async function createProjectFoldersInDrive(token, projectName, sharedDriveId) {
+export async function createProjectFoldersInDrive(token, projectName, sharedDriveId, stage = 'pitching') {
   if (sharedDriveId) {
-    return createProjectFoldersShared(token, projectName, sharedDriveId);
+    return createProjectFoldersShared(token, projectName, sharedDriveId, stage);
   }
-  return createProjectFolders(token, projectName);
+  return createProjectFolders(token, projectName, stage);
 }
 
-async function createProjectFoldersShared(token, projectName, driveId) {
+async function createProjectFoldersShared(token, projectName, driveId, stage = 'pitching') {
   console.log('[drive] Creating folder structure in shared drive:', driveId);
 
   // Find or create Morgan folder in shared drive
@@ -87,10 +89,16 @@ async function createProjectFoldersShared(token, projectName, driveId) {
 
   const morganId = await createInShared('Morgan', driveId);
   if (!morganId) return null;
-  const projectId = await createInShared(projectName, morganId);
+  const year = String(new Date().getFullYear());
+  const yearId = await createInShared(year, morganId);
+  if (!yearId) return null;
+  const stageLabel = STAGE_FOLDER_NAMES[stage] || 'Pitching';
+  const stageId = await createInShared(stageLabel, yearId);
+  if (!stageId) return null;
+  const projectId = await createInShared(projectName, stageId);
   if (!projectId) return null;
 
-  const folderIds = { _morgan: morganId, _root: projectId, _driveId: driveId };
+  const folderIds = { _morgan: morganId, _year: yearId, _stage: stageId, _root: projectId, _driveId: driveId, _stageName: stageLabel };
   for (const [parent, children] of Object.entries(PROJECT_FOLDERS)) {
     const parentFolderId = await createInShared(parent, projectId);
     if (parentFolderId) {
@@ -105,15 +113,20 @@ async function createProjectFoldersShared(token, projectName, driveId) {
   return folderIds;
 }
 
-export async function createProjectFolders(token, projectName) {
+export async function createProjectFolders(token, projectName, stage = 'pitching') {
   console.log('[drive] Creating folder structure for:', projectName);
   const morganId = await createFolder(token, 'Morgan', null);
   if (!morganId) return null;
-
-  const projectId = await createFolder(token, projectName, morganId);
+  const year = String(new Date().getFullYear());
+  const yearId = await createFolder(token, year, morganId);
+  if (!yearId) return null;
+  const stageLabel = STAGE_FOLDER_NAMES[stage] || 'Pitching';
+  const stageId = await createFolder(token, stageLabel, yearId);
+  if (!stageId) return null;
+  const projectId = await createFolder(token, projectName, stageId);
   if (!projectId) return null;
 
-  const folderIds = { _morgan: morganId, _root: projectId };
+  const folderIds = { _morgan: morganId, _year: yearId, _stage: stageId, _root: projectId, _stageName: stageLabel };
 
   for (const [parent, children] of Object.entries(PROJECT_FOLDERS)) {
     const parentFolderId = await createFolder(token, parent, projectId);
@@ -128,6 +141,59 @@ export async function createProjectFolders(token, projectName) {
 
   console.log('[drive] Folder structure created:', Object.keys(folderIds).length, 'folders');
   return folderIds;
+}
+
+/* ── Move project folder when stage changes ── */
+
+export async function moveProjectToStage(token, folderIds, newStage) {
+  if (!token || !folderIds?._root || !folderIds?._morgan) return null;
+  const newStageLabel = STAGE_FOLDER_NAMES[newStage] || 'Pitching';
+  const oldStageLabel = folderIds._stageName;
+  if (newStageLabel === oldStageLabel) return folderIds; // already there
+
+  const isShared = !!folderIds._driveId;
+  const yearId = folderIds._year;
+  if (!yearId) return folderIds;
+
+  // Create the new stage folder if it doesn't exist
+  let newStageId;
+  if (isShared) {
+    const driveId = folderIds._driveId;
+    // Find or create in shared drive
+    const q = `name='${newStageLabel}' and '${yearId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const findRes = await fetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${driveId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (findRes.ok) {
+      const found = await findRes.json();
+      newStageId = found.files?.[0]?.id;
+    }
+    if (!newStageId) {
+      const createRes = await fetch(`${DRIVE_API}/files?supportsAllDrives=true`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newStageLabel, mimeType: 'application/vnd.google-apps.folder', parents: [yearId] }),
+      });
+      if (createRes.ok) newStageId = (await createRes.json()).id;
+    }
+  } else {
+    newStageId = await createFolder(token, newStageLabel, yearId);
+  }
+
+  if (!newStageId) return folderIds;
+
+  // Move the project folder: remove old parent, add new parent
+  const oldStageId = folderIds._stage;
+  const supportsParam = isShared ? '&supportsAllDrives=true' : '';
+  const moveRes = await fetch(`${DRIVE_API}/files/${folderIds._root}?addParents=${newStageId}&removeParents=${oldStageId}${supportsParam}&fields=id`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!moveRes.ok) { console.error('[drive] Move failed:', await moveRes.text()); return folderIds; }
+
+  console.log('[drive] Moved project from', oldStageLabel, 'to', newStageLabel);
+  return { ...folderIds, _stage: newStageId, _stageName: newStageLabel };
 }
 
 /* ── Share the Morgan folder with a team member ── */

@@ -91,7 +91,7 @@ function App(){
         const driveLoc=getDriveLocation();
         const sharedDriveId=driveLoc?.driveId||null;
         import('./utils/drive.js').then(async({createProjectFoldersInDrive,shareWithTeam})=>{
-          const folderIds=await createProjectFoldersInDrive(accessToken,name||"Untitled Project",sharedDriveId);
+          const folderIds=await createProjectFoldersInDrive(accessToken,name||"Untitled Project",sharedDriveId,stage||"pitching");
           if(folderIds){
             updateProj(id,{driveFolders:folderIds,driveLocation:driveLoc});
             // Auto-share folders with team members based on roles
@@ -117,7 +117,17 @@ function App(){
     setActiveId(null);
   },[deleteProj]);
 
-  const updateStage=useCallback((projectId,stage)=>{updateProj(projectId,{stage})},[updateProj]);
+  const updateStage=useCallback((projectId,newStage)=>{
+    const proj=projects.find(p=>p.id===projectId);
+    updateProj(projectId,{stage:newStage});
+    // Move Drive folder if set up
+    if(accessToken&&proj?.driveFolders){
+      import('./utils/drive.js').then(async({moveProjectToStage})=>{
+        const updatedFolders=await moveProjectToStage(accessToken,proj.driveFolders,newStage);
+        if(updatedFolders)updateProj(projectId,{driveFolders:updatedFolders});
+      }).catch(e=>console.error('[drive] Move failed:',e));
+    }
+  },[updateProj,projects,accessToken]);
 
   const duplicateProject=useCallback(async(projectId)=>{
     const source=projects.find(p=>p.id===projectId);

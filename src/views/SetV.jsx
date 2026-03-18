@@ -84,7 +84,12 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
       <div style={{marginBottom:18}}><DatePick label="Event Date" value={project.eventDate||""} onChange={v=>updateProject({eventDate:v})}/></div>
       <div style={{marginBottom:18}}>
         <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>Project Stage</label>
-        <div style={{display:"flex",gap:4}}>{PROJECT_STAGES.map(s=><button key={s} onClick={()=>updateProject({stage:s})} style={{flex:1,padding:"10px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:(project.stage||"pitching")===s?700:400,fontFamily:T.sans,background:(project.stage||"pitching")===s?`${STAGE_COLORS[s]}18`:"transparent",color:(project.stage||"pitching")===s?STAGE_COLORS[s]:T.dim,transition:"all .15s"}}>{STAGE_LABELS[s]}</button>)}</div>
+        <div style={{display:"flex",gap:4}}>{PROJECT_STAGES.map(s=><button key={s} onClick={async()=>{
+          updateProject({stage:s});
+          if(accessToken&&project.driveFolders){
+            try{const{moveProjectToStage}=await import('../utils/drive.js');const updated=await moveProjectToStage(accessToken,project.driveFolders,s);if(updated)updateProject({driveFolders:updated})}catch(e){}
+          }
+        }} style={{flex:1,padding:"10px 0",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:(project.stage||"pitching")===s?700:400,fontFamily:T.sans,background:(project.stage||"pitching")===s?`${STAGE_COLORS[s]}18`:"transparent",color:(project.stage||"pitching")===s?STAGE_COLORS[s]:T.dim,transition:"all .15s"}}>{STAGE_LABELS[s]}</button>)}</div>
       </div>
     </Card>
     <Card style={{padding:28,marginBottom:16}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Financial Defaults</div>
