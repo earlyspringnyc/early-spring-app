@@ -27,6 +27,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const clientContacts=project.clientContacts||[];
   const[editingContacts,setEditingContacts]=useState(false);
   const[newContactName,setNewContactName]=useState("");const[newContactEmail,setNewContactEmail]=useState("");const[newContactRole,setNewContactRole]=useState("");const[newContactPhone,setNewContactPhone]=useState("");
+  const[showExportMenu,setShowExportMenu]=useState(false);
+  const[showShareMenu,setShowShareMenu]=useState(false);
   const toggleTask=id=>setIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setIncluded(new Set(tasks.map(t=>t.id)));
   const selectNone=()=>setIncluded(new Set());
@@ -264,9 +266,6 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
     const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(project.name||"estimate")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
   };
-  const[showExportMenu,setShowExportMenu]=useState(false);
-  const[showShareMenu,setShowShareMenu]=useState(false);
-
   /* ══ ESTIMATE VIEW ══ */
   if(activeView==="budget")return<div>
     <BackBtn/>
