@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
+import { setCurrency } from '../utils/format.js';
 import { calcProject } from '../utils/calc.js';
 import { mkI, mkA } from '../data/factories.js';
 import ProfileV from './ProfileV.jsx';
@@ -38,6 +39,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
   const saveHistory=useCallback(history=>updateProject({budgetHistory:history}),[updateProject]);
   const restoreHistory=useCallback(snapshot=>{updateProject({cats:snapshot.cats,ag:snapshot.ag,feeP:snapshot.feeP});},[updateProject]);
   const comp=useMemo(()=>calcProject(project),[project]);
+  useEffect(()=>{setCurrency(project.currency)},[project.currency]);
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const reorderCat=useCallback((ci2,from,to)=>{const cats=[...project.cats];const items=[...cats[ci2].items];const[moved]=items.splice(from,1);items.splice(to,0,moved);cats[ci2]={...cats[ci2],items};updateProject({cats})},[project.cats,updateProject]);
   const reorderSection=useCallback((from,to)=>{const cats=[...project.cats];const[moved]=cats.splice(from,1);cats.splice(to,0,moved);updateProject({cats})},[project.cats,updateProject]);

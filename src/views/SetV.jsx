@@ -43,6 +43,14 @@ function SetV({project,updateProject,onDelete,user}){
       </div>
     </Card>
     <Card style={{padding:28,marginBottom:16}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Financial Defaults</div>
+      <div style={{marginBottom:18}}>
+        <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>Currency</label>
+        <select value={project.currency||"USD"} onChange={e=>updateProject({currency:e.target.value})} style={{width:"100%",maxWidth:260,padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>
+          {[["USD","$ — US Dollar"],["EUR","\u20AC — Euro"],["GBP","\u00A3 — British Pound"],["CAD","C$ — Canadian Dollar"],["AUD","A$ — Australian Dollar"],["AED","AED — UAE Dirham"],["SAR","SAR — Saudi Riyal"],["JPY","\u00A5 — Japanese Yen"],["CHF","CHF — Swiss Franc"],["SGD","S$ — Singapore Dollar"],["HKD","HK$ — Hong Kong Dollar"],["INR","\u20B9 — Indian Rupee"],["BRL","R$ — Brazilian Real"],["MXN","MX$ — Mexican Peso"],["ZAR","R — South African Rand"],["SEK","kr — Swedish Krona"],["NOK","kr — Norwegian Krone"],["DKK","kr — Danish Krone"],["NZD","NZ$ — New Zealand Dollar"],["KRW","\u20A9 — South Korean Won"]].map(([code,label])=>
+            <option key={code} value={code}>{label}</option>
+          )}
+        </select>
+      </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em"}}>Agency Fee</span><span className="num" style={{fontSize:20,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{fp(project.feeP)}</span></div>
       <input type="range" min="0" max=".40" step=".01" value={project.feeP} onChange={e=>updateProject({feeP:parseFloat(e.target.value)})}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.dim,marginTop:6}}><span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span></div>
