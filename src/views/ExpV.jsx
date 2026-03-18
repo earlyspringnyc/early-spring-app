@@ -39,6 +39,21 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[contactSugs,setContactSugs]=useState([]);
   const[showContactSugs,setShowContactSugs]=useState(false);
   const[linkCopied,setLinkCopied]=useState(false);
+  const[fileDragging,setFileDragging]=useState(false);
+  const fileDragCounter=useRef(0);
+  const onFileDragEnter=useCallback(e=>{e.preventDefault();e.stopPropagation();fileDragCounter.current++;setFileDragging(true)},[]);
+  const onFileDragLeave=useCallback(e=>{e.preventDefault();e.stopPropagation();fileDragCounter.current--;if(fileDragCounter.current===0)setFileDragging(false)},[]);
+  const onFileDragOver=useCallback(e=>{e.preventDefault();e.stopPropagation()},[]);
+  const onFileDrop=useCallback(e=>{
+    e.preventDefault();e.stopPropagation();setFileDragging(false);fileDragCounter.current=0;
+    const files=Array.from(e.dataTransfer.files);if(!files.length)return;
+    const newFiles=[];let processed=0;
+    files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{
+      const cat=autoCategory(file.name);
+      newFiles.push(mkClientFile(file.name.replace(/\.[^/.]+$/,""),cat,ev.target.result,file.name));
+      processed++;if(processed===files.length)updateProject({clientFiles:[...clientFiles,...newFiles]});
+    };reader.readAsDataURL(file)});
+  },[clientFiles,updateProject]);
 
   const searchEmailContacts=async(val)=>{
     setEmailTo(val);
@@ -218,8 +233,12 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       })()}
 
       {/* ── Files ── */}
-      <div onClick={()=>setActiveView("files")} style={cardStyle("#EC4899")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
-        <div style={{padding:"24px 26px"}}>
+      <div onClick={()=>setActiveView("files")} style={{...cardStyle("#EC4899"),border:fileDragging?`2px dashed ${T.magenta}`:`1px solid ${T.border}`,background:fileDragging?"rgba(236,72,153,.06)":undefined}} onMouseEnter={cardHover} onMouseLeave={cardLeave} onDragEnter={onFileDragEnter} onDragLeave={onFileDragLeave} onDragOver={onFileDragOver} onDrop={e=>{onFileDrop(e);setActiveView(null)}}>
+        {fileDragging?<div style={{padding:"24px 26px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:160,gap:8}}>
+          <div style={{fontSize:28,opacity:.4}}>&#8593;</div>
+          <div style={{fontSize:13,fontWeight:600,color:T.magenta}}>Drop files here</div>
+          <div style={{fontSize:10,color:T.dim}}>RFPs, briefs, decks, contracts</div>
+        </div>:<div style={{padding:"24px 26px"}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Files</div>
           <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:14}}>
             <span className="num" style={{fontSize:32,fontWeight:700,color:T.magenta,fontFamily:T.mono}}>{clientFiles.length}</span>
@@ -234,8 +253,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
               <span style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
             </div>)}
             {clientFiles.length>4&&<div style={{fontSize:10,color:T.dim,paddingTop:3}}>+{clientFiles.length-4} more</div>}
-          </>:<div style={{fontSize:11,color:T.dim}}>Upload RFPs, briefs, decks, contracts</div>}
-        </div>
+          </>:<div style={{fontSize:11,color:T.dim}}>Drop or click to upload files</div>}
+        </div>}
       </div>
 
       {/* ── Meeting Notes ── */}
@@ -454,7 +473,12 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   </div>}
 
   /* ══ FILES VIEW ══ */
-  if(activeView==="files")return<div>
+  if(activeView==="files")return<div onDragEnter={onFileDragEnter} onDragLeave={onFileDragLeave} onDragOver={onFileDragOver} onDrop={onFileDrop} style={{position:"relative",minHeight:"50vh"}}>
+    {fileDragging&&<div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.r,border:`3px dashed ${T.magenta}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+      <div style={{fontSize:40,opacity:.6}}>&#8593;</div>
+      <div style={{fontSize:18,fontWeight:600,color:T.magenta}}>Drop files here</div>
+      <div style={{fontSize:12,color:T.dim}}>RFPs, briefs, decks, contracts, and more</div>
+    </div>}
     <BackBtn/>
     <input ref={fileInputRef} type="file" multiple accept="*" onChange={handleFileUpload} style={{display:"none"}}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
