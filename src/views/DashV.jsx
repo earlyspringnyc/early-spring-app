@@ -275,15 +275,21 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
             :<div style={{fontSize:11,color:T.dim}}>{approved.length>0?`${approved.length} approved, none pending`:"No assets yet"}</div>}
           </div>;
         }
+        if(wid==="weather"){
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`,minHeight:140}}>
+            {header}
+            <div style={{fontSize:11,color:T.dim}}>Enable location to see weather</div>
+          </div>;
+        }
         // Generic fallback
-        return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+        return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`,minHeight:140}}>
           {header}
           <div style={{fontSize:11,color:T.dim}}>Coming soon</div>
         </div>;
       };
 
       return<>
-        {activeWidgets.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,marginBottom:16}}>
+        {activeWidgets.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16,gridAutoRows:"minmax(140px,auto)"}}>
           {activeWidgets.map(wid=>renderWidget(wid))}
         </div>}
 
