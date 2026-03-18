@@ -11,11 +11,11 @@ function MobileNav({view,setView,project}){
     {id:"vendors",label:"Vendors",icon:"\u25C6"},
   ];
   const moreTabs=[
+    {id:"ai",label:"ES AI",icon:"\u25C9"},
     {id:"export",label:`Client: ${clientName}`,icon:"\u25CE"},
     {id:"pnl",label:"Finance",icon:"\u25C7"},
     {id:"docs",label:"Documents",icon:"\u25A7"},
     {id:"ros",label:"Run of Show",icon:"\u25B6"},
-    {id:"ai",label:"AI",icon:"\u25C9"},
     {id:"settings",label:"Settings",icon:"\u25CE"},
   ];
   return<div className="mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(8,8,12,.95)",backdropFilter:"blur(20px)",borderTop:`1px solid ${T.border}`,padding:"6px 0 env(safe-area-inset-bottom,6px)"}}>

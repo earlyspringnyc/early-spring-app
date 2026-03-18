@@ -15,6 +15,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
     {id:"budget",label:"Budget",icon:"\u25C8"},
     {id:"timeline",label:"Production",icon:"\u25A4"},
     {id:"vendors",label:"Vendors",icon:"\u25C6"},
+    {id:"ai",label:"ES AI",icon:"\u25C9"},
   ];
 
   const clientNav={id:"export",label:`Client: ${clientName}`,icon:"\u25CE"};
@@ -23,7 +24,6 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
     {id:"pnl",label:"Finance",icon:"\u25C7"},
     {id:"docs",label:"Documents",icon:"\u25A7"},
     {id:"ros",label:"Run of Show",icon:"\u25B6"},
-    {id:"ai",label:"AI",icon:"\u25C9"},
   ];
 
   const bottomItems=[
