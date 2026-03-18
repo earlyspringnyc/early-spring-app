@@ -476,7 +476,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28}}>
       <div><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview and financial snapshot</p></div>
       <div style={{display:"flex",gap:6}}>
-        <button onClick={()=>setEditing(!editing)} style={{padding:"7px 14px",borderRadius:T.rS,background:editing?`${T.cyan}18`:"transparent",border:`1px solid ${editing?`${T.cyan}40`:T.border}`,color:editing?T.cyan:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}}>{editing?"Done":"Customize"}</button>
+        <button onClick={()=>{const next=!editing;setEditing(next);if(!next)setShowAddMenu(false)}} style={{padding:"7px 14px",borderRadius:T.rS,background:editing?`${T.cyan}18`:"transparent",border:`1px solid ${editing?`${T.cyan}40`:T.border}`,color:editing?T.cyan:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}}>{editing?"Done":"Customize"}</button>
       </div>
     </div>
 

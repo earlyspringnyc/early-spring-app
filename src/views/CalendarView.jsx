@@ -48,7 +48,10 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
   const[meetDuration,setMeetDuration]=useState("30m");
   const[showMore,setShowMore]=useState(false);
   const[showMonthPicker,setShowMonthPicker]=useState(false);
+  const[gcalDetail,setGcalDetail]=useState(null);
+  const[gcalPos,setGcalPos]=useState(null);
   const popRef=useRef(null);
+  const gcalRef=useRef(null);
   const calRef=useRef(null);
   const monthPickerRef=useRef(null);
 
@@ -66,6 +69,13 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     document.addEventListener("mousedown",handler);
     return()=>document.removeEventListener("mousedown",handler);
   },[showMonthPicker]);
+  // Close gcal detail on click outside
+  useEffect(()=>{
+    if(!gcalDetail)return;
+    const handler=(e)=>{if(gcalRef.current&&!gcalRef.current.contains(e.target)){setGcalDetail(null);setGcalPos(null)}};
+    document.addEventListener("mousedown",handler);
+    return()=>document.removeEventListener("mousedown",handler);
+  },[gcalDetail]);
 
   const mNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const dNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -104,6 +114,17 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
   },[tasks,month,daysInMonth]);
 
   const closePopover=()=>{setAddDate(null);setPopoverPos(null);setQN("");setQE("");setQCat("General");setQAssignee("");setShowMore(false);setIsMeeting(false);setMeetTime("");setMeetAttendees("");setMeetAgenda("");setMeetDuration("30m");setTaskSugs([]);setSugIdx(-1);setDragStart(null);setDragEnd(null)};
+
+  const openGcalDetail=(t,e)=>{
+    e.stopPropagation();e.preventDefault();
+    const rect=e.currentTarget.getBoundingClientRect();
+    const calRect=calRef.current?.getBoundingClientRect()||{left:0,top:0,width:600};
+    let left=rect.left-calRect.left;
+    let top=rect.bottom-calRect.top+4;
+    if(left+260>calRect.width)left=calRect.width-270;
+    if(left<0)left=0;
+    setGcalDetail(t);setGcalPos({left,top});
+  };
 
   const quickAdd=()=>{
     if(!qN.trim()||!addDate)return;
@@ -176,12 +197,12 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
         </div>;
         /* Multi-day: show name on start, continuation bar on middle/end */
         const taskTitle=`${t.name}${t.category?" · "+t.category:""}${t.startDate?" · "+t.startDate:""}${t.endDate&&t.endDate!==t.startDate?" — "+t.endDate:""}`;
-        if(t._isMultiDay&&!t._isStart)return<div key={t.id+d} title={taskTitle} style={{marginBottom:2}} onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}}>
-          <div style={{fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:canEdit?"pointer":"default",borderRadius:t._isEnd?"0 3px 3px 0":"0",marginLeft:-6,paddingLeft:8,opacity:.7}}>{t._isEnd?`— ${t.name}`:""}</div>
+        if(t._isMultiDay&&!t._isStart)return<div key={t.id+d} title={taskTitle} style={{marginBottom:2}} onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(canEdit){setEditingTask(t.id);setEditName(t.name)}}}>
+          <div style={{fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:t._gcal?"pointer":canEdit?"pointer":"default",borderRadius:t._isEnd?"0 3px 3px 0":"0",marginLeft:-6,paddingLeft:8,opacity:.7}}>{t._isEnd?`— ${t.name}`:""}</div>
         </div>;
         return<div key={t.id+d} title={taskTitle} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
-          <div onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,borderRadius:t._isMultiDay?"3px 0 0 3px":"3px",marginRight:t._isMultiDay?-6:0,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}{t._isMultiDay?" →":""}</div>
-          {canEdit&&!t._isMultiDay&&<button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:10,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
+          <div onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,borderRadius:t._isMultiDay?"3px 0 0 3px":"3px",marginRight:t._isMultiDay?-6:0,cursor:t._gcal?"pointer":canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}{t._isMultiDay?" →":""}</div>
+          {canEdit&&!t._isMultiDay&&!t._gcal&&<button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:10,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
         </div>})}
       {dayTasks.length>3&&<div style={{fontSize:10,color:T.dim,paddingLeft:5}}>+{dayTasks.length-3} more</div>}
     </div>);
@@ -315,6 +336,35 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
               <button onClick={quickAdd} disabled={!qN.trim()} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",background:qN.trim()?(isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:T.goldSoft):"rgba(255,255,255,.05)",color:qN.trim()?(isMeeting?"#fff":T.gold):"rgba(255,255,255,.2)",fontSize:10,fontWeight:700,cursor:qN.trim()?"pointer":"default",fontFamily:T.sans}}>{isMeeting?"Schedule":"Add"}</button>
             </div>
           </div>
+        </div>
+      </div>}
+
+      {/* ── Google Calendar detail popover ── */}
+      {gcalDetail&&gcalPos&&<div ref={gcalRef} className="pop-in" style={{position:"absolute",left:gcalPos.left,top:gcalPos.top,width:260,zIndex:65,background:"rgba(12,10,20,.97)",border:"1px solid rgba(66,133,244,.3)",borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",backdropFilter:"blur(12px)",overflow:"hidden"}} onMouseDown={e=>e.stopPropagation()}>
+        <div style={{padding:"12px 14px",borderBottom:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:"#4285F4",flexShrink:0}}/>
+            <span style={{fontSize:12,fontWeight:600,color:T.cream,fontFamily:T.sans}}>{gcalDetail.name}</span>
+          </div>
+          <div style={{fontSize:9,color:"#4285F4",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"}}>Google Calendar</div>
+        </div>
+        <div style={{padding:"10px 14px",display:"flex",flexDirection:"column",gap:8}}>
+          {gcalDetail._gcalTime&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:10,color:T.dim,width:50,flexShrink:0}}>Time</span>
+            <span style={{fontSize:11,color:T.cream,fontFamily:T.mono}}>{gcalDetail._gcalTime}</span>
+          </div>}
+          {gcalDetail.startDate&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:10,color:T.dim,width:50,flexShrink:0}}>Date</span>
+            <span style={{fontSize:11,color:T.cream,fontFamily:T.mono}}>{gcalDetail.startDate}{gcalDetail.endDate&&gcalDetail.endDate!==gcalDetail.startDate?` — ${gcalDetail.endDate}`:""}</span>
+          </div>}
+          {gcalDetail._gcalLocation&&<div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+            <span style={{fontSize:10,color:T.dim,width:50,flexShrink:0}}>Location</span>
+            <span style={{fontSize:11,color:T.cream}}>{gcalDetail._gcalLocation}</span>
+          </div>}
+        </div>
+        <div style={{padding:"8px 14px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${T.border}`}}>
+          <a href={`https://calendar.google.com/calendar/r/search?q=${encodeURIComponent(gcalDetail.name)}`} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#4285F4",textDecoration:"none",fontWeight:600,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"} onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}>Open in Google Calendar</a>
+          <button onClick={()=>{setGcalDetail(null);setGcalPos(null)}} style={{padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Close</button>
         </div>
       </div>}
     </div>
