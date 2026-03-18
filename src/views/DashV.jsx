@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, daysBetween } from '../utils/date.js';
@@ -51,35 +51,77 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const tasksDone=tasks.filter(t=>t.status==="done").length;
   const budgetPct=totalBudget>0?Math.round((spendToDate/totalBudget)*100):0;
 
-  /* ── Card reorder with arrow buttons ── */
+  /* ── Pointer-based drag and drop ── */
   const DEFAULT_ORDER=["budget","spend","owed","client","tasks","alerts","prod","margin","blended","profit","donut","comp"];
   const[cardOrder,setCardOrder]=useState(()=>project?.dashCardOrder||DEFAULT_ORDER);
+  const[dragging,setDragging]=useState(null); // card id being dragged
+  const[dropIdx,setDropIdx]=useState(null); // index to insert before
+  const gridRef=useRef(null);
 
-  const moveCard=(id,dir)=>{
-    const order=[...cardOrder];const idx=order.indexOf(id);if(idx<0)return;
-    const newIdx=idx+dir;if(newIdx<0||newIdx>=order.length)return;
-    [order[idx],order[newIdx]]=[order[newIdx],order[idx]];
-    setCardOrder(order);updateProject&&updateProject({dashCardOrder:order});
-  };
   const removeCard=(id)=>{const next=cardOrder.filter(c=>c!==id);setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})};
 
-  const DragCell=({id,children,style:sx={},onClick})=>(
-    <div onClick={onClick}
-      onMouseEnter={e=>{if(onClick){e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}const c=e.currentTarget.querySelector('.card-controls');if(c)c.style.opacity='1'}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const c=e.currentTarget.querySelector('.card-controls');if(c)c.style.opacity='0'}}
-      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",position:"relative",overflow:"hidden",minHeight:140,...sx}}>
-      {/* Card controls — arrows + remove */}
-      <div className="card-controls" style={{position:"absolute",top:6,right:6,display:"flex",gap:3,opacity:0,transition:"opacity .15s",zIndex:3}}>
-        <button onClick={e=>{e.stopPropagation();moveCard(id,-1)}} title="Move left" style={{width:20,height:20,borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>&larr;</button>
-        <button onClick={e=>{e.stopPropagation();moveCard(id,1)}} title="Move right" style={{width:20,height:20,borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>&rarr;</button>
-        <button onClick={e=>{e.stopPropagation();removeCard(id)}} title="Remove" style={{width:20,height:20,borderRadius:4,background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.15)",color:T.neg,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.2)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.08)"}}>&times;</button>
+  const onGripDown=(e,id)=>{
+    e.stopPropagation();
+    e.preventDefault();
+    setDragging(id);
+
+    const onMove=(ev)=>{
+      if(!gridRef.current)return;
+      const cards=Array.from(gridRef.current.children);
+      let closest=null,closestDist=Infinity;
+      cards.forEach((el,i)=>{
+        const rect=el.getBoundingClientRect();
+        const cx=rect.left+rect.width/2;
+        const cy=rect.top+rect.height/2;
+        const dist=Math.abs(ev.clientX-cx)+Math.abs(ev.clientY-cy);
+        if(dist<closestDist){closestDist=dist;closest=i}
+      });
+      setDropIdx(closest);
+    };
+
+    const onUp=()=>{
+      if(dragging!==null&&dropIdx!==null){
+        const order=[...cardOrder];
+        const fromIdx=order.indexOf(id);
+        if(fromIdx>=0&&dropIdx>=0&&fromIdx!==dropIdx){
+          const item=order.splice(fromIdx,1)[0];
+          order.splice(dropIdx>fromIdx?dropIdx-1:dropIdx,0,item);
+          setCardOrder(order);
+          updateProject&&updateProject({dashCardOrder:order});
+        }
+      }
+      setDragging(null);setDropIdx(null);
+      window.removeEventListener('pointermove',onMove);
+      window.removeEventListener('pointerup',onUp);
+    };
+
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',onUp);
+  };
+
+  const DragCell=({id,children,style:sx={},onClick})=>{
+    const isDragging=dragging===id;
+    const cardIdx=cardOrder.indexOf(id);
+    const showDropBefore=dragging&&dragging!==id&&dropIdx===cardIdx;
+    const showDropAfter=dragging&&dragging!==id&&dropIdx===cardIdx+1;
+    return<div style={{position:"relative"}}>
+      {showDropBefore&&<div style={{position:"absolute",left:0,top:-7,right:0,height:3,borderRadius:2,background:`linear-gradient(90deg,${T.gold},${T.cyan})`,zIndex:5}}/>}
+      <div onClick={onClick}
+        onMouseEnter={e=>{if(!dragging&&onClick){e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}const c=e.currentTarget.querySelector('.card-controls');if(c)c.style.opacity='1'}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const c=e.currentTarget.querySelector('.card-controls');if(c)c.style.opacity='0'}}
+        style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",transition:isDragging?"none":"all .2s",cursor:onClick?"pointer":"default",position:"relative",overflow:"hidden",minHeight:140,opacity:isDragging?.3:1,...sx}}>
+        {/* Drag grip + remove */}
+        <div className="card-controls" style={{position:"absolute",top:6,right:6,display:"flex",gap:3,opacity:0,transition:"opacity .15s",zIndex:3}}>
+          <div onPointerDown={e=>onGripDown(e,id)} style={{width:20,height:20,borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.background=T.goldSoft}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surface}}>
+            <div style={{display:"flex",flexDirection:"column",gap:1.5}}>{[0,1,2].map(i=><div key={i} style={{display:"flex",gap:1.5}}><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/></div>)}</div>
+          </div>
+          <button onClick={e=>{e.stopPropagation();removeCard(id)}} title="Remove" style={{width:20,height:20,borderRadius:4,background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.15)",color:T.neg,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.2)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.08)"}}>&times;</button>
+        </div>
+        <div style={{padding:"20px 24px",flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>{children}</div>
       </div>
-      {/* Content */}
-      <div style={{padding:"20px 24px",flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-        {children}
-      </div>
-    </div>
-  );
+      {showDropAfter&&<div style={{position:"absolute",left:0,bottom:-7,right:0,height:3,borderRadius:2,background:`linear-gradient(90deg,${T.gold},${T.cyan})`,zIndex:5}}/>}
+    </div>;
+  };
 
   /* ── Card renderers — all compact, uniform ── */
   const V=28; // standard number size
@@ -149,7 +191,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
     <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview</p></div>
 
     {/* ── Reorderable Card Grid ── */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
+    <div ref={gridRef} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
       {cardOrder.filter(id=>CARDS[id]).map(id=>{const render=CARDS[id];return render?<div key={id}>{render()}</div>:null})}
     </div>
 
