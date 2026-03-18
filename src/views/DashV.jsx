@@ -33,6 +33,8 @@ const ALL_CARDS={
 
 const DEFAULT_ORDER=["budget","spend","owed","client","tasks","prod","margin","blended","profit","donut","comp"];
 
+const TZ_LIST=["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Anchorage","Pacific/Honolulu","America/Phoenix","America/Toronto","America/Vancouver","America/Mexico_City","America/Bogota","America/Sao_Paulo","America/Buenos_Aires","America/Lima","Europe/London","Europe/Paris","Europe/Berlin","Europe/Amsterdam","Europe/Madrid","Europe/Rome","Europe/Zurich","Europe/Stockholm","Europe/Moscow","Europe/Istanbul","Europe/Athens","Africa/Cairo","Africa/Lagos","Africa/Johannesburg","Africa/Nairobi","Asia/Dubai","Asia/Riyadh","Asia/Kolkata","Asia/Bangkok","Asia/Singapore","Asia/Hong_Kong","Asia/Shanghai","Asia/Tokyo","Asia/Seoul","Asia/Jakarta","Australia/Sydney","Australia/Melbourne","Australia/Perth","Pacific/Auckland","Pacific/Fiji"];
+
 /* ── Build slot positions from an order array ── */
 function buildSlots(order){
   const slots=[];let col=1,row=1;
@@ -83,6 +85,8 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const[countdownEditing,setCountdownEditing]=useState(false);
   const[contactEditing,setContactEditing]=useState(false);
   const[contactDraft,setContactDraft]=useState({name:"",title:"",email:"",phone:""});
+  const[tzPicking,setTzPicking]=useState(false);
+  const[tzSearch,setTzSearch]=useState("");
   const[weather,setWeather]=useState(null);
   const[weatherLoading,setWeatherLoading]=useState(false);
   const[tempUnit,setTempUnit]=useState(()=>{try{return localStorage.getItem("es_temp_unit")||"F"}catch(e){return"F"}});
@@ -336,21 +340,40 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
       const timeStr=clockTime.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true});
       const dateStr=clockTime.toLocaleDateString([],{weekday:"long",month:"short",day:"numeric"});
-      // If event is in a different timezone, show that too
-      const eventTz=weather?.tz;
-      const showEventTz=eventTz&&eventTz!==tz;
-      let eventTimeStr="";
-      if(showEventTz){try{eventTimeStr=clockTime.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true,timeZone:eventTz})}catch(e){}}
+      const secondTz=project?.secondTimezone||"";
+      let secondTimeStr="",secondDateStr="",secondLabel="";
+      if(secondTz&&secondTz!==tz){
+        try{
+          secondTimeStr=clockTime.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true,timeZone:secondTz});
+          secondDateStr=clockTime.toLocaleDateString([],{weekday:"short",month:"short",day:"numeric",timeZone:secondTz});
+          secondLabel=secondTz.split("/").pop().replace(/_/g," ");
+        }catch(e){}
+      }
       return<>
         <Label>Time & Timezone</Label>
-        <div style={{marginTop:8}}><Big size={36}>{timeStr}</Big></div>
-        <div style={{fontSize:11,color:T.dim,marginTop:6}}>{dateStr}</div>
-        <div style={{fontSize:10,color:T.dim,marginTop:6,fontFamily:T.mono}}>{tz.replace(/_/g," ")}</div>
-        {showEventTz&&<div style={{marginTop:10,padding:"8px 10px",borderRadius:T.rS,background:"rgba(148,163,184,.06)"}}>
-          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:2}}>Event Location</div>
-          <div style={{fontSize:14,fontFamily:T.mono,fontWeight:600,color:T.cyan}}>{eventTimeStr}</div>
-          <div style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{eventTz.replace(/_/g," ")}</div>
-        </div>}
+        <div style={{display:"flex",gap:16,alignItems:"flex-end",marginTop:8}}>
+          <div style={{flex:1}}>
+            <Big size={32}>{timeStr}</Big>
+            <div style={{fontSize:11,color:T.dim,marginTop:4}}>{dateStr}</div>
+            <div style={{fontSize:9,color:T.dim,marginTop:3,fontFamily:T.mono}}>{tz.split("/").pop().replace(/_/g," ")}</div>
+          </div>
+          {secondTz&&secondTz!==tz&&secondTimeStr&&<div style={{flex:1,padding:"10px 12px",borderRadius:T.rS,background:"rgba(148,163,184,.06)",borderLeft:`2px solid ${T.cyan}`}}>
+            <div style={{fontSize:22,fontWeight:700,fontFamily:T.mono,color:T.cyan,lineHeight:1,letterSpacing:"-0.03em"}}>{secondTimeStr}</div>
+            <div style={{fontSize:10,color:T.dim,marginTop:4}}>{secondDateStr}</div>
+            <div style={{fontSize:9,color:T.dim,marginTop:2,fontFamily:T.mono}}>{secondLabel}</div>
+          </div>}
+        </div>
+        {tzPicking?<div style={{marginTop:10}} onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()}>
+          <input autoFocus placeholder="Search timezone..." value={tzSearch} onChange={e=>setTzSearch(e.target.value)} style={{width:"100%",padding:"6px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",marginBottom:4}}/>
+          <div style={{maxHeight:140,overflowY:"auto",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surface}}>
+            {TZ_LIST.filter(z=>z.toLowerCase().includes(tzSearch.toLowerCase())).slice(0,8).map(z=><button key={z} onClick={e=>{e.stopPropagation();if(updateProject)updateProject({secondTimezone:z});setTzPicking(false);setTzSearch("")}} style={{width:"100%",padding:"6px 10px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.mono,cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov||"rgba(255,255,255,.03)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{z.replace(/_/g," ")}</button>)}
+          </div>
+          <div style={{display:"flex",gap:6,marginTop:6}}>
+            {secondTz&&<button onClick={e=>{e.stopPropagation();if(updateProject)updateProject({secondTimezone:""});setTzPicking(false);setTzSearch("")}} style={{padding:"4px 10px",borderRadius:T.rS,background:"transparent",border:`1px solid rgba(248,113,113,.25)`,color:T.neg,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Remove</button>}
+            <button onClick={e=>{e.stopPropagation();setTzPicking(false);setTzSearch("")}} style={{padding:"4px 10px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+          </div>
+        </div>
+        :<button onClick={e=>{e.stopPropagation();setTzPicking(true)}} style={{marginTop:10,background:"none",border:`1px dashed ${T.border}`,borderRadius:T.rS,padding:"6px 10px",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans,width:"100%",textAlign:"left"}}>{secondTz?"Change second timezone":"+ Add second timezone"}</button>}
       </>;
     },
     clientcontact:()=>{
