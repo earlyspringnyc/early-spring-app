@@ -59,72 +59,97 @@ function IPad({children,scale=1,width=280}){
   </div>;
 }
 
-/* ── Abstract App Mockups ── */
+/* ── Realistic App Mockups with content ── */
+const S={l:{fontSize:5,color:'rgba(255,255,255,.25)',fontFamily:T.mono,letterSpacing:'.04em',textTransform:'uppercase'},n:{fontSize:8,fontWeight:700,fontFamily:T.mono,lineHeight:1},t:{fontSize:6,color:'rgba(255,255,255,.35)'},d:{fontSize:5,color:'rgba(255,255,255,.2)'}};
+
 function DashboardMockup(){
-  return<div style={{padding:16,height:'100%',display:'flex',flexDirection:'column',gap:8}}>
-    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
-      <div style={{width:50,height:6,background:'rgba(148,163,184,.15)',borderRadius:3}}/>
-      <div style={{flex:1}}/>
-      <div style={{width:24,height:6,background:'rgba(255,255,255,.04)',borderRadius:3}}/>
+  return<div style={{padding:12,height:'100%',display:'flex',flexDirection:'column',gap:6,fontFamily:T.sans}}>
+    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+      <span style={{fontSize:8,fontWeight:700,color:'rgba(255,255,255,.7)'}}>Dashboard</span>
+      <span style={{flex:1}}/>
+      <span style={{fontSize:5,color:'rgba(255,255,255,.15)'}}>Montauk Capital Launch</span>
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6}}>
-      {[C.amber,C.teal,C.cyan,C.coral].map((c,i)=><div key={i} style={{padding:'10px 8px',borderRadius:6,background:`${c}08`,borderLeft:`2px solid ${c}`,border:`1px solid ${c}15`}}>
-        <div style={{width:'60%',height:4,background:'rgba(255,255,255,.06)',borderRadius:2,marginBottom:6}}/>
-        <div style={{width:'40%',height:10,background:`${c}30`,borderRadius:3}}/>
-      </div>)}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:4}}>
+      {[{l:'Client Budget',v:'$340,000',c:C.amber},{l:'Project Total',v:'$287,450',c:C.teal},{l:'Owed to Vendors',v:'$42,800',c:C.coral},{l:'Tasks',v:'8 / 24',c:C.cyan}].map((m,i)=>
+        <div key={i} style={{padding:'6px 6px',borderRadius:4,background:`${m.c}08`,borderLeft:`2px solid ${m.c}`}}>
+          <div style={{...S.l,fontSize:4,marginBottom:3}}>{m.l}</div>
+          <div style={{...S.n,fontSize:9,color:m.c}}>{m.v}</div>
+        </div>)}
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,flex:1}}>
-      <div style={{borderRadius:6,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.04)',padding:10}}>
-        <div style={{width:'40%',height:4,background:'rgba(255,255,255,.06)',borderRadius:2,marginBottom:10}}/>
-        <div style={{width:60,height:60,borderRadius:'50%',border:'4px solid rgba(99,102,241,.3)',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{width:40,height:40,borderRadius:'50%',border:`4px solid ${C.teal}40`}}/>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,flex:1}}>
+      <div style={{borderRadius:4,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.04)',padding:8}}>
+        <div style={{...S.l,fontSize:4,marginBottom:6}}>Spend Distribution</div>
+        <div style={{display:'flex',justifyContent:'center',marginBottom:4}}>
+          <div style={{width:50,height:50,borderRadius:'50%',border:`3px solid ${C.indigo}40`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <div style={{width:34,height:34,borderRadius:'50%',border:`3px solid ${C.teal}35`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{width:20,height:20,borderRadius:'50%',border:`3px solid ${C.amber}30`}}/>
+            </div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:6,justifyContent:'center'}}>
+          {[{n:'Venue',c:C.indigo},{n:'AV',c:C.teal},{n:'Catering',c:C.amber}].map((d,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:2}}><div style={{width:3,height:3,borderRadius:'50%',background:d.c}}/><span style={{fontSize:4,color:'rgba(255,255,255,.2)'}}>{d.n}</span></div>)}
         </div>
       </div>
-      <div style={{borderRadius:6,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.04)',padding:10}}>
-        <div style={{width:'45%',height:4,background:'rgba(255,255,255,.06)',borderRadius:2,marginBottom:8}}/>
-        {[C.amber,C.teal,C.emerald].map((c,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,.03)'}}>
-          <div style={{width:6,height:6,borderRadius:2,background:c}}/>
-          <div style={{width:`${30+i*10}%`,height:4,background:'rgba(255,255,255,.05)',borderRadius:2,flex:1}}/>
-          <div style={{width:20,height:4,background:`${c}25`,borderRadius:2}}/>
+      <div style={{borderRadius:4,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.04)',padding:8}}>
+        <div style={{...S.l,fontSize:4,marginBottom:6}}>Profit Composition</div>
+        {[{n:'Production Margin',v:'$38,200',c:C.amber},{n:'Agency Margin',v:'$12,400',c:C.teal},{n:'Agency Fee',v:'$8,600',c:C.emerald}].map((d,i)=><div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,.03)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:3}}><div style={{width:4,height:4,borderRadius:1,background:d.c}}/><span style={{fontSize:5,color:'rgba(255,255,255,.3)'}}>{d.n}</span></div>
+          <span style={{fontSize:5,fontFamily:T.mono,color:'rgba(255,255,255,.4)'}}>{d.v}</span>
         </div>)}
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:4,paddingTop:3,borderTop:'1px solid rgba(255,255,255,.06)'}}>
+          <span style={{fontSize:5,fontWeight:700,color:C.amber}}>Net Profit</span>
+          <span style={{fontSize:7,fontFamily:T.mono,fontWeight:700,color:C.amber}}>$59,200</span>
+        </div>
       </div>
     </div>
   </div>;
 }
 
 function CalendarMockup(){
+  const taskNames={3:'Venue Walkthrough',7:'Design Review',8:'AV Spec',14:'Client Kickoff',15:'Vendor Contracts',16:'Catering Tasting',22:'Rehearsal',28:'Load In',29:'Show Day'};
   const events=[3,7,8,14,15,16,22,28,29];
   const colors=[C.teal,C.purple,C.teal,C.coral,C.teal,C.teal,C.purple,C.teal,C.coral];
-  return<div style={{padding:16,height:'100%'}}>
-    <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-      <div style={{width:'25%',height:6,background:'rgba(255,255,255,.08)',borderRadius:3}}/>
-      <div style={{display:'flex',gap:3}}>{['D','W','M'].map((d,i)=><div key={i} style={{padding:'2px 6px',borderRadius:4,background:i===2?'rgba(148,163,184,.08)':'transparent',fontSize:7,color:i===2?'rgba(148,163,184,.6)':'rgba(255,255,255,.15)'}}>{d}</div>)}</div>
+  return<div style={{padding:12,height:'100%',fontFamily:T.sans}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <span style={{fontSize:7,fontWeight:600,color:'rgba(255,255,255,.5)'}}>March 2026</span>
+      <div style={{display:'flex',gap:2}}>{['D','W','M'].map((d,i)=><div key={i} style={{padding:'2px 5px',borderRadius:3,background:i===2?'rgba(148,163,184,.08)':'transparent',fontSize:5,fontWeight:i===2?600:400,color:i===2?'rgba(148,163,184,.5)':'rgba(255,255,255,.12)'}}>{d}</div>)}</div>
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
-      {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} style={{textAlign:'center',fontSize:6,color:'rgba(255,255,255,.15)',padding:2}}>{d}</div>)}
-      {Array.from({length:35}).map((_,i)=>{const hasEvent=events.includes(i);const c=colors[events.indexOf(i)]||C.teal;
-        return<div key={i} style={{aspectRatio:'1',borderRadius:3,background:hasEvent?`${c}12`:'rgba(255,255,255,.015)',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:1}}>
-          {hasEvent&&<div style={{width:'80%',height:3,borderRadius:1,background:c,opacity:.5}}/>}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1}}>
+      {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} style={{textAlign:'center',fontSize:5,color:'rgba(255,255,255,.15)',padding:'2px 0',fontWeight:600}}>{d}</div>)}
+      {Array.from({length:35}).map((_,i)=>{const hasEvent=events.includes(i);const c=colors[events.indexOf(i)]||C.teal;const name=taskNames[i];
+        return<div key={i} style={{aspectRatio:'1',borderRadius:2,background:hasEvent?`${c}10`:'rgba(255,255,255,.01)',padding:1,overflow:'hidden',position:'relative'}}>
+          <div style={{fontSize:4,color:i===15?C.amber:'rgba(255,255,255,.12)',fontFamily:T.mono,marginBottom:1}}>{i>0&&i<=31?i:''}</div>
+          {hasEvent&&name&&<div style={{fontSize:3.5,padding:'1px 2px',borderRadius:1,background:`${c}25`,color:c,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderLeft:`1px solid ${c}`}}>{name}</div>}
         </div>})}
     </div>
   </div>;
 }
 
 function VendorMockup(){
-  const vendors=[{w:35,c:C.teal},{w:42,c:C.amber},{w:28,c:C.purple}];
-  return<div style={{padding:16,height:'100%'}}>
-    <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-      <div style={{width:'20%',height:6,background:'rgba(255,255,255,.08)',borderRadius:3}}/>
-      <div style={{width:40,height:5,background:'rgba(148,163,184,.06)',borderRadius:3}}/>
+  const vendors=[
+    {name:'Prism AV Group',type:'AV / Sound',c:C.teal,amt:'$48,200',contact:'Mike R.'},
+    {name:'Bloom & Stem',type:'Floral',c:C.amber,amt:'$12,400',contact:'Sarah L.'},
+    {name:'Atlas Staging',type:'Fabrication',c:C.purple,amt:'$67,000',contact:'Dan K.'},
+    {name:'Lux Catering',type:'Catering',c:C.emerald,amt:'$28,500',contact:'Amy W.'},
+  ];
+  return<div style={{padding:10,height:'100%',fontFamily:T.sans}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <span style={{fontSize:7,fontWeight:600,color:'rgba(255,255,255,.5)'}}>Vendors</span>
+      <span style={{fontSize:5,color:'rgba(255,255,255,.15)'}}>{vendors.length} vendors</span>
     </div>
-    <div style={{display:'flex',flexDirection:'column',gap:4}}>
-      {vendors.map((v,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:6,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.04)'}}>
-        <div style={{width:24,height:24,borderRadius:6,background:`${v.c}10`,border:`1px solid ${v.c}25`,flexShrink:0}}/>
-        <div style={{flex:1}}>
-          <div style={{width:`${v.w}%`,height:4,background:'rgba(255,255,255,.08)',borderRadius:2,marginBottom:4}}/>
-          <div style={{width:`${v.w-10}%`,height:3,background:'rgba(255,255,255,.04)',borderRadius:2}}/>
+    <div style={{display:'flex',flexDirection:'column',gap:3}}>
+      {vendors.map((v,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 8px',borderRadius:4,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.04)'}}>
+        <div style={{width:18,height:18,borderRadius:4,background:`${v.c}10`,border:`1px solid ${v.c}20`,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <span style={{fontSize:6,fontWeight:700,color:v.c}}>{v.name[0]}</span>
         </div>
-        <div style={{width:30,height:5,background:`${v.c}15`,borderRadius:3}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:6,fontWeight:600,color:'rgba(255,255,255,.5)',marginBottom:2}}>{v.name}</div>
+          <div style={{display:'flex',gap:4}}>
+            <span style={{fontSize:4,padding:'1px 4px',borderRadius:8,background:`${v.c}15`,color:v.c,fontWeight:600}}>{v.type}</span>
+            <span style={{fontSize:4,color:'rgba(255,255,255,.15)'}}>{v.contact}</span>
+          </div>
+        </div>
+        <span style={{fontSize:5,fontFamily:T.mono,color:'rgba(255,255,255,.3)',flexShrink:0}}>{v.amt}</span>
       </div>)}
     </div>
   </div>;
@@ -403,17 +428,28 @@ function LandingPage({onGetStarted}){
 
 /* ── Budget mockup for feature card ── */
 function BudgetMockup(){
-  const cats=[{c:C.indigo,w:40},{c:C.teal,w:55},{c:C.coral,w:30},{c:C.amber,w:45}];
-  return<div style={{height:'100%',display:'flex',flexDirection:'column',justifyContent:'center',padding:8}}>
-    {cats.map((r,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 0',borderBottom:'1px solid rgba(255,255,255,.03)'}}>
-      <div style={{width:2,height:14,borderRadius:1,background:r.c}}/>
-      <div style={{width:`${r.w}%`,height:4,background:'rgba(255,255,255,.06)',borderRadius:2,flex:1}}/>
-      <div style={{width:28,height:4,background:`${r.c}20`,borderRadius:2}}/>
-      <div style={{width:22,height:4,background:'rgba(148,163,184,.1)',borderRadius:2}}/>
+  const items=[
+    {cat:'Venue',name:'Venue Rental',actual:'$45,000',client:'$51,750',c:C.indigo},
+    {cat:'Venue',name:'Security',actual:'$8,200',client:'$9,430',c:C.indigo},
+    {cat:'AV',name:'Sound System',actual:'$22,000',client:'$25,300',c:C.teal},
+    {cat:'AV',name:'LED Wall',actual:'$18,500',client:'$21,275',c:C.teal},
+    {cat:'Catering',name:'Dinner Service',actual:'$34,000',client:'$39,100',c:C.coral},
+    {cat:'Decor',name:'Floral Install',actual:'$12,400',client:'$14,260',c:C.amber},
+  ];
+  return<div style={{height:'100%',display:'flex',flexDirection:'column',justifyContent:'center',padding:10,fontFamily:T.sans}}>
+    <div style={{display:'flex',justifyContent:'flex-end',gap:12,marginBottom:4,paddingRight:4}}>
+      <span style={{fontSize:4,color:'rgba(255,255,255,.15)',textTransform:'uppercase',letterSpacing:'.06em'}}>Actual</span>
+      <span style={{fontSize:4,color:C.amber,textTransform:'uppercase',letterSpacing:'.06em',opacity:.5}}>Client</span>
+    </div>
+    {items.map((it,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,.03)'}}>
+      <div style={{width:2,height:12,borderRadius:1,background:it.c}}/>
+      <span style={{fontSize:5,color:'rgba(255,255,255,.35)',flex:1}}>{it.name}</span>
+      <span style={{fontSize:5,fontFamily:T.mono,color:'rgba(255,255,255,.25)',width:34,textAlign:'right'}}>{it.actual}</span>
+      <span style={{fontSize:5,fontFamily:T.mono,color:C.amber,opacity:.5,width:34,textAlign:'right'}}>{it.client}</span>
     </div>)}
-    <div style={{marginTop:8,background:'#1E293B',borderRadius:5,padding:'6px 10px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <div style={{width:'30%',height:5,background:'rgba(255,255,255,.2)',borderRadius:2}}/>
-      <div style={{width:'20%',height:6,background:'rgba(148,163,184,.35)',borderRadius:3}}/>
+    <div style={{marginTop:6,background:'#1E293B',borderRadius:4,padding:'5px 8px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span style={{fontSize:5,fontWeight:700,color:'rgba(255,255,255,.5)',textTransform:'uppercase',letterSpacing:'.06em'}}>Grand Total</span>
+      <span style={{fontSize:7,fontFamily:T.mono,fontWeight:700,color:C.amber}}>$287,450</span>
     </div>
   </div>;
 }
