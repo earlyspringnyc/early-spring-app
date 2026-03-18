@@ -8,6 +8,7 @@
     { "source": "/api/contacts", "destination": "/api/contacts" },
     { "source": "/api/slack", "destination": "/api/slack" },
     { "source": "/api/notify", "destination": "/api/notify" },
+    { "source": "/api/share", "destination": "/api/share" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [
