@@ -26,6 +26,9 @@ const ALL_CARDS={
   meetings:{label:"Upcoming Meetings",size:2,nav:"timeline"},
   agencyfee:{label:"Agency Fee",size:1,nav:"budget"},
   recenttxns:{label:"Recent Transactions",size:2,nav:"pnl"},
+  weather:{label:"Event Weather",size:1,nav:null},
+  timezone:{label:"Time & Timezone",size:1,nav:null},
+  clientcontact:{label:"Key Client Contact",size:1,nav:null},
 };
 
 const DEFAULT_ORDER=["budget","spend","owed","client","tasks","prod","margin","blended","profit","donut","comp"];
@@ -78,6 +81,39 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const[editing,setEditing]=useState(false);
   const[showAddMenu,setShowAddMenu]=useState(false);
   const[countdownEditing,setCountdownEditing]=useState(false);
+  const[contactEditing,setContactEditing]=useState(false);
+  const[contactDraft,setContactDraft]=useState({name:"",title:"",email:"",phone:""});
+  const[weather,setWeather]=useState(null);
+  const[weatherLoading,setWeatherLoading]=useState(false);
+  const[clockTime,setClockTime]=useState(()=>new Date());
+
+  // Live clock
+  useEffect(()=>{const t=setInterval(()=>setClockTime(new Date()),60000);return()=>clearInterval(t)},[]);
+
+  // Fetch weather based on venue address or event location
+  useEffect(()=>{
+    if(!order.includes("weather"))return;
+    if(weather||weatherLoading)return;
+    setWeatherLoading(true);
+    // Try to get coords from venue vendor address or fall back to NYC
+    const venueVendor=(project?.vendors||[]).find(v=>v.vendorType==="venue");
+    const city=venueVendor?.city||project?.eventCity||"";
+    const geocodeAndFetch=async()=>{
+      try{
+        let lat=40.7128,lon=-74.006; // NYC default
+        if(city){
+          const geoRes=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+          const geoData=await geoRes.json();
+          if(geoData.results?.[0]){lat=geoData.results[0].latitude;lon=geoData.results[0].longitude}
+        }
+        const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`);
+        const data=await res.json();
+        if(data.current){setWeather({temp:Math.round(data.current.temperature_2m),code:data.current.weather_code,tz:data.timezone||"America/New_York",city:city||"New York"})}
+      }catch(e){console.error("[weather]",e)}
+      setWeatherLoading(false);
+    };
+    geocodeAndFetch();
+  },[order,weather,weatherLoading,project?.vendors,project?.eventCity]);
 
   useEffect(()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){setOrder(saved)}},[project?.dashLayout]);
 
@@ -254,6 +290,66 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
         </div>)}
       </div>}
     </>,
+    weather:()=>{
+      const weatherIcon=code=>{if(code===0)return"\u2600\uFE0F";if(code<=3)return"\u26C5";if(code<=48)return"\uD83C\uDF2B\uFE0F";if(code<=67)return"\uD83C\uDF27\uFE0F";if(code<=77)return"\u2744\uFE0F";if(code<=82)return"\uD83C\uDF26\uFE0F";if(code<=99)return"\u26C8\uFE0F";return"\u2601\uFE0F"};
+      const weatherLabel=code=>{if(code===0)return"Clear";if(code<=3)return"Partly cloudy";if(code<=48)return"Foggy";if(code<=55)return"Drizzle";if(code<=67)return"Rain";if(code<=77)return"Snow";if(code<=82)return"Showers";if(code<=99)return"Thunderstorm";return"Cloudy"};
+      return<>
+        <Label>Event Weather</Label>
+        {weatherLoading?<div style={{marginTop:12,fontSize:12,color:T.dim}}>Loading...</div>
+        :weather?<>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginTop:10}}>
+            <span style={{fontSize:36}}>{weatherIcon(weather.code)}</span>
+            <div><Big size={36}>{weather.temp}°F</Big><div style={{fontSize:11,color:T.dim,marginTop:2}}>{weatherLabel(weather.code)}</div></div>
+          </div>
+          <div style={{fontSize:10,color:T.dim,marginTop:10}}>{weather.city}</div>
+        </>:<div style={{marginTop:12,fontSize:12,color:T.dim}}>No weather data</div>}
+      </>;
+    },
+    timezone:()=>{
+      const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const timeStr=clockTime.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true});
+      const dateStr=clockTime.toLocaleDateString([],{weekday:"long",month:"short",day:"numeric"});
+      // If event is in a different timezone, show that too
+      const eventTz=weather?.tz;
+      const showEventTz=eventTz&&eventTz!==tz;
+      let eventTimeStr="";
+      if(showEventTz){try{eventTimeStr=clockTime.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true,timeZone:eventTz})}catch(e){}}
+      return<>
+        <Label>Time & Timezone</Label>
+        <div style={{marginTop:8}}><Big size={36}>{timeStr}</Big></div>
+        <div style={{fontSize:11,color:T.dim,marginTop:6}}>{dateStr}</div>
+        <div style={{fontSize:10,color:T.dim,marginTop:6,fontFamily:T.mono}}>{tz.replace(/_/g," ")}</div>
+        {showEventTz&&<div style={{marginTop:10,padding:"8px 10px",borderRadius:T.rS,background:"rgba(148,163,184,.06)"}}>
+          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:2}}>Event Location</div>
+          <div style={{fontSize:14,fontFamily:T.mono,fontWeight:600,color:T.cyan}}>{eventTimeStr}</div>
+          <div style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{eventTz.replace(/_/g," ")}</div>
+        </div>}
+      </>;
+    },
+    clientcontact:()=>{
+      const cc=project?.clientContact||{};
+      const hasContact=cc.name||cc.email||cc.phone;
+      const inputStyle={width:"100%",padding:"5px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",marginBottom:6};
+      return<>
+        <Label>Key Client Contact</Label>
+        {contactEditing?<div style={{marginTop:8}} onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()}>
+          <input placeholder="Name" value={contactDraft.name} onChange={e=>setContactDraft(p=>({...p,name:e.target.value}))} autoFocus style={inputStyle}/>
+          <input placeholder="Title" value={contactDraft.title} onChange={e=>setContactDraft(p=>({...p,title:e.target.value}))} style={inputStyle}/>
+          <input placeholder="Email" value={contactDraft.email} onChange={e=>setContactDraft(p=>({...p,email:e.target.value}))} style={inputStyle}/>
+          <input placeholder="Phone" value={contactDraft.phone} onChange={e=>setContactDraft(p=>({...p,phone:e.target.value}))} style={inputStyle}/>
+          <div style={{display:"flex",gap:6,marginTop:4}}>
+            <button onClick={e=>{e.stopPropagation();if(updateProject)updateProject({clientContact:contactDraft});setContactEditing(false)}} style={{padding:"5px 12px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
+            <button onClick={e=>{e.stopPropagation();setContactEditing(false)}} style={{padding:"5px 12px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+          </div>
+        </div>:<>
+          {hasContact?<>
+            <div style={{marginTop:10}}><div style={{fontSize:16,fontWeight:600,color:T.cream}}>{cc.name||"\u2014"}</div>{cc.title&&<div style={{fontSize:11,color:T.dim,marginTop:2}}>{cc.title}</div>}</div>
+            {cc.email&&<div style={{fontSize:11,color:T.cyan,marginTop:8,fontFamily:T.mono,wordBreak:"break-all"}}>{cc.email}</div>}
+            {cc.phone&&<div style={{fontSize:11,color:T.dim,marginTop:4,fontFamily:T.mono}}>{cc.phone}</div>}
+          </>:<div style={{marginTop:12,fontSize:12,color:T.dim}}>No client contact set<div style={{fontSize:10,color:T.dim,marginTop:4}}>Click to add</div></div>}
+        </>}
+      </>;
+    },
   };
 
   const cardAccent={budget:T.goldSoft};
@@ -297,7 +393,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
           onPointerDown={e=>onPointerDown(e,cardKey,slotIdx)}
           onPointerMove={editing?onPointerMove:undefined}
           onPointerUp={editing?onPointerUp:undefined}
-          onClick={!editing?e=>{if(cardKey==="countdown"){if(countdownEditing)return;setCountdownEditing(true);return}const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
+          onClick={!editing?e=>{if(cardKey==="countdown"){if(countdownEditing)return;setCountdownEditing(true);return}if(cardKey==="clientcontact"){if(contactEditing)return;const cc=project?.clientContact||{};setContactDraft({name:cc.name||"",title:cc.title||"",email:cc.email||"",phone:cc.phone||""});setContactEditing(true);return}if(cardKey==="weather"||cardKey==="timezone")return;const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
           onMouseEnter={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}}}
           onMouseLeave={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=(cardBorderStyle[cardKey]||{}).borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}}
           style={{
