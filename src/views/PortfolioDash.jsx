@@ -10,7 +10,7 @@ import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-const getGreeting=()=>{const h=new Date().getHours();if(h<6)return"Burning the midnight oil";if(h<9)return"You're up early";if(h<12)return"Good morning";if(h<17)return"Good afternoon";if(h<20)return"Good evening";return"Working hard"};
+const getGreeting=()=>{const h=new Date().getHours();if(h<4)return"Burning the midnight oil";if(h<9)return"You're up early";if(h<12)return"Good morning";if(h<17)return"Good afternoon";if(h<20)return"Good evening";return"Working hard"};
 
 function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage}){
   const sorted=[...projects].sort((a,b)=>b.createdAt-a.createdAt);
