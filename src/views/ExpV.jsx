@@ -29,6 +29,19 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[newContactName,setNewContactName]=useState("");const[newContactEmail,setNewContactEmail]=useState("");const[newContactRole,setNewContactRole]=useState("");const[newContactPhone,setNewContactPhone]=useState("");
   const[showExportMenu,setShowExportMenu]=useState(false);
   const[showShareMenu,setShowShareMenu]=useState(false);
+  const[contactSugs,setContactSugs]=useState([]);
+  const[showContactSugs,setShowContactSugs]=useState(false);
+  const[linkCopied,setLinkCopied]=useState(false);
+
+  const searchEmailContacts=async(val)=>{
+    setEmailTo(val);
+    const parts=val.split(",");const current=parts[parts.length-1].trim();
+    if(current.length>=2&&accessToken){
+      try{const{searchContacts}=await import('../utils/google.js');const results=await searchContacts(accessToken,current);setContactSugs(results||[]);setShowContactSugs(results&&results.length>0)}catch(e){setShowContactSugs(false)}
+    }else{setShowContactSugs(false)}
+  };
+  const pickContact=(email)=>{const parts=emailTo.split(",");parts[parts.length-1]=email;setEmailTo(parts.join(", ")+", ");setShowContactSugs(false)};
+  const copyLink=()=>{navigator.clipboard?.writeText(window.location.href);setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000)};
   const toggleTask=id=>setIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setIncluded(new Set(tasks.map(t=>t.id)));
   const selectNone=()=>setIncluded(new Set());
@@ -286,17 +299,29 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
         {/* Share dropdown */}
         <div style={{position:"relative"}}>
           <button onClick={()=>{setShowShareMenu(!showShareMenu);setShowExportMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share &#9662;</button>
-          {showShareMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:220,overflow:"hidden",padding:14}}>
-            <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Send via email</div>
-            <div style={{display:"flex",gap:6,marginBottom:10}}>
-              <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase().replace(/\s/g,"")}@email.com`} onKeyDown={e=>e.key==="Enter"&&sendBudget()} style={{flex:1,padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none"}}/>
+          {showShareMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",width:300,overflow:"visible"}}>
+            {/* Copy link */}
+            <button onClick={copyLink} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>&#128279;</span><span style={{fontSize:12,fontWeight:500,color:T.cream}}>Copy Link</span></div>
+              {linkCopied&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Copied</span>}
+            </button>
+            {/* Email section */}
+            <div style={{padding:"14px 16px"}}>
+              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Send via email</div>
+              <div style={{position:"relative",marginBottom:12}}>
+                <input value={emailTo} onChange={e=>searchEmailContacts(e.target.value)} onFocus={()=>{if(contactSugs.length)setShowContactSugs(true)}} onBlur={()=>setTimeout(()=>setShowContactSugs(false),200)} placeholder="Start typing a name or email..." style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+                {showContactSugs&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:140,overflow:"auto"}}>
+                  {contactSugs.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickContact(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    {c.name&&<span>{c.name}</span>}<span style={{color:T.dim}}>{c.email}</span>
+                  </button>)}
+                </div>}
+              </div>
+              <div style={{display:"flex",flex:"column",gap:6}}>
+                <button onClick={()=>{sendBudget();setShowShareMenu(false)}} disabled={!emailTo.trim()||emailSending} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:emailTo.trim()?T.surfHov:"transparent",color:emailTo.trim()?T.cream:T.dim,fontSize:11,fontWeight:500,cursor:emailTo.trim()?"pointer":"default",fontFamily:T.sans,textAlign:"center"}}>Send as Email</button>
+                <button onClick={()=>{window.print();setShowShareMenu(false)}} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>Send as PDF</button>
+              </div>
+              {emailSent&&<div style={{marginTop:8,fontSize:10,color:T.pos}}>Sent to {emailSent}</div>}
             </div>
-            {[["As Link","Single-page view",()=>{navigator.clipboard?.writeText(window.location.href);setShowShareMenu(false)}],["As PDF","Email with PDF",sendBudget],["As XLSX","Email with spreadsheet",async()=>{await exportEstimateXLSX();sendBudget()}]].map(([label,sub,fn])=>
-              <button key={label} onClick={()=>{fn();setShowShareMenu(false)}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{fontSize:11,fontWeight:500,color:T.cream}}>{label}</span>
-                <span style={{fontSize:10,color:T.dim}}>{sub}</span>
-              </button>)}
-            {emailSent&&<div style={{marginTop:8,fontSize:10,color:T.pos}}>Sent to {emailSent}</div>}
           </div>}
         </div>
       </div>
