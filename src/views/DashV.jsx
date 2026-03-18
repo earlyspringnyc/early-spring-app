@@ -49,7 +49,7 @@ function DashV({cats,comp,feeP,project,onNavigate}){
     `,gap:10,marginBottom:20}}>
 
       {/* Hero: Total Budget — large, accented */}
-      <Cell area="budget" accent={T.goldSoft} style={{borderColor:T.borderGlow}}>
+      <Cell area="budget" accent={T.goldSoft} style={{borderColor:T.borderGlow,cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
         <Label>Total Project Budget</Label>
         <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}>
           <Big color={T.gold} size={48}>{f0(totalBudget)}</Big>
@@ -59,7 +59,7 @@ function DashV({cats,comp,feeP,project,onNavigate}){
       </Cell>
 
       {/* Spend to Date */}
-      <Cell area="spend">
+      <Cell area="spend" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("pnl")}>
         <Label>Spend to Date</Label>
         <div style={{display:"flex",alignItems:"baseline",marginTop:12}}>
           <Big size={40}>{f0(spendToDate)}</Big>
@@ -69,14 +69,14 @@ function DashV({cats,comp,feeP,project,onNavigate}){
       </Cell>
 
       {/* Amount Owed */}
-      <Cell area="owed">
+      <Cell area="owed" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("vendors")}>
         <Label>Owed to Vendors</Label>
         <div style={{marginTop:12}}><Big color={amountOwed>0?T.neg:T.dim} size={36}>{f0(amountOwed)}</Big></div>
         {overdueDocs.length>0&&<div style={{marginTop:12}}><Pill color={T.neg}>{overdueDocs.length} overdue</Pill></div>}
       </Cell>
 
       {/* Due from Client */}
-      <Cell area="client">
+      <Cell area="client" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("pnl")}>
         <Label>Due from Client</Label>
         <div style={{marginTop:12}}><Big color={amountDueFromClient>0?T.gold:T.pos} size={36}>{f0(Math.max(0,amountDueFromClient))}</Big></div>
         <div style={{fontSize:11,color:T.dim,marginTop:12,fontFamily:T.mono}}>{totalIncome>0?`${f0(totalIncome)} collected`:"No payments received"}</div>
@@ -99,7 +99,7 @@ function DashV({cats,comp,feeP,project,onNavigate}){
       {/* ── Alerts row ── */}
       {(overdueDocs.length>0||unpaidInvoices.length>0||allUpcoming.length>0||overdueTasks.length>0)?
       <div style={{gridArea:"alerts",display:"flex",flexDirection:"column",gap:10}}>
-        {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div style={{background:overdueDocs.length>0?"rgba(248,113,113,.04)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(248,113,113,.15)":"rgba(148,163,184,.08)"}`,padding:"18px 22px"}}>
+        {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div onClick={()=>onNavigate&&onNavigate("docs")} style={{background:overdueDocs.length>0?"rgba(248,113,113,.04)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(248,113,113,.15)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{overdueDocs.length>0?"Invoice Alerts":"Unpaid Invoices"}</span><Pill color={overdueDocs.length>0?T.neg:T.gold}>{overdueDocs.length+unpaidInvoices.length}</Pill></div>
           {overdueDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(248,113,113,.05)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Overdue</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
@@ -110,7 +110,7 @@ function DashV({cats,comp,feeP,project,onNavigate}){
             <div style={{display:"flex",gap:10,alignItems:"center"}}>{d.dueDate&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span>}<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
           </div>)}
         </div>}
-        {(allUpcoming.length>0||overdueTasks.length>0)&&<div style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px"}}>
+        {(allUpcoming.length>0||overdueTasks.length>0)&&<div onClick={()=>onNavigate&&onNavigate("timeline")} style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>Upcoming Deadlines</span><Pill color={T.gold}>{overdueTasks.length+allUpcoming.length}</Pill></div>
           {overdueTasks.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(248,113,113,.05)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Late</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.name}</span></div>
@@ -129,15 +129,15 @@ function DashV({cats,comp,feeP,project,onNavigate}){
         <Label>Production Cost</Label>
         <div style={{marginTop:10}}><Big size={32}>{f0(comp.productionSubtotal.actualCost)}</Big></div>
       </Cell>
-      <Cell area="margin">
+      <Cell area="margin" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
         <Label>Client Total</Label>
         <div style={{marginTop:10}}><Big size={32} color={T.gold}>{f0(comp.grandTotal)}</Big></div>
       </Cell>
-      <Cell area="blended">
+      <Cell area="blended" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
         <Label>Blended Margin</Label>
         <div style={{marginTop:10}}><Big size={32} color={T.cyan}>{blended.toFixed(1)}%</Big></div>
       </Cell>
-      <Cell area="profit">
+      <Cell area="profit" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("pnl")}>
         <Label>Net Profit</Label>
         <div style={{marginTop:10}}><Big size={32} color={T.pos}>{f0(comp.netProfit)}</Big></div>
       </Cell>
