@@ -9,6 +9,7 @@ import { PlusI, DlI, TrashI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
 import CalendarView from './CalendarView.jsx';
+import GanttChart from './GanttChart.jsx';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
@@ -31,6 +32,10 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[showExportMenu,setShowExportMenu]=useState(false);
   const[showShareMenu,setShowShareMenu]=useState(false);
   const[showTaskPicker,setShowTaskPicker]=useState(false);
+  const[clientViewMode,setClientViewMode]=useState("calendar");
+  const[clientSections,setClientSections]=useState(["visual","list"]);
+  const[dragClientSection,setDragClientSection]=useState(null);
+  const[dropClientSection,setDropClientSection]=useState(null);
   const[contactSugs,setContactSugs]=useState([]);
   const[showContactSugs,setShowContactSugs]=useState(false);
   const[linkCopied,setLinkCopied]=useState(false);
@@ -387,53 +392,56 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     const autoFiltered=tasks.filter(t=>included.has(t.id));
     const suggestedTasks=tasks.filter(isClientRelevant);
 
+    const handleClientSectionDrop=(targetKey)=>{
+      if(!dragClientSection||dragClientSection===targetKey)return;
+      const newOrder=[...clientSections];
+      const fromIdx=newOrder.indexOf(dragClientSection);
+      const toIdx=newOrder.indexOf(targetKey);
+      newOrder.splice(fromIdx,1);newOrder.splice(toIdx,0,dragClientSection);
+      setClientSections(newOrder);setDragClientSection(null);setDropClientSection(null);
+    };
+
+    const visualSection=<div key="visual" draggable onDragStart={()=>setDragClientSection("visual")} onDragOver={e=>{e.preventDefault();setDropClientSection("visual")}} onDrop={()=>handleClientSectionDrop("visual")} onDragEnd={()=>{setDragClientSection(null);setDropClientSection(null)}} style={{marginBottom:16,opacity:dragClientSection==="visual"?.4:1,borderTop:dropClientSection==="visual"&&dragClientSection?`2px solid ${T.gold}`:"2px solid transparent",transition:"opacity .15s",cursor:"grab"}}>
+      {clientViewMode==="calendar"?<CalendarView tasks={autoFiltered} onAddTask={()=>{}} onEditTask={()=>{}} onDeleteTask={()=>{}} canEdit={false}/>
+      :<GanttChart tasks={autoFiltered}/>}
+    </div>;
+
+    const listSection=<div key="list" draggable onDragStart={()=>setDragClientSection("list")} onDragOver={e=>{e.preventDefault();setDropClientSection("list")}} onDrop={()=>handleClientSectionDrop("list")} onDragEnd={()=>{setDragClientSection(null);setDropClientSection(null)}} style={{opacity:dragClientSection==="list"?.4:1,borderTop:dropClientSection==="list"&&dragClientSection?`2px solid ${T.gold}`:"2px solid transparent",transition:"opacity .15s",cursor:"grab"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {autoFiltered.sort((a,b)=>(a.startDate||"9999").localeCompare(b.startDate||"9999")).map(t=>{
+          const statusColor=t.status==="done"?T.pos:t.status==="progress"?T.cyan:t.status==="roadblocked"?T.neg:T.dim;
+          const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
+          return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,borderLeft:`3px solid ${statusColor}`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+            <div style={{flex:1,minWidth:0}}>
+              <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{t.name}</span>
+              {t.category&&<span style={{marginLeft:8}}><Pill color={T.dim} size="xs">{t.category}</Pill></span>}
+            </div>
+            {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
+            <Pill color={statusColor} size="xs">{STATUS_LABELS[t.status]}</Pill>
+          </div>})}
+        {autoFiltered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:12}}>No milestones to display.</div>}
+      </div>
+    </div>;
+
+    const sectionMap={visual:visualSection,list:listSection};
+
     return<div>
     <BackBtn/>
-    {/* Header — clean, one line */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Production</h2>
         <span style={{fontSize:12,color:T.dim}}>{autoFiltered.length} milestone{autoFiltered.length!==1?"s":""}</span>
       </div>
       <div style={{display:"flex",gap:6,alignItems:"center"}}>
-        <button onClick={()=>setShowTaskPicker(!showTaskPicker)} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${showTaskPicker?T.borderGlow:T.border}`,background:"transparent",color:showTaskPicker?T.cream:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showTaskPicker?"Done":"Edit Tasks"}</button>
+        <div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
+          {[["calendar","Calendar"],["gantt","Gantt"]].map(([k,l])=><button key={k} onClick={()=>setClientViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:clientViewMode===k?600:400,fontFamily:T.sans,background:clientViewMode===k?T.goldSoft:"transparent",color:clientViewMode===k?T.gold:T.dim}}>{l}</button>)}
+        </div>
         <button onClick={copyLink} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
         <button onClick={()=>window.print()} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
       </div>
     </div>
 
-    {/* Task picker — only when editing */}
-    {showTaskPicker&&<Card style={{padding:16,marginBottom:16}}>
-      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:10}}>
-        <button onClick={()=>setIncluded(new Set(suggestedTasks.map(t=>t.id)))} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:600,fontFamily:T.sans,background:"rgba(20,184,166,.12)",color:"#14B8A6"}}>Milestones Only</button>
-        <button onClick={selectAll} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>All</button>
-        <button onClick={selectNone} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>None</button>
-      </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-        {tasks.map(t=>{const rel=isClientRelevant(t);return<button key={t.id} onClick={()=>toggleTask(t.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:included.has(t.id)?(rel?"rgba(20,184,166,.12)":T.goldSoft):"rgba(255,255,255,.03)",color:included.has(t.id)?(rel?"#14B8A6":T.gold):T.dim,fontWeight:included.has(t.id)?500:400}}>{t.name}</button>})}
-      </div>
-    </Card>}
-
-    {/* Calendar with filtered tasks */}
-    <div style={{marginBottom:16}}>
-      <CalendarView tasks={autoFiltered} onAddTask={()=>{}} onEditTask={()=>{}} onDeleteTask={()=>{}} canEdit={false}/>
-    </div>
-
-    {/* Task list — block style */}
-    <div style={{display:"flex",flexDirection:"column",gap:4}}>
-      {autoFiltered.sort((a,b)=>(a.startDate||"9999").localeCompare(b.startDate||"9999")).map(t=>{
-        const statusColor=t.status==="done"?T.pos:t.status==="progress"?T.cyan:t.status==="roadblocked"?T.neg:T.dim;
-        const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
-        return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,borderLeft:`3px solid ${statusColor}`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
-          <div style={{flex:1,minWidth:0}}>
-            <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{t.name}</span>
-            {t.category&&<span style={{marginLeft:8}}><Pill color={T.dim} size="xs">{t.category}</Pill></span>}
-          </div>
-          {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
-          <Pill color={statusColor} size="xs">{STATUS_LABELS[t.status]}</Pill>
-        </div>})}
-      {autoFiltered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:12}}>No milestones selected. Click "Edit Tasks" to choose which tasks to show.</div>}
-    </div>
+    {clientSections.map(k=>sectionMap[k])}
   </div>}
 
   /* ══ FILES VIEW ══ */
