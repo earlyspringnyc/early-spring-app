@@ -78,7 +78,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const doSendEmail=async(subject,bodyFn)=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=await bodyFn();await gmailSend(accessToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
 
   const sendBudget=()=>doSendEmail(`Production Estimate: ${project.name||""}`,async()=>{const{budgetEmailHtml}=await import('../utils/emailTemplates.js');return budgetEmailHtml(project,cats,ag,comp,feeP)});
-  const sendTimeline=()=>doSendEmail(`Project Timeline: ${project.name||""}`,async()=>{const{timelineEmailHtml}=await import('../utils/emailTemplates.js');return timelineEmailHtml(project,clientTasks)});
+  const sendTimeline=()=>doSendEmail(`Production Schedule: ${project.name||""}`,async()=>{const{timelineEmailHtml}=await import('../utils/emailTemplates.js');return timelineEmailHtml(project,clientTasks)});
 
   const getOrgInfo=()=>{let orgN="Early Spring LLC",orgA="",orgW="earlyspring.nyc";try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgN=o.name;if(o.address)orgA=o.address;if(o.website)orgW=o.website}catch(e){}return{orgN,orgA,orgW}};
   const OrgLogo=({color="#475569"})=>{try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.logo)return<img src={o.logo} alt={o.name||"Logo"} style={{height:16,objectFit:"contain"}}/>;if(o.name)return<span style={{fontSize:10,fontWeight:700,color,letterSpacing:".14em",textTransform:"uppercase"}}>{o.name}</span>}catch(e){}return<ESWordmark height={16} color={color}/>};
@@ -378,40 +378,78 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     </div>
   </div>;
 
-  /* ══ TIMELINE VIEW ══ */
-  if(activeView==="timeline")return<div>
+  /* ══ PRODUCTION (CLIENT TIMELINE) VIEW ══ */
+  if(activeView==="timeline"){
+    /* Auto-filter: only show client-relevant tasks (deliverables, feedback, kickoffs, meetings) */
+    const CLIENT_KEYWORDS=["deliverable","delivery","handoff","final","feedback","review","revision","approval","kick","kickoff","kick-off","launch","presentation","client","meeting","call","sync","milestone","deadline","due"];
+    const isClientRelevant=(t)=>{const s=((t.name||"")+" "+(t.category||"")).toLowerCase();return CLIENT_KEYWORDS.some(k=>s.includes(k))};
+    const autoFiltered=tasks.filter(t=>included.has(t.id));
+    const suggestedTasks=tasks.filter(isClientRelevant);
+    const autoSelectRelevant=()=>setIncluded(new Set(suggestedTasks.map(t=>t.id)));
+
+    return<div>
     <BackBtn/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Timeline</h2>
+      <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Production</h2>
+      <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
+          {[["gantt","Gantt"],["calendar","Calendar"],["both","Both"]].map(([k,l])=><button key={k} onClick={()=>setTlFormat(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:tlFormat===k?600:400,fontFamily:T.sans,background:tlFormat===k?T.goldSoft:"transparent",color:tlFormat===k?T.gold:T.dim}}>{l}</button>)}
+        </div>
+        <ShareBar onSend={sendTimeline}/>
+      </div>
     </div>
-    <ShareBar onSend={sendTimeline}/>
-    <Card style={{padding:18,marginBottom:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Format</span>
-          {[["gantt","Gantt"],["calendar","Calendar"],["both","Both"]].map(([k,l])=><button key={k} onClick={()=>setTlFormat(k)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:tlFormat===k?600:400,fontFamily:T.sans,background:tlFormat===k?T.goldSoft:"transparent",color:tlFormat===k?T.gold:T.dim}}>{l}</button>)}
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={selectAll} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>All</button>
-          <button onClick={selectNone} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>None</button>
-        </div>
+
+    {/* Smart filters */}
+    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+      <button onClick={autoSelectRelevant} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:600,fontFamily:T.sans,background:"rgba(20,184,166,.12)",color:"#14B8A6"}}>Client Milestones Only</button>
+      <button onClick={selectAll} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>All Tasks</button>
+      <button onClick={selectNone} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Clear</button>
+      <span style={{fontSize:11,color:T.dim,marginLeft:"auto"}}>{included.size} of {tasks.length} selected</span>
+    </div>
+
+    {/* Task pills for manual toggle */}
+    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:16}}>
+      {tasks.map(t=>{const relevant=isClientRelevant(t);return<button key={t.id} onClick={()=>toggleTask(t.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:included.has(t.id)?(relevant?"rgba(20,184,166,.12)":T.goldSoft):"rgba(255,255,255,.03)",color:included.has(t.id)?(relevant?"#14B8A6":T.gold):T.dim,fontWeight:included.has(t.id)?500:400}}>{t.name}</button>})}
+    </div>
+
+    {/* Live table view */}
+    <Card style={{overflow:"hidden",marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr .8fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
+        {["Task","Start","End","Status"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>0?"center":"left"}}>{h}</span>)}
       </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-        {tasks.map(t=><button key={t.id} onClick={()=>toggleTask(t.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:included.has(t.id)?T.goldSoft:"rgba(255,255,255,.03)",color:included.has(t.id)?T.gold:T.dim,fontWeight:included.has(t.id)?500:400}}>{t.name}</button>)}
-      </div>
-      <div style={{marginTop:10,fontSize:11,color:T.dim}}>{included.size} of {tasks.length} tasks</div>
+      {autoFiltered.filter(t=>parseD(t.startDate)).sort((a,b)=>(a.startDate||"").localeCompare(b.startDate||"")).map(t=>{
+        const relevant=isClientRelevant(t);
+        const statusColor=t.status==="done"?T.pos:t.status==="progress"?T.cyan:t.status==="roadblocked"?T.neg:T.dim;
+        return<div key={t.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr .8fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {relevant&&<div style={{width:6,height:6,borderRadius:"50%",background:"#14B8A6",flexShrink:0}}/>}
+            <span style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.name}</span>
+            {t.category&&<Pill color={T.dim} size="xs">{t.category}</Pill>}
+          </div>
+          <span style={{fontSize:11,color:T.dim,fontFamily:T.mono,textAlign:"center"}}>{t.startDate||"\u2014"}</span>
+          <span style={{fontSize:11,color:T.dim,fontFamily:T.mono,textAlign:"center"}}>{t.endDate||"\u2014"}</span>
+          <div style={{textAlign:"center"}}><Pill color={statusColor} size="xs">{STATUS_LABELS[t.status]}</Pill></div>
+        </div>})}
+      {autoFiltered.filter(t=>!parseD(t.startDate)).map(t=><div key={t.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr .8fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center",opacity:.6}}>
+        <span style={{fontSize:12,color:T.dim}}>{t.name}</span>
+        <span style={{fontSize:10,color:T.dim,textAlign:"center"}}>No date</span>
+        <span/>
+        <div style={{textAlign:"center"}}><Pill color={T.dim} size="xs">{STATUS_LABELS[t.status]}</Pill></div>
+      </div>)}
+      {autoFiltered.length===0&&<div style={{padding:30,textAlign:"center",color:T.dim,fontSize:12}}>No tasks selected. Click "Client Milestones Only" to auto-select deliverables, feedback dates, and kickoffs.</div>}
     </Card>
-    <div style={{background:"#fff",borderRadius:T.r,padding:48,color:"#111",boxShadow:"0 4px 24px rgba(0,0,0,.4)"}}>
-      <div style={{display:"flex",justifyContent:"space-between",paddingBottom:24,marginBottom:28,borderBottom:"2px solid #475569"}}>
-        <div><div style={{marginBottom:14}}><OrgLogo color="#475569"/></div><div style={{fontSize:28,fontWeight:700,color:"#1E293B"}}>Project Timeline</div></div>
-        <div style={{textAlign:"right",fontSize:13,color:"#777",lineHeight:1.8}}><div><strong style={{color:"#555"}}>Project:</strong> {project.name||"\u2014"}</div><div><strong style={{color:"#555"}}>Client:</strong> {clientName}</div>{project.eventDate&&<div><strong style={{color:"#555"}}>Event:</strong> {project.eventDate}</div>}</div>
+
+    {/* Gantt/Calendar print preview */}
+    {autoFiltered.length>0&&<Card style={{padding:0,overflow:"hidden"}}>
+      <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
+        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Preview</span>
       </div>
-      {(tlFormat==="gantt"||tlFormat==="both")&&<div style={{marginBottom:tlFormat==="both"?32:0}}>{tlFormat==="both"&&<div style={{fontSize:13,fontWeight:600,color:"#1E293B",marginBottom:14,textTransform:"uppercase",letterSpacing:".06em"}}>Gantt View</div>}<ClientGantt/></div>}
-      {(tlFormat==="calendar"||tlFormat==="both")&&<div>{tlFormat==="both"&&<div style={{fontSize:13,fontWeight:600,color:"#1E293B",marginBottom:14,marginTop:8,textTransform:"uppercase",letterSpacing:".06em"}}>Calendar View</div>}<ClientCalendar/></div>}
-      {clientTasks.length===0&&<div style={{padding:40,textAlign:"center",color:"#999",fontSize:14}}>No tasks selected.</div>}
-      <OrgFooter/>
-    </div>
-  </div>;
+      <div style={{background:"#fff",padding:32,color:"#111"}}>
+        {(tlFormat==="gantt"||tlFormat==="both")&&<div style={{marginBottom:tlFormat==="both"?24:0}}>{tlFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#1E293B",marginBottom:10,textTransform:"uppercase",letterSpacing:".06em"}}>Gantt</div>}<ClientGantt/></div>}
+        {(tlFormat==="calendar"||tlFormat==="both")&&<div>{tlFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#1E293B",marginBottom:10,marginTop:8,textTransform:"uppercase",letterSpacing:".06em"}}>Calendar</div>}<ClientCalendar/></div>}
+      </div>
+    </Card>}
+  </div>}
 
   /* ══ FILES VIEW ══ */
   if(activeView==="files")return<div>
