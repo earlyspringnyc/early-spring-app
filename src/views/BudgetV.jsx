@@ -15,6 +15,7 @@ const CAT_ACCENTS=["#6366F1","#14B8A6","#F59E0B","#EC4899","#06B6D4","#8B5CF6","
 
 function BudgetV(p){
   const canEdit=p.user.role!=="viewer";
+  const proj=p.project||{};
   const[globalMargin,setGlobalMargin]=useState(15);
   const[showHistory,setShowHistory]=useState(false);
   const history=p.project?.budgetHistory||[];
@@ -171,21 +172,21 @@ function BudgetV(p){
     </div>
 
     {/* ── Rep Fee (toggleable) ── */}
-    <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px",marginTop:5,borderRadius:T.rS,background:p.project.repFeeEnabled?`rgba(196,181,253,.04)`:T.surfEl,border:`1px solid ${p.project.repFeeEnabled?"rgba(196,181,253,.15)":T.border}`,transition:"all .2s"}}>
-      <button onClick={()=>p.updateProject({repFeeEnabled:!p.project.repFeeEnabled,repFeeP:p.project.repFeeP||0.10})} style={{width:36,height:20,borderRadius:10,border:"none",cursor:"pointer",background:p.project.repFeeEnabled?"#8B5CF6":"rgba(255,255,255,.08)",transition:"background .2s",position:"relative",flexShrink:0}}>
-        <div style={{width:16,height:16,borderRadius:8,background:p.project.repFeeEnabled?"#fff":"rgba(255,255,255,.3)",position:"absolute",top:2,left:p.project.repFeeEnabled?18:2,transition:"all .2s",boxShadow:p.project.repFeeEnabled?"0 1px 4px rgba(0,0,0,.3)":"none"}}/>
+    <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px",marginTop:5,borderRadius:T.rS,background:proj.repFeeEnabled?`rgba(196,181,253,.04)`:T.surfEl,border:`1px solid ${proj.repFeeEnabled?"rgba(196,181,253,.15)":T.border}`,transition:"all .2s"}}>
+      <button onClick={()=>p.updateProject({repFeeEnabled:!proj.repFeeEnabled,repFeeP:proj.repFeeP||0.10})} style={{width:36,height:20,borderRadius:10,border:"none",cursor:"pointer",background:proj.repFeeEnabled?"#8B5CF6":"rgba(255,255,255,.08)",transition:"background .2s",position:"relative",flexShrink:0}}>
+        <div style={{width:16,height:16,borderRadius:8,background:proj.repFeeEnabled?"#fff":"rgba(255,255,255,.3)",position:"absolute",top:2,left:proj.repFeeEnabled?18:2,transition:"all .2s",boxShadow:proj.repFeeEnabled?"0 1px 4px rgba(0,0,0,.3)":"none"}}/>
       </button>
-      <span style={{fontSize:11,fontWeight:700,letterSpacing:".1em",color:p.project.repFeeEnabled?T.cream:T.dim,textTransform:"uppercase",flexShrink:0,transition:"color .2s"}}>Rep Fee</span>
-      {p.project.repFeeEnabled&&canEdit?<>
-        <input type="range" min="5" max="25" step="1" value={(p.project.repFeeP||0.10)*100} onChange={e=>p.updateProject({repFeeP:parseInt(e.target.value)/100})} style={{flex:1,maxWidth:140}}/>
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:".1em",color:proj.repFeeEnabled?T.cream:T.dim,textTransform:"uppercase",flexShrink:0,transition:"color .2s"}}>Rep Fee</span>
+      {proj.repFeeEnabled&&canEdit?<>
+        <input type="range" min="5" max="25" step="1" value={(proj.repFeeP||0.10)*100} onChange={e=>p.updateProject({repFeeP:parseInt(e.target.value)/100})} style={{flex:1,maxWidth:140}}/>
         <div style={{display:"flex",alignItems:"center",gap:2}}>
-          <input value={Math.round((p.project.repFeeP||0.10)*100)} onChange={e=>{const v=parseFloat(e.target.value)||0;p.updateProject({repFeeP:Math.max(5,Math.min(25,v))/100})}} style={{width:36,padding:"4px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:"#C4B5FD",fontSize:14,fontFamily:T.mono,fontWeight:700,textAlign:"center",outline:"none"}}/>
+          <input value={Math.round((proj.repFeeP||0.10)*100)} onChange={e=>{const v=parseFloat(e.target.value)||0;p.updateProject({repFeeP:Math.max(5,Math.min(25,v))/100})}} style={{width:36,padding:"4px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:"#C4B5FD",fontSize:14,fontFamily:T.mono,fontWeight:700,textAlign:"center",outline:"none"}}/>
           <span style={{fontSize:14,fontWeight:700,color:"#C4B5FD"}}>%</span>
         </div>
         <span style={{fontSize:10,color:T.dim}}>of agency fee</span>
-      </>:p.project.repFeeEnabled&&<span style={{fontSize:12,color:"#C4B5FD",fontFamily:T.mono,fontWeight:600}}>{fp(p.project.repFeeP||0.10)}</span>}
+      </>:proj.repFeeEnabled&&<span style={{fontSize:12,color:"#C4B5FD",fontFamily:T.mono,fontWeight:600}}>{fp(proj.repFeeP||0.10)}</span>}
       <div style={{flex:1}}/>
-      {p.project.repFeeEnabled&&<span className="num" style={{fontSize:13,fontFamily:T.mono,color:"#C4B5FD",fontWeight:600}}>−{f0(p.comp.repFee||0)}</span>}
+      {proj.repFeeEnabled&&<span className="num" style={{fontSize:13,fontFamily:T.mono,color:"#C4B5FD",fontWeight:600}}>−{f0(p.comp.repFee||0)}</span>}
     </div>
 
     {/* ── Grand Total & Net Profit ── */}
@@ -196,7 +197,7 @@ function BudgetV(p){
       <span className="num" style={{width:96,textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.pos,fontWeight:500,marginLeft:8}}>{f0(p.comp.productionSubtotal.variance+p.comp.agencyCostsSubtotal.variance+p.comp.agencyFee.variance)}</span>
     </div>
     <div style={{display:"flex",alignItems:"center",padding:"20px 22px",borderRadius:T.rS,marginTop:6,background:`linear-gradient(135deg,rgba(74,222,128,.06),rgba(20,184,166,.04))`,border:`1px solid rgba(74,222,128,.12)`}}>
-      <span style={{flex:1,fontSize:12,fontWeight:700,letterSpacing:".1em",color:T.pos,textTransform:"uppercase"}}>Net Profit{p.project.repFeeEnabled&&<span style={{fontSize:9,fontWeight:500,color:T.dim,marginLeft:8,textTransform:"none",letterSpacing:"normal"}}>(after rep fee)</span>}</span>
+      <span style={{flex:1,fontSize:12,fontWeight:700,letterSpacing:".1em",color:T.pos,textTransform:"uppercase"}}>Net Profit{proj.repFeeEnabled&&<span style={{fontSize:9,fontWeight:500,color:T.dim,marginLeft:8,textTransform:"none",letterSpacing:"normal"}}>(after rep fee)</span>}</span>
       <span className="num" style={{fontSize:24,fontFamily:T.mono,color:p.comp.netProfit>=0?T.pos:T.neg,fontWeight:700}}>{f0(p.comp.netProfit)}</span>
     </div>
 
