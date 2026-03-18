@@ -107,7 +107,20 @@ function VendorMockup(){
 /* ── Main Landing Page ── */
 function LandingPage({onGetStarted}){
   const[scrolled,setScrolled]=useState(false);
-  useEffect(()=>{const h=()=>setScrolled(window.scrollY>40);window.addEventListener('scroll',h,{passive:true});return()=>window.removeEventListener('scroll',h)},[]);
+  useEffect(()=>{
+    // Override global overflow:hidden for landing page
+    document.documentElement.style.overflow='auto';
+    document.body.style.overflow='auto';
+    document.getElementById('root').style.overflow='auto';
+    const h=()=>setScrolled(window.scrollY>40);
+    window.addEventListener('scroll',h,{passive:true});
+    return()=>{
+      document.documentElement.style.overflow='';
+      document.body.style.overflow='';
+      document.getElementById('root').style.overflow='';
+      window.removeEventListener('scroll',h);
+    };
+  },[]);
   const scrollTo=(id)=>document.getElementById(id)?.scrollIntoView({behavior:'smooth'});
 
   return<div style={{minHeight:'100vh',background:T.bg,fontFamily:T.sans,color:T.cream,overflowX:'hidden'}}>
