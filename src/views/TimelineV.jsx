@@ -16,27 +16,25 @@ import { addTaskToHistory, searchTaskHistory } from '../utils/taskHistory.js';
 /* ── helpers ── */
 const Pill=({children,color=T.gold,bg,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-/* category → color map for colorful task cards */
+/* category → color map — two color families + meetings + general */
 const CAT_COLORS={
-  "General":T.gold,"Meeting":"#C4B5FD","Production":"#7DD3FC","Design":"#F472B6",
-  "Logistics":"#FDBA74","Catering":"#4ADE80","Venue":"#FBBF24","AV":"#22D3EE",
-  "Talent":"#E879F9","Print":"#FB923C","Photo":"#F87171","Video":"#F87171",
-  "Staffing":"#60A5FA","Budget":"#BEF264","Creative":"#F472B6","Marketing":"#C084FC",
-  "Meeting Action":"#C4B5FD","Freelance":"#F472B6","Other":T.dim,
+  /* Production family — teal/cyan shades */
+  "Production":"#14B8A6","Catering":"#0D9488","Venue":"#2DD4BF","AV":"#5EEAD4",
+  "Fabrication":"#0D9488","Staffing":"#99F6E4","Print":"#5EEAD4","Logistics":"#2DD4BF",
+  "Freight":"#14B8A6","Rental":"#0D9488","Talent":"#2DD4BF",
+  /* Creative family — purple/violet shades */
+  "Design":"#8B5CF6","Creative":"#A78BFA","Content":"#7C3AED","Photo":"#A78BFA",
+  "Video":"#7C3AED","Marketing":"#8B5CF6","Freelance":"#A78BFA",
+  /* Meetings — soft lavender */
+  "Meeting":"#C4B5FD","Meeting Action":"#C4B5FD",
+  /* General — steel blue */
+  "General":T.gold,"Budget":T.gold,"Other":T.dim,
 };
 const catColor=(cat)=>{
   if(!cat)return T.gold;
   const key=Object.keys(CAT_COLORS).find(k=>cat.toLowerCase().includes(k.toLowerCase()));
-  return key?CAT_COLORS[key]:T.colors[Math.abs([...cat].reduce((a,c)=>a+c.charCodeAt(0),0))%T.colors.length];
+  return key?CAT_COLORS[key]:T.gold;
 };
-
-/* ── Drag handle component ── */
-const DragHandle=({onDragStart})=><div
-  draggable
-  onDragStart={onDragStart}
-  style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"grab",padding:"0 6px",opacity:0,transition:"opacity .15s",userSelect:"none",fontSize:14,color:T.dim,letterSpacing:2,lineHeight:1}}
-  className="drag-handle"
->⋮⋮</div>;
 
 function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAccess}){
   const tasks=project.timeline||[];
@@ -68,32 +66,11 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[customTime,setCustomTime]=useState(false);
   const[contactSuggestions,setContactSuggestions]=useState([]);const[showContactSug,setShowContactSug]=useState(false);
   const[newActionItem,setNewActionItem]=useState("");
+  const[showMenu,setShowMenu]=useState(false);
+  const menuRef=useRef(null);
   const filtered=filter==="all"?tasks:tasks.filter(t=>t.status===filter);
   const counts={all:tasks.length,todo:tasks.filter(t=>t.status==="todo").length,progress:tasks.filter(t=>t.status==="progress").length,roadblocked:tasks.filter(t=>t.status==="roadblocked").length,done:tasks.filter(t=>t.status==="done").length};
-  const[layout,setLayout]=useState("stacked");
-  const[splitWidth,setSplitWidth]=useState(380);
-  const[dragging,setDragging]=useState(false);
-  const splitRef=useRef(null);
 
-  /* ── Section order drag state ── */
-  const[sectionOrder,setSectionOrder]=useState(["calendar","tasks","meetings"]);
-  const[draggedSection,setDraggedSection]=useState(null);
-  const[dropTarget,setDropTarget]=useState(null);
-
-  const handleSectionDragStart=(e,sectionKey)=>{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",sectionKey);setDraggedSection(sectionKey)};
-  const handleSectionDragOver=(e,sectionKey)=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(sectionKey!==draggedSection)setDropTarget(sectionKey)};
-  const handleSectionDrop=(e,sectionKey)=>{e.preventDefault();if(!draggedSection||draggedSection===sectionKey){setDraggedSection(null);setDropTarget(null);return}
-    setSectionOrder(prev=>{const newOrder=[...prev];const fromIdx=newOrder.indexOf(draggedSection);const toIdx=newOrder.indexOf(sectionKey);newOrder.splice(fromIdx,1);newOrder.splice(toIdx,0,draggedSection);return newOrder});
-    setDraggedSection(null);setDropTarget(null)};
-  const handleSectionDragEnd=()=>{setDraggedSection(null);setDropTarget(null)};
-
-  useEffect(()=>{
-    if(!dragging)return;
-    const onMove=(e)=>{if(!splitRef.current)return;const rect=splitRef.current.getBoundingClientRect();const newWidth=rect.right-e.clientX;setSplitWidth(Math.max(280,Math.min(600,newWidth)))};
-    const onUp=()=>setDragging(false);
-    window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);
-    return()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp)};
-  },[dragging]);
   const pct=tasks.length?Math.round((counts.done/tasks.length)*100):0;
   const addTask=(name,cat,assignee,start,end,linkedItemId="")=>{
     const n=name||nN.trim();if(!n)return;
@@ -225,7 +202,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   /* ── Inline meeting block for block view ── */
   const renderMeetingBlock=(m)=>{
     return<div key={`meeting-${m.id}`}>
-      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,borderLeft:"3px solid #C4B5FD",border:`1px solid ${T.border}`,borderLeftWidth:3,borderLeftColor:"#C4B5FD",transition:"all .15s",cursor:"pointer"}} onClick={()=>{if(viewMeeting===m.id){saveMeetingNotes(m.id);setViewMeeting(null)}else{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,borderLeft:"3px solid #C4B5FD",border:`1px solid ${T.border}`,borderLeftWidth:3,borderLeftColor:"#C4B5FD",transition:"all .15s",cursor:"pointer"}} onClick={()=>{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
         <div style={{width:8,height:8,borderRadius:"50%",background:"#C4B5FD",flexShrink:0}}/>
         <div style={{flex:1,minWidth:0}}>
           <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</span>
@@ -271,24 +248,6 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     return{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:active?700:500,fontFamily:T.sans,background:active?activeBgMap[f]:bgMap[f],color:active?colorMap[f]:T.dim,transition:"all .15s"};
   };
 
-  /* ── Section wrapper with drag handle ── */
-  const SectionWrap=({sectionKey,children})=>(
-    <div
-      onDragOver={e=>handleSectionDragOver(e,sectionKey)}
-      onDrop={e=>handleSectionDrop(e,sectionKey)}
-      onDragEnd={handleSectionDragEnd}
-      style={{position:"relative",opacity:draggedSection===sectionKey?.5:1,transition:"opacity .15s"}}
-      onMouseEnter={e=>{const h=e.currentTarget.querySelector('.drag-handle');if(h)h.style.opacity="0.5"}}
-      onMouseLeave={e=>{const h=e.currentTarget.querySelector('.drag-handle');if(h)h.style.opacity="0"}}
-    >
-      {dropTarget===sectionKey&&<div style={{height:3,background:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,marginBottom:4}}/>}
-      <div style={{display:"flex",alignItems:"flex-start"}}>
-        <DragHandle onDragStart={e=>handleSectionDragStart(e,sectionKey)}/>
-        <div style={{flex:1,minWidth:0}}>{children}</div>
-      </div>
-    </div>
-  );
-
   /* ── Build merged list for block view (tasks + inline meetings) ── */
   const getMergedBlockItems=()=>{
     const items=[];
@@ -300,25 +259,25 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     return items;
   };
 
+  /* ── Close menu on outside click ── */
+  useEffect(()=>{
+    if(!showMenu)return;
+    const handler=(e)=>{if(menuRef.current&&!menuRef.current.contains(e.target))setShowMenu(false)};
+    document.addEventListener("mousedown",handler);
+    return()=>document.removeEventListener("mousedown",handler);
+  },[showMenu]);
+
+  const editTask=(taskId,updates)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,...updates}:t)})};
+  const deleteTask=(taskId)=>{updateProject({timeline:tasks.filter(t=>t.id!==taskId)})};
+  const isListView=viewMode==="list";
+  const showCalOrGantt=viewMode==="calendar"||viewMode==="gantt";
+
   return<div>
-    {/* inject hover style for drag handles */}
-    <style>{`.drag-handle:hover{opacity:0.8!important}`}</style>
-
-    {/* ── Header ── */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-      <div style={{display:"flex",alignItems:"baseline",gap:12}}>
-        <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans,margin:0}}>Production</h1>
-        <span style={{fontSize:12,color:T.dim}}>{tasks.length} task{tasks.length!==1?"s":""}</span>
-      </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},${T.cyan})`,color:showAdd?T.dim:"#fff",border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Task"}</button>}
-      </div>
-    </div>
-
-    {/* ── Progress section ── */}
-    <div style={{display:"flex",alignItems:"center",gap:24,marginBottom:20,padding:"16px 20px",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`}}>
-      <span style={{fontSize:36,fontWeight:700,fontFamily:T.mono,color:T.cream,lineHeight:1,minWidth:70,letterSpacing:"-0.02em"}}>{pct}%</span>
-      <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+    {/* ══ LAYER 1 — Header ══ */}
+    <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16}}>
+      <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans,margin:0}}>Production</h1>
+      <span style={{fontSize:28,fontWeight:700,fontFamily:T.mono,color:T.cream,lineHeight:1,letterSpacing:"-0.02em"}}>{pct}%</span>
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
         {[["todo","To Do",STATUS_COLORS.todo],["progress","In Progress",STATUS_COLORS.progress],["roadblocked","Blocked",STATUS_COLORS.roadblocked],["done","Done",STATUS_COLORS.done]].map(([key,label,color])=>
           counts[key]>0&&<div key={key} style={{display:"flex",alignItems:"center",gap:5}}>
             <span style={{width:8,height:8,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>
@@ -328,16 +287,38 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       </div>
     </div>
 
-    {/* ── Status filter pills ── */}
-    <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-      {["all","todo","progress","roadblocked","done"].map(f=>
-        <button key={f} onClick={()=>setFilter(f)} style={filterPillStyle(f)}>
-          {f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})
-        </button>
-      )}
+    {/* ══ LAYER 2 — Toolbar ══ */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      {/* Left: status filter pills */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {["all","todo","progress","roadblocked","done"].map(f=>
+          <button key={f} onClick={()=>setFilter(f)} style={filterPillStyle(f)}>
+            {f==="all"?"All":STATUS_LABELS[f]} ({counts[f]})
+          </button>
+        )}
+      </div>
+      {/* Right: view switcher + menu */}
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {/* Calendar / Gantt / List pill toggle */}
+        <div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
+          {[["calendar","Calendar"],["gantt","Gantt"],["list","List"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
+        </div>
+        {/* Card/Block/Table sub-toggle when List is active */}
+        {isListView&&<div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
+          {[["card","Card"],["block","Block"],["table","Table"]].map(([k,l])=><button key={k} onClick={()=>setTaskView(k)} style={{padding:"4px 12px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:taskView===k?600:400,fontFamily:T.sans,background:taskView===k?T.goldSoft:"transparent",color:taskView===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
+        </div>}
+        {/* "..." menu */}
+        <div ref={menuRef} style={{position:"relative"}}>
+          <button onClick={()=>setShowMenu(!showMenu)} style={{width:32,height:32,borderRadius:20,border:`1px solid ${T.border}`,background:showMenu?T.surfHov:"transparent",color:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,letterSpacing:2,lineHeight:1}}>...</button>
+          {showMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:180,overflow:"hidden"}}>
+            <button onClick={()=>{setShowClientTL(!showClientTL);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:showClientTL?T.cyan:T.cream,fontFamily:T.sans,fontWeight:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showClientTL?"Close Client Timeline":"Create Client Timeline"}</button>
+            <button onClick={()=>{setShowSuggestions(!showSuggestions);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",fontSize:11,color:showSuggestions?T.gold:T.cream,fontFamily:T.sans,fontWeight:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showSuggestions?"Hide Budget Items":"Budget Items"}</button>
+          </div>}
+        </div>
+      </div>
     </div>
 
-    {/* Client Timeline Creator */}
+    {/* ══ Client Timeline (toggled from menu) ══ */}
     {showClientTL&&<Card style={{padding:20,marginBottom:16,borderColor:"rgba(34,211,238,.15)",background:"rgba(34,211,238,.02)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cyan}}>Create Client Timeline</div>
@@ -362,7 +343,6 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         <button onClick={()=>window.print()} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}><span style={{display:"flex",alignItems:"center",gap:4}}><DlI size={12}/>PDF</span></button>
       </div>
       {clientSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {clientSent}</div>}
-
       {/* Preview */}
       <div style={{marginTop:14,background:"#fff",borderRadius:T.rS,padding:28,color:"#111",boxShadow:"0 2px 12px rgba(0,0,0,.2)"}}>
         <div style={{display:"flex",justifyContent:"space-between",paddingBottom:16,marginBottom:20,borderBottom:"2px solid #432D1C"}}>
@@ -375,17 +355,18 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       </div>
     </Card>}
 
-
+    {/* ══ Budget Items (toggled from menu) ══ */}
     {showSuggestions&&<Card style={{padding:16,marginBottom:16}}>
-  <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:10}}>Add Tasks from Budget Items</div>
-  <p style={{fontSize:11,color:T.dim,marginBottom:12}}>Click to create a task from a budget line item. You can also add tasks manually or via the calendar.</p>
-  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-    {allBudgetItems.map(it=>{const alreadyAdded=tasks.some(t=>t.linkedItemId===it.id);return<button key={it.id} onClick={()=>!alreadyAdded&&addTaskFromBudgetItem(it)} disabled={alreadyAdded} style={{padding:"6px 12px",borderRadius:T.rS,border:"none",cursor:alreadyAdded?"default":"pointer",fontSize:10,fontFamily:T.sans,background:alreadyAdded?"rgba(52,211,153,.08)":"rgba(255,234,151,.08)",color:alreadyAdded?T.pos:T.gold,fontWeight:alreadyAdded?400:500,opacity:alreadyAdded?.5:1}}>{alreadyAdded?"✓ ":""}{it.name}<span style={{fontSize:10,color:T.dim,marginLeft:4}}>({it.catName})</span></button>})}
-  </div>
-  {allBudgetItems.length===0&&<div style={{fontSize:11,color:T.dim,padding:12,textAlign:"center"}}>Add items to your budget first.</div>}
-</Card>}
+      <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:10}}>Add Tasks from Budget Items</div>
+      <p style={{fontSize:11,color:T.dim,marginBottom:12}}>Click to create a task from a budget line item. You can also add tasks manually or via the calendar.</p>
+      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+        {allBudgetItems.map(it=>{const alreadyAdded=tasks.some(t=>t.linkedItemId===it.id);return<button key={it.id} onClick={()=>!alreadyAdded&&addTaskFromBudgetItem(it)} disabled={alreadyAdded} style={{padding:"6px 12px",borderRadius:T.rS,border:"none",cursor:alreadyAdded?"default":"pointer",fontSize:10,fontFamily:T.sans,background:alreadyAdded?"rgba(52,211,153,.08)":"rgba(255,234,151,.08)",color:alreadyAdded?T.pos:T.gold,fontWeight:alreadyAdded?400:500,opacity:alreadyAdded?.5:1}}>{alreadyAdded?"✓ ":""}{it.name}<span style={{fontSize:10,color:T.dim,marginLeft:4}}>({it.catName})</span></button>})}
+      </div>
+      {allBudgetItems.length===0&&<div style={{fontSize:11,color:T.dim,padding:12,textAlign:"center"}}>Add items to your budget first.</div>}
+    </Card>}
 
-    {showAdd&&<Card style={{padding:20,marginBottom:16,borderColor:isMeeting?"rgba(196,181,253,.15)":T.border}}>
+    {/* ══ + Task form (between toolbar and content, hidden in calendar/gantt views) ══ */}
+    {showAdd&&isListView&&<Card style={{padding:20,marginBottom:16,borderColor:isMeeting?"rgba(196,181,253,.15)":T.border}}>
       {/* Task / Meeting toggle */}
       <div style={{display:"flex",gap:2,marginBottom:14,background:T.surface,borderRadius:20,padding:2,width:"fit-content"}}>
         <button onClick={()=>setIsMeeting(false)} style={{padding:"5px 16px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:!isMeeting?600:400,background:!isMeeting?T.goldSoft:"transparent",color:!isMeeting?T.gold:T.dim}}>Task</button>
@@ -424,161 +405,80 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <button onClick={()=>{if(isMeeting){addMeeting(nN)}else{addTask()}}} style={{padding:"9px 20px",background:isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{isMeeting?"Schedule Meeting":"Add Task"}</button>
     </Card>}
 
-    {/* ── Draggable sections ── */}
-    {(()=>{
-      const calendarMeeting=(title,date,time,duration,attendees,agenda)=>{addMeeting(title);};
-      const editTask=(taskId,updates)=>{updateProject({timeline:tasks.map(t=>t.id===taskId?{...t,...updates}:t)})};
-      const deleteTask=(taskId)=>{updateProject({timeline:tasks.filter(t=>t.id!==taskId)})};
-      const calendarContent=viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>:viewMode==="gantt"?<GanttChart tasks={tasks}/>:null;
+    {/* ══ LAYER 3 — Content ══ */}
+    {/* Calendar / Gantt on top when active */}
+    {showCalOrGantt&&<div style={{marginBottom:16}}>
+      {viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>
+      :<GanttChart tasks={tasks}/>}
+    </div>}
 
-      /* ── Card/Block/Table toggle + filter bar ── */
-      const taskListHeader=<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {viewMode!=="off"&&<span onClick={()=>setLayout(l=>l==="split"?"stacked":"split")} style={{fontSize:13,fontWeight:600,color:T.cream,cursor:"pointer"}} title="Toggle side-by-side">{layout==="split"?"◧ ":""}Task List</span>}
-          {viewMode==="off"&&<span style={{fontSize:13,fontWeight:600,color:T.cream}}>Task List</span>}
-          {/* Card / Block / Table toggle */}
-          <div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
-            {[["card","Card"],["block","Block"],["table","Table"]].map(([k,l])=><button key={k} onClick={()=>setTaskView(k)} style={{padding:"4px 12px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:taskView===k?600:400,fontFamily:T.sans,background:taskView===k?T.goldSoft:"transparent",color:taskView===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
-          </div>
-          <button onClick={()=>setShowClientTL(!showClientTL)} style={{padding:"4px 12px",borderRadius:18,border:`1px solid ${showClientTL?"rgba(34,211,238,.3)":T.border}`,cursor:"pointer",fontSize:10,fontWeight:showClientTL?600:400,fontFamily:T.sans,background:showClientTL?"rgba(34,211,238,.1)":"transparent",color:showClientTL?T.cyan:T.dim}}>{showClientTL?"Close Client TL":"Client Timeline"}</button>
-          <button onClick={()=>setShowSuggestions(!showSuggestions)} style={{padding:"4px 12px",borderRadius:18,border:`1px solid ${showSuggestions?`${T.gold}33`:T.border}`,cursor:"pointer",fontSize:10,fontWeight:showSuggestions?600:400,fontFamily:T.sans,background:showSuggestions?T.goldSoft:"transparent",color:showSuggestions?T.gold:T.dim}}>{showSuggestions?"Hide Suggestions":"Budget Items"}</button>
-        </div>
-      </div>;
-
-      /* ── Render tasks based on view mode ── */
-      const taskListContent=<>
-        {taskListHeader}
-        {tasks.length===0&&!showAdd?
-          <div style={{textAlign:"center",padding:"48px 20px",color:T.dim}}>
-            <div style={{fontSize:14,marginBottom:12}}>No tasks yet. Add your first task to start tracking production.</div>
-            {canEdit&&<button onClick={()=>setShowAdd(true)} style={{padding:"10px 20px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
-          </div>
-        :taskView==="table"?renderTaskTable():
-        <div style={taskView==="card"?{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}:{display:"flex",flexDirection:"column",gap:4}}>
-          {taskView==="block"?
-            getMergedBlockItems().map(item=>item.type==="task"?renderTaskBlock(item.data,tasks.indexOf(item.data)):renderMeetingBlock(item.data))
-          :filtered.map(t=>{const ri=tasks.indexOf(t);return taskView==="card"?renderTaskCard(t,ri):renderTaskBlock(t,ri)})}
-          {filtered.length===0&&tasks.length>0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13,gridColumn:"1/-1"}}>No tasks with this status.</div>}
-        </div>}
-      </>;
-
-      /* ── Calendar section with embedded toggle ── */
-      const calendarSection=<div style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-          <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Calendar</span>
-          <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
-            {[["calendar","Calendar"],["gantt","Gantt"],["off","Off"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
-          </div>
-        </div>
-        {calendarContent}
-      </div>;
-
-      /* ── Meetings section ── */
-      const meetingsSection=meetings.length>0?<div>
-        <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:12}}>Meetings ({meetings.length})</div>
-        <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          {meetings.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(m=><div key={m.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:viewMeeting===m.id?T.surfHov:T.surfEl,borderRadius:T.rS,border:`1px solid ${viewMeeting===m.id?"rgba(232,121,249,.15)":T.border}`,cursor:"pointer",transition:"all .15s"}} onClick={()=>{if(viewMeeting===m.id){saveMeetingNotes(m.id);setViewMeeting(null)}else{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}}} onMouseEnter={e=>{if(viewMeeting!==m.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(viewMeeting!==m.id)e.currentTarget.style.background=T.surfEl}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:T.magenta,flexShrink:0}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</div>
-              <div style={{display:"flex",gap:10,marginTop:3}}>
-                {m.date&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
-                {m.time&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
-                {m.duration&&<span style={{fontSize:10,color:T.dim}}>{m.duration}</span>}
-                {m.location&&<span style={{fontSize:10,color:T.cyan}}>{m.location}</span>}
-              </div>
-            </div>
-            {m.attendees&&m.attendees.length>0&&<span style={{fontSize:10,color:T.dim}}>{m.attendees.length} attendee{m.attendees.length>1?"s":""}</span>}
-            <Pill color={m.calendarSent?T.pos:T.magenta}>{m.calendarSent?"Sent":"Scheduled"}</Pill>
-            {canEdit&&<button onClick={e=>{e.stopPropagation();removeMeeting(m.id)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
-          </div>)}
-        </div>
-      </div>:null;
-
-      /* ── Section map ── */
-      const sectionMap={
-        calendar:calendarSection,
-        tasks:taskListContent,
-        meetings:meetingsSection,
-      };
-
-      /* ── Split layout for calendar + tasks ── */
-      if(calendarContent&&layout==="split"){
-        return<>
-          <SectionWrap sectionKey="calendar">
-            <div ref={splitRef} style={{display:"flex",gap:0,alignItems:"flex-start"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                  <span style={{fontSize:13,fontWeight:600,color:T.cream}}>Calendar</span>
-                  <div style={{display:"flex",background:T.surface,borderRadius:T.rS,padding:2}}>
-                    {[["calendar","Calendar"],["gantt","Gantt"],["off","Off"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
-                  </div>
-                </div>
-                {calendarContent}
-              </div>
-              <div onMouseDown={()=>setDragging(true)} style={{width:6,cursor:"col-resize",background:dragging?T.gold:"transparent",borderRadius:3,flexShrink:0,alignSelf:"stretch",minHeight:200,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.border} onMouseLeave={e=>{if(!dragging)e.currentTarget.style.background="transparent"}}/>
-              <div style={{width:splitWidth,flexShrink:0,maxHeight:"70vh",overflow:"auto",position:"sticky",top:28}}>{taskListContent}</div>
-            </div>
-          </SectionWrap>
-          {meetingsSection&&<SectionWrap sectionKey="meetings"><div style={{marginTop:24}}>{meetingsSection}</div></SectionWrap>}
-        </>;
-      }
-
-      /* ── Stacked layout with draggable sections ── */
-      return<div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {sectionOrder.map(key=>{
-          const content=sectionMap[key];
-          if(!content)return null;
-          return<SectionWrap key={key} sectionKey={key}>{content}</SectionWrap>;
-        })}
-      </div>;
-    })()}
-
-{/* Meeting Detail View */}
-{viewMeeting&&(()=>{const m=meetings.find(mt=>mt.id===viewMeeting);if(!m)return null;return<Card style={{padding:20,marginTop:12,borderColor:"rgba(232,121,249,.15)",background:"rgba(232,121,249,.02)"}}>
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-    <div>
-      <div style={{fontSize:16,fontWeight:600,color:T.cream}}>{m.title}</div>
-      <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
-        {m.date&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
-        {m.time&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
-        {m.duration&&<span style={{fontSize:11,color:T.dim}}>{m.duration}</span>}
-        {m.location&&<span style={{fontSize:11,color:T.cyan}}>{m.location}</span>}
+    {/* Task list */}
+    {tasks.length===0&&!showAdd?
+      <div style={{textAlign:"center",padding:"48px 20px",color:T.dim}}>
+        <div style={{fontSize:14,marginBottom:12}}>No tasks yet</div>
+        {canEdit&&<button onClick={()=>{setViewMode("list");setShowAdd(true)}} style={{padding:"10px 20px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
       </div>
-      {m.attendees&&m.attendees.length>0&&<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>{m.attendees.map((a,i)=><span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream}}>{a}</span>)}</div>}
-    </div>
-    <button onClick={()=>{saveMeetingNotes(viewMeeting);setViewMeeting(null)}} style={{background:"none",border:"none",color:T.dim,fontSize:18,cursor:"pointer",padding:4}}>×</button>
-  </div>
-  {m.agenda&&<div style={{marginBottom:16}}><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Agenda</div><div style={{fontSize:12,color:T.dimH,lineHeight:1.6,whiteSpace:"pre-wrap",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>{m.agenda}</div></div>}
-  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-    <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Meeting Notes</div><textarea value={meetingNotes} onChange={e=>setMeetingNotes(e.target.value)} placeholder="Type notes during or after the meeting..." rows={6} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
-    <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Summary</div><textarea value={meetingSummary} onChange={e=>setMeetingSummary(e.target.value)} placeholder="Key takeaways..." rows={6} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
-  </div>
-  <button onClick={()=>saveMeetingNotes(viewMeeting)} style={{padding:"7px 16px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans,marginBottom:16}}>Save Notes</button>
-  <div style={{marginBottom:16}}>
-    <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Action Items</div>
-    {(m.actionItems||[]).map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
-      <button onClick={()=>toggleActionItem(m.id,a.id)} style={{width:16,height:16,borderRadius:a.done?8:3,border:`2px solid ${a.done?T.pos:T.dim}`,background:a.done?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
-        {a.done&&<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
-      </button>
-      <span style={{fontSize:12,color:a.done?T.dim:T.cream,textDecoration:a.done?"line-through":"none",flex:1}}>{a.text}</span>
-    </div>)}
-    <div style={{display:"flex",gap:6,marginTop:8}}>
-      <input value={newActionItem} onChange={e=>setNewActionItem(e.target.value)} placeholder="Add action item..." onKeyDown={e=>{if(e.key==="Enter"&&newActionItem.trim()){addActionItemToMeeting(m.id,newActionItem.trim());setNewActionItem("")}}} style={{flex:1,padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none"}}/>
-      <button onClick={()=>{if(newActionItem.trim()){addActionItemToMeeting(m.id,newActionItem.trim());setNewActionItem("")}}} style={{padding:"7px 12px",borderRadius:T.rS,border:"none",background:T.goldSoft,color:T.gold,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add</button>
-    </div>
-    <p style={{fontSize:10,color:T.dim,marginTop:6}}>Action items are automatically added as tasks in the timeline.</p>
-  </div>
-  <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14}}>
-    <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Integrations</div>
-      <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:m.title,date:m.date,time:m.time,duration:m.duration,attendees:m.attendees||[],agenda:m.agenda,location:m.location});updateMeeting(m.id,{calendarSent:true});setCalStatus("Calendar invite sent!")}catch(e){setCalStatus("Error: "+(e.message||"Failed"))}finally{setCalSending(false)}}} disabled={calSending||m.calendarSent} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:m.calendarSent?"rgba(52,211,153,.06)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:m.calendarSent?T.pos:T.cyan,fontSize:10,fontWeight:600,cursor:calSending||m.calendarSent?"default":"pointer",fontFamily:T.sans}}>{m.calendarSent?"Sent to Calendar":calSending?"Sending...":"Google Calendar"}</button>
-      <button onClick={()=>{}} style={{padding:"6px 12px",border:`1px solid rgba(255,234,151,.2)`,background:"rgba(255,234,151,.06)",borderRadius:T.rS,color:T.gold,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} title="Requires Fireflies API key">Import Fireflies Recording</button>
-      {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.sans}}>{calStatus}</span>}
-      {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.sans}}>Requires Google OAuth</span>}
-    </div>
-  </div>
-</Card>})()}
+    :<div>
+      {/* Task list header with optional + button */}
+      {isListView&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{width:28,height:28,borderRadius:14,border:`1px solid ${showAdd?T.gold+"55":T.border}`,background:showAdd?T.goldSoft:"transparent",color:showAdd?T.gold:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,lineHeight:1}}>{showAdd?"\u00d7":"+"}</button>}
+      </div>}
+      {taskView==="table"?renderTaskTable():
+      <div style={taskView==="card"?{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}:{display:"flex",flexDirection:"column",gap:4}}>
+        {taskView==="block"?
+          getMergedBlockItems().map(item=>item.type==="task"?renderTaskBlock(item.data,tasks.indexOf(item.data)):renderMeetingBlock(item.data))
+        :filtered.map(t=>{const ri=tasks.indexOf(t);return taskView==="card"?renderTaskCard(t,ri):renderTaskBlock(t,ri)})}
+        {filtered.length===0&&tasks.length>0&&<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13,gridColumn:"1/-1"}}>No tasks with this status.</div>}
+      </div>}
+    </div>}
+
+    {/* ══ Meeting Detail Modal Overlay ══ */}
+    {viewMeeting&&(()=>{const m=meetings.find(mt=>mt.id===viewMeeting);if(!m)return null;return<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)"}}>
+      <div style={{width:"100%",maxWidth:720,maxHeight:"85vh",overflow:"auto",borderRadius:T.r,background:T.bg,border:`1px solid rgba(232,121,249,.15)`,boxShadow:"0 16px 48px rgba(0,0,0,.5)",padding:24}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:600,color:T.cream}}>{m.title}</div>
+            <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
+              {m.date&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.date}</span>}
+              {m.time&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
+              {m.duration&&<span style={{fontSize:11,color:T.dim}}>{m.duration}</span>}
+              {m.location&&<span style={{fontSize:11,color:T.cyan}}>{m.location}</span>}
+            </div>
+            {m.attendees&&m.attendees.length>0&&<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>{m.attendees.map((a,i)=><span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream}}>{a}</span>)}</div>}
+          </div>
+          <button onClick={()=>{saveMeetingNotes(viewMeeting);setViewMeeting(null)}} style={{background:"none",border:"none",color:T.dim,fontSize:18,cursor:"pointer",padding:4}}>×</button>
+        </div>
+        {m.agenda&&<div style={{marginBottom:16}}><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Agenda</div><div style={{fontSize:12,color:T.dimH,lineHeight:1.6,whiteSpace:"pre-wrap",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>{m.agenda}</div></div>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+          <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Meeting Notes</div><textarea value={meetingNotes} onChange={e=>setMeetingNotes(e.target.value)} placeholder="Type notes during or after the meeting..." rows={6} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
+          <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Summary</div><textarea value={meetingSummary} onChange={e=>setMeetingSummary(e.target.value)} placeholder="Key takeaways..." rows={6} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
+        </div>
+        <button onClick={()=>saveMeetingNotes(viewMeeting)} style={{padding:"7px 16px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans,marginBottom:16}}>Save Notes</button>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Action Items</div>
+          {(m.actionItems||[]).map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
+            <button onClick={()=>toggleActionItem(m.id,a.id)} style={{width:16,height:16,borderRadius:a.done?8:3,border:`2px solid ${a.done?T.pos:T.dim}`,background:a.done?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+              {a.done&&<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
+            </button>
+            <span style={{fontSize:12,color:a.done?T.dim:T.cream,textDecoration:a.done?"line-through":"none",flex:1}}>{a.text}</span>
+          </div>)}
+          <div style={{display:"flex",gap:6,marginTop:8}}>
+            <input value={newActionItem} onChange={e=>setNewActionItem(e.target.value)} placeholder="Add action item..." onKeyDown={e=>{if(e.key==="Enter"&&newActionItem.trim()){addActionItemToMeeting(m.id,newActionItem.trim());setNewActionItem("")}}} style={{flex:1,padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none"}}/>
+            <button onClick={()=>{if(newActionItem.trim()){addActionItemToMeeting(m.id,newActionItem.trim());setNewActionItem("")}}} style={{padding:"7px 12px",borderRadius:T.rS,border:"none",background:T.goldSoft,color:T.gold,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add</button>
+          </div>
+          <p style={{fontSize:10,color:T.dim,marginTop:6}}>Action items are automatically added as tasks in the timeline.</p>
+        </div>
+        <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14}}>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Integrations</div>
+            <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:m.title,date:m.date,time:m.time,duration:m.duration,attendees:m.attendees||[],agenda:m.agenda,location:m.location});updateMeeting(m.id,{calendarSent:true});setCalStatus("Calendar invite sent!")}catch(e){setCalStatus("Error: "+(e.message||"Failed"))}finally{setCalSending(false)}}} disabled={calSending||m.calendarSent} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:m.calendarSent?"rgba(52,211,153,.06)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:m.calendarSent?T.pos:T.cyan,fontSize:10,fontWeight:600,cursor:calSending||m.calendarSent?"default":"pointer",fontFamily:T.sans}}>{m.calendarSent?"Sent to Calendar":calSending?"Sending...":"Google Calendar"}</button>
+            <button onClick={()=>{}} style={{padding:"6px 12px",border:`1px solid rgba(255,234,151,.2)`,background:"rgba(255,234,151,.06)",borderRadius:T.rS,color:T.gold,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} title="Requires Fireflies API key">Import Fireflies Recording</button>
+            {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.sans}}>{calStatus}</span>}
+            {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.sans}}>Requires Google OAuth</span>}
+          </div>
+        </div>
+      </div>
+    </div>})()}
 
   </div>;
 }
