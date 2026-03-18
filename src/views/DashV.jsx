@@ -54,7 +54,7 @@ const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontS
 const Slash=({children})=><span style={{fontSize:14,fontWeight:400,color:T.dim,fontFamily:T.mono,marginLeft:6}}>/ {children}</span>;
 const Pill=({children,color=T.gold,bg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
+function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken}){
   const docs=project?.docs||[];const tasks=project?.timeline||[];
   const overdueDocs=docs.filter(d=>(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))&&d.type==="invoice");
   const upcomingDocs=docs.filter(d=>{if(d.status==="paid"||!d.dueDate)return false;const p=d.dueDate.split("/");if(p.length!==3)return false;const due=new Date(p[2],p[0]-1,p[1]);const now=new Date();const diff=daysBetween(now,due);return diff>=0&&diff<=14&&d.status!=="paid"}).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
@@ -87,6 +87,33 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const[contactDraft,setContactDraft]=useState({name:"",title:"",email:"",phone:""});
   const[tzPicking,setTzPicking]=useState(false);
   const[tzSearch,setTzSearch]=useState("");
+  const[gcalEvents,setGcalEvents]=useState([]);
+  const[gcalLoading,setGcalLoading]=useState(false);
+  const gcalFetched=useRef(false);
+
+  // Fetch Google Calendar events
+  useEffect(()=>{
+    if(!accessToken||gcalFetched.current||!order.includes("meetings"))return;
+    gcalFetched.current=true;
+    setGcalLoading(true);
+    const now=new Date();
+    const maxDate=new Date(now.getTime()+14*86400000);
+    fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${now.toISOString()}&timeMax=${maxDate.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=10`,{headers:{Authorization:`Bearer ${accessToken}`}})
+      .then(r=>{if(!r.ok)throw new Error("Calendar fetch failed");return r.json()})
+      .then(data=>{
+        const events=(data.items||[]).map(e=>({
+          id:e.id,
+          title:e.summary||"(No title)",
+          date:e.start?.dateTime?new Date(e.start.dateTime).toLocaleDateString():e.start?.date||"",
+          time:e.start?.dateTime?new Date(e.start.dateTime).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"All day",
+          location:e.location||"",
+          _gcal:true,
+        }));
+        setGcalEvents(events);
+      })
+      .catch(e=>console.error("[gcal]",e))
+      .finally(()=>setGcalLoading(false));
+  },[accessToken,order]);
   const[weather,setWeather]=useState(null);
   const[weatherLoading,setWeatherLoading]=useState(false);
   const[tempUnit,setTempUnit]=useState(()=>{try{return localStorage.getItem("es_temp_unit")||"F"}catch(e){return"F"}});
@@ -267,16 +294,33 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
         </div>
       </>;
     },
-    meetings:()=><>
-      <Label>Upcoming Meetings</Label>
-      {meetingList.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim}}>No upcoming meetings</div>
-      :<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
-        {meetingList.map(m=><div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderRadius:T.rS,background:T.surfHov||"rgba(255,255,255,.02)"}}>
-          <div><div style={{fontSize:12,color:T.cream,fontWeight:500}}>{m.title}</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>{m.location||"No location"}</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontSize:11,color:T.cyan,fontFamily:T.mono,fontWeight:600}}>{m.date}</div><div style={{fontSize:10,color:T.dim}}>{m.time}</div></div>
-        </div>)}
-      </div>}
-    </>,
+    meetings:()=>{
+      const allMeetings=[...meetingList.map(m=>({...m,_gcal:false})),...gcalEvents];
+      const sorted=allMeetings.sort((a,b)=>(a.date||"").localeCompare(b.date||"")).slice(0,8);
+      return<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <Label>Upcoming Meetings</Label>
+          {gcalEvents.length>0&&<span style={{fontSize:9,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(66,133,244,.12)",color:"#4285F4"}}>Google Calendar</span>}
+          {gcalLoading&&<span style={{fontSize:9,color:T.dim}}>Syncing...</span>}
+        </div>
+        {sorted.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim}}>{accessToken?"No upcoming events":"Connect Google to see calendar"}</div>
+        :<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:4}}>
+          {sorted.map(m=><div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderRadius:T.rS,background:T.surfHov||"rgba(255,255,255,.02)"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:5,height:5,borderRadius:"50%",background:m._gcal?"#4285F4":T.cyan,flexShrink:0}}/>
+                <div style={{fontSize:12,color:T.cream,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</div>
+              </div>
+              {m.location&&<div style={{fontSize:10,color:T.dim,marginTop:2,marginLeft:11}}>{m.location}</div>}
+            </div>
+            <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
+              <div style={{fontSize:11,color:m._gcal?"#4285F4":T.cyan,fontFamily:T.mono,fontWeight:600}}>{m.date}</div>
+              <div style={{fontSize:10,color:T.dim}}>{m.time}</div>
+            </div>
+          </div>)}
+        </div>}
+      </>;
+    },
     agencyfee:()=><>
       <Label>Agency Fee</Label>
       <div style={{marginTop:10}}><Big size={32} color={T.gold}>{fp(feeP)}</Big></div>
