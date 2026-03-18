@@ -27,11 +27,9 @@ function App(){
   const setUser = usesSupa ? sbAuth.setDevUser : gAuth.setUser;
   const loginWithGoogle = usesSupa ? sbAuth.login : null;
   const doLogout = useCallback(async()=>{
-    if(!confirm("Are you sure you want to sign out?"))return;
     localStorage.removeItem("es_user");
     localStorage.removeItem("es_google_token");
     try{ await rawLogout(); }catch(e){ console.error('[app] Logout error:', e); }
-    // Clear Supabase session storage
     const keys=Object.keys(localStorage).filter(k=>k.startsWith("sb-"));
     keys.forEach(k=>localStorage.removeItem(k));
     window.location.href=window.location.origin;
