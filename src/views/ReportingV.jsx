@@ -61,8 +61,9 @@ const ProgressBar=({value,max,color=T.gold})=>{
 };
 
 /* ── Section wrapper ── */
-const Section=({num,title,color,count,open,onToggle,children})=>(
-  <div style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,marginBottom:12,overflow:"hidden"}}>
+const Section=({num,title,color,count,open,onToggle,children,activeNum})=>{
+  if(activeNum!==undefined&&activeNum!==null&&activeNum!==num)return null;
+  return(<div style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,marginBottom:12,overflow:"hidden"}}>
     <div onClick={onToggle} style={{display:"flex",alignItems:"center",gap:10,padding:"14px 18px",cursor:"pointer",borderLeft:`3px solid ${color}`,userSelect:"none"}}>
       <Chevron open={open} />
       <span style={{fontSize:10,fontWeight:700,color,fontFamily:T.mono,minWidth:18}}>0{num}</span>
@@ -70,8 +71,8 @@ const Section=({num,title,color,count,open,onToggle,children})=>(
       {count!=null&&<Badge color={color}>{count}</Badge>}
     </div>
     {open&&<div style={{padding:"0 18px 18px",borderLeft:`3px solid ${color}`,borderTop:`1px solid ${T.border}`}}>{children}</div>}
-  </div>
-);
+  </div>);
+};
 
 /* ── Drop zone ── */
 const DropZone=({onFiles,accept,label="Drop files here or click to upload"})=>{
@@ -110,6 +111,8 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
 
   const [openSections,setOpenSections]=useState({1:true});
   const toggle=n=>setOpenSections(p=>({...p,[n]:!p[n]}));
+  const [viewMode,setViewMode]=useState("cards"); // "cards" | "sections"
+  const [activeSection,setActiveSection]=useState(null);
 
   const [quoteInput,setQuoteInput]=useState("");
   const [csvText,setCsvText]=useState("");
@@ -265,9 +268,15 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
     <div style={{padding:"0 0 60px",maxWidth:960,margin:"0 auto"}}>
       {/* ── HEADER ── */}
       <div style={{marginBottom:24}}>
-        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
-          <h1 style={{fontSize:22,fontWeight:700,color:T.cream,fontFamily:T.sans,margin:0}}>Reporting</h1>
-          <Pill color={status==="Final"?T.pos:status==="In Progress"?T.cyan:T.dim} active onClick={canEdit?cycleStatus:undefined} size="sm">{status}</Pill>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            {activeSection!==null&&<button onClick={()=>setActiveSection(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:14,fontFamily:T.sans,padding:0,display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>&larr; Back</button>}
+            <h1 style={{fontSize:22,fontWeight:700,color:T.cream,fontFamily:T.sans,margin:0}}>Reporting</h1>
+            <Pill color={status==="Final"?T.pos:status==="In Progress"?T.cyan:T.dim} active onClick={canEdit?cycleStatus:undefined} size="sm">{status}</Pill>
+          </div>
+          {activeSection===null&&<div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
+            {[["cards","Cards"],["sections","Sections"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim}}>{l}</button>)}
+          </div>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
           <Card style={{padding:"14px 16px"}}>
@@ -285,8 +294,43 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
         </div>
       </div>
 
+      {/* ── CARD VIEW ── */}
+      {viewMode==="cards"&&activeSection===null&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        {[
+          {n:1,title:"Event Photography",color:SEC_COLORS[0],count:photos.length,unit:"photos",icon:"\uD83D\uDCF7"},
+          {n:2,title:"Video Content",color:SEC_COLORS[1],count:videos.length,unit:"videos",icon:"\uD83C\uDFA5"},
+          {n:3,title:"Client Feedback",color:SEC_COLORS[2],count:feedback.quotes?.length||0,unit:"quotes",icon:"\uD83D\uDCAC"},
+          {n:4,title:"Ambassador Feedback",color:SEC_COLORS[3],count:ambassadors.length,unit:"ambassadors",icon:"\uD83D\uDC65"},
+          {n:5,title:"Throughput & Attendance",color:SEC_COLORS[4],count:attendance.totalAttendance||0,unit:"attendees",icon:"\uD83D\uDCCA"},
+          {n:6,title:"Sampling & Distribution",color:SEC_COLORS[5],count:sampling.totalSamples||0,unit:"samples",icon:"\uD83E\uDD43"},
+          {n:7,title:"Social & Digital",color:SEC_COLORS[6],count:social.impressions||0,unit:"impressions",icon:"\uD83D\uDCF1"},
+          {n:8,title:"Financial Summary",color:"#F59E0B",count:comp?1:0,unit:"auto",icon:"\uD83D\uDCB0"},
+          {n:9,title:"Recap Narrative",color:SEC_COLORS[7],count:NARRATIVE_FIELDS.filter(f=>narrative[f.key]).length,unit:"sections",icon:"\uD83D\uDCDD"},
+          {n:10,title:"Report Builder",color:SEC_COLORS[8],count:exportConfig.versions?.length||0,unit:"versions",icon:"\uD83D\uDCE4"},
+        ].map(s=>{
+          const hasData=s.count>0;
+          return<div key={s.n} onClick={()=>{setActiveSection(s.n);setOpenSections(p=>({...p,[s.n]:true}))}} style={{borderRadius:T.r,border:`1px solid ${T.border}`,borderLeft:`3px solid ${s.color}`,background:T.surfEl,cursor:"pointer",transition:"all .2s",overflow:"hidden"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
+            <div style={{padding:"22px 24px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div>
+                  <div style={{fontSize:10,fontWeight:600,color:s.color,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>{s.title}</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+                    <span className="num" style={{fontSize:28,fontWeight:700,color:hasData?T.cream:T.dim,fontFamily:T.mono}}>{typeof s.count==="number"?s.count.toLocaleString():"—"}</span>
+                    <span style={{fontSize:11,color:T.dim}}>{s.unit}</span>
+                  </div>
+                </div>
+                <span style={{fontSize:24,opacity:.3}}>{s.icon}</span>
+              </div>
+              {!hasData&&<div style={{fontSize:10,color:T.dim,opacity:.6}}>Click to add data</div>}
+            </div>
+          </div>})}
+      </div>}
+
+      {/* ── SECTION DETAIL VIEW (when card is clicked) or SECTIONS VIEW ── */}
+      {(viewMode==="sections"||activeSection!==null)&&<>
+
       {/* ══════ SECTION 1: EVENT PHOTOGRAPHY ══════ */}
-      <Section num={1} title="Event Photography" color={SEC_COLORS[0]} count={photos.length} open={openSections[1]} onToggle={()=>toggle(1)}>
+      <Section num={1} title="Event Photography" color={SEC_COLORS[0]} count={photos.length} open={openSections[1]} activeNum={activeSection} onToggle={()=>toggle(1)}>
         {canEdit&&<div style={{marginBottom:16}}><DropZone onFiles={addPhoto} accept="image/*" label="Drop photos here or click to upload" /></div>}
         {photos.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
           {photos.map(p=>(
@@ -310,7 +354,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 2: VIDEO CONTENT ══════ */}
-      <Section num={2} title="Video Content" color={SEC_COLORS[1]} count={videos.length} open={openSections[2]} onToggle={()=>toggle(2)}>
+      <Section num={2} title="Video Content" color={SEC_COLORS[1]} count={videos.length} open={openSections[2]} activeNum={activeSection} onToggle={()=>toggle(2)}>
         {canEdit&&<div style={{marginBottom:16}}><DropZone onFiles={addVideo} accept="video/*" label="Drop videos here or click to upload" /></div>}
         {videos.map(v=>(
           <div key={v.id} style={{background:T.surface,borderRadius:T.rS,border:`1px solid ${T.border}`,padding:14,marginBottom:10}}>
@@ -335,7 +379,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 3: CLIENT FEEDBACK ══════ */}
-      <Section num={3} title="Client Feedback" color={SEC_COLORS[2]} count={(feedback.entries?.length||0)+(feedback.quotes?.length||0)} open={openSections[3]} onToggle={()=>toggle(3)}>
+      <Section num={3} title="Client Feedback" color={SEC_COLORS[2]} count={(feedback.entries?.length||0)+(feedback.quotes?.length||0)} open={openSections[3]} activeNum={activeSection} onToggle={()=>toggle(3)}>
         <Label>Satisfaction Scores (1-10)</Label>
         <div style={{display:"grid",gap:8,marginBottom:16}}>
           {FEEDBACK_CATS.map(cat=><Slider key={cat} label={cat} value={feedback.scores?.[cat]||0} onChange={v=>set("feedback",{...feedback,scores:{...feedback.scores,[cat]:v}})} />)}
@@ -378,7 +422,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 4: BRAND AMBASSADOR FEEDBACK ══════ */}
-      <Section num={4} title="Brand Ambassador Feedback" color={SEC_COLORS[3]} count={ambassadors.length} open={openSections[4]} onToggle={()=>toggle(4)}>
+      <Section num={4} title="Brand Ambassador Feedback" color={SEC_COLORS[3]} count={ambassadors.length} open={openSections[4]} activeNum={activeSection} onToggle={()=>toggle(4)}>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           {canEdit&&<Btn primary small onClick={addAmbassador}>+ Add Ambassador</Btn>}
         </div>
@@ -417,7 +461,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 5: THROUGHPUT & ATTENDANCE ══════ */}
-      <Section num={5} title="Throughput & Attendance" color={SEC_COLORS[4]} count={attendance.hourly?.length||null} open={openSections[5]} onToggle={()=>toggle(5)}>
+      <Section num={5} title="Throughput & Attendance" color={SEC_COLORS[4]} count={attendance.hourly?.length||null} open={openSections[5]} activeNum={activeSection} onToggle={()=>toggle(5)}>
         <div style={{...grid3,marginBottom:16}}>
           <div><Label>Total Attendance</Label><Input type="number" mono value={attendance.totalAttendance} onChange={v=>set("attendance",{...attendance,totalAttendance:v})} /></div>
           <div><Label>Unique Check-Ins</Label><Input type="number" mono value={attendance.uniqueCheckIns} onChange={v=>set("attendance",{...attendance,uniqueCheckIns:v})} /></div>
@@ -462,7 +506,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 6: SAMPLING & DISTRIBUTION ══════ */}
-      <Section num={6} title="Sampling & Distribution" color={SEC_COLORS[5]} count={sampling.variants?.length||null} open={openSections[6]} onToggle={()=>toggle(6)}>
+      <Section num={6} title="Sampling & Distribution" color={SEC_COLORS[5]} count={sampling.variants?.length||null} open={openSections[6]} activeNum={activeSection} onToggle={()=>toggle(6)}>
         <div style={{...grid3,marginBottom:16}}>
           <div><Label>Total Samples</Label><Input type="number" mono value={sampling.totalSamples} onChange={v=>set("sampling",{...sampling,totalSamples:v})} /></div>
           <div><Label>Samples/Hour</Label><Input type="number" mono value={sampling.samplesPerHour} onChange={v=>set("sampling",{...sampling,samplesPerHour:v})} /></div>
@@ -500,7 +544,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 7: SOCIAL & DIGITAL METRICS ══════ */}
-      <Section num={7} title="Social & Digital Metrics" color={SEC_COLORS[6]} count={social.ugc?.length||null} open={openSections[7]} onToggle={()=>toggle(7)}>
+      <Section num={7} title="Social & Digital Metrics" color={SEC_COLORS[6]} count={social.ugc?.length||null} open={openSections[7]} activeNum={activeSection} onToggle={()=>toggle(7)}>
         <div style={{...grid3,marginBottom:16}}>
           <div><Label>Hashtag</Label><Input value={social.hashtag} onChange={v=>set("social",{...social,hashtag:v})} placeholder="#YourEvent" /></div>
           <div><Label>Impressions</Label><Input type="number" mono value={social.impressions} onChange={v=>set("social",{...social,impressions:v})} /></div>
@@ -524,7 +568,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 8: FINANCIAL SUMMARY (auto-populated) ══════ */}
-      <Section num={8} title="Financial Summary" color="#F59E0B" count={null} open={openSections[8]} onToggle={()=>toggle(8)} badge="Auto">
+      <Section num={8} title="Financial Summary" color="#F59E0B" count={null} open={openSections[8]} activeNum={activeSection} onToggle={()=>toggle(8)} badge="Auto">
         {comp?<div>
           <div style={{fontSize:10,color:T.dim,marginBottom:14}}>Auto-populated from Budget and Finance data. <span style={{color:"#F59E0B",fontWeight:600}}>Internal only</span> — not included in client reports by default.</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginBottom:16}}>
@@ -568,7 +612,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 9: RECAP NARRATIVE ══════ */}
-      <Section num={9} title="Recap Narrative" color={SEC_COLORS[7]} count={NARRATIVE_FIELDS.filter(f=>narrative[f.key]).length||null} open={openSections[9]} onToggle={()=>toggle(9)}>
+      <Section num={9} title="Recap Narrative" color={SEC_COLORS[7]} count={NARRATIVE_FIELDS.filter(f=>narrative[f.key]).length||null} open={openSections[9]} activeNum={activeSection} onToggle={()=>toggle(9)}>
         {dataPullHints.length>0&&<div style={{marginBottom:14}}>
           <Label>Data Pull Hints — click to copy</Label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -584,7 +628,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
       </Section>
 
       {/* ══════ SECTION 10: REPORT BUILDER & EXPORT ══════ */}
-      <Section num={10} title="Report Builder & Export" color={SEC_COLORS[8]} count={exportConfig.versions?.length||null} open={openSections[10]} onToggle={()=>toggle(10)}>
+      <Section num={10} title="Report Builder & Export" color={SEC_COLORS[8]} count={exportConfig.versions?.length||null} open={openSections[10]} activeNum={activeSection} onToggle={()=>toggle(10)}>
         {/* Permissions */}
         <div style={{marginBottom:16,padding:"14px 16px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
           <div style={{fontSize:10,fontWeight:600,color:T.cream,marginBottom:10}}>Section Permissions</div>
@@ -648,6 +692,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
           </div>
         </>}
       </Section>
+      </>}
     </div>
   );
 }
