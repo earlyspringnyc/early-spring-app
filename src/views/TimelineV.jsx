@@ -68,6 +68,13 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[contactSuggestions,setContactSuggestions]=useState([]);const[showContactSug,setShowContactSug]=useState(false);
   const[newActionItem,setNewActionItem]=useState("");
   const[showMenu,setShowMenu]=useState(false);
+  const[editingTaskId,setEditingTaskId]=useState(null);
+  const[etName,setEtName]=useState("");
+  const[etCat,setEtCat]=useState("");
+  const[etAssignee,setEtAssignee]=useState("");
+  const[etStart,setEtStart]=useState("");
+  const[etEnd,setEtEnd]=useState("");
+  const[etNotes,setEtNotes]=useState("");
   const menuRef=useRef(null);
   const filtered=filter==="all"?tasks:tasks.filter(t=>t.status===filter);
   const counts={all:tasks.length,todo:tasks.filter(t=>t.status==="todo").length,progress:tasks.filter(t=>t.status==="progress").length,roadblocked:tasks.filter(t=>t.status==="roadblocked").length,done:tasks.filter(t=>t.status==="done").length};
@@ -107,6 +114,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const saveMeetingNotes=(meetingId)=>{
     updateMeeting(meetingId,{notes:meetingNotes,summary:meetingSummary});
   };
+  const openEditTask=(t)=>{setEditingTaskId(t.id);setEtName(t.name);setEtCat(t.category||"General");setEtAssignee(t.assignee||"");setEtStart(t.startDate||"");setEtEnd(t.endDate||"");setEtNotes(t.notes||"")};
+  const saveEditTask=()=>{if(!editingTaskId)return;updateProject({timeline:tasks.map(t=>t.id===editingTaskId?{...t,name:etName||t.name,category:etCat,assignee:etAssignee,startDate:etStart,endDate:etEnd,notes:etNotes}:t)});setEditingTaskId(null)};
   const addTaskFromBudgetItem=(item)=>{
     addTask(item.name,item.catName,"","","",item.id);
   };
@@ -144,22 +153,22 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
     const isEditingDate=editDateId===t.id;
     return<div key={t.id} style={{position:"relative"}}>
-      <div style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,borderTop:`3px solid ${cc}`,padding:"16px 18px",transition:"all .15s",cursor:"default"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.borderColor=T.borderGlow}} onMouseLeave={e=>{e.currentTarget.style.background=T.surfEl;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.borderTopColor=cc}}>
+      <div onClick={()=>openEditTask(t)} style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,borderTop:`3px solid ${cc}`,padding:"16px 18px",transition:"all .15s",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.borderColor=T.borderGlow}} onMouseLeave={e=>{e.currentTarget.style.background=T.surfEl;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.borderTopColor=cc}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={()=>cycleStatus(ri)} style={{width:18,height:18,borderRadius:t.status==="done"?9:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+            <button onClick={e=>{e.stopPropagation();cycleStatus(ri)}} style={{width:18,height:18,borderRadius:t.status==="done"?9:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
               {t.status==="done"&&<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
             </button>
             <span style={{fontSize:13,fontWeight:600,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</span>
           </div>
-          {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}
+          {canEdit&&<button onClick={e=>{e.stopPropagation();removeTask(ri)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:dateStr?10:0}}>
           {t.category&&<Pill color={cc}>{t.category}</Pill>}
           {t.assignee&&<Pill color={T.cyan} size="xs">{t.assignee}</Pill>}
           <Pill color={STATUS_COLORS[t.status]} size="xs">{STATUS_LABELS[t.status]}</Pill>
         </div>
-        {dateStr&&<div onClick={()=>canEdit&&setEditDateId(isEditingDate?null:t.id)} style={{fontSize:10,color:T.dim,fontFamily:T.mono,cursor:canEdit?"pointer":"default",display:"flex",alignItems:"center",gap:4}}>
+        {dateStr&&<div onClick={e=>{e.stopPropagation();canEdit&&setEditDateId(isEditingDate?null:t.id)}} style={{fontSize:10,color:T.dim,fontFamily:T.mono,cursor:canEdit?"pointer":"default",display:"flex",alignItems:"center",gap:4}}>
           <span style={{opacity:.6}}>&#9716;</span> {dateStr}
         </div>}
       </div>
@@ -176,8 +185,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
     const isEditingDate=editDateId===t.id;
     return<div key={t.id}>
-      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:isEditingDate?`${T.rS} ${T.rS} 0 0`:T.rS,borderLeft:`3px solid ${cc}`,border:`1px solid ${isEditingDate?T.borderGlow:T.border}`,borderLeftWidth:3,borderLeftColor:cc,borderBottom:isEditingDate?"none":`1px solid ${T.border}`,transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
-        <button onClick={()=>cycleStatus(ri)} style={{width:18,height:18,borderRadius:t.status==="done"?9:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+      <div onClick={()=>openEditTask(t)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:isEditingDate?`${T.rS} ${T.rS} 0 0`:T.rS,borderLeft:`3px solid ${cc}`,border:`1px solid ${isEditingDate?T.borderGlow:T.border}`,borderLeftWidth:3,borderLeftColor:cc,borderBottom:isEditingDate?"none":`1px solid ${T.border}`,transition:"all .15s",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
+        <button onClick={e=>{e.stopPropagation();cycleStatus(ri)}} style={{width:18,height:18,borderRadius:t.status==="done"?9:4,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
           {t.status==="done"&&<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
         </button>
         <div style={{flex:1,minWidth:0}}>
@@ -187,10 +196,10 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           {t.category&&<Pill color={cc} size="xs">{t.category}</Pill>}
           {t.assignee&&<Pill color={T.cyan} size="xs">{t.assignee}</Pill>}
         </div>
-        <span onClick={()=>canEdit&&setEditDateId(isEditingDate?null:t.id)} style={{fontSize:10,color:t.startDate?T.dim:"rgba(255,255,255,.2)",fontFamily:T.mono,flexShrink:0,cursor:canEdit?"pointer":"default",padding:"2px 6px",borderRadius:4}} onMouseEnter={e=>{if(canEdit)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>e.currentTarget.style.color=t.startDate?T.dim:"rgba(255,255,255,.2)"}>{dateStr||"No date"}</span>
-        {canEdit?<select value={t.status} onChange={e=>setTaskStatus(ri,e.target.value)} style={{padding:"3px 4px",borderRadius:T.rS,background:`${STATUS_COLORS[t.status]}18`,border:`1px solid ${STATUS_COLORS[t.status]}33`,color:STATUS_COLORS[t.status],fontSize:10,fontWeight:600,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none",textTransform:"uppercase",letterSpacing:".04em",flexShrink:0}}>{["todo","progress","roadblocked","done"].map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select>
+        <span onClick={e=>{e.stopPropagation();canEdit&&setEditDateId(isEditingDate?null:t.id)}} style={{fontSize:10,color:t.startDate?T.dim:"rgba(255,255,255,.2)",fontFamily:T.mono,flexShrink:0,cursor:canEdit?"pointer":"default",padding:"2px 6px",borderRadius:4}} onMouseEnter={e=>{if(canEdit)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>e.currentTarget.style.color=t.startDate?T.dim:"rgba(255,255,255,.2)"}>{dateStr||"No date"}</span>
+        {canEdit?<select onClick={e=>e.stopPropagation()} value={t.status} onChange={e=>setTaskStatus(ri,e.target.value)} style={{padding:"3px 4px",borderRadius:T.rS,background:`${STATUS_COLORS[t.status]}18`,border:`1px solid ${STATUS_COLORS[t.status]}33`,color:STATUS_COLORS[t.status],fontSize:10,fontWeight:600,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none",textTransform:"uppercase",letterSpacing:".04em",flexShrink:0}}>{["todo","progress","roadblocked","done"].map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select>
         :<span style={{fontSize:10,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>}
-        {canEdit&&<button onClick={()=>removeTask(ri)} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}
+        {canEdit&&<button onClick={e=>{e.stopPropagation();removeTask(ri)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}
       </div>
       {isEditingDate&&canEdit&&<div style={{display:"flex",gap:12,padding:"10px 16px",background:T.surface,border:`1px solid ${T.borderGlow}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,marginBottom:4}}>
         <DatePick value={t.startDate||""} onChange={v=>updateTaskDates(t.id,v,t.endDate)} label="Start" compact/>
@@ -481,6 +490,55 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
             {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.sans}}>{calStatus}</span>}
             {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.sans}}>Requires Google OAuth</span>}
           </div>
+        </div>
+      </div>
+    </div>})()}
+
+    {editingTaskId&&(()=>{const t=tasks.find(t=>t.id===editingTaskId);if(!t)return null;return<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)"}} onClick={()=>setEditingTaskId(null)}>
+      <div onClick={e=>e.stopPropagation()} style={{width:500,maxWidth:"90vw",background:T.surface,borderRadius:T.r,border:`1px solid ${T.borderGlow}`,overflow:"hidden",boxShadow:"0 24px 80px rgba(0,0,0,.5)"}}>
+        <div style={{padding:"20px 24px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:15,fontWeight:700,color:T.cream,fontFamily:T.sans}}>Edit Task</span>
+          <button onClick={()=>setEditingTaskId(null)} style={{background:"none",border:"none",color:T.dim,fontSize:18,cursor:"pointer",padding:4,lineHeight:1}}>&times;</button>
+        </div>
+        <div style={{padding:"20px 24px",display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>Name</label>
+            <input value={etName} onChange={e=>setEtName(e.target.value)} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=T.borderGlow} onBlur={e=>e.target.style.borderColor=T.border}/>
+          </div>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{flex:1}}>
+              <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>Category</label>
+              <input value={etCat} onChange={e=>setEtCat(e.target.value)} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=T.borderGlow} onBlur={e=>e.target.style.borderColor=T.border}/>
+            </div>
+            <div style={{flex:1}}>
+              <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>Assignee</label>
+              <input value={etAssignee} onChange={e=>setEtAssignee(e.target.value)} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=T.borderGlow} onBlur={e=>e.target.style.borderColor=T.border}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{flex:1}}>
+              <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>Start Date</label>
+              <DatePick value={etStart} onChange={setEtStart} label="" compact/>
+            </div>
+            <div style={{flex:1}}>
+              <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>End Date</label>
+              <DatePick value={etEnd} onChange={setEtEnd} label="" compact/>
+            </div>
+          </div>
+          <div>
+            <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>Status</label>
+            <div style={{display:"flex",gap:6}}>
+              {[["todo","To Do"],["progress","In Progress"],["roadblocked","Roadblocked"],["done","Done"]].map(([key,label])=><button key={key} onClick={()=>{updateProject({timeline:tasks.map(tk=>tk.id===editingTaskId?{...tk,status:key}:tk)})}} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${STATUS_COLORS[key]}33`,background:t.status===key?`${STATUS_COLORS[key]}33`:"transparent",color:STATUS_COLORS[key],fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans,textTransform:"uppercase",letterSpacing:".04em"}}>{label}</button>)}
+            </div>
+          </div>
+          <div>
+            <label style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6,display:"block",fontFamily:T.sans}}>Notes</label>
+            <textarea value={etNotes} onChange={e=>setEtNotes(e.target.value)} rows={4} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",resize:"vertical",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=T.borderGlow} onBlur={e=>e.target.style.borderColor=T.border}/>
+          </div>
+        </div>
+        <div style={{padding:"16px 24px 20px",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <button onClick={()=>{const idx=tasks.findIndex(tk=>tk.id===editingTaskId);if(idx>=0){removeTask(idx);setEditingTaskId(null)}}} style={{padding:"8px 18px",borderRadius:T.rS,border:`1px solid ${T.neg}33`,background:"transparent",color:T.neg,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Delete</button>
+          <button onClick={saveEditTask} style={{padding:"8px 24px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
         </div>
       </div>
     </div>})()}
