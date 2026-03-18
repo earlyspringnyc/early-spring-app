@@ -48,25 +48,25 @@ function DashV({cats,comp,feeP,project,onNavigate}){
       "donut  donut  comp   comp"
     `,gap:10,marginBottom:20}}>
 
-      {/* Hero: Total Budget — large, accented */}
+      {/* Hero: Client Budget Allocation */}
       <Cell area="budget" accent={T.goldSoft} style={{borderColor:T.borderGlow,cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("budget")}>
-        <Label>Total Project Budget</Label>
+        <Label>Client Budget Allocation</Label>
         <div style={{display:"flex",alignItems:"baseline",gap:4,marginTop:12}}>
           <Big color={T.gold} size={48}>{f0(totalBudget)}</Big>
         </div>
-        <div style={{marginTop:16,height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${budgetPct}%`,background:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,transition:"width .6s ease"}}/></div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{budgetPct}% spent</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{f0(totalBudget-spendToDate)} remaining</span></div>
+        <div style={{marginTop:16,height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(budgetPct,100)}%`,background:comp.grandTotal>totalBudget?`linear-gradient(90deg,${T.neg},#FF6B6B)`:`linear-gradient(90deg,${T.gold},${T.cyan})`,borderRadius:2,transition:"width .6s ease"}}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{budgetPct}% allocated</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{f0(Math.max(0,totalBudget-comp.grandTotal))} remaining</span></div>
       </Cell>
 
-      {/* Spend to Date */}
-      <Cell area="spend" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("pnl")}>
-        <Label>Spend to Date</Label>
+      {/* Current Project Total */}
+      {(()=>{const overBudget=comp.grandTotal>totalBudget&&totalBudget>0;return<Cell area="spend" style={{cursor:"pointer",borderLeft:overBudget?`3px solid ${T.neg}`:`3px solid ${T.pos}`}} onClick={()=>onNavigate&&onNavigate("budget")}>
+        <Label>Current Project Total</Label>
         <div style={{display:"flex",alignItems:"baseline",marginTop:12}}>
-          <Big size={40}>{f0(spendToDate)}</Big>
+          <Big size={40} color={overBudget?T.neg:T.pos}>{f0(comp.grandTotal)}</Big>
           <Slash>{f0(totalBudget)}</Slash>
         </div>
-        <div style={{fontSize:11,color:T.dim,marginTop:14,fontFamily:T.mono}}>{budgetPct}% of budget</div>
-      </Cell>
+        <div style={{fontSize:11,color:overBudget?T.neg:T.pos,marginTop:14,fontFamily:T.mono}}>{overBudget?`${f0(comp.grandTotal-totalBudget)} over budget`:"Within budget"}</div>
+      </Cell>})()}
 
       {/* Amount Owed */}
       <Cell area="owed" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("vendors")}>
