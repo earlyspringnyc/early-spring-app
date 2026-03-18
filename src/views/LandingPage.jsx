@@ -14,21 +14,47 @@ function useFadeIn(threshold=.12){
 }
 function Fade({children,style:sx={},delay=0,...p}){const{ref,style}=useFadeIn();return<div ref={ref} style={{...style,transitionDelay:`${delay}s`,...sx}} {...p}>{children}</div>}
 
-/* ── CSS Laptop Frame ── */
-function Laptop({children,scale=1}){
-  return<div style={{perspective:1200,display:'flex',justifyContent:'center'}}>
-    <div style={{transform:`scale(${scale})`,transformOrigin:'top center'}}>
-      {/* Screen */}
-      <div style={{background:'#0C0C10',borderRadius:10,border:'2px solid rgba(255,255,255,.1)',padding:6,boxShadow:'0 20px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03)',position:'relative'}}>
-        {/* Camera dot */}
-        <div style={{position:'absolute',top:3,left:'50%',transform:'translateX(-50)',width:4,height:4,borderRadius:'50%',background:'rgba(255,255,255,.08)'}}/>
-        <div style={{background:'#141417',borderRadius:6,overflow:'hidden',width:560,height:350}}>
+/* ── MacBook Pro Frame ── */
+function MacBook({children,scale=1,width=600}){
+  const h=width*.625;
+  return<div style={{display:'flex',justifyContent:'center'}}>
+    <div style={{transform:`scale(${scale})`,transformOrigin:'top center',width:width+24}}>
+      {/* Lid */}
+      <div style={{background:'linear-gradient(180deg,#2A2A2E,#1C1C1F)',borderRadius:'12px 12px 0 0',padding:'8px 12px 6px',boxShadow:'0 -1px 0 rgba(255,255,255,.06) inset, 0 30px 80px rgba(0,0,0,.6)',position:'relative'}}>
+        {/* Notch */}
+        <div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50)',width:80,height:14,background:'#1C1C1F',borderRadius:'0 0 8px 8px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div style={{width:4,height:4,borderRadius:'50%',background:'rgba(255,255,255,.04)',boxShadow:'0 0 3px rgba(255,255,255,.02)'}}/>
+        </div>
+        {/* Screen */}
+        <div style={{background:'#0A0A0C',borderRadius:4,overflow:'hidden',width:'100%',height:h,border:'1px solid rgba(255,255,255,.04)'}}>
           {children}
         </div>
       </div>
-      {/* Base */}
-      <div style={{margin:'0 auto',width:'65%',height:8,background:'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))',borderRadius:'0 0 8px 8px'}}/>
-      <div style={{margin:'0 auto',width:'35%',height:3,background:'rgba(255,255,255,.04)',borderRadius:'0 0 4px 4px'}}/>
+      {/* Hinge */}
+      <div style={{height:2,background:'linear-gradient(90deg,transparent 5%,rgba(255,255,255,.08) 20%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.08) 80%,transparent 95%)'}}/>
+      {/* Base/keyboard */}
+      <div style={{background:'linear-gradient(180deg,#2A2A2E,#222225)',borderRadius:'0 0 10px 10px',height:12,position:'relative',boxShadow:'0 4px 12px rgba(0,0,0,.3)'}}>
+        {/* Trackpad indent */}
+        <div style={{position:'absolute',bottom:2,left:'50%',transform:'translateX(-50%)',width:'30%',height:3,borderRadius:2,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.04)'}}/>
+      </div>
+      {/* Shadow on surface */}
+      <div style={{margin:'0 auto',width:'80%',height:6,background:'radial-gradient(ellipse,rgba(0,0,0,.25),transparent)',marginTop:2}}/>
+    </div>
+  </div>;
+}
+
+/* ── iPad Frame ── */
+function IPad({children,scale=1,width=280}){
+  const h=width*1.35;
+  return<div style={{display:'flex',justifyContent:'center'}}>
+    <div style={{transform:`scale(${scale})`,transformOrigin:'top center'}}>
+      <div style={{background:'linear-gradient(180deg,#2A2A2E,#222225)',borderRadius:16,padding:10,boxShadow:'0 20px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.05) inset',position:'relative'}}>
+        {/* Camera */}
+        <div style={{position:'absolute',top:5,left:'50%',transform:'translateX(-50%)',width:4,height:4,borderRadius:'50%',background:'rgba(255,255,255,.06)'}}/>
+        <div style={{background:'#0A0A0C',borderRadius:8,overflow:'hidden',width,height:h,border:'1px solid rgba(255,255,255,.04)'}}>
+          {children}
+        </div>
+      </div>
     </div>
   </div>;
 }
@@ -154,10 +180,10 @@ function LandingPage({onGetStarted}){
               <button onClick={()=>scrollTo('features')} style={{padding:'14px 36px',borderRadius:T.rS,border:`1px solid ${T.border}`,background:'transparent',color:T.cream,fontSize:15,fontWeight:500,cursor:'pointer',fontFamily:T.sans,transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background='rgba(255,255,255,.02)'}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background='transparent'}}>See Features</button>
             </div>
           </div>
-          {/* Laptop mockup */}
-          <Laptop scale={.95}>
+          {/* MacBook mockup */}
+          <MacBook scale={.85} width={580}>
             <DashboardMockup/>
-          </Laptop>
+          </MacBook>
         </div>
       </Fade>
     </header>
@@ -264,26 +290,28 @@ function LandingPage({onGetStarted}){
       </Fade>
     </section>
 
-    {/* ── Full-width laptop showcase ── */}
+    {/* ── MacBook + iPad showcase ── */}
     <section style={{padding:'0 32px 100px'}}>
       <Fade>
-        <div style={{maxWidth:700,margin:'0 auto'}}>
-          <Laptop scale={1.1}>
-            <div style={{display:'grid',gridTemplateColumns:'.35fr 1fr',height:'100%'}}>
+        <div style={{maxWidth:900,margin:'0 auto',display:'flex',alignItems:'flex-end',justifyContent:'center',gap:40}}>
+          <MacBook scale={.9} width={540}>
+            <div style={{display:'grid',gridTemplateColumns:'.3fr 1fr',height:'100%'}}>
               {/* Sidebar mock */}
-              <div style={{borderRight:'1px solid rgba(255,255,255,.04)',padding:'12px 8px',display:'flex',flexDirection:'column',gap:3}}>
-                <div style={{width:16,height:16,borderRadius:6,border:'1px solid rgba(148,163,184,.2)',margin:'0 auto 8px',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <div style={{width:8,height:8,borderRadius:2,background:'rgba(148,163,184,.15)'}}/>
+              <div style={{borderRight:'1px solid rgba(255,255,255,.04)',padding:'10px 6px',display:'flex',flexDirection:'column',gap:2}}>
+                <div style={{width:14,height:14,borderRadius:5,border:'1px solid rgba(148,163,184,.15)',margin:'0 auto 6px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <div style={{width:7,height:7,borderRadius:2,background:'rgba(148,163,184,.12)'}}/>
                 </div>
-                {[C.amber,C.teal,C.purple,C.cyan,C.coral].map((c,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 6px',borderRadius:4,background:i===0?'rgba(255,255,255,.04)':'transparent'}}>
-                  <div style={{width:4,height:4,borderRadius:1,background:i===0?c:'rgba(255,255,255,.08)'}}/>
-                  <div style={{width:`${20+i*5}px`,height:3,background:i===0?'rgba(255,255,255,.12)':'rgba(255,255,255,.05)',borderRadius:2}}/>
+                {[C.amber,C.teal,C.purple,C.cyan,C.coral].map((c,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 5px',borderRadius:3,background:i===1?'rgba(255,255,255,.04)':'transparent'}}>
+                  <div style={{width:3,height:3,borderRadius:1,background:i===1?c:'rgba(255,255,255,.06)'}}/>
+                  <div style={{width:`${16+i*4}px`,height:2,background:i===1?'rgba(255,255,255,.1)':'rgba(255,255,255,.04)',borderRadius:1}}/>
                 </div>)}
               </div>
-              {/* Content */}
               <CalendarMockup/>
             </div>
-          </Laptop>
+          </MacBook>
+          <IPad scale={.85} width={220}>
+            <VendorMockup/>
+          </IPad>
         </div>
       </Fade>
     </section>
