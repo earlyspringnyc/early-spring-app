@@ -3,20 +3,20 @@ import T from '../../theme/tokens.js';
 
 function MobileNav({view,setView,project}){
   const[showMore,setShowMore]=useState(false);
-  const clientLabel=project.client||"Client";
+  const clientName=project.client||"Client";
   const tabs=[
-    {id:"dashboard",label:"Dashboard",icon:"◐"},
-    {id:"budget",label:"Budget",icon:"◈"},
-    {id:"timeline",label:"Timeline",icon:"▤"},
-    {id:"vendors",label:"Vendors",icon:"◆"},
+    {id:"dashboard",label:"Dashboard",icon:"\u25D0"},
+    {id:"budget",label:"Budget",icon:"\u25C8"},
+    {id:"timeline",label:"Production",icon:"\u25A4"},
+    {id:"vendors",label:"Vendors",icon:"\u25C6"},
   ];
   const moreTabs=[
-    {id:"pnl",label:"P&L + Cash",icon:"◇"},
-    {id:"docs",label:"Documents",icon:"▧"},
-    {id:"ros",label:"Run of Show",icon:"▶"},
-    {id:"export",label:clientLabel,icon:"◈"},
-    {id:"ai",label:"AI Assistant",icon:"◉"},
-    {id:"settings",label:"Settings",icon:"◎"},
+    {id:"export",label:`Client: ${clientName}`,icon:"\u25CE"},
+    {id:"pnl",label:"Finance",icon:"\u25C7"},
+    {id:"docs",label:"Documents",icon:"\u25A7"},
+    {id:"ros",label:"Run of Show",icon:"\u25B6"},
+    {id:"ai",label:"AI",icon:"\u25C9"},
+    {id:"settings",label:"Settings",icon:"\u25CE"},
   ];
   return<div className="mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(8,8,12,.95)",backdropFilter:"blur(20px)",borderTop:`1px solid ${T.border}`,padding:"6px 0 env(safe-area-inset-bottom,6px)"}}>
     <div style={{display:"flex",justifyContent:"space-around",alignItems:"center"}}>
@@ -25,7 +25,7 @@ function MobileNav({view,setView,project}){
         <span>{t.label}</span>
       </button>)}
       <button onClick={()=>setShowMore(!showMore)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 12px",background:"none",border:"none",cursor:"pointer",color:showMore?T.gold:T.dim,fontSize:10,fontFamily:T.sans,fontWeight:showMore?600:400,minWidth:56}}>
-        <span style={{fontSize:18,lineHeight:1}}>···</span>
+        <span style={{fontSize:18,lineHeight:1}}>{"\u00B7\u00B7\u00B7"}</span>
         <span>More</span>
       </button>
     </div>
