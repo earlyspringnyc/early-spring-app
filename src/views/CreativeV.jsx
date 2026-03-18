@@ -51,19 +51,44 @@ function CreativeV({project,updateProject,canEdit}){
   const filtered=statusFilter==="all"?preFiltered:preFiltered.filter(a=>(a.status||"draft")===statusFilter);
   const catCounts=CATS.reduce((a,c)=>{a[c.id]=assets.filter(f=>f.category===c.id).length;return a},{});
 
+  /* File type detection */
+  const getFileType=(file)=>{
+    const ext=(file.name||"").split(".").pop().toLowerCase();
+    const mime=file.type||"";
+    if(mime.startsWith("image/")||["png","jpg","jpeg","tiff","tif","svg","webp"].includes(ext))return"image";
+    if(mime.startsWith("video/")||["mp4","mov","prores","mxf"].includes(ext))return"video";
+    if(ext==="pdf"||mime==="application/pdf")return"pdf";
+    if(["ai","eps"].includes(ext))return"illustrator";
+    if(["psd","psb"].includes(ext))return"photoshop";
+    if(ext==="indd")return"indesign";
+    if(["dwg","dxf"].includes(ext))return"cad";
+    if(["skp"].includes(ext))return"sketchup";
+    if(["step","stp","stl","obj"].includes(ext))return"3d";
+    if(["fig"].includes(ext))return"figma";
+    if(["pptx","ppt"].includes(ext))return"powerpoint";
+    if(["key","keynote"].includes(ext))return"keynote";
+    if(["sketch"].includes(ext))return"sketch";
+    return"other";
+  };
+  const FILE_TYPE_LABELS={image:"Image",video:"Video",pdf:"PDF",illustrator:"Illustrator",photoshop:"Photoshop",indesign:"InDesign",cad:"CAD",sketchup:"SketchUp","3d":"3D",figma:"Figma",powerpoint:"PowerPoint",keynote:"Keynote",sketch:"Sketch",link:"Link",other:"File"};
+  const FILE_TYPE_COLORS={image:"#4ADE80",video:"#F47264",pdf:"#F59E0B",illustrator:"#FF9A00",photoshop:"#31A8FF",indesign:"#FF3366",cad:"#06B6D4",sketchup:"#005F9E","3d":"#8B5CF6",figma:"#A259FF",powerpoint:"#D24726",keynote:"#009DFF",sketch:"#FDAD00",link:"#7DD3FC",other:T.dim};
+
   const handleFiles=useCallback((files)=>{
     const newAssets=[];
     Array.from(files).forEach(file=>{
       const reader=new FileReader();
       reader.onload=ev=>{
         const cat=autoCategory(file.name);
-        const isImage=file.type.startsWith("image/");
-        const isVideo=file.type.startsWith("video/");
-        const isPdf=file.type==="application/pdf";
+        const ft=getFileType(file);
+        const ext=(file.name||"").split(".").pop().toLowerCase();
+        const sizeKB=Math.round(file.size/1024);
+        const sizeMB=(sizeKB/1024).toFixed(1);
         newAssets.push({
           id:uid(),name:file.name.replace(/\.[^/.]+$/,""),fileName:file.name,
           category:cat,fileData:ev.target.result,
-          isImage,isVideo,isPdf,
+          fileType:ft,fileExt:ext,
+          fileSize:sizeKB>1024?`${sizeMB} MB`:`${sizeKB} KB`,
+          isImage:ft==="image",isVideo:ft==="video",isPdf:ft==="pdf",
           notes:"",clientVisible:false,status:"draft",
           dateAdded:new Date().toLocaleDateString(),
           versions:[{id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()}],
@@ -75,6 +100,29 @@ function CreativeV({project,updateProject,canEdit}){
       reader.readAsDataURL(file);
     });
   },[assets,updateProject]);
+
+  /* Add link (Figma/Canva) */
+  const[showLinkInput,setShowLinkInput]=useState(false);
+  const[linkUrl,setLinkUrl]=useState("");
+  const[linkName,setLinkName]=useState("");
+  const addLink=()=>{
+    if(!linkUrl.trim())return;
+    const isFigma=linkUrl.includes("figma.com");
+    const isCanva=linkUrl.includes("canva.com");
+    const name=linkName.trim()||(isFigma?"Figma Design":isCanva?"Canva Design":"Design Link");
+    const cat=autoCategory(name);
+    const asset={
+      id:uid(),name,fileName:linkUrl,category:cat,
+      fileData:null,linkUrl:linkUrl.trim(),
+      fileType:"link",fileExt:isFigma?"fig":isCanva?"canva":"link",
+      fileSize:"",isImage:false,isVideo:false,isPdf:false,
+      isFigma,isCanva,
+      notes:"",clientVisible:false,status:"draft",
+      dateAdded:new Date().toLocaleDateString(),versions:[],
+    };
+    updateProject({creativeAssets:[...assets,asset]});
+    setLinkUrl("");setLinkName("");setShowLinkInput(false);
+  };
 
   const removeAsset=id=>updateProject({creativeAssets:assets.filter(a=>a.id!==id)});
   const updateAsset=(id,updates)=>updateProject({creativeAssets:assets.map(a=>a.id===id?{...a,...updates}:a)});
@@ -103,7 +151,7 @@ function CreativeV({project,updateProject,canEdit}){
   const catLabel=(cat)=>(CATS.find(c=>c.id===cat)||CATS[CATS.length-1]).label;
 
   return<div onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop} style={{position:"relative",minHeight:"50vh"}}>
-    <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf,.psd,.ai,.fig,.sketch,.indd,.svg" onChange={e=>{if(e.target.files?.length)handleFiles(e.target.files);e.target.value=""}} style={{display:"none"}}/>
+    <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf,.psd,.ai,.indd,.svg,.dwg,.skp,.step,.pptx,.key,.tiff,.tif,.webp,.mov,.mp4" onChange={e=>{if(e.target.files?.length)handleFiles(e.target.files);e.target.value=""}} style={{display:"none"}}/>
 
     {/* Drag overlay */}
     {dragging&&<div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.r,border:`3px dashed ${T.magenta}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
@@ -118,8 +166,21 @@ function CreativeV({project,updateProject,canEdit}){
         <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Creative</h1>
         <p style={{fontSize:12,color:T.dim,marginTop:4}}>{assets.length} asset{assets.length!==1?"s":""}</p>
       </div>
-      {canEdit&&<button onClick={()=>fileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Upload</button>}
+      <div style={{display:"flex",gap:6}}>
+        {canEdit&&<button onClick={()=>setShowLinkInput(!showLinkInput)} style={{padding:"8px 14px",background:"transparent",color:showLinkInput?T.cream:T.dim,border:`1px solid ${showLinkInput?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showLinkInput?"Cancel":"+ Link"}</button>}
+        {canEdit&&<button onClick={()=>fileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Upload</button>}
+      </div>
     </div>
+
+    {/* Link input */}
+    {showLinkInput&&<Card style={{padding:16,marginBottom:16}}>
+      <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Add Figma or Canva Link</div>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
+        <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://figma.com/design/... or canva.com/..." onKeyDown={e=>e.key==="Enter"&&addLink()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>Name (optional)</div><input value={linkName} onChange={e=>setLinkName(e.target.value)} placeholder="Floor Plan v2" onKeyDown={e=>e.key==="Enter"&&addLink()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <button onClick={addLink} disabled={!linkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:linkUrl.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:linkUrl.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${linkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:linkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+      </div>
+    </Card>}
 
     {/* Category filters */}
     <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
@@ -137,9 +198,13 @@ function CreativeV({project,updateProject,canEdit}){
             {/* Large thumbnail */}
             <div style={{height:200,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
               {a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-              :a.isVideo?<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{width:48,height:48,borderRadius:"50%",background:"rgba(255,255,255,.08)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:20,color:T.cream,marginLeft:3}}>&#9654;</span></div><span style={{fontSize:10,color:T.dim}}>{a.fileName}</span></div>
-              :a.isPdf?<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><div style={{fontSize:28,fontWeight:800,color:T.dim,opacity:.2}}>PDF</div><span style={{fontSize:10,color:T.dim}}>{a.fileName}</span></div>
-              :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><div style={{fontSize:28,color:T.dim,opacity:.15}}>&#9634;</div><span style={{fontSize:10,color:T.dim}}>{a.fileName}</span></div>}
+              :a.isFigma&&a.linkUrl?<iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title={a.name} loading="lazy"/>
+              :(()=>{const ft=a.fileType||"other";const ftc=FILE_TYPE_COLORS[ft]||T.dim;const ftl=FILE_TYPE_LABELS[ft]||"File";return<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                {a.isVideo?<div style={{width:48,height:48,borderRadius:"50%",background:"rgba(255,255,255,.06)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:18,color:T.cream,marginLeft:2}}>&#9654;</span></div>
+                :<div style={{padding:"8px 16px",borderRadius:8,background:`${ftc}12`,border:`1px solid ${ftc}20`}}><span style={{fontSize:14,fontWeight:800,color:ftc,textTransform:"uppercase",fontFamily:T.mono}}>{a.fileExt||ftl}</span></div>}
+                <span style={{fontSize:9,color:T.dim,maxWidth:"80%",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.fileName}</span>
+                {a.fileSize&&<span style={{fontSize:8,color:T.dim,opacity:.5}}>{a.fileSize}</span>}
+              </div>})()}
               {/* Status + category overlay */}
               <div style={{position:"absolute",top:10,right:10,display:"flex",gap:4}}>
                 {a.status&&a.status!=="draft"&&<Pill color={sm?.color||T.dim} size="xs">{sm?.label||"Draft"}</Pill>}
