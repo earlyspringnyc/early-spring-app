@@ -110,7 +110,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       <div onClick={onClick}
         onMouseEnter={e=>{if(!dragging&&onClick){e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}const g=e.currentTarget.querySelector('.grip-zone');if(g)g.style.opacity='1';const x=e.currentTarget.querySelector('.card-x');if(x)x.style.opacity='1'}}
         onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const g=e.currentTarget.querySelector('.grip-zone');if(g)g.style.opacity='0';const x=e.currentTarget.querySelector('.card-x');if(x)x.style.opacity='0'}}
-        style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${isDragging?T.gold:T.border}`,display:"flex",transition:isDragging?"none":"all .2s",cursor:onClick?"pointer":"default",position:"relative",overflow:"hidden",minHeight:140,opacity:isDragging?.25:1,...sx}}>
+        style={{background:T.surfEl,borderRadius:16,border:`1px solid ${isDragging?T.gold:T.border}`,display:"flex",transition:isDragging?"none":"all .2s",cursor:onClick?"pointer":"default",position:"relative",overflow:"hidden",opacity:isDragging?.25:1,...sx}}>
         {/* Left grip handle */}
         <div className="grip-zone" onPointerDown={e=>onGripDown(e,id)}
           style={{position:"absolute",left:0,top:0,bottom:0,width:18,display:"flex",alignItems:"center",justifyContent:"center",cursor:"grab",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.1),transparent)",touchAction:"none"}}
@@ -192,10 +192,16 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   };
 
   return<div>
+    <style>{`
+      .dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;grid-auto-rows:minmax(150px,auto)}
+      @media(max-width:1200px){.dash-grid{grid-template-columns:repeat(3,1fr)}}
+      @media(max-width:900px){.dash-grid{grid-template-columns:repeat(2,1fr)}}
+      @media(max-width:600px){.dash-grid{grid-template-columns:1fr}}
+    `}</style>
     <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview</p></div>
 
     {/* ── Reorderable Card Grid ── */}
-    <div ref={gridRef} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
+    <div ref={gridRef} className="dash-grid" style={{marginBottom:20}}>
       {cardOrder.filter(id=>CARDS[id]).map(id=>{const render=CARDS[id];return render?<div key={id}>{render()}</div>:null})}
     </div>
 
@@ -324,7 +330,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       };
 
       return<>
-        {activeWidgets.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:16,gridAutoRows:"minmax(140px,auto)"}}>
+        {activeWidgets.length>0&&<div className="dash-grid" style={{marginBottom:16}}>
           {activeWidgets.map(wid=>renderWidget(wid))}
         </div>}
 
