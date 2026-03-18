@@ -46,8 +46,10 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
   const[meetAgenda,setMeetAgenda]=useState("");
   const[meetDuration,setMeetDuration]=useState("30m");
   const[showMore,setShowMore]=useState(false);
+  const[showMonthPicker,setShowMonthPicker]=useState(false);
   const popRef=useRef(null);
   const calRef=useRef(null);
+  const monthPickerRef=useRef(null);
 
   // Close popover on click outside
   useEffect(()=>{
@@ -56,6 +58,13 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
     document.addEventListener("mousedown",handler);
     return()=>document.removeEventListener("mousedown",handler);
   },[addDate]);
+  // Close month picker on click outside
+  useEffect(()=>{
+    if(!showMonthPicker)return;
+    const handler=(e)=>{if(monthPickerRef.current&&!monthPickerRef.current.contains(e.target))setShowMonthPicker(false)};
+    document.addEventListener("mousedown",handler);
+    return()=>document.removeEventListener("mousedown",handler);
+  },[showMonthPicker]);
 
   const mNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const dNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -208,7 +217,23 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
               <button key={k} onClick={()=>setCalMode(k)} style={{padding:"4px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:10,fontWeight:calMode===k?600:400,fontFamily:T.sans,background:calMode===k?T.goldSoft:"transparent",color:calMode===k?T.gold:T.dim}}>{l}</button>
             )}
           </div>
-          <span style={{fontSize:14,fontWeight:600,color:T.cream}}>{mNames[month.m]} {month.y}</span>
+          <div style={{position:"relative"}} ref={monthPickerRef}>
+            <button onClick={()=>setShowMonthPicker(!showMonthPicker)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:600,color:T.cream,fontFamily:T.sans,padding:"2px 6px",borderRadius:T.rS,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{mNames[month.m]} {month.y} <span style={{fontSize:10,color:T.dim,marginLeft:2}}>&#9662;</span></button>
+            {showMonthPicker&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",padding:16,width:240}}>
+              {/* Year nav */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <button onClick={()=>setMonth(p=>({y:p.y-1,m:p.m}))} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"2px 8px"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>&larr;</button>
+                <span style={{fontSize:14,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{month.y}</span>
+                <button onClick={()=>setMonth(p=>({y:p.y+1,m:p.m}))} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"2px 8px"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>&rarr;</button>
+              </div>
+              {/* Month grid */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4}}>
+                {mNames.map((m,i)=>{const isActive=i===month.m;const isCurrent=i===today.getMonth()&&month.y===today.getFullYear();return<button key={i} onClick={()=>{setMonth({y:month.y,m:i});setShowMonthPicker(false)}} style={{padding:"8px 4px",borderRadius:T.rS,border:isCurrent?`1px solid ${T.gold}40`:"1px solid transparent",background:isActive?T.goldSoft:"transparent",color:isActive?T.gold:T.cream,fontSize:11,fontWeight:isActive?600:400,cursor:"pointer",fontFamily:T.sans,transition:"all .1s"}} onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background=isActive?T.goldSoft:"transparent"}}>{m.slice(0,3)}</button>})}
+              </div>
+              {/* Today shortcut */}
+              <button onClick={()=>{setMonth({y:today.getFullYear(),m:today.getMonth()});setShowMonthPicker(false)}} style={{width:"100%",marginTop:10,padding:"7px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}} onMouseEnter={e=>{e.currentTarget.style.color=T.cream;e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{e.currentTarget.style.color=T.dim;e.currentTarget.style.background="transparent"}}>Today</button>
+            </div>}
+          </div>
         </div>
         <button onClick={next} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,cursor:"pointer",color:T.dim,fontSize:16,padding:"4px 10px",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}} title="Next month">{"\u2192"}</button>
       </div>
