@@ -1,84 +1,149 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { ROLE_COLORS, ROLE_LABELS } from '../constants/index.js';
 import { getStoredUsers } from '../utils/storage.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { MorganWordmark, MorganIsotype } from '../components/brand/MorganLogo.jsx';
 
-/* ── Animated grid background ── */
-function GridBackground(){
-  return<div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
-    {/* Slow-moving gradient orbs */}
-    <div style={{position:'absolute',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(99,102,241,.06),transparent 70%)',top:'-10%',left:'-10%',animation:'orbFloat 20s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:400,height:400,borderRadius:'50%',background:'radial-gradient(circle,rgba(20,184,166,.05),transparent 70%)',bottom:'-5%',right:'-5%',animation:'orbFloat 25s ease-in-out infinite reverse'}}/>
-    <div style={{position:'absolute',width:300,height:300,borderRadius:'50%',background:'radial-gradient(circle,rgba(196,181,253,.04),transparent 70%)',top:'40%',left:'30%',animation:'orbFloat 18s ease-in-out infinite 5s'}}/>
-    {/* Subtle grid lines */}
-    <div style={{position:'absolute',inset:0,backgroundImage:`linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px)`,backgroundSize:'60px 60px',opacity:.5}}/>
-    <style>{`@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(30px,-20px) scale(1.05)}50%{transform:translate(-10px,30px) scale(.95)}75%{transform:translate(20px,10px) scale(1.02)}}`}</style>
-  </div>;
-}
+/* ── Interactive Constellation Canvas ── */
+function ConstellationCanvas(){
+  const canvasRef=useRef(null);
+  const mouse=useRef({x:-1000,y:-1000});
+  const particles=useRef([]);
+  const raf=useRef(null);
 
-/* ── Mini dashboard mockup ── */
-function MiniDashboard(){
-  const C={indigo:'#6366F1',teal:'#14B8A6',amber:'#F59E0B',coral:'#F47264',emerald:'#10B981',cyan:'#06B6D4'};
-  return<div style={{padding:14,height:'100%',display:'flex',flexDirection:'column',gap:6,fontFamily:T.sans}}>
-    <div style={{display:'flex',alignItems:'center',gap:6}}>
-      <span style={{fontSize:8,fontWeight:700,color:'rgba(255,255,255,.6)'}}>Dashboard</span>
-      <span style={{flex:1}}/>
-      <span style={{fontSize:5,color:'rgba(255,255,255,.12)'}}>Montauk Capital Launch</span>
-    </div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4}}>
-      {[{l:'Client Budget',v:'$340K',c:C.amber},{l:'Project Total',v:'$287K',c:C.teal},{l:'Net Profit',v:'$59K',c:C.emerald}].map((m,i)=>
-        <div key={i} style={{padding:'6px',borderRadius:4,background:`${m.c}06`,borderLeft:`2px solid ${m.c}`}}>
-          <div style={{fontSize:4,color:'rgba(255,255,255,.2)',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:2}}>{m.l}</div>
-          <div style={{fontSize:9,fontWeight:700,fontFamily:T.mono,color:m.c}}>{m.v}</div>
-        </div>)}
-    </div>
-    <div style={{flex:1,display:'grid',gridTemplateColumns:'1fr 1fr',gap:4}}>
-      <div style={{borderRadius:4,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.03)',padding:8}}>
-        <div style={{fontSize:4,color:'rgba(255,255,255,.15)',textTransform:'uppercase',marginBottom:5}}>Tasks</div>
-        {['Venue Walkthrough','Design Review','AV Spec','Load In'].map((t,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:3,padding:'2px 0'}}>
-          <div style={{width:4,height:4,borderRadius:1,background:[C.teal,C.coral,C.teal,C.amber][i],opacity:.5}}/>
-          <span style={{fontSize:4,color:'rgba(255,255,255,.25)'}}>{t}</span>
-        </div>)}
-      </div>
-      <div style={{borderRadius:4,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.03)',padding:8}}>
-        <div style={{fontSize:4,color:'rgba(255,255,255,.15)',textTransform:'uppercase',marginBottom:5}}>Vendors</div>
-        {['Prism AV','Bloom & Stem','Atlas Staging'].map((v,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:3,padding:'2px 0'}}>
-          <div style={{width:8,height:8,borderRadius:2,background:`${[C.teal,C.amber,C.coral][i]}10`,border:`1px solid ${[C.teal,C.amber,C.coral][i]}20`,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{fontSize:3,fontWeight:700,color:[C.teal,C.amber,C.coral][i]}}>{v[0]}</span>
-          </div>
-          <span style={{fontSize:4,color:'rgba(255,255,255,.25)'}}>{v}</span>
-        </div>)}
-      </div>
-    </div>
-  </div>;
-}
+  const COLORS=['#94A3B8','#7DD3FC','#C4B5FD','#4ADE80','#F59E0B','#EC4899'];
+  const COUNT=80;
+  const CONNECT_DIST=120;
+  const MOUSE_RADIUS=180;
 
-/* ── MacBook frame (compact) ── */
-function MacBookCompact({children}){
-  return<div>
-    <div style={{background:'linear-gradient(180deg,#2A2A2E,#1C1C1F)',borderRadius:'10px 10px 0 0',padding:'6px 10px 5px',position:'relative',boxShadow:'0 20px 60px rgba(0,0,0,.5)'}}>
-      <div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50%)',width:60,height:10,background:'#1C1C1F',borderRadius:'0 0 6px 6px',display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <div style={{width:3,height:3,borderRadius:'50%',background:'rgba(255,255,255,.04)'}}/>
-      </div>
-      <div style={{background:'#0A0A0C',borderRadius:4,overflow:'hidden',width:420,height:260,border:'1px solid rgba(255,255,255,.04)'}}>
-        {children}
-      </div>
-    </div>
-    <div style={{height:2,background:'linear-gradient(90deg,transparent 10%,rgba(255,255,255,.08) 30%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.08) 70%,transparent 90%)'}}/>
-    <div style={{background:'linear-gradient(180deg,#2A2A2E,#222225)',borderRadius:'0 0 8px 8px',height:10,position:'relative'}}>
-      <div style={{position:'absolute',bottom:2,left:'50%',transform:'translateX(-50%)',width:'28%',height:2,borderRadius:1,background:'rgba(255,255,255,.03)'}}/>
-    </div>
-  </div>;
+  const init=useCallback((w,h)=>{
+    particles.current=[];
+    for(let i=0;i<COUNT;i++){
+      particles.current.push({
+        x:Math.random()*w,y:Math.random()*h,
+        vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
+        r:Math.random()*2+1,
+        color:COLORS[Math.floor(Math.random()*COLORS.length)],
+        baseAlpha:Math.random()*.3+.1,
+        alpha:0,phase:Math.random()*Math.PI*2,
+      });
+    }
+  },[]);
+
+  useEffect(()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    const ctx=canvas.getContext('2d');
+    let w=canvas.width=window.innerWidth;
+    let h=canvas.height=window.innerHeight;
+    init(w,h);
+
+    const onResize=()=>{w=canvas.width=window.innerWidth;h=canvas.height=window.innerHeight;init(w,h)};
+    const onMove=(e)=>{mouse.current={x:e.clientX,y:e.clientY}};
+    const onLeave=()=>{mouse.current={x:-1000,y:-1000}};
+    window.addEventListener('resize',onResize);
+    window.addEventListener('mousemove',onMove);
+    window.addEventListener('mouseleave',onLeave);
+
+    let time=0;
+    const draw=()=>{
+      time+=.01;
+      ctx.clearRect(0,0,w,h);
+      const mx=mouse.current.x,my=mouse.current.y;
+      const pts=particles.current;
+
+      // Update & draw particles
+      for(let i=0;i<pts.length;i++){
+        const p=pts[i];
+        // Base movement
+        p.x+=p.vx;p.y+=p.vy;
+        // Wrap edges
+        if(p.x<-10)p.x=w+10;if(p.x>w+10)p.x=-10;
+        if(p.y<-10)p.y=h+10;if(p.y>h+10)p.y=-10;
+
+        // Mouse attraction
+        const dx=mx-p.x,dy=my-p.y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<MOUSE_RADIUS){
+          const force=(1-dist/MOUSE_RADIUS)*.015;
+          p.vx+=dx*force;p.vy+=dy*force;
+          p.alpha=p.baseAlpha+(1-dist/MOUSE_RADIUS)*.6;
+        }else{
+          p.alpha+=(p.baseAlpha-p.alpha)*.02;
+        }
+
+        // Damping
+        p.vx*=.99;p.vy*=.99;
+
+        // Pulse
+        const pulse=Math.sin(time*2+p.phase)*.15+1;
+
+        // Draw particle
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,p.r*pulse,0,Math.PI*2);
+        ctx.fillStyle=p.color;
+        ctx.globalAlpha=p.alpha;
+        ctx.fill();
+
+        // Glow for nearby particles
+        if(dist<MOUSE_RADIUS){
+          ctx.beginPath();
+          ctx.arc(p.x,p.y,p.r*3,0,Math.PI*2);
+          const grd=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*3);
+          grd.addColorStop(0,p.color);
+          grd.addColorStop(1,'transparent');
+          ctx.fillStyle=grd;
+          ctx.globalAlpha=(1-dist/MOUSE_RADIUS)*.15;
+          ctx.fill();
+        }
+      }
+
+      // Draw connections
+      ctx.lineWidth=.5;
+      for(let i=0;i<pts.length;i++){
+        for(let j=i+1;j<pts.length;j++){
+          const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y;
+          const dist=Math.sqrt(dx*dx+dy*dy);
+          if(dist<CONNECT_DIST){
+            const alpha=(1-dist/CONNECT_DIST)*.12;
+            // Brighter when near mouse
+            const midX=(pts[i].x+pts[j].x)/2,midY=(pts[i].y+pts[j].y)/2;
+            const mDist=Math.sqrt((mx-midX)**2+(my-midY)**2);
+            const boost=mDist<MOUSE_RADIUS?(1-mDist/MOUSE_RADIUS)*.2:0;
+            ctx.beginPath();
+            ctx.moveTo(pts[i].x,pts[i].y);
+            ctx.lineTo(pts[j].x,pts[j].y);
+            ctx.strokeStyle=pts[i].color;
+            ctx.globalAlpha=alpha+boost;
+            ctx.stroke();
+          }
+        }
+      }
+
+      ctx.globalAlpha=1;
+      raf.current=requestAnimationFrame(draw);
+    };
+    raf.current=requestAnimationFrame(draw);
+
+    return()=>{
+      cancelAnimationFrame(raf.current);
+      window.removeEventListener('resize',onResize);
+      window.removeEventListener('mousemove',onMove);
+      window.removeEventListener('mouseleave',onLeave);
+    };
+  },[init]);
+
+  return<canvas ref={canvasRef} style={{position:'fixed',inset:0,zIndex:0}}/>;
 }
 
 function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
   const[err,setErr]=useState("");
   const[showDemo,setShowDemo]=useState(false);
+  const[cardHov,setCardHov]=useState(false);
   const users=getStoredUsers();
   const hasClientId=!!googleClientId;
 
+  // Google sign-in initialization — preserved exactly
   useEffect(()=>{
     if(!hasClientId)return;
     const tryRender=()=>{
@@ -107,60 +172,91 @@ function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
 
   const demoLogin=(u)=>{setErr("");onLogin(u)};
 
-  return<div style={{height:'100vh',display:'flex',background:T.bg,fontFamily:T.sans,position:'relative',overflow:'hidden'}}>
-    <GridBackground/>
+  return<div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0A0A0D',fontFamily:T.sans,position:'relative',overflow:'hidden'}}>
+    <ConstellationCanvas/>
+
     {/* Accent line */}
-    <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},${T.cyan},${T.magenta},${T.pos})`,opacity:.4,zIndex:10}}/>
+    <div style={{position:'fixed',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},${T.cyan},${T.magenta},${T.pos})`,opacity:.5,zIndex:10}}/>
 
-    {/* ── Left: Mockup showcase ── */}
-    <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',position:'relative',zIndex:1}}>
-      <div className="fade-up" style={{textAlign:'center'}}>
-        <MacBookCompact>
-          <MiniDashboard/>
-        </MacBookCompact>
-        <div style={{marginTop:28,fontSize:13,color:T.dim,lineHeight:1.6,maxWidth:340,margin:'28px auto 0'}}>
-          Budgets, timelines, vendors, and client deliverables — all in one place.
+    {/* ── Card ── */}
+    <div
+      className="fade-up"
+      onMouseEnter={()=>setCardHov(true)}
+      onMouseLeave={()=>setCardHov(false)}
+      style={{
+        width:380,padding:'52px 44px',borderRadius:16,
+        background:'rgba(10,10,14,.75)',
+        backdropFilter:'blur(60px) saturate(1.2)',
+        WebkitBackdropFilter:'blur(60px) saturate(1.2)',
+        border:`1px solid ${cardHov?'rgba(148,163,184,.15)':'rgba(255,255,255,.06)'}`,
+        boxShadow:cardHov
+          ?'0 0 60px rgba(148,163,184,.08), 0 24px 80px rgba(0,0,0,.5), 0 0 120px rgba(125,211,252,.03)'
+          :'0 24px 80px rgba(0,0,0,.5)',
+        position:'relative',zIndex:2,
+        transition:'border-color .4s, box-shadow .4s',
+        textAlign:'center',
+      }}
+    >
+      {/* Isotype + Wordmark */}
+      <div style={{marginBottom:28}}>
+        <div style={{display:'flex',justifyContent:'center',marginBottom:14}}>
+          <MorganIsotype size={44} color={T.gold}/>
         </div>
+        <MorganWordmark height={22} color={T.cream}/>
       </div>
-    </div>
 
-    {/* ── Right: Sign in form ── */}
-    <div style={{width:460,display:'flex',alignItems:'center',justifyContent:'center',position:'relative',zIndex:1}}>
-      <div className="fade-up" style={{width:360,padding:'48px 40px',borderRadius:T.r,background:'rgba(12,10,20,.7)',backdropFilter:'blur(40px)',border:`1px solid ${T.border}`,boxShadow:'0 24px 80px rgba(0,0,0,.4)'}}>
-        {/* Branding */}
-        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-          <MorganIsotype size={28} color={T.gold}/>
-          <MorganWordmark height={20} color={T.cream}/>
-        </div>
-        <h1 style={{fontSize:24,fontWeight:700,color:T.cream,letterSpacing:'-0.03em',marginBottom:6}}>Welcome back.</h1>
-        <p style={{fontSize:13,color:T.dim,marginBottom:32}}>Sign in to access your projects.</p>
+      {/* Tagline */}
+      <h1 style={{fontSize:20,fontWeight:700,color:T.cream,letterSpacing:'-0.03em',marginBottom:6,lineHeight:1.3}}>
+        Let's make something happen.
+      </h1>
+      <p style={{fontSize:12,color:T.dim,marginBottom:36,lineHeight:1.5}}>
+        Production management for people who create experiences.
+      </p>
 
-        {err&&<p style={{fontSize:12,color:T.neg,marginBottom:14,padding:'8px 12px',borderRadius:T.rS,background:'rgba(248,113,113,.08)',border:'1px solid rgba(248,113,113,.15)'}}>{err}</p>}
+      {/* Auth */}
+      {err&&<p style={{fontSize:11,color:T.neg,marginBottom:14,padding:'8px 12px',borderRadius:T.rS,background:'rgba(248,113,113,.08)',border:'1px solid rgba(248,113,113,.15)',textAlign:'left'}}>{err}</p>}
 
-        {isSupabase?<button onClick={onGoogleLogin} style={{width:'100%',padding:'14px 20px',borderRadius:T.rS,border:`1px solid ${T.border}`,background:'rgba(255,255,255,.04)',color:T.cream,fontSize:14,fontWeight:500,cursor:'pointer',fontFamily:T.sans,display:'flex',alignItems:'center',justifyContent:'center',gap:12,transition:'all .2s',marginBottom:12}} onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,.08)';e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform='translateY(-1px)'}} onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,.04)';e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform='none'}}>
-          <svg width={20} height={20} viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-          Continue with Google
-        </button>
-        :hasClientId?<div id="google-signin-btn" style={{display:'flex',justifyContent:'center',marginBottom:12}}/>
-        :<div style={{textAlign:'center',marginBottom:12}}>
-          <p style={{fontSize:11,color:T.dim,marginBottom:10}}>Google sign-in not configured.</p>
-        </div>}
+      {isSupabase?<button onClick={onGoogleLogin} style={{
+        width:'100%',padding:'14px 20px',borderRadius:10,
+        border:'1px solid rgba(255,255,255,.08)',
+        background:'rgba(255,255,255,.04)',
+        color:T.cream,fontSize:14,fontWeight:500,
+        cursor:'pointer',fontFamily:T.sans,
+        display:'flex',alignItems:'center',justifyContent:'center',gap:12,
+        transition:'all .25s',
+      }} onMouseEnter={e=>{
+        e.currentTarget.style.background='rgba(255,255,255,.1)';
+        e.currentTarget.style.borderColor='rgba(148,163,184,.25)';
+        e.currentTarget.style.transform='translateY(-2px)';
+        e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,.3)';
+      }} onMouseLeave={e=>{
+        e.currentTarget.style.background='rgba(255,255,255,.04)';
+        e.currentTarget.style.borderColor='rgba(255,255,255,.08)';
+        e.currentTarget.style.transform='none';
+        e.currentTarget.style.boxShadow='none';
+      }}>
+        <svg width={20} height={20} viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+      :hasClientId?<div id="google-signin-btn" style={{display:'flex',justifyContent:'center',marginBottom:12}}/>
+      :<div style={{textAlign:'center',marginBottom:12}}>
+        <p style={{fontSize:11,color:T.dim}}>Google sign-in not configured.</p>
+      </div>}
 
-        <div style={{textAlign:'center',marginTop:8}}>
-          <p style={{fontSize:10,color:T.dim}}>{isSupabase?'Sign in to create or join a team':'Only authorized team members can access projects'}</p>
-        </div>
-
-        {/* Dev mode toggle */}
-        {!showDemo&&<div style={{textAlign:'center',marginTop:20}}><button onClick={()=>setShowDemo(true)} style={{background:'none',border:'none',color:T.dim,fontSize:10,cursor:'pointer',fontFamily:T.sans,opacity:.4,transition:'opacity .2s'}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.4}>Dev mode</button></div>}
-        {showDemo&&<div style={{marginTop:20,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
-          <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Select Account</div>
-          {users.map(u=><button key={u.id} onClick={()=>demoLogin(u)} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'transparent',border:`1px solid ${T.border}`,borderRadius:T.rS,cursor:'pointer',marginBottom:4,transition:'all .15s'}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.borderColor=T.borderGlow}} onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=T.border}}>
-            <div style={{width:28,height:28,borderRadius:'50%',background:`${ROLE_COLORS[u.role]}12`,border:`1.5px solid ${ROLE_COLORS[u.role]}33`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:ROLE_COLORS[u.role]}}>{u.name[0]}</div>
-            <div style={{flex:1,textAlign:'left'}}><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{u.name}</div><div style={{fontSize:9,color:T.dim}}>{u.email}</div></div>
-            <span style={{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:20,background:`${ROLE_COLORS[u.role]}15`,color:ROLE_COLORS[u.role],textTransform:'uppercase'}}>{ROLE_LABELS[u.role]}</span>
-          </button>)}
-        </div>}
+      <div style={{marginTop:16}}>
+        <p style={{fontSize:10,color:'rgba(255,255,255,.2)'}}>{isSupabase?'Sign in to create or join a team':'Only authorized team members can access'}</p>
       </div>
+
+      {/* Dev mode */}
+      {!showDemo&&<div style={{marginTop:24}}><button onClick={()=>setShowDemo(true)} style={{background:'none',border:'none',color:T.dim,fontSize:9,cursor:'pointer',fontFamily:T.sans,opacity:.3,transition:'opacity .2s',letterSpacing:'.04em'}} onMouseEnter={e=>e.currentTarget.style.opacity=.8} onMouseLeave={e=>e.currentTarget.style.opacity=.3}>dev mode</button></div>}
+      {showDemo&&<div style={{marginTop:24,borderTop:`1px solid ${T.border}`,paddingTop:16,textAlign:'left'}}>
+        <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Select Account</div>
+        {users.map(u=><button key={u.id} onClick={()=>demoLogin(u)} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'transparent',border:`1px solid rgba(255,255,255,.04)`,borderRadius:8,cursor:'pointer',marginBottom:4,transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,.04)';e.currentTarget.style.borderColor='rgba(255,255,255,.1)'}} onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='rgba(255,255,255,.04)'}}>
+          <div style={{width:28,height:28,borderRadius:'50%',background:`${ROLE_COLORS[u.role]}10`,border:`1.5px solid ${ROLE_COLORS[u.role]}30`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:ROLE_COLORS[u.role]}}>{u.name[0]}</div>
+          <div style={{flex:1,textAlign:'left'}}><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{u.name}</div><div style={{fontSize:9,color:T.dim}}>{u.email}</div></div>
+          <span style={{fontSize:8,fontWeight:700,padding:'2px 7px',borderRadius:20,background:`${ROLE_COLORS[u.role]}12`,color:ROLE_COLORS[u.role],textTransform:'uppercase',letterSpacing:'.04em'}}>{ROLE_LABELS[u.role]}</span>
+        </button>)}
+      </div>}
     </div>
   </div>;
 }
