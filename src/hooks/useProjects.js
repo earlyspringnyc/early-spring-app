@@ -16,13 +16,22 @@ export function useProjects(orgId) {
     if (prevOrgId.current === orgId) return;
     prevOrgId.current = orgId;
 
+    // Only show sample project for brand new users who have never had projects
+    const hasHadProjects = () => { try { return localStorage.getItem("es_has_projects") === "1" } catch(e) { return false } };
+    const markHasProjects = () => { try { localStorage.setItem("es_has_projects", "1") } catch(e) {} };
+
     if (usesDb) {
       console.log('[projects] Loading from Supabase for org:', orgId);
       setLoaded(false);
       db.getProjects(orgId).then(async p => {
         console.log('[projects] Loaded', p.length, 'projects from Supabase');
-        if (p.length === 0) {
-          console.log('[projects] No projects found — creating sample project');
+        if (p.length > 0) {
+          markHasProjects();
+          setProjects(p);
+        } else if (!hasHadProjects()) {
+          // First time ever — create sample
+          console.log('[projects] First-time user — creating sample project');
+          markHasProjects();
           const sample = mkSampleProject();
           try {
             const saved = await db.createProject(orgId, sample);
@@ -30,7 +39,8 @@ export function useProjects(orgId) {
           } catch (e2) { console.error('[projects] Sample create failed:', e2); }
           setProjects([sample]);
         } else {
-          setProjects(p);
+          // User has had projects before, just none right now
+          setProjects([]);
         }
         setLoaded(true);
       }).catch(e => {
@@ -38,7 +48,7 @@ export function useProjects(orgId) {
         // Fallback to localStorage cache
         try {
           const saved = localStorage.getItem("es_projects");
-          if (saved) setProjects(JSON.parse(saved));
+          if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) { setProjects(parsed); } }
         } catch (e2) {}
         setLoaded(true);
       });
@@ -48,14 +58,20 @@ export function useProjects(orgId) {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
+            markHasProjects();
             setProjects(parsed);
             setLoaded(true);
             return;
           }
         }
       } catch (e) {}
-      const sample = mkSampleProject();
-      setProjects([sample]);
+      if (!hasHadProjects()) {
+        markHasProjects();
+        const sample = mkSampleProject();
+        setProjects([sample]);
+      } else {
+        setProjects([]);
+      }
       setLoaded(true);
     }
   }, [orgId, usesDb]);
@@ -80,6 +96,7 @@ export function useProjects(orgId) {
   }, [usesDb]);
 
   const createProject = useCallback(async (name, client, date, eventDate, logo, clientBudget, stage) => {
+    try { localStorage.setItem("es_has_projects", "1") } catch(e) {}
     const p = mkProject(name, client, date, eventDate, logo, clientBudget, stage);
     if (usesDb) {
       try {
