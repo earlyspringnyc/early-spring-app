@@ -1,8 +1,68 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
+
+/* ── PDF page renderer using pdf.js ── */
+function PdfViewer({fileData,currentPage,onPageChange,onTotalPages}){
+  const canvasRef=useRef(null);
+  const[pdf,setPdf]=useState(null);
+  const[totalPages,setTotalPages]=useState(0);
+  const[loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    if(!fileData)return;
+    // Load pdf.js from CDN if not loaded
+    const loadPdfJs=async()=>{
+      if(!window.pdfjsLib){
+        const script=document.createElement("script");
+        script.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+        script.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";loadPdf()};
+        document.head.appendChild(script);
+      } else loadPdf();
+    };
+    const loadPdf=async()=>{
+      try{
+        setLoading(true);
+        const data=atob(fileData.split(",")[1]);
+        const arr=new Uint8Array(data.length);
+        for(let i=0;i<data.length;i++)arr[i]=data.charCodeAt(i);
+        const doc=await window.pdfjsLib.getDocument({data:arr}).promise;
+        setPdf(doc);
+        setTotalPages(doc.numPages);
+        if(onTotalPages)onTotalPages(doc.numPages);
+        setLoading(false);
+      }catch(e){console.error("[pdf]",e);setLoading(false)}
+    };
+    loadPdfJs();
+  },[fileData]);
+
+  useEffect(()=>{
+    if(!pdf||!canvasRef.current)return;
+    const renderPage=async()=>{
+      const page=await pdf.getPage(currentPage+1);
+      const canvas=canvasRef.current;
+      const ctx=canvas.getContext("2d");
+      const vp=page.getViewport({scale:1.5});
+      canvas.width=vp.width;canvas.height=vp.height;
+      await page.render({canvasContext:ctx,viewport:vp}).promise;
+    };
+    renderPage();
+  },[pdf,currentPage]);
+
+  if(loading)return<div style={{color:T.dim,fontSize:13}}>Loading PDF...</div>;
+  if(!pdf)return<div style={{color:T.dim,fontSize:13}}>Could not load PDF</div>;
+
+  return<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,width:"100%",height:"100%",overflow:"auto"}}>
+    <canvas ref={canvasRef} style={{maxWidth:"100%",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>
+    <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+      <button onClick={()=>onPageChange(Math.max(0,currentPage-1))} disabled={currentPage===0} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${currentPage===0?"transparent":T.border}`,color:currentPage===0?T.dim:T.cream,fontSize:12,cursor:currentPage===0?"default":"pointer",fontFamily:T.sans}}>&larr; Prev</button>
+      <span style={{fontSize:12,fontFamily:T.mono,color:T.cream,fontWeight:600}}>Page {currentPage+1} of {totalPages}</span>
+      <button onClick={()=>onPageChange(Math.min(totalPages-1,currentPage+1))} disabled={currentPage>=totalPages-1} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${currentPage>=totalPages-1?"transparent":T.border}`,color:currentPage>=totalPages-1?T.dim:T.cream,fontSize:12,cursor:currentPage>=totalPages-1?"default":"pointer",fontFamily:T.sans}}>Next &rarr;</button>
+    </div>
+  </div>;
+}
 
 /* ── Categories ── */
 const SECTIONS=[
@@ -41,6 +101,8 @@ function CreativeV({project,updateProject,canEdit}){
   const[viewingAsset,setViewingAsset]=useState(null);
   const[deckPage,setDeckPage]=useState(0);
   const[commentText,setCommentText]=useState("");
+  const[commentFilter,setCommentFilter]=useState("page");
+  const[totalPdfPages,setTotalPdfPages]=useState(0);
   const[showLinkInput,setShowLinkInput]=useState(false);
   const[linkUrl,setLinkUrl]=useState("");
   const[linkName,setLinkName]=useState("");
@@ -127,7 +189,7 @@ function CreativeV({project,updateProject,canEdit}){
     const a=assets.find(x=>x.id===viewingAsset);
     if(!a)return<div><BackBtn/><p style={{color:T.dim}}>Asset not found</p></div>;
     const comments=(a.comments||[]);
-    const pageComments=comments.filter(c=>c.page===deckPage);
+    const visibleComments=a.isPdf&&commentFilter==="page"?comments.filter(c=>c.page===deckPage):comments;
     const statusM=STATUS_META[a.status||"draft"];
 
     return<div style={{position:"fixed",inset:0,zIndex:200,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -147,7 +209,7 @@ function CreativeV({project,updateProject,canEdit}){
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* Main content */}
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24,background:"rgba(0,0,0,.3)"}}>
-          {a.isPdf&&a.fileData?<iframe src={a.fileData} style={{width:"100%",height:"100%",border:"none",borderRadius:8}} title={a.name}/>
+          {a.isPdf&&a.fileData?<PdfViewer fileData={a.fileData} currentPage={deckPage} onPageChange={setDeckPage} onTotalPages={n=>setTotalPdfPages(n)}/>
           :a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>
           :a.isVideo&&a.fileData?<video src={a.fileData} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:8}}/>
           :a.isFigma&&a.linkUrl?<iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",borderRadius:8}} title={a.name} allowFullScreen/>
@@ -155,15 +217,24 @@ function CreativeV({project,updateProject,canEdit}){
         </div>
 
         {/* Comments sidebar */}
-        <div style={{width:300,borderLeft:`1px solid ${T.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
+        <div style={{width:320,borderLeft:`1px solid ${T.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
           <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.border}`}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".06em"}}>Comments ({comments.length})</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".06em"}}>Comments ({comments.length})</div>
+              {a.isPdf&&totalPdfPages>0&&<div style={{display:"flex",gap:4}}>
+                <button onClick={()=>setCommentFilter("page")} style={{padding:"2px 8px",borderRadius:10,border:"none",fontSize:9,fontWeight:commentFilter==="page"?700:400,background:commentFilter==="page"?`${T.cyan}18`:"transparent",color:commentFilter==="page"?T.cyan:T.dim,cursor:"pointer",fontFamily:T.sans}}>Page {deckPage+1}</button>
+                <button onClick={()=>setCommentFilter("all")} style={{padding:"2px 8px",borderRadius:10,border:"none",fontSize:9,fontWeight:commentFilter==="all"?700:400,background:commentFilter==="all"?`${T.gold}18`:"transparent",color:commentFilter==="all"?T.gold:T.dim,cursor:"pointer",fontFamily:T.sans}}>All</button>
+              </div>}
+            </div>
           </div>
           <div style={{flex:1,overflow:"auto",padding:"12px 16px"}}>
-            {comments.length===0&&<div style={{fontSize:11,color:T.dim,textAlign:"center",padding:20}}>No comments yet</div>}
-            {comments.map(c=><div key={c.id} style={{padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:6}}>
+            {visibleComments.length===0&&<div style={{fontSize:11,color:T.dim,textAlign:"center",padding:20}}>{a.isPdf&&commentFilter==="page"?`No comments on page ${deckPage+1}`:"No comments yet"}</div>}
+            {visibleComments.map(c=><div key={c.id} style={{padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:6}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <span style={{fontSize:10,fontWeight:600,color:T.cyan}}>{c.author}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:10,fontWeight:600,color:T.cyan}}>{c.author}</span>
+                  {a.isPdf&&c.page!=null&&commentFilter==="all"&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:6,background:`${T.dim}18`,color:T.dim,fontWeight:600}}>p.{c.page+1}</span>}
+                </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:9,color:T.dim}}>{c.date}</span>
                   {canEdit&&<button onClick={()=>removeComment(a.id,c.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={9} color={T.neg}/></button>}
@@ -173,7 +244,8 @@ function CreativeV({project,updateProject,canEdit}){
             </div>)}
           </div>
           <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`}}>
-            <textarea value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Add a comment..." rows={2} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"none",marginBottom:6}}/>
+            {a.isPdf&&totalPdfPages>0&&<div style={{fontSize:9,color:T.dim,marginBottom:4}}>Commenting on page {deckPage+1}</div>}
+            <textarea value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder={a.isPdf?`Comment on page ${deckPage+1}...`:"Add a comment..."} rows={2} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"none",marginBottom:6}}/>
             <button onClick={()=>addComment(a.id,deckPage)} disabled={!commentText.trim()} style={{width:"100%",padding:"7px 0",borderRadius:T.rS,background:commentText.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:commentText.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${commentText.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:commentText.trim()?"pointer":"default",fontFamily:T.sans}}>Comment</button>
           </div>
         </div>
