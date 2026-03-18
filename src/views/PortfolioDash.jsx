@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0 } from '../utils/format.js';
 import { calcProject, isOverdue } from '../utils/calc.js';
-import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS } from '../constants/index.js';
+import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES } from '../constants/index.js';
 import { PlusI, LogOutI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card, Metric } from '../components/primitives/index.js';
+import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
+
+const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
 function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage}){
   const sorted=[...projects].sort((a,b)=>b.createdAt-a.createdAt);
@@ -13,6 +16,10 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   const[dragProjectId,setDragProjectId]=useState(null);
   const[dropStage,setDropStage]=useState(null);
   const[tab,setTab]=useState("projects");
+  const[vendorSearch,setVendorSearch]=useState("");
+  const[vendorTypeFilter,setVendorTypeFilter]=useState("all");
+  const[vendorDetailId,setVendorDetailId]=useState(null);
+  const[vendorProjectId,setVendorProjectId]=useState(null);
   const allComps=projects.map(p=>({p,c:calcProject(p)}));
   const totalRevenue=allComps.reduce((a,{c})=>a+c.grandTotal,0);
   const totalCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
@@ -21,58 +28,89 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
   allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
 
+  /* Master vendor database — deduplicate by name+email across projects */
+  const masterVendors=useMemo(()=>{
+    const map=new Map();
+    projects.forEach(p=>{
+      (p.vendors||[]).forEach(v=>{
+        const key=(v.name||"").toLowerCase().trim()+(v.email||"").toLowerCase().trim();
+        if(!key)return;
+        const existing=map.get(key);
+        if(existing){existing.projects.push({id:p.id,name:p.name});existing.projectCount++}
+        else map.set(key,{...v,projects:[{id:p.id,name:p.name}],projectCount:1,_projectId:p.id});
+      });
+    });
+    return[...map.values()];
+  },[projects]);
+
+  const filteredVendors=masterVendors.filter(v=>{
+    if(vendorTypeFilter!=="all"&&v.vendorType!==vendorTypeFilter)return false;
+    if(vendorSearch){const s=vendorSearch.toLowerCase();return(v.name||"").toLowerCase().includes(s)||(v.email||"").toLowerCase().includes(s)||(v.contactName||"").toLowerCase().includes(s)}
+    return true;
+  });
+
+  const activeProjects=projects.filter(p=>(p.stage||"pitching")!=="archived").length;
+
   return<div style={{height:"100vh",background:T.bg,fontFamily:T.sans,overflow:"auto"}}>
     <div className="portfolio-container" style={{maxWidth:1100,margin:"0 auto",padding:"40px 32px"}}>
-      {/* Header — wraps cleanly on narrow screens */}
-      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:28}}>
-        <div style={{minWidth:0}}>
-          <div style={{marginBottom:8}}><ESWordmark height={14} color={T.gold}/></div>
-          <h1 style={{fontSize:"clamp(20px, 4vw, 28px)",fontWeight:600,color:T.cream,whiteSpace:"nowrap"}}>Production Portfolio</h1>
+
+      {/* ── Header ── */}
+      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:24}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+          <ESWordmark height={14} color={T.gold}/>
+          <h1 style={{fontSize:"clamp(20px, 4vw, 24px)",fontWeight:700,color:T.cream,whiteSpace:"nowrap"}}>Home</h1>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          {canCreate&&<button onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={12} color={T.gold}/> New Project</button>}
+          {canCreate&&<button onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={11} color={T.gold}/> New Project</button>}
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:28,height:28,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
-            <span style={{fontSize:12,color:T.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{user.name||user.email||""}</span>
-            <button onClick={onLogout} style={{background:"none",border:"none",cursor:"pointer",padding:4,flexShrink:0}}><LogOutI size={13} color={T.dim}/></button>
+            <div style={{width:26,height:26,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
+            <span style={{fontSize:11,color:T.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:100}}>{user.name||user.email||""}</span>
+            <button onClick={onLogout} style={{background:"none",border:"none",cursor:"pointer",padding:4,flexShrink:0}}><LogOutI size={12} color={T.dim}/></button>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{display:"flex",gap:4,marginBottom:24}}>{[["projects","Projects"],["dashboard","Dashboard"]].map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{padding:"9px 18px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim}}>{label}{id==="dashboard"&&allOverdue.length>0?<span style={{marginLeft:6,fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{allOverdue.length}</span>:""}</button>)}</div>
+      {/* ── Quick stats ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:10,marginBottom:24}}>
+        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Active Projects</div><div className="num" style={{fontSize:24,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{activeProjects}</div></div>
+        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Total Revenue</div><div className="num" style={{fontSize:24,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(totalRevenue)}</div></div>
+        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Total Vendors</div><div className="num" style={{fontSize:24,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{masterVendors.length}</div></div>
+        <div style={{padding:"14px 16px",borderRadius:T.rS,background:allOverdue.length>0?"rgba(248,113,113,.04)":T.surfEl,border:`1px solid ${allOverdue.length>0?"rgba(248,113,113,.15)":T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Overdue</div><div className="num" style={{fontSize:24,fontWeight:700,color:allOverdue.length>0?T.neg:T.dim,fontFamily:T.mono}}>{allOverdue.length}</div></div>
+        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Net Profit</div><div className="num" style={{fontSize:24,fontWeight:700,color:totalProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(totalProfit)}</div></div>
+      </div>
 
-      {tab==="dashboard"&&<div className="fade-up">
-        <div className="metric-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:20}}>
-          <Metric label="Active Projects" value={projects.length}/><Metric label="Total Revenue" value={f0(totalRevenue)} color={T.gold} glow/><Metric label="Total Costs" value={f0(totalCost)}/><Metric label="Total Profit" value={f0(totalProfit)} color={T.pos}/>
-        </div>
-        {allOverdue.length>0&&<Card style={{padding:20,marginBottom:16,borderColor:"rgba(248,113,113,.2)",background:"rgba(248,113,113,.03)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}><span style={{fontSize:16}}>⚠</span><span style={{fontSize:13,fontWeight:600,color:T.neg}}>Overdue Invoices ({allOverdue.length})</span></div>
-          {allOverdue.map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",marginBottom:4,borderRadius:T.rS,cursor:"pointer",flexWrap:"wrap"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <span style={{fontSize:12,color:T.neg,fontWeight:600,flex:1,minWidth:100}}>{d.name}</span><span style={{fontSize:11,color:T.dim}}>{d.projectName}</span><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontSize:12,fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount)}</span>
-          </div>)}
-        </Card>}
-        {allUpcoming.length>0&&<Card style={{padding:20,marginBottom:16}}>
-          <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:14}}>Upcoming Due Dates</div>
-          {allUpcoming.slice(0,8).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 14px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",flexWrap:"wrap"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <span style={{fontSize:12,color:T.cream,flex:1,minWidth:100}}>{d.name}</span><span style={{fontSize:11,color:T.dim}}>{d.projectName}</span><span style={{fontSize:11,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
-          </div>)}
-        </Card>}
-        <Card style={{overflow:"auto"}}>
-          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,minWidth:500}}>{["Project","Grand Total","Net Profit","Margin","Docs"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>0?"right":"left"}}>{h}</span>)}</div>
-          {allComps.map(({p,c})=>{const m=c.grandTotal>0?((c.netProfit/c.grandTotal)*100).toFixed(1):0;return<div key={p.id} onClick={()=>onOpen(p.id)} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,cursor:"pointer",minWidth:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div style={{minWidth:0}}><span style={{fontSize:13,fontWeight:500,color:T.cream}}>{p.name}</span><span style={{fontSize:11,color:T.dim,marginLeft:8}}>{p.client}</span></div>
-            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f0(c.grandTotal)}</span>
-            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.pos,fontWeight:600}}>{f0(c.netProfit)}</span>
-            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.cyan}}>{m}%</span>
-            <span style={{textAlign:"right",fontSize:12,color:T.dim}}>{(p.docs||[]).length}</span>
-          </div>})}
-        </Card>
-      </div>}
+      {/* ── Nav ── */}
+      <div style={{display:"flex",gap:2,marginBottom:24,background:T.surface,borderRadius:T.rS,padding:3,width:"fit-content"}}>
+        {[["projects","Projects"],["vendors","Vendors"],["dashboard","Dashboard"]].map(([id,label])=>
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 20px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim,transition:"all .15s"}}>
+            {label}
+            {id==="dashboard"&&allOverdue.length>0?<span style={{marginLeft:6,fontSize:9,fontWeight:700,padding:"2px 5px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{allOverdue.length}</span>:""}
+            {id==="vendors"&&<span style={{marginLeft:6,fontSize:9,color:T.dim}}>({masterVendors.length})</span>}
+          </button>
+        )}
+      </div>
 
+      {/* ── Projects tab ── */}
       {tab==="projects"&&<div className="fade-up">
         {projects.length===0?<div style={{textAlign:"center",padding:"80px 20px"}}><div style={{fontSize:48,marginBottom:16,opacity:.15}}>◈</div><h2 style={{fontSize:18,fontWeight:500,color:T.cream,marginBottom:8}}>No projects yet</h2><p style={{fontSize:13,color:T.dim,marginBottom:28}}>Create your first production budget to get started.</p>{canCreate&&<button onClick={onNew} style={{padding:"12px 28px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Create Project</button>}</div>
         :<div>
+          {/* Overdue alert */}
+          {allOverdue.length>0&&<div style={{padding:"14px 18px",marginBottom:20,borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em"}}>Overdue Invoices</span><Pill color={T.neg} size="xs">{allOverdue.length}</Pill></div>
+            {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount)}</span>
+            </div>)}
+          </div>}
+
+          {/* Upcoming deadlines */}
+          {allUpcoming.length>0&&<div style={{padding:"14px 18px",marginBottom:20,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Upcoming Deadlines</div>
+            {allUpcoming.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
+            </div>)}
+          </div>}
+
+          {/* Stage sections */}
           {PROJECT_STAGES.map(stage=>{
             const stageProjects=sorted.filter(p=>(p.stage||"pitching")===stage);
             const isDropTarget=dragProjectId&&dropStage===stage;
@@ -103,8 +141,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                           </div>
                         </div>
                         <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
-                          {ov>0&&<span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:10,background:"rgba(248,113,113,.12)",color:T.neg}}>{ov} overdue</span>}
-                          <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:6,background:`${STAGE_COLORS[stage]}15`,color:STAGE_COLORS[stage],textTransform:"uppercase"}}>{STAGE_LABELS[stage]}</span>
+                          {ov>0&&<Pill color={T.neg} size="xs">{ov} overdue</Pill>}
                         </div>
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:14}}>
@@ -126,7 +163,70 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           {canCreate&&<div onClick={onNew} style={{borderRadius:T.r,border:`2px dashed ${T.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:36,cursor:"pointer",transition:"all .2s",maxWidth:240}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}><div style={{width:32,height:32,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:8}}><PlusI size={14} color={T.gold}/></div><span style={{fontSize:12,fontWeight:500,color:T.dim}}>New Project</span></div>}
         </div>}
       </div>}
+
+      {/* ── Vendors tab — Master Database ── */}
+      {tab==="vendors"&&<div className="fade-up">
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+          <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors…" style={{flex:1,minWidth:180,padding:"8px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+          <div style={{position:"relative"}}>
+            <select value={vendorTypeFilter} onChange={e=>setVendorTypeFilter(e.target.value)} style={{padding:"8px 28px 8px 10px",borderRadius:T.rS,background:vendorTypeFilter!=="all"?`${VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold}12`:T.surface,border:`1px solid ${vendorTypeFilter!=="all"?`${VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold}33`:T.border}`,color:vendorTypeFilter!=="all"?VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold:T.dim,fontSize:11,fontWeight:vendorTypeFilter!=="all"?600:400,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
+              <option value="all">All Types</option>
+              {VENDOR_TYPES.map(t=><option key={t} value={t}>{VENDOR_TYPE_LABELS[t]}</option>)}
+            </select>
+            <span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:8,color:T.dim,pointerEvents:"none"}}>▼</span>
+          </div>
+          {vendorTypeFilter!=="all"&&<button onClick={()=>setVendorTypeFilter("all")} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"rgba(248,113,113,.08)",color:T.neg}}>Clear</button>}
+          <span style={{fontSize:11,color:T.dim}}>{filteredVendors.length} vendor{filteredVendors.length!==1?"s":""}</span>
+        </div>
+
+        {filteredVendors.length===0?<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No vendors{vendorSearch||vendorTypeFilter!=="all"?" match this search":""}</div>
+        :<Card style={{overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(80px,1fr)",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,alignItems:"center"}}>
+            {["Vendor","Type","Contact","Email","Projects"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===4?"right":"left"}}>{h}</span>)}
+          </div>
+          {filteredVendors.map(v=><div key={v.id+v._projectId} onClick={()=>{setVendorDetailId(v.id);setVendorProjectId(v._projectId)}} style={{display:"grid",gridTemplateColumns:"2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(80px,1fr)",padding:"14px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.notes}</div>}</div>
+            <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],display:"inline-block",lineHeight:1.4,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
+            <div style={{fontSize:12,color:T.cream}}>{v.contactName||"—"}</div>
+            <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.email||"—"}</div>
+            <div style={{display:"flex",gap:4,justifyContent:"flex-end",flexWrap:"wrap"}}>{v.projects.map(p=><Pill key={p.id} color={T.dim} size="xs">{p.name}</Pill>)}</div>
+          </div>)}
+        </Card>}
+      </div>}
+
+      {/* ── Dashboard tab ── */}
+      {tab==="dashboard"&&<div className="fade-up">
+        {allOverdue.length>0&&<div style={{padding:"14px 18px",marginBottom:16,borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em"}}>Overdue Invoices</span><Pill color={T.neg} size="xs">{allOverdue.length}</Pill></div>
+          {allOverdue.map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount)}</span>
+          </div>)}
+        </div>}
+        {allUpcoming.length>0&&<div style={{padding:"14px 18px",marginBottom:16,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Upcoming Due Dates</div>
+          {allUpcoming.slice(0,8).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
+          </div>)}
+        </div>}
+        <Card style={{overflow:"auto"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,minWidth:500}}>{["Project","Grand Total","Net Profit","Margin","Docs"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>0?"right":"left"}}>{h}</span>)}</div>
+          {allComps.map(({p,c})=>{const m=c.grandTotal>0?((c.netProfit/c.grandTotal)*100).toFixed(1):0;return<div key={p.id} onClick={()=>onOpen(p.id)} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,cursor:"pointer",minWidth:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{minWidth:0}}><span style={{fontSize:13,fontWeight:500,color:T.cream}}>{p.name}</span><span style={{fontSize:11,color:T.dim,marginLeft:8}}>{p.client}</span></div>
+            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f0(c.grandTotal)}</span>
+            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.pos,fontWeight:600}}>{f0(c.netProfit)}</span>
+            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.cyan}}>{m}%</span>
+            <span style={{textAlign:"right",fontSize:12,color:T.dim}}>{(p.docs||[]).length}</span>
+          </div>})}
+        </Card>
+      </div>}
     </div>
+
+    {/* Vendor detail modal */}
+    {vendorDetailId&&vendorProjectId&&(()=>{
+      const proj=projects.find(p=>p.id===vendorProjectId);
+      if(!proj)return null;
+      return<VendorDetailModal vendorId={vendorDetailId} project={proj} onClose={()=>{setVendorDetailId(null);setVendorProjectId(null)}} canEdit={user.role!=="viewer"} updateProject={()=>{}}/>;
+    })()}
   </div>;
 }
 
