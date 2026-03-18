@@ -208,6 +208,40 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
 
     {/* ===== TRANSACTIONS TAB ===== */}
     {tab==="transactions"&&<>
+      {/* Outstanding invoices from documents */}
+      {(()=>{
+        const outstanding=docs.filter(d=>d.type==="invoice"&&d.status!=="paid"&&d.amount>0);
+        if(!outstanding.length)return null;
+        const overdue=outstanding.filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d)));
+        const pending=outstanding.filter(d=>d.status==="pending"&&!isOverdue(d));
+        const partial=outstanding.filter(d=>d.status==="partial");
+        const all=[...overdue,...partial,...pending];
+        return<Card style={{padding:"18px 20px",marginBottom:16,borderLeft:`3px solid ${overdue.length>0?T.neg:T.gold}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:overdue.length>0?T.neg:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Invoices Due ({all.length})</div>
+            <div className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:700,color:T.gold}}>{f0(all.reduce((a,d)=>a+(d.amount-(d.paidAmount||0)),0))} outstanding</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {all.map(d=>{
+              const vendor=getVendorName(d.vendorId,project.vendors);
+              const remaining=d.amount-(d.paidAmount||0);
+              const isOD=d.status==="overdue"||(d.status==="pending"&&isOverdue(d));
+              return<div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:isOD?"rgba(248,113,113,.04)":"transparent",border:`1px solid ${isOD?"rgba(248,113,113,.12)":T.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                  <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10,background:isOD?`${T.neg}18`:d.status==="partial"?`${T.cyan}18`:`${T.gold}18`,color:isOD?T.neg:d.status==="partial"?T.cyan:T.gold,textTransform:"uppercase"}}>{isOD?"Overdue":d.status==="partial"?"Partial":"Due"}</span>
+                  <span style={{fontSize:12,color:T.cream,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+                  {vendor&&<span style={{fontSize:10,color:T.dim}}>{vendor}</span>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:14,flexShrink:0}}>
+                  {d.dueDate&&<span style={{fontSize:11,color:isOD?T.neg:T.dim,fontFamily:T.mono}}>{d.dueDate}</span>}
+                  <span className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:700,color:isOD?T.neg:T.gold}}>{f$(remaining)}</span>
+                  {canEdit&&<button onClick={()=>markPaid(d.id)} style={{padding:"4px 10px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Mark Paid</button>}
+                </div>
+              </div>
+            })}
+          </div>
+        </Card>;
+      })()}
       {showAdd&&<Card style={{padding:20,marginBottom:16}}>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           {["income","expense"].map(t=><button key={t} onClick={()=>setNTy(t)} style={{padding:"7px 16px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:nTy===t?600:400,fontFamily:T.sans,background:nTy===t?(t==="income"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)"):"transparent",color:nTy===t?(t==="income"?T.pos:T.neg):T.dim}}>{t==="income"?"Income":"Expense"}</button>)}
