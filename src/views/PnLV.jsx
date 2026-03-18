@@ -55,10 +55,22 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
     setAnalyzing({docId,fileName});
     try{
       const isImage=fileData.startsWith("data:image");
-      const content=isImage?[
-        {type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},
-        {type:"text",text:"Extract from this document: 1) type (invoice/contract/w9/w2), 2) total amount as number, 3) due date in MM/DD/YYYY, 4) invoice/doc number, 5) vendor/company name. Return ONLY JSON: {\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"number\":\"\",\"vendor\":\"\"}"}
-      ]:[{type:"text",text:`Uploaded file: "${fileName}". Based on filename, determine: type (invoice/contract/w9/w2), any amount/date hints. Return ONLY JSON: {"type":"invoice","amount":0,"dueDate":"","number":"","vendor":""}`}];
+      const isPdf=fileData.startsWith("data:application/pdf");
+      const extractPrompt="You are analyzing a financial document. Extract ALL of the following:\n1) Document type: invoice, contract, w9, w2, estimate, or other\n2) Total amount due as a number (just the number, no currency symbol)\n3) Due date in MM/DD/YYYY format\n4) Payment terms (e.g. Net 30, Due on receipt, etc.)\n5) Invoice or document number\n6) Vendor/company name (who sent this)\n7) Any notes, description of services, or line item summary\n\nReturn ONLY valid JSON in this exact format:\n{\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"terms\":\"\",\"number\":\"\",\"vendor\":\"\",\"notes\":\"\"}";
+      let content;
+      if(isImage){
+        content=[
+          {type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},
+          {type:"text",text:extractPrompt}
+        ];
+      }else if(isPdf){
+        content=[
+          {type:"document",source:{type:"base64",media_type:"application/pdf",data:fileData.split(",")[1]}},
+          {type:"text",text:extractPrompt}
+        ];
+      }else{
+        content=[{type:"text",text:`Uploaded file: "${fileName}". Based on the filename, determine what you can. ${extractPrompt}`}];
+      }
       const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
       if(!res.ok){setAnalyzing(null);return}
       const data=await res.json();const text=data.content[0].text;
@@ -76,6 +88,8 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
           if(parsed.amount&&parsed.amount>0)updates.amount=parsed.amount;
           if(parsed.dueDate)updates.dueDate=parsed.dueDate;
           if(parsed.number)updates.name=parsed.number;
+          if(parsed.terms)updates.terms=parsed.terms;
+          if(parsed.notes)updates.notes=parsed.notes;
           if(matchedVendorId)updates.vendorId=matchedVendorId;
           const updated={...d,...updates};
           if(isOverdue(updated))updated.status="overdue";
@@ -98,6 +112,8 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       if(r.amount&&r.amount>0)updates.amount=r.amount;
       if(r.dueDate)updates.dueDate=r.dueDate;
       if(r.number)updates.name=r.number;
+      if(r.terms)updates.terms=r.terms;
+      if(r.notes)updates.notes=r.notes;
       if(analysisVendorId)updates.vendorId=analysisVendorId;
       const updated={...d,...updates};
       if(isOverdue(updated))updated.status="overdue";
@@ -367,14 +383,19 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       </Card>}
       {analysisResult&&<Card style={{padding:"18px 20px",marginBottom:12,borderLeft:`3px solid ${T.pos}`,background:"rgba(74,222,128,.03)"}}>
         <div style={{fontSize:10,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Document Analyzed</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:14}}>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Type</div><div style={{fontSize:12,color:T.cream,fontWeight:500,textTransform:"capitalize"}}>{analysisResult.type||"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Amount</div><div style={{fontSize:12,color:T.gold,fontWeight:600,fontFamily:T.mono}}>{analysisResult.amount?f$(analysisResult.amount):"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Due Date</div><div style={{fontSize:12,color:T.cream,fontFamily:T.mono}}>{analysisResult.dueDate||"—"}</div></div>
+          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Terms</div><div style={{fontSize:12,color:T.cream}}>{analysisResult.terms||"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Number</div><div style={{fontSize:12,color:T.cream}}>{analysisResult.number||"—"}</div></div>
         </div>
-        {analysisResult.vendor&&<div style={{marginBottom:12}}>
-          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Detected Vendor: <span style={{color:T.cream}}>{analysisResult.vendor}</span></div>
+        {analysisResult.vendor&&<div style={{marginBottom:8}}>
+          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Detected Vendor: <span style={{color:T.cream,fontWeight:500}}>{analysisResult.vendor}</span></div>
+        </div>}
+        {analysisResult.notes&&<div style={{marginBottom:12,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
+          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Description / Notes</div>
+          <div style={{fontSize:11,color:T.cream,lineHeight:1.5}}>{analysisResult.notes}</div>
         </div>}
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
           <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>Assign to</span>
