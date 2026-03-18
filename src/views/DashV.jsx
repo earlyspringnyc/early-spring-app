@@ -199,7 +199,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       const isPast=daysUntilEvent!==null&&daysUntilEvent<0;
       return<>
         <Label>Event Countdown</Label>
-        {countdownEditing?<div style={{marginTop:10}} onClick={e=>e.stopPropagation()}>
+        {countdownEditing?<div style={{marginTop:10,position:"relative",zIndex:50}} onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()}>
           <DatePick value={project?.eventDate||""} onChange={v=>{if(updateProject)updateProject({eventDate:v});setCountdownEditing(false)}} compact/>
           <button onClick={e=>{e.stopPropagation();setCountdownEditing(false)}} style={{marginTop:8,background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,padding:"4px 12px",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
         </div>:<>
@@ -297,7 +297,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
           onPointerDown={e=>onPointerDown(e,cardKey,slotIdx)}
           onPointerMove={editing?onPointerMove:undefined}
           onPointerUp={editing?onPointerUp:undefined}
-          onClick={!editing?()=>{if(cardKey==="countdown"){setCountdownEditing(true);return}const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
+          onClick={!editing?e=>{if(cardKey==="countdown"){if(countdownEditing)return;setCountdownEditing(true);return}const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
           onMouseEnter={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}}}
           onMouseLeave={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=(cardBorderStyle[cardKey]||{}).borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}}
           style={{
