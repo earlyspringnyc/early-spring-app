@@ -50,7 +50,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     <MobileNav view={view} setView={setView} project={project}/>
     <main className="main-content" style={{flex:1,overflow:"auto",padding:32}}><div key={view} className="view-enter">
       {view==="budget"&&<BudgetV cats={project.cats} ag={project.ag} feeP={project.feeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={project.clientBudget||0} onUpdateBudget={v=>updateProject({clientBudget:v})} reorderCat={reorderCat} reorderSection={reorderSection} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={project} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory} updateProject={updateProject}/>}
-      {view==="dashboard"&&<DashV cats={project.cats} comp={comp} feeP={project.feeP} project={project} onNavigate={setView}/>}
+      {view==="dashboard"&&<DashV cats={project.cats} comp={comp} feeP={project.feeP} project={project} onNavigate={setView} updateProject={updateProject}/>}
       {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit}/>}
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={comp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, daysBetween } from '../utils/date.js';
@@ -15,7 +15,21 @@ const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontS
 const Slash=({children})=><span style={{fontSize:14,fontWeight:400,color:T.dim,fontFamily:T.mono,marginLeft:6}}>/ {children}</span>;
 const Pill=({children,color=T.gold,bg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-function DashV({cats,comp,feeP,project,onNavigate}){
+/* ── Widget definitions ── */
+const WIDGETS={
+  timezone:{id:"timezone",label:"Time Zones",icon:"\uD83C\uDF0D",color:"#06B6D4",desc:"Client & team time zones"},
+  countdown:{id:"countdown",label:"Countdown",icon:"\u23F3",color:"#F59E0B",desc:"Days until event"},
+  weather:{id:"weather",label:"Weather",icon:"\u2600\uFE0F",color:"#4ADE80",desc:"Event location forecast"},
+  notes:{id:"notes",label:"Quick Notes",icon:"\uD83D\uDCDD",color:"#C4B5FD",desc:"Sticky notes for the project"},
+  links:{id:"links",label:"Quick Links",icon:"\uD83D\uDD17",color:"#7DD3FC",desc:"Figma, Drive, Slack, etc."},
+  activity:{id:"activity",label:"Recent Activity",icon:"\u26A1",color:"#F47264",desc:"Latest changes"},
+  team:{id:"team",label:"Team",icon:"\uD83D\uDC65",color:"#8B5CF6",desc:"Who's on this project"},
+  vendors:{id:"vendors",label:"Top Vendors",icon:"\u25C6",color:"#14B8A6",desc:"Vendors by spend"},
+  burndown:{id:"burndown",label:"Task Burndown",icon:"\uD83D\uDCC9",color:"#EC4899",desc:"Completion over time"},
+  collection:{id:"collection",label:"Collection",icon:"\uD83D\uDCB0",color:"#10B981",desc:"Revenue collected vs billed"},
+};
+
+function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const docs=project?.docs||[];const tasks=project?.timeline||[];
   const overdueDocs=docs.filter(d=>(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))&&d.type==="invoice");
   const upcomingDocs=docs.filter(d=>{if(d.status==="paid"||!d.dueDate)return false;const p=d.dueDate.split("/");if(p.length!==3)return false;const due=new Date(p[2],p[0]-1,p[1]);const now=new Date();const diff=daysBetween(now,due);return diff>=0&&diff<=14&&d.status!=="paid"}).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
@@ -166,6 +180,131 @@ function DashV({cats,comp,feeP,project,onNavigate}){
         </div>
       </Cell>
     </div>
+
+    {/* ── Custom Widgets ── */}
+    {(()=>{
+      const activeWidgets=project?.dashWidgets||[];
+      const[showPicker,setShowPicker]=useState(false);
+      const[noteText,setNoteText]=useState(project?.dashNotes||"");
+      const[linkName,setLinkName]=useState("");
+      const[linkUrl,setLinkUrl]=useState("");
+      const[tzClient,setTzClient]=useState(project?.clientTimezone||"");
+
+      const addWidget=(id)=>{if(!activeWidgets.includes(id))updateProject&&updateProject({dashWidgets:[...activeWidgets,id]})};
+      const removeWidget=(id)=>{updateProject&&updateProject({dashWidgets:activeWidgets.filter(w=>w!==id)})};
+
+      const renderWidget=(wid)=>{
+        const w=WIDGETS[wid];if(!w)return null;
+        const header=<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>{w.icon}</span><span style={{fontSize:10,fontWeight:600,color:w.color,textTransform:"uppercase",letterSpacing:".06em"}}>{w.label}</span></div>
+          <button onClick={()=>removeWidget(wid)} style={{background:"none",border:"none",color:T.dim,fontSize:12,cursor:"pointer",opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Remove widget">&times;</button>
+        </div>;
+
+        if(wid==="countdown"){
+          const ed=project?.eventDate?parseD(project.eventDate):null;
+          const days=ed?Math.ceil((ed-new Date())/(1000*60*60*24)):null;
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            {days!==null?<div><Big size={36} color={days<=0?T.pos:days<=7?T.neg:T.cream}>{Math.abs(days)}</Big><div style={{fontSize:10,color:T.dim,marginTop:4}}>{days>0?`days until event`:days===0?"Event is today!":"days since event"}</div></div>
+            :<div style={{fontSize:11,color:T.dim}}>Set event date in Settings</div>}
+          </div>;
+        }
+        if(wid==="timezone"){
+          const now=new Date();
+          const localTime=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true});
+          const clientTime=tzClient?new Date(now.toLocaleString("en-US",{timeZone:tzClient})).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:true}):null;
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            <div style={{display:"flex",gap:16}}>
+              <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>You</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{localTime}</div></div>
+              <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Client</div>
+                {clientTime?<div className="num" style={{fontSize:20,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{clientTime}</div>
+                :<select value={tzClient} onChange={e=>{setTzClient(e.target.value);updateProject&&updateProject({clientTimezone:e.target.value})}} style={{padding:"4px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:10,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>
+                  <option value="">Set timezone</option>
+                  {["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Toronto","Europe/London","Europe/Paris","Europe/Berlin","Asia/Dubai","Asia/Riyadh","Asia/Tokyo","Asia/Singapore","Asia/Hong_Kong","Australia/Sydney","Pacific/Auckland"].map(tz=><option key={tz} value={tz}>{tz.replace("_"," ").split("/").pop()}</option>)}
+                </select>}
+              </div>
+            </div>
+          </div>;
+        }
+        if(wid==="notes"){
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            <textarea value={noteText} onChange={e=>{setNoteText(e.target.value);updateProject&&updateProject({dashNotes:e.target.value})}} placeholder="Jot something down..." rows={3} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/>
+          </div>;
+        }
+        if(wid==="links"){
+          const links=project?.dashLinks||[];
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            {links.map((l,i)=><a key={i} href={l.url} target="_blank" rel="noopener" style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:12,color:T.cyan,textDecoration:"none"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.cyan}><span style={{fontSize:10}}>&#8599;</span>{l.name}</a>)}
+            <div style={{display:"flex",gap:4,marginTop:6}}>
+              <input value={linkName} onChange={e=>setLinkName(e.target.value)} placeholder="Name" style={{flex:1,padding:"5px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:10,fontFamily:T.sans,outline:"none"}}/>
+              <input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="URL" onKeyDown={e=>{if(e.key==="Enter"&&linkName&&linkUrl){updateProject&&updateProject({dashLinks:[...links,{name:linkName,url:linkUrl}]});setLinkName("");setLinkUrl("")}}} style={{flex:2,padding:"5px 8px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:10,fontFamily:T.sans,outline:"none"}}/>
+              <button onClick={()=>{if(linkName&&linkUrl){updateProject&&updateProject({dashLinks:[...links,{name:linkName,url:linkUrl}]});setLinkName("");setLinkUrl("")}}} style={{padding:"5px 10px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:9,fontWeight:700,cursor:"pointer"}}>+</button>
+            </div>
+          </div>;
+        }
+        if(wid==="team"){
+          const vendors=project?.vendors||[];
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            <div style={{fontSize:11,color:T.dim}}>{vendors.length} vendors · {tasks.length} tasks · {docs.length} documents</div>
+          </div>;
+        }
+        if(wid==="vendors"){
+          const vendorSpend=(project?.vendors||[]).map(v=>{const spent=(project?.cats||[]).reduce((a,c)=>a+c.items.filter(i=>i.vendorId===v.id).reduce((s,i)=>s+i.actualCost,0),0);return{name:v.name,spent}}).filter(v=>v.spent>0).sort((a,b)=>b.spent-a.spent).slice(0,5);
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            {vendorSpend.map((v,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${T.border}`}}>
+              <span style={{fontSize:11,color:T.cream}}>{v.name}</span>
+              <span style={{fontSize:11,fontFamily:T.mono,color:T.dim}}>{f0(v.spent)}</span>
+            </div>)}
+            {vendorSpend.length===0&&<div style={{fontSize:10,color:T.dim}}>No vendor costs yet</div>}
+          </div>;
+        }
+        if(wid==="collection"){
+          const collected=txns.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);
+          const pct=comp.grandTotal>0?Math.round(collected/comp.grandTotal*100):0;
+          return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+            {header}
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:10,color:T.dim}}>Collected</span><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{f0(collected)} / {f0(comp.grandTotal)}</span></div>
+            <div style={{height:6,background:T.surface,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:`linear-gradient(90deg,${T.gold},${T.pos})`,borderRadius:3}}/></div>
+            <div style={{fontSize:10,color:T.dim,marginTop:4}}>{pct}% collected</div>
+          </div>;
+        }
+        // Generic fallback
+        return<div key={wid} style={{padding:"20px 22px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:`3px solid ${w.color}`}}>
+          {header}
+          <div style={{fontSize:11,color:T.dim}}>Coming soon</div>
+        </div>;
+      };
+
+      return<>
+        {activeWidgets.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,marginBottom:16}}>
+          {activeWidgets.map(wid=>renderWidget(wid))}
+        </div>}
+
+        {/* Add widget button + picker */}
+        <div style={{position:"relative",display:"inline-block"}}>
+          <button onClick={()=>setShowPicker(!showPicker)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,background:showPicker?T.goldSoft:"transparent",color:showPicker?T.gold:T.dim,border:`1px solid ${showPicker?T.borderGlow:T.border}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{if(!showPicker){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}}} onMouseLeave={e=>{if(!showPicker){e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}}>
+            <span style={{fontSize:14,lineHeight:1}}>+</span> Add Widget
+          </button>
+          {showPicker&&<div style={{position:"absolute",left:0,bottom:"calc(100% + 6px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",width:320,padding:12}}>
+            <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Available Widgets</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {Object.values(WIDGETS).filter(w=>!activeWidgets.includes(w.id)).map(w=>
+                <button key={w.id} onClick={()=>{addWidget(w.id);setShowPicker(false)}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"all .15s",textAlign:"left"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=w.color;e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}>
+                  <span style={{fontSize:16}}>{w.icon}</span>
+                  <div><div style={{fontSize:11,fontWeight:600,color:T.cream}}>{w.label}</div><div style={{fontSize:9,color:T.dim}}>{w.desc}</div></div>
+                </button>
+              )}
+            </div>
+            {Object.values(WIDGETS).filter(w=>!activeWidgets.includes(w.id)).length===0&&<div style={{textAlign:"center",padding:12,color:T.dim,fontSize:11}}>All widgets added</div>}
+          </div>}
+        </div>
+      </>;
+    })()}
   </div>;
 }
 
