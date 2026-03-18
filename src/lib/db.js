@@ -9,7 +9,7 @@ export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.other.readonly',
+      scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets',
       redirectTo: window.location.origin,
     },
   });

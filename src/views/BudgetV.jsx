@@ -5,6 +5,7 @@ import { ct } from '../utils/calc.js';
 import { uid } from '../utils/uid.js';
 import { PlusI } from '../components/icons/index.js';
 import { Card, NI, Metric, SB } from '../components/primitives/index.js';
+import { exportBudgetToSheets } from '../utils/drive.js';
 import AddSectionModal from '../components/modals/AddSectionModal.jsx';
 import Cat from './Cat.jsx';
 
@@ -70,6 +71,17 @@ function BudgetV(p){
   const[confirmBudget,setConfirmBudget]=useState(false);
   const[showMarginSlider,setShowMarginSlider]=useState(false);
   const[showExportMenu,setShowExportMenu]=useState(false);
+  const[sheetsExporting,setSheetsExporting]=useState(false);
+  const[sheetsUrl,setSheetsUrl]=useState(null);
+  const exportToSheets=async()=>{
+    const token=p.accessToken;if(!token){alert("Sign in with Google to export to Sheets");return}
+    setSheetsExporting(true);setShowExportMenu(false);
+    try{
+      const result=await exportBudgetToSheets(token,p.project,p.cats,p.ag,p.comp,p.feeP,p.project?.driveFolders);
+      if(result?.url){setSheetsUrl(result.url);window.open(result.url,"_blank")}
+    }catch(e){console.error("[sheets]",e)}
+    setSheetsExporting(false);
+  };
   const budgetRef=useRef(null);
   const startEditBudget=()=>{if(!canEdit)return;setBudgetDraft(String(p.clientBudget||""));setEditingBudget(true);setConfirmBudget(false);setTimeout(()=>budgetRef.current?.select(),50)};
   const proposeBudget=()=>{const v=parseFloat(budgetDraft.replace(/[^0-9.\-]/g,""))||0;if(v===(p.clientBudget||0)){setEditingBudget(false);return}setConfirmBudget(true)};
@@ -207,7 +219,7 @@ function BudgetV(p){
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowExportMenu(!showExportMenu)} style={{padding:"8px 14px",background:"transparent",color:showExportMenu?T.cream:T.dim,border:`1px solid ${showExportMenu?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
         {showExportMenu&&<div style={{position:"absolute",bottom:"100%",left:0,marginBottom:4,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",overflow:"hidden",zIndex:20,minWidth:140}}>
-          {[["XLSX",()=>{exportXLS();setShowExportMenu(false)},"Spreadsheet"],["CSV",exportCSV,"Comma-separated"],["PDF",exportPDF,"Print to PDF"]].map(([label,fn,sub])=>
+          {[["Google Sheets",exportToSheets,"Opens in Google Sheets"],["XLSX",()=>{exportXLS();setShowExportMenu(false)},"Spreadsheet"],["CSV",exportCSV,"Comma-separated"],["PDF",exportPDF,"Print to PDF"]].map(([label,fn,sub])=>
             <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>
               <span style={{fontSize:10,color:T.dim,marginTop:1}}>{sub}</span>

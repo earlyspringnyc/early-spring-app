@@ -81,8 +81,17 @@ function App(){
 
   const createProject=useCallback(async(name,client,date,eventDate,logo,clientBudget,stage)=>{
     const id=await createProj(name,client,date,eventDate,logo,clientBudget,stage);
-    if(id)setActiveId(id);
-  },[createProj]);
+    if(id){
+      setActiveId(id);
+      // Create Google Drive folder structure in background
+      if(accessToken){
+        import('./utils/drive.js').then(async({createProjectFolders})=>{
+          const folderIds=await createProjectFolders(accessToken,name||"Untitled Project");
+          if(folderIds)updateProj(id,{driveFolders:folderIds});
+        }).catch(e=>console.error('[drive] Folder creation failed:',e));
+      }
+    }
+  },[createProj,accessToken,updateProj]);
 
   const updateProject=useCallback(updates=>{
     if(!activeId)return;

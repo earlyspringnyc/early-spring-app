@@ -7,7 +7,7 @@ import { mkDoc, mkTxn } from '../data/factories.js';
 import { TrashI } from '../components/icons/index.js';
 import { Card, Metric, DatePick, VendorSelect } from '../components/primitives/index.js';
 
-function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorClick}){
+function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorClick,accessToken}){
   const txns=project.txns||[];
   const docs=project.docs||[];
   const[tab,setTab]=useState("transactions");
@@ -144,12 +144,22 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   const handleFiles=useCallback((files)=>{
     Array.from(files).forEach(file=>{
       const reader=new FileReader();
-      reader.onload=ev=>{
+      reader.onload=async ev=>{
         const type=autoDetectType(file.name);
         const name=file.name.replace(/\.[^/.]+$/,"");
         const doc=mkDoc(name,type,"",0,"","pending","","","",ev.target.result);
         if(isOverdue(doc))doc.status="overdue";
         updateProject({docs:[...docs,doc]});
+        // Upload to Google Drive in background
+        if(accessToken&&project.driveFolders){
+          import('../utils/drive.js').then(async({uploadToDrive})=>{
+            const result=await uploadToDrive(accessToken,ev.target.result,file.name,project.driveFolders,type,"finance");
+            if(result){
+              // Save drive link, remove base64 to save space
+              updateProject({docs:(project.docs||[]).map(d=>d.id===doc.id?{...d,driveId:result.driveId,driveLink:result.webViewLink,fileData:null}:d)});
+            }
+          }).catch(e=>console.error('[drive]',e));
+        }
         // Analyze in background
         analyzeDoc(ev.target.result,file.name,doc.id);
       };
