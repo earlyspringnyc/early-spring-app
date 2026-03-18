@@ -3,6 +3,7 @@ import T from '../../theme/tokens.js';
 import { f$, f0 } from '../../utils/format.js';
 import { getPayStatus, isOverdue } from '../../utils/calc.js';
 import { uid } from '../../utils/uid.js';
+import { mkDoc } from '../../data/factories.js';
 import { VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES, PAYMENT_COLORS, PAYMENT_LABELS, DOC_TYPE_COLORS, INVOICE_KIND_COLORS, INVOICE_KIND_LABELS } from '../../constants/index.js';
 import { TrashI } from '../icons/index.js';
 import { Card, DatePick } from '../primitives/index.js';
@@ -47,14 +48,51 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
 
   const autoDetectDocType=(fileName)=>{const n=fileName.toLowerCase();if(n.includes("invoice")||n.includes("inv"))return"invoice";if(n.includes("contract")||n.includes("agreement")||n.includes("sow"))return"contract";if(n.includes("estimate")||n.includes("quote"))return"estimate";if(n.includes("coi")||n.includes("insurance")||n.includes("certificate"))return"coi";if(n.includes("w9")||n.includes("w-9"))return"w9";if(n.includes("license"))return"license";if(n.includes("permit"))return"permit";return"invoice"};
 
+  const[docAnalyzing,setDocAnalyzing]=useState(false);
+  const[docAnalysisResult,setDocAnalysisResult]=useState(null);
+
+  const analyzeAndAddDoc=useCallback(async(fileData,fileName,docId)=>{
+    setDocAnalyzing(true);
+    try{
+      const isImage=fileData.startsWith("data:image");
+      const content=isImage?[
+        {type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},
+        {type:"text",text:"Extract from this document: 1) type (invoice/contract/w9/estimate), 2) total amount as number, 3) due date in MM/DD/YYYY, 4) invoice/doc number. Return ONLY JSON: {\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"number\":\"\"}"}
+      ]:[{type:"text",text:`File: "${fileName}". Determine: type (invoice/contract/w9/estimate), any amount/date hints. Return ONLY JSON: {"type":"invoice","amount":0,"dueDate":"","number":""}`}];
+      const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
+      if(res.ok){
+        const data=await res.json();const text=data.content[0].text;
+        const match=text.match(/\{[\s\S]*\}/);
+        if(match){
+          const parsed=JSON.parse(match[0]);
+          // Auto-apply to the doc in project.docs
+          const updates={};
+          if(parsed.type)updates.type=parsed.type;
+          if(parsed.amount&&parsed.amount>0)updates.amount=parsed.amount;
+          if(parsed.dueDate)updates.dueDate=parsed.dueDate;
+          if(parsed.number)updates.name=`${parsed.number}`;
+          updateProject({docs:(project.docs||[]).map(d=>d.id===docId?{...d,...updates,status:isOverdue({...d,...updates})?"overdue":"pending"}:d)});
+          setDocAnalysisResult({docId,...parsed});
+          setTimeout(()=>setDocAnalysisResult(null),5000);
+        }
+      }
+    }catch(e){console.error("[vendor-doc-analysis]",e)}
+    setDocAnalyzing(false);
+  },[project.docs,updateProject]);
+
   const handleDropFiles=useCallback((files)=>{
     Array.from(files).forEach(file=>{const reader=new FileReader();reader.onload=ev=>{
       const type=autoDetectDocType(file.name);const name=file.name.replace(/\.[^/.]+$/,"");
-      const doc={id:uid(),name,type,notes:"",fileName:file.name,fileData:ev.target.result,expiryDate:"",dateAdded:new Date().toLocaleDateString()};
-      const updatedVendors=(project.vendors||[]).map(vendor=>vendor.id===vendorId?{...vendor,documents:[...(vendor.documents||[]),doc]}:vendor);
-      updateProject({vendors:updatedVendors});
+      // Add to vendor.documents
+      const vendorDoc={id:uid(),name,type,notes:"",fileName:file.name,fileData:ev.target.result,expiryDate:"",dateAdded:new Date().toLocaleDateString()};
+      const updatedVendors=(project.vendors||[]).map(vendor=>vendor.id===vendorId?{...vendor,documents:[...(vendor.documents||[]),vendorDoc]}:vendor);
+      // Also add to project.docs for finance tracking
+      const financeDoc=mkDoc(name,type,vendorId,0,"","pending","","","",ev.target.result);
+      updateProject({vendors:updatedVendors,docs:[...(project.docs||[]),financeDoc]});
+      // Run AI analysis
+      analyzeAndAddDoc(ev.target.result,file.name,financeDoc.id);
     };reader.readAsDataURL(file)});
-  },[project.vendors,vendorId,updateProject]);
+  },[project.vendors,project.docs,vendorId,updateProject,analyzeAndAddDoc]);
 
   const onDocDragEnter=useCallback(e=>{e.preventDefault();e.stopPropagation();dragCounter.current++;setDraggingDoc(true)},[]);
   const onDocDragLeave=useCallback(e=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDraggingDoc(false)},[]);
@@ -80,7 +118,11 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
     if(!docName.trim())return;
     const doc={id:uid(),name:docName.trim(),type:docType,notes:docNotes,fileName:docFileName,fileData:docFile,expiryDate:docExpiry,dateAdded:new Date().toLocaleDateString()};
     const updatedVendors=(project.vendors||[]).map(vendor=>vendor.id===vendorId?{...vendor,documents:[...(vendor.documents||[]),doc]}:vendor);
-    updateProject({vendors:updatedVendors});
+    // Also add to project.docs for finance tracking
+    const financeDoc=mkDoc(docName.trim(),docType,vendorId,0,"","pending","","","",docFile);
+    updateProject({vendors:updatedVendors,docs:[...(project.docs||[]),financeDoc]});
+    // Run AI analysis if we have file data
+    if(docFile)analyzeAndAddDoc(docFile,docFileName||docName.trim(),financeDoc.id);
     setDocName("");setDocType("invoice");setDocNotes("");setDocFile(null);setDocFileName("");setDocExpiry("");setShowUpload(false);
   };
 
@@ -278,6 +320,19 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               </div>
             </div>}
 
+            {docAnalyzing&&<div style={{padding:"10px 14px",borderRadius:T.rS,background:"rgba(74,222,128,.04)",border:`1px solid rgba(74,222,128,.12)`,marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:14,height:14,border:`2px solid ${T.pos}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
+              <span style={{fontSize:11,color:T.pos}}>Analyzing document...</span>
+            </div>}
+            {docAnalysisResult&&<div style={{padding:"10px 14px",borderRadius:T.rS,background:"rgba(74,222,128,.04)",border:`1px solid rgba(74,222,128,.12)`,marginBottom:8}}>
+              <div style={{fontSize:10,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Auto-detected</div>
+              <div style={{display:"flex",gap:16,fontSize:11}}>
+                {docAnalysisResult.type&&<span style={{color:T.cream}}>Type: <b style={{textTransform:"capitalize"}}>{docAnalysisResult.type}</b></span>}
+                {docAnalysisResult.amount>0&&<span style={{color:T.gold,fontFamily:T.mono,fontWeight:600}}>{f$(docAnalysisResult.amount)}</span>}
+                {docAnalysisResult.dueDate&&<span style={{color:T.dim}}>Due: {docAnalysisResult.dueDate}</span>}
+                {docAnalysisResult.number&&<span style={{color:T.dim}}>#{docAnalysisResult.number}</span>}
+              </div>
+            </div>}
             {allDocs.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:6}}>
               {vendorDocs.map(d=><div key={d.id} onClick={()=>setViewingDoc(d)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
                 <Pill color={VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other} size="xs">{VENDOR_DOC_LABELS[d.type]||d.type}</Pill>

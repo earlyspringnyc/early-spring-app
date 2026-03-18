@@ -66,6 +66,21 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       // Try to match vendor name to existing vendors
       let matchedVendorId="";
       if(parsed.vendor){const vName=parsed.vendor.toLowerCase();const found=(project.vendors||[]).find(v=>(v.name||"").toLowerCase().includes(vName)||vName.includes((v.name||"").toLowerCase()));if(found)matchedVendorId=found.id}
+      // Auto-apply if we got good data
+      if(parsed.amount>0||parsed.dueDate||matchedVendorId){
+        updateProject({docs:docs.map(d=>{
+          if(d.id!==docId)return d;
+          const updates={};
+          if(parsed.type)updates.type=parsed.type;
+          if(parsed.amount&&parsed.amount>0)updates.amount=parsed.amount;
+          if(parsed.dueDate)updates.dueDate=parsed.dueDate;
+          if(parsed.number)updates.name=parsed.number;
+          if(matchedVendorId)updates.vendorId=matchedVendorId;
+          const updated={...d,...updates};
+          if(isOverdue(updated))updated.status="overdue";
+          return updated;
+        })});
+      }
       setAnalysisResult({docId,...parsed,matchedVendorId});
       setAnalysisVendorId(matchedVendorId);
       setAnalyzing(null);
