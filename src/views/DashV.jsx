@@ -4,7 +4,7 @@ import { f$, f0, fp } from '../utils/format.js';
 import { parseD, daysBetween } from '../utils/date.js';
 import { ct, isOverdue, getVendorName } from '../utils/calc.js';
 import { INVOICE_KIND_COLORS, INVOICE_KIND_LABELS } from '../constants/index.js';
-import { Card, Metric, DonutChart } from '../components/primitives/index.js';
+import { Card, Metric, DonutChart, DatePick } from '../components/primitives/index.js';
 import { PlusI } from '../components/icons/index.js';
 
 /* ── All available card definitions ── */
@@ -77,6 +77,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const[order,setOrder]=useState(initOrder);
   const[editing,setEditing]=useState(false);
   const[showAddMenu,setShowAddMenu]=useState(false);
+  const[countdownEditing,setCountdownEditing]=useState(false);
 
   useEffect(()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){setOrder(saved)}},[project?.dashLayout]);
 
@@ -198,9 +199,14 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       const isPast=daysUntilEvent!==null&&daysUntilEvent<0;
       return<>
         <Label>Event Countdown</Label>
-        <div style={{marginTop:10}}><Big size={48} color={isPast?T.dim:daysUntilEvent!==null&&daysUntilEvent<=7?T.neg:T.cyan}>{daysUntilEvent!==null?Math.abs(daysUntilEvent):"\u2014"}</Big></div>
-        <div style={{fontSize:11,color:T.dim,marginTop:10,fontFamily:T.mono}}>{daysUntilEvent===null?"No event date set":isPast?`${Math.abs(daysUntilEvent)} days ago`:daysUntilEvent===0?"Today!":"days to go"}</div>
-        {project?.eventDate&&<div style={{fontSize:10,color:T.dim,marginTop:4}}>{project.eventDate}</div>}
+        {countdownEditing?<div style={{marginTop:10}} onClick={e=>e.stopPropagation()}>
+          <DatePick value={project?.eventDate||""} onChange={v=>{if(updateProject)updateProject({eventDate:v});setCountdownEditing(false)}} compact/>
+          <button onClick={e=>{e.stopPropagation();setCountdownEditing(false)}} style={{marginTop:8,background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,padding:"4px 12px",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+        </div>:<>
+          <div style={{marginTop:10}}><Big size={48} color={isPast?T.dim:daysUntilEvent!==null&&daysUntilEvent<=7?T.neg:T.cyan}>{daysUntilEvent!==null?Math.abs(daysUntilEvent):"\u2014"}</Big></div>
+          <div style={{fontSize:11,color:T.dim,marginTop:10,fontFamily:T.mono}}>{daysUntilEvent===null?"No event date set":isPast?`${Math.abs(daysUntilEvent)} days ago`:daysUntilEvent===0?"Today!":"days to go"}</div>
+          {project?.eventDate&&<div style={{fontSize:10,color:T.dim,marginTop:4}}>{project.eventDate}</div>}
+        </>}
       </>;
     },
     vendors:()=><>
@@ -291,7 +297,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
           onPointerDown={e=>onPointerDown(e,cardKey,slotIdx)}
           onPointerMove={editing?onPointerMove:undefined}
           onPointerUp={editing?onPointerUp:undefined}
-          onClick={!editing?()=>{const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
+          onClick={!editing?()=>{if(cardKey==="countdown"){setCountdownEditing(true);return}const nav=ALL_CARDS[cardKey]?.nav;if(onNavigate&&nav)onNavigate(nav)}:undefined}
           onMouseEnter={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}}}
           onMouseLeave={e=>{if(!editing&&!dragState.dragging){e.currentTarget.style.borderColor=(cardBorderStyle[cardKey]||{}).borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}}
           style={{
