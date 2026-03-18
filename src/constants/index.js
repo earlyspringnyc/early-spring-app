@@ -1,8 +1,8 @@
 import T from '../theme/tokens.js';
 
-export const PROJECT_STAGES = ["pitching", "awarded", "current", "wrapped", "archived"];
-export const STAGE_LABELS = { pitching: "Pitching", awarded: "Awarded", current: "In Production", wrapped: "Wrapped", archived: "Archived" };
-export const STAGE_COLORS = { pitching: T.gold, awarded: "#8B5CF6", current: T.pos, wrapped: T.cyan, archived: T.dim };
+export const PROJECT_STAGES = ["pitching", "awarded", "wrapped", "archived"];
+export const STAGE_LABELS = { pitching: "Pitching", awarded: "Awarded", current: "Awarded", wrapped: "Wrapped", archived: "Archived" };
+export const STAGE_COLORS = { pitching: T.gold, awarded: T.pos, current: T.pos, wrapped: T.cyan, archived: T.dim };
 export const STATUS_COLORS = { todo: "rgba(250,250,249,.4)", progress: "#22D3EE", roadblocked: "#F87171", done: "#34D399" };
 export const STATUS_LABELS = { todo: "To Do", progress: "In Progress", roadblocked: "Roadblocked", done: "Done" };
 export const DOC_TYPES = ["invoice", "w9", "w2", "contract"];
