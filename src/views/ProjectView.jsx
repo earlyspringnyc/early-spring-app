@@ -10,6 +10,7 @@ import BudgetV from './BudgetV.jsx';
 import DashV from './DashV.jsx';
 import TimelineV from './TimelineV.jsx';
 import ROSV from './ROSV.jsx';
+import CreativeV from './CreativeV.jsx';
 import PnLV from './PnLV.jsx';
 import DocsV from './DocsV.jsx';
 import VendorsV from './VendorsV.jsx';
@@ -50,6 +51,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit}/>}
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={comp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId}/>}
+      {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit}/>}
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
       {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project} onUpdateUser={onUpdateUser}/>}

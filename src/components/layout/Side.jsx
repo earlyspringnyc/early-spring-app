@@ -15,6 +15,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
     {id:"budget",label:"Budget",icon:"\u25C8"},
     {id:"timeline",label:"Production",icon:"\u25A4"},
     {id:"vendors",label:"Vendors",icon:"\u25C6"},
+    {id:"creative",label:"Creative",icon:"\u25A8"},
     {id:"ai",label:"ES AI",icon:"\u25C9"},
   ];
 
