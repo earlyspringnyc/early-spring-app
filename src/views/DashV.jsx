@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, daysBetween } from '../utils/date.js';
@@ -51,41 +51,48 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const tasksDone=tasks.filter(t=>t.status==="done").length;
   const budgetPct=totalBudget>0?Math.round((spendToDate/totalBudget)*100):0;
 
-  /* ── Drag state for card reorder ── */
+  /* ── Click-to-move state for card reorder ── */
   const DEFAULT_ORDER=["budget","spend","owed","client","tasks","alerts","prod","margin","blended","profit","donut","comp"];
   const[cardOrder,setCardOrder]=useState(()=>project?.dashCardOrder||DEFAULT_ORDER);
-  const[dragCard,setDragCard]=useState(null);
-  const[dropTarget,setDropTarget]=useState(null);
+  const[movingCard,setMovingCard]=useState(null);
 
-  const handleCardDrop=(targetId)=>{
-    if(!dragCard||dragCard===targetId)return;
+  const handleCardMove=useCallback((targetId)=>{
+    if(!movingCard||movingCard===targetId)return;
     const order=[...cardOrder];
-    const fromIdx=order.indexOf(dragCard);
+    const fromIdx=order.indexOf(movingCard);
     const toIdx=order.indexOf(targetId);
     if(fromIdx<0||toIdx<0)return;
     order.splice(fromIdx,1);
-    order.splice(toIdx,0,dragCard);
+    order.splice(toIdx,0,movingCard);
     setCardOrder(order);
     updateProject&&updateProject({dashCardOrder:order});
-    setDragCard(null);setDropTarget(null);
-  };
+    setMovingCard(null);
+  },[movingCard,cardOrder,updateProject]);
+
+  /* Escape key cancels move */
+  useEffect(()=>{
+    if(!movingCard)return;
+    const handler=(e)=>{if(e.key==="Escape")setMovingCard(null)};
+    window.addEventListener("keydown",handler);
+    return()=>window.removeEventListener("keydown",handler);
+  },[movingCard]);
 
   const removeCard=(id)=>{const next=cardOrder.filter(c=>c!==id);setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})};
+  const isMoving=(id)=>movingCard===id;
+  const isDropTarget=(id)=>movingCard&&movingCard!==id;
   const DragCell=({id,span=1,children,style:sx={},onClick})=>(
-    <div onDragOver={e=>{e.preventDefault();setDropTarget(id)}} onDrop={e=>{e.preventDefault();handleCardDrop(id)}} onClick={onClick}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.5';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='1'}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='0';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0'}}
-      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",opacity:dragCard===id?.4:1,position:"relative",overflow:"hidden",minHeight:140,...sx}}>
-      {/* Drop indicator line */}
-      {dropTarget===id&&dragCard&&dragCard!==id&&<div style={{position:"absolute",left:-7,top:0,bottom:0,width:3,borderRadius:2,background:`linear-gradient(180deg,${T.gold},${T.cyan})`,zIndex:5}}/>}
-      {/* Drag handle */}
-      <div className="drag-grip" draggable onDragStart={e=>{e.stopPropagation();setDragCard(id);e.dataTransfer.effectAllowed="move";const el=e.currentTarget.parentElement;if(el){e.dataTransfer.setDragImage(el,20,20)}}} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}}
-        style={{position:"absolute",left:0,top:0,bottom:0,width:16,display:"flex",alignItems:"center",justifyContent:"center",cursor:"grab",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.08),transparent)"}}
+    <div onClick={e=>{if(movingCard&&movingCard!==id){e.stopPropagation();handleCardMove(id)}else if(onClick)onClick(e)}}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=isDropTarget(id)?T.gold:sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.5';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='1';if(isDropTarget(id)){e.currentTarget.style.borderTopColor=T.gold;e.currentTarget.style.borderTopWidth="3px"}}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=isMoving(id)?T.gold:sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='0';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0';if(isDropTarget(id)){e.currentTarget.style.borderTopWidth="1px"}}}
+      style={{background:T.surfEl,borderRadius:T.r,border:isMoving(id)?`1px solid ${T.gold}`:`1px solid ${T.border}`,display:"flex",transition:"all .2s",cursor:movingCard?(movingCard===id?"default":"pointer"):(onClick?"pointer":"default"),animation:isMoving(id)?"dashPulse 1.5s ease-in-out infinite":"none",position:"relative",overflow:"hidden",minHeight:140,...sx,...(isMoving(id)?{border:`1px solid ${T.gold}`,boxShadow:`0 0 12px ${T.gold}33`}:{})}}>
+      {/* Move handle */}
+      <div className="drag-grip"
+        style={{position:"absolute",left:0,top:0,bottom:0,width:16,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.08),transparent)"}}
         onMouseEnter={e=>{e.currentTarget.style.opacity='1'}}
         onMouseLeave={e=>{e.currentTarget.style.opacity='.5'}}
-        onClick={e=>e.stopPropagation()}>
+        onClick={e=>{e.stopPropagation();if(movingCard===id)setMovingCard(null);else setMovingCard(id)}}>
         <div style={{display:"flex",flexDirection:"column",gap:2}}>
-          {[0,1,2].map(i=><div key={i} style={{display:"flex",gap:2}}><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/></div>)}
+          {[0,1,2].map(i=><div key={i} style={{display:"flex",gap:2}}><div style={{width:2,height:2,borderRadius:1,background:isMoving(id)?T.gold:T.dim}}/><div style={{width:2,height:2,borderRadius:1,background:isMoving(id)?T.gold:T.dim}}/></div>)}
         </div>
       </div>
       {/* Remove button — always slightly visible */}
@@ -162,9 +169,10 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   };
 
   return<div>
-    <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview · drag cards to rearrange</p></div>
+    <style>{`@keyframes dashPulse{0%,100%{box-shadow:0 0 12px ${T.gold}33}50%{box-shadow:0 0 20px ${T.gold}55}}`}</style>
+    <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview · click grip to reorder cards{movingCard&&<span style={{color:T.gold,marginLeft:8}}>Click a card to move here · Esc to cancel</span>}</p></div>
 
-    {/* ── Draggable Card Grid ── */}
+    {/* ── Reorderable Card Grid ── */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
       {cardOrder.filter(id=>CARDS[id]).map(id=>{const render=CARDS[id];return render?<div key={id}>{render()}</div>:null})}
     </div>
