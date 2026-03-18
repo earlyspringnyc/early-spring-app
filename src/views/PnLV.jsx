@@ -22,6 +22,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   const[nN,setNN2]=useState("");const[nDTy,setNDTy]=useState("invoice");const[nDAm,setNDAm]=useState("");const[nDu,setNDu]=useState("");
   const[nLnkCat,setNLnkCat]=useState("");const[nLnkItem,setNLnkItem]=useState("");const[nDVId,setNDVId]=useState("");
   const[dragging,setDragging]=useState(false);
+  const[showPaidAP,setShowPaidAP]=useState(false);
   const[viewingDoc,setViewingDoc]=useState(null);
   const[analyzing,setAnalyzing]=useState(null); // {docId, fileName}
   const[analysisResult,setAnalysisResult]=useState(null); // {docId, type, amount, dueDate, vendor, number}
@@ -208,21 +209,61 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
 
     {/* ===== TRANSACTIONS TAB ===== */}
     {tab==="transactions"&&<>
-      {/* Outstanding invoices from documents */}
+      {/* ── Accounts Receivable (client payments) ── */}
       {(()=>{
-        const outstanding=docs.filter(d=>d.type==="invoice"&&d.status!=="paid"&&d.amount>0);
-        if(!outstanding.length)return null;
-        const overdue=outstanding.filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d)));
-        const pending=outstanding.filter(d=>d.status==="pending"&&!isOverdue(d));
-        const partial=outstanding.filter(d=>d.status==="partial");
-        const all=[...overdue,...partial,...pending];
-        return<Card style={{padding:"18px 20px",marginBottom:16,borderLeft:`3px solid ${overdue.length>0?T.neg:T.gold}`}}>
+        const clientPayments=txns.filter(t=>t.type==="income");
+        const totalDue=comp.grandTotal;
+        const arOutstanding=Math.max(0,totalDue-totalIncome);
+        return<Card style={{padding:"18px 20px",marginBottom:12,borderLeft:`3px solid ${T.pos}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:overdue.length>0?T.neg:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Invoices Due ({all.length})</div>
-            <div className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:700,color:T.gold}}>{f0(all.reduce((a,d)=>a+(d.amount-(d.paidAmount||0)),0))} outstanding</div>
+            <div style={{fontSize:11,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".08em"}}>Accounts Receivable</div>
+            <div style={{display:"flex",gap:16,alignItems:"baseline"}}>
+              <span style={{fontSize:10,color:T.dim}}>Collected: <span className="num" style={{color:T.pos,fontFamily:T.mono,fontWeight:600}}>{f0(totalIncome)}</span></span>
+              <span style={{fontSize:10,color:T.dim}}>Outstanding: <span className="num" style={{color:arOutstanding>0?T.gold:T.pos,fontFamily:T.mono,fontWeight:600}}>{f0(arOutstanding)}</span></span>
+              <span style={{fontSize:10,color:T.dim}}>Total: <span className="num" style={{color:T.cream,fontFamily:T.mono,fontWeight:600}}>{f0(totalDue)}</span></span>
+            </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {all.map(d=>{
+          {/* Progress bar */}
+          <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden",marginBottom:clientPayments.length>0?12:0}}><div style={{height:"100%",width:`${Math.min(collected,100)}%`,background:`linear-gradient(90deg,${T.pos},${T.cyan})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+          {clientPayments.length>0?<div style={{display:"flex",flexDirection:"column",gap:3}}>
+            {clientPayments.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px",borderRadius:T.rS}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov||"rgba(255,255,255,.02)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{width:5,height:5,borderRadius:"50%",background:T.pos}}/>
+                <span style={{fontSize:12,color:T.cream}}>{t.description}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>{t.date}</span>
+                <span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.pos}}>+{f$(t.amount)}</span>
+                {canEdit&&<button onClick={()=>removeTxn(t.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={10} color={T.neg}/></button>}
+              </div>
+            </div>)}
+          </div>:<div style={{fontSize:11,color:T.dim}}>No client payments received yet</div>}
+        </Card>;
+      })()}
+
+      {/* ── Accounts Payable (vendor invoices) ── */}
+      {(()=>{
+        const vendorInvoices=docs.filter(d=>d.type==="invoice"&&d.amount>0);
+        const unpaid=vendorInvoices.filter(d=>d.status!=="paid");
+        const paid=vendorInvoices.filter(d=>d.status==="paid");
+        const overdue=unpaid.filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d)));
+        const pending=unpaid.filter(d=>d.status==="pending"&&!isOverdue(d));
+        const partial=unpaid.filter(d=>d.status==="partial");
+        const allUnpaid=[...overdue,...partial,...pending];
+        const totalPayable=vendorInvoices.reduce((a,d)=>a+d.amount,0);
+        const totalPaidAmt=vendorInvoices.reduce((a,d)=>a+(d.paidAmount||0),0);
+        const apOutstanding=totalPayable-totalPaidAmt;
+        return<Card style={{padding:"18px 20px",marginBottom:12,borderLeft:`3px solid ${overdue.length>0?T.neg:T.gold}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:overdue.length>0?T.neg:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Accounts Payable{overdue.length>0&&<span style={{marginLeft:6,fontSize:9,padding:"2px 6px",borderRadius:8,background:`${T.neg}18`,color:T.neg}}>{overdue.length} overdue</span>}</div>
+            <div style={{display:"flex",gap:16,alignItems:"baseline"}}>
+              <span style={{fontSize:10,color:T.dim}}>Paid: <span className="num" style={{color:T.pos,fontFamily:T.mono,fontWeight:600}}>{f0(totalPaidAmt)}</span></span>
+              <span style={{fontSize:10,color:T.dim}}>Outstanding: <span className="num" style={{color:apOutstanding>0?T.neg:T.pos,fontFamily:T.mono,fontWeight:600}}>{f0(apOutstanding)}</span></span>
+              <span style={{fontSize:10,color:T.dim}}>Total: <span className="num" style={{color:T.cream,fontFamily:T.mono,fontWeight:600}}>{f0(totalPayable)}</span></span>
+            </div>
+          </div>
+          {allUnpaid.length>0?<div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {allUnpaid.map(d=>{
               const vendor=getVendorName(d.vendorId,project.vendors);
               const remaining=d.amount-(d.paidAmount||0);
               const isOD=d.status==="overdue"||(d.status==="pending"&&isOverdue(d));
@@ -239,15 +280,26 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
                 </div>
               </div>
             })}
-          </div>
+            {paid.length>0&&<div style={{marginTop:8}}><button onClick={()=>setShowPaidAP(!showPaidAP)} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.dim,fontFamily:T.sans}}>
+              {showPaidAP?"Hide":"Show"} {paid.length} paid invoice{paid.length>1?"s":""}
+            </button>
+            {showPaidAP&&paid.map(d=>{
+              const vendor=getVendorName(d.vendorId,project.vendors);
+              return<div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 14px",borderRadius:T.rS,opacity:.5,marginTop:3}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10,background:`${T.pos}18`,color:T.pos,textTransform:"uppercase"}}>Paid</span><span style={{fontSize:12,color:T.cream}}>{d.name}</span>{vendor&&<span style={{fontSize:10,color:T.dim}}>{vendor}</span>}</div>
+                <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
+              </div>})}</div>}
+          </div>:<div style={{fontSize:11,color:T.dim}}>{vendorInvoices.length>0?"All invoices paid":"No vendor invoices yet"}</div>}
         </Card>;
       })()}
-      {showAdd&&<Card style={{padding:20,marginBottom:16}}>
+
+      {/* ── Add Transaction ── */}
+      {showAdd&&<Card style={{padding:20,marginBottom:12}}>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
-          {["income","expense"].map(t=><button key={t} onClick={()=>setNTy(t)} style={{padding:"7px 16px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:nTy===t?600:400,fontFamily:T.sans,background:nTy===t?(t==="income"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)"):"transparent",color:nTy===t?(t==="income"?T.pos:T.neg):T.dim}}>{t==="income"?"Income":"Expense"}</button>)}
+          {["income","expense"].map(t=><button key={t} onClick={()=>setNTy(t)} style={{padding:"7px 16px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:nTy===t?600:400,fontFamily:T.sans,background:nTy===t?(t==="income"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)"):"transparent",color:nTy===t?(t==="income"?T.pos:T.neg):T.dim}}>{t==="income"?"Client Payment":"Vendor Payment"}</button>)}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
-          {[["Description",nDe,setNDe,"Client payment"],["Amount",nAm,setNAm,"25000"],["Category",nCa,setNCa,"Venue"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTxn()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}
+          {[["Description",nDe,setNDe,nTy==="income"?"Client payment":"Vendor payment"],["Amount",nAm,setNAm,"25000"],["Category",nCa,setNCa,""]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addTxn()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>)}
         </div>
         {nTy==="expense"&&<div style={{marginBottom:12,maxWidth:300}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Vendor</label><VendorSelect value={nVId} onChange={v=>{setNVId2(v);setMatchDocId("")}} vendors={project.vendors} onAddVendor={v=>{updateProject({vendors:[...(project.vendors||[]),v]})}} compact/></div>}
         {nTy==="expense"&&nVId&&(()=>{
@@ -266,19 +318,23 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
         <div style={{marginBottom:12,maxWidth:260}}><DatePick label="Date" value={nDa} onChange={setNDa} compact/></div>
         <button onClick={addTxn} style={{padding:"9px 20px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Entry</button>
       </Card>}
-      <Card style={{overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:".6fr 2fr 1fr 1fr .3fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
-          {["Date","Description","Category","Amount",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===3?"right":"left"}}>{h}</span>)}
-        </div>
-        {sorted.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No transactions yet.<div style={{fontSize:11,color:T.dim,marginTop:8}}>Add income or expense entries to track your project cashflow</div></div>}
-        {sorted.map((t,idx)=><div key={t.id} style={{display:"grid",gridTemplateColumns:".6fr 2fr 1fr 1fr .3fr",padding:"10px 18px",borderBottom:idx<sorted.length-1?`1px solid ${T.border}`:"none",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <span style={{fontSize:12,color:T.dim,fontFamily:T.mono}}>{t.date||"\u2014"}</span>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:6,height:6,borderRadius:"50%",background:t.type==="income"?T.pos:T.neg}}/><span style={{fontSize:13,color:T.cream}}>{t.description}</span></div>
-          <span style={{fontSize:12,color:T.dim}}>{t.category||"\u2014"}</span>
-          <span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:t.type==="income"?T.pos:T.neg,textAlign:"right"}}>{t.type==="income"?"+":"-"}{f$(t.amount)}</span>
-          {canEdit&&<button onClick={()=>removeTxn(t.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2,justifySelf:"end"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
-        </div>)}
-      </Card>
+
+      {/* ── Transaction Log ── */}
+      {sorted.length>0&&<>
+        <div style={{fontSize:11,fontWeight:700,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8,marginTop:8}}>Transaction Log</div>
+        <Card style={{overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:".6fr 2fr 1fr 1fr .3fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
+            {["Date","Description","Category","Amount",""].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===3?"right":"left"}}>{h}</span>)}
+          </div>
+          {sorted.map((t,idx)=><div key={t.id} style={{display:"grid",gridTemplateColumns:".6fr 2fr 1fr 1fr .3fr",padding:"10px 18px",borderBottom:idx<sorted.length-1?`1px solid ${T.border}`:"none",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{fontSize:12,color:T.dim,fontFamily:T.mono}}>{t.date||"\u2014"}</span>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:6,height:6,borderRadius:"50%",background:t.type==="income"?T.pos:T.neg}}/><span style={{fontSize:13,color:T.cream}}>{t.description}</span></div>
+            <span style={{fontSize:12,color:T.dim}}>{t.category||"\u2014"}</span>
+            <span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:t.type==="income"?T.pos:T.neg,textAlign:"right"}}>{t.type==="income"?"+":"-"}{f$(t.amount)}</span>
+            {canEdit&&<button onClick={()=>removeTxn(t.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2,justifySelf:"end"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+          </div>)}
+        </Card>
+      </>}
     </>}
 
     {/* ===== DOCUMENTS TAB ===== */}
