@@ -51,52 +51,29 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const tasksDone=tasks.filter(t=>t.status==="done").length;
   const budgetPct=totalBudget>0?Math.round((spendToDate/totalBudget)*100):0;
 
-  /* ── Click-to-move state for card reorder ── */
+  /* ── Card reorder with arrow buttons ── */
   const DEFAULT_ORDER=["budget","spend","owed","client","tasks","alerts","prod","margin","blended","profit","donut","comp"];
   const[cardOrder,setCardOrder]=useState(()=>project?.dashCardOrder||DEFAULT_ORDER);
-  const[movingCard,setMovingCard]=useState(null);
 
-  const handleCardMove=useCallback((targetId)=>{
-    if(!movingCard||movingCard===targetId)return;
-    const order=[...cardOrder];
-    const fromIdx=order.indexOf(movingCard);
-    const toIdx=order.indexOf(targetId);
-    if(fromIdx<0||toIdx<0)return;
-    order.splice(fromIdx,1);
-    order.splice(toIdx,0,movingCard);
-    setCardOrder(order);
-    updateProject&&updateProject({dashCardOrder:order});
-    setMovingCard(null);
-  },[movingCard,cardOrder,updateProject]);
-
-  /* Escape key cancels move */
-  useEffect(()=>{
-    if(!movingCard)return;
-    const handler=(e)=>{if(e.key==="Escape")setMovingCard(null)};
-    window.addEventListener("keydown",handler);
-    return()=>window.removeEventListener("keydown",handler);
-  },[movingCard]);
-
+  const moveCard=(id,dir)=>{
+    const order=[...cardOrder];const idx=order.indexOf(id);if(idx<0)return;
+    const newIdx=idx+dir;if(newIdx<0||newIdx>=order.length)return;
+    [order[idx],order[newIdx]]=[order[newIdx],order[idx]];
+    setCardOrder(order);updateProject&&updateProject({dashCardOrder:order});
+  };
   const removeCard=(id)=>{const next=cardOrder.filter(c=>c!==id);setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})};
-  const isMoving=(id)=>movingCard===id;
-  const isDropTarget=(id)=>movingCard&&movingCard!==id;
-  const DragCell=({id,span=1,children,style:sx={},onClick})=>(
-    <div onClick={e=>{if(movingCard&&movingCard!==id){e.stopPropagation();handleCardMove(id)}else if(onClick)onClick(e)}}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=isDropTarget(id)?T.gold:sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.5';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='1';if(isDropTarget(id)){e.currentTarget.style.borderTopColor=T.gold;e.currentTarget.style.borderTopWidth="3px"}}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=isMoving(id)?T.gold:sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='0';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0';if(isDropTarget(id)){e.currentTarget.style.borderTopWidth="1px"}}}
-      style={{background:T.surfEl,borderRadius:T.r,border:isMoving(id)?`1px solid ${T.gold}`:`1px solid ${T.border}`,display:"flex",transition:"all .2s",cursor:movingCard?(movingCard===id?"default":"pointer"):(onClick?"pointer":"default"),animation:isMoving(id)?"dashPulse 1.5s ease-in-out infinite":"none",position:"relative",overflow:"hidden",minHeight:140,...sx,...(isMoving(id)?{border:`1px solid ${T.gold}`,boxShadow:`0 0 12px ${T.gold}33`}:{})}}>
-      {/* Move handle */}
-      <div className="drag-grip"
-        style={{position:"absolute",left:0,top:0,bottom:0,width:16,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.08),transparent)"}}
-        onMouseEnter={e=>{e.currentTarget.style.opacity='1'}}
-        onMouseLeave={e=>{e.currentTarget.style.opacity='.5'}}
-        onClick={e=>{e.stopPropagation();if(movingCard===id)setMovingCard(null);else setMovingCard(id)}}>
-        <div style={{display:"flex",flexDirection:"column",gap:2}}>
-          {[0,1,2].map(i=><div key={i} style={{display:"flex",gap:2}}><div style={{width:2,height:2,borderRadius:1,background:isMoving(id)?T.gold:T.dim}}/><div style={{width:2,height:2,borderRadius:1,background:isMoving(id)?T.gold:T.dim}}/></div>)}
-        </div>
+
+  const DragCell=({id,children,style:sx={},onClick})=>(
+    <div onClick={onClick}
+      onMouseEnter={e=>{if(onClick){e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow}const c=e.currentTarget.querySelector('.card-controls');if(c)c.style.opacity='1'}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const c=e.currentTarget.querySelector('.card-controls');if(c)c.style.opacity='0'}}
+      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",position:"relative",overflow:"hidden",minHeight:140,...sx}}>
+      {/* Card controls — arrows + remove */}
+      <div className="card-controls" style={{position:"absolute",top:6,right:6,display:"flex",gap:3,opacity:0,transition:"opacity .15s",zIndex:3}}>
+        <button onClick={e=>{e.stopPropagation();moveCard(id,-1)}} title="Move left" style={{width:20,height:20,borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>&larr;</button>
+        <button onClick={e=>{e.stopPropagation();moveCard(id,1)}} title="Move right" style={{width:20,height:20,borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>&rarr;</button>
+        <button onClick={e=>{e.stopPropagation();removeCard(id)}} title="Remove" style={{width:20,height:20,borderRadius:4,background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.15)",color:T.neg,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.2)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.08)"}}>&times;</button>
       </div>
-      {/* Remove button — always slightly visible */}
-      <button className="card-remove" onClick={e=>{e.stopPropagation();removeCard(id)}} style={{position:"absolute",top:8,right:8,width:20,height:20,borderRadius:10,background:"rgba(248,113,113,.12)",border:"1px solid rgba(248,113,113,.2)",color:T.neg,fontSize:11,fontWeight:700,cursor:"pointer",opacity:0,transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.25)";e.currentTarget.style.transform="scale(1.1)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.12)";e.currentTarget.style.transform="scale(1)"}}>&times;</button>
       {/* Content */}
       <div style={{padding:"20px 24px",flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
         {children}
@@ -169,8 +146,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   };
 
   return<div>
-    <style>{`@keyframes dashPulse{0%,100%{box-shadow:0 0 12px ${T.gold}33}50%{box-shadow:0 0 20px ${T.gold}55}}`}</style>
-    <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview · click grip to reorder cards{movingCard&&<span style={{color:T.gold,marginLeft:8}}>Click a card to move here · Esc to cancel</span>}</p></div>
+    <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",fontFamily:T.sans}}>Dashboard</h1><p style={{fontSize:12,color:T.dim,marginTop:4}}>Project overview</p></div>
 
     {/* ── Reorderable Card Grid ── */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:20,gridAutoRows:"minmax(140px,auto)"}}>
