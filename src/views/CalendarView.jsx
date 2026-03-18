@@ -5,6 +5,7 @@ import { Card, DatePick } from '../components/primitives/index.js';
 import { searchTaskHistory } from '../utils/taskHistory.js';
 
 export function taskColor(t){
+  if(t._gcal)return{bg:"rgba(66,133,244,.15)",fg:"#4285F4"};
   if(t.status==="done")return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
   if(t.status==="progress")return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
   const cat=((t.category||"General")+" "+(t.name||"")).toLowerCase();

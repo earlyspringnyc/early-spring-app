@@ -66,6 +66,39 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const[meetingSummary,setMeetingSummary]=useState("");
   const[calSending,setCalSending]=useState(false);const[calStatus,setCalStatus]=useState("");
   const[customTime,setCustomTime]=useState(false);
+  const[gcalEvents,setGcalEvents]=useState([]);
+  const[gcalLoading,setGcalLoading]=useState(false);
+  const gcalFetched=useRef(false);
+
+  // Fetch Google Calendar events
+  useEffect(()=>{
+    if(!accessToken||gcalFetched.current)return;
+    gcalFetched.current=true;
+    setGcalLoading(true);
+    const now=new Date();
+    const min=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const max=new Date(now.getFullYear(),now.getMonth()+3,0);
+    fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${min.toISOString()}&timeMax=${max.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=100`,{headers:{Authorization:`Bearer ${accessToken}`}})
+      .then(r=>{if(!r.ok)throw new Error("Calendar fetch failed");return r.json()})
+      .then(data=>{
+        const events=(data.items||[]).map(e=>{
+          const start=e.start?.dateTime?new Date(e.start.dateTime):e.start?.date?new Date(e.start.date):null;
+          const end=e.end?.dateTime?new Date(e.end.dateTime):e.end?.date?new Date(e.end.date):null;
+          const fmtD=d=>d?`${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`:"";
+          return{
+            id:`gcal_${e.id}`,name:e.summary||"(No title)",
+            category:"Meeting",status:"todo",
+            startDate:fmtD(start),endDate:fmtD(end||start),
+            assignee:"",linkedItemId:"",
+            _gcal:true,_gcalLocation:e.location||"",_gcalTime:e.start?.dateTime?new Date(e.start.dateTime).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"All day",
+          };
+        });
+        setGcalEvents(events);
+      })
+      .catch(e=>console.error("[gcal]",e))
+      .finally(()=>setGcalLoading(false));
+  },[accessToken]);
+
   const[contactSuggestions,setContactSuggestions]=useState([]);const[showContactSug,setShowContactSug]=useState(false);
   const[newActionItem,setNewActionItem]=useState("");
   const[showMenu,setShowMenu]=useState(false);
@@ -335,6 +368,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         <div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
           {[["calendar","Calendar"],["gantt","Gantt"],["list","List"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
         </div>
+        {gcalEvents.length>0&&<span style={{fontSize:9,fontWeight:600,padding:"3px 8px",borderRadius:10,background:"rgba(66,133,244,.12)",color:"#4285F4"}}>Google Calendar ({gcalEvents.length})</span>}
+        {gcalLoading&&<span style={{fontSize:9,color:T.dim}}>Syncing calendar...</span>}
         {/* Card/Block/Table sub-toggle when List is active */}
         {isListView&&<div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
           {[["card","Card"],["block","Block"],["table","Table"]].map(([k,l])=><button key={k} onClick={()=>setTaskView(k)} style={{padding:"4px 12px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:taskView===k?600:400,fontFamily:T.sans,background:taskView===k?T.goldSoft:"transparent",color:taskView===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
@@ -446,8 +481,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     {/* ══ LAYER 3 — Content ══ */}
     {(()=>{
       const calendarBlock=showCalOrGantt&&<div style={{marginBottom:16}}>
-        {viewMode==="calendar"?<CalendarView tasks={tasks} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>
-        :<GanttChart tasks={tasks}/>}
+        {viewMode==="calendar"?<CalendarView tasks={[...tasks,...gcalEvents]} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>
+        :<GanttChart tasks={[...tasks,...gcalEvents]}/>}
       </div>;
 
       const taskListBlock=tasks.length===0&&!showAdd?
