@@ -243,28 +243,114 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     </div>
   </div>;
 
+  /* Export helpers for estimate */
+  const exportEstimateXLSX=async()=>{
+    const XLSX=await import('xlsx');
+    const rows=[["Category","Item","Description","Client Price"]];
+    cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
+    rows.push([]);rows.push(["","","PRODUCTION SUBTOTAL",comp.productionSubtotal.clientPrice]);
+    ag.forEach(it=>{rows.push(["Agency",it.name,"",ci(it).clientPrice])});
+    rows.push(["","","AGENCY SUBTOTAL",comp.agencyCostsSubtotal.clientPrice]);
+    rows.push(["","",`AGENCY FEE (${fp(feeP)})`,comp.agencyFee.clientPrice]);
+    rows.push(["","","GRAND TOTAL",comp.grandTotal]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:14}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Estimate");
+    XLSX.writeFile(wb,(project.name||"estimate")+"-client-estimate.xlsx");
+  };
+  const exportEstimateCSV=()=>{
+    const rows=[["Category","Item","Description","Client Price"]];
+    cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
+    rows.push([]);rows.push(["","","GRAND TOTAL",comp.grandTotal]);
+    const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(project.name||"estimate")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
+  };
+  const[showExportMenu,setShowExportMenu]=useState(false);
+  const[showShareMenu,setShowShareMenu]=useState(false);
+
   /* ══ ESTIMATE VIEW ══ */
   if(activeView==="budget")return<div>
     <BackBtn/>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Production Estimate</h2>
-    </div>
-    <ShareBar onSend={sendBudget}/>
-    <div style={{background:"#fff",borderRadius:T.r,padding:48,color:"#111",boxShadow:"0 4px 24px rgba(0,0,0,.4)"}}>
-      <div style={{display:"flex",justifyContent:"space-between",paddingBottom:24,marginBottom:32,borderBottom:"2px solid #475569"}}>
-        <div><div style={{marginBottom:14}}><OrgLogo color="#475569"/></div><div style={{fontSize:28,fontWeight:700,color:"#1E293B"}}>Production Estimate</div><div style={{fontSize:13,color:"#999",marginTop:4}}>Prepared by {getOrgInfo().orgN}</div></div>
-        <div style={{textAlign:"right",fontSize:13,color:"#777",lineHeight:1.8}}>{project.logo&&<div style={{marginBottom:8,display:"flex",justifyContent:"flex-end"}}><img src={project.logo} style={{maxHeight:36,maxWidth:120,objectFit:"contain"}}/></div>}<div><strong style={{color:"#555"}}>Project:</strong> {project.name||"\u2014"}</div><div><strong style={{color:"#555"}}>Client:</strong> {clientName}</div><div><strong style={{color:"#555"}}>Date:</strong> {project.date||new Date().toLocaleDateString()}</div></div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {/* Export dropdown */}
+        <div style={{position:"relative"}}>
+          <button onClick={()=>{setShowExportMenu(!showExportMenu);setShowShareMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
+          {showExportMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:160,overflow:"hidden"}}>
+            {[["PDF",()=>{window.print();setShowExportMenu(false)},"Print to PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"]].map(([label,fn,sub])=>
+              <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>
+                <span style={{fontSize:10,color:T.dim,marginTop:1}}>{sub}</span>
+              </button>)}
+          </div>}
+        </div>
+        {/* Share dropdown */}
+        <div style={{position:"relative"}}>
+          <button onClick={()=>{setShowShareMenu(!showShareMenu);setShowExportMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share &#9662;</button>
+          {showShareMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:220,overflow:"hidden",padding:14}}>
+            <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Send via email</div>
+            <div style={{display:"flex",gap:6,marginBottom:10}}>
+              <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase().replace(/\s/g,"")}@email.com`} onKeyDown={e=>e.key==="Enter"&&sendBudget()} style={{flex:1,padding:"7px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none"}}/>
+            </div>
+            {[["As Link","Single-page view",()=>{navigator.clipboard?.writeText(window.location.href);setShowShareMenu(false)}],["As PDF","Email with PDF",sendBudget],["As XLSX","Email with spreadsheet",async()=>{await exportEstimateXLSX();sendBudget()}]].map(([label,sub,fn])=>
+              <button key={label} onClick={()=>{fn();setShowShareMenu(false)}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{fontSize:11,fontWeight:500,color:T.cream}}>{label}</span>
+                <span style={{fontSize:10,color:T.dim}}>{sub}</span>
+              </button>)}
+            {emailSent&&<div style={{marginTop:8,fontSize:10,color:T.pos}}>Sent to {emailSent}</div>}
+          </div>}
+        </div>
       </div>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,marginBottom:32}}><thead><tr style={{borderBottom:"2px solid #E5E5E5"}}><th style={{textAlign:"left",padding:"10px 0",fontWeight:600,color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:".06em"}}>Item</th><th style={{textAlign:"left",padding:"10px 0",fontWeight:600,color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:".06em"}}>Description</th><th style={{textAlign:"right",padding:"10px 0",fontWeight:600,color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:".06em"}}>Cost</th></tr></thead>
-        <tbody>{cats.map(c=>{const t=ct(c.items).totals;return<React.Fragment key={c.id}><tr style={{borderBottom:"1px solid #F0F0F0",background:"#FAFAFA"}}><td colSpan={2} style={{padding:"13px 0",color:"#333",fontWeight:600}}>{c.name}</td><td className="num" style={{padding:"13px 0",textAlign:"right",fontFamily:"monospace",color:"#333",fontWeight:600}}>{f$(t.clientPrice)}</td></tr>
-          {c.items.filter(it=>ci(it).clientPrice>0).map(it=><tr key={it.id} style={{borderBottom:"1px solid #F8F8F8"}}><td style={{padding:"8px 0 8px 20px",color:"#555",fontSize:13}}>{it.name}</td><td style={{padding:"8px 0 8px 8px",color:"#999",fontSize:12,fontStyle:"italic"}}>{it.details||""}</td><td className="num" style={{padding:"8px 0",textAlign:"right",fontFamily:"monospace",color:"#555",fontSize:13}}>{f$(ci(it).clientPrice)}</td></tr>)}</React.Fragment>})}
-          <tr style={{borderTop:"2px solid #475569"}}><td colSpan={2} style={{padding:"14px 0",fontWeight:700,color:"#1E293B"}}>PRODUCTION SUBTOTAL</td><td className="num" style={{padding:"14px 0",textAlign:"right",fontWeight:700,fontFamily:"monospace",color:"#1E293B"}}>{f$(comp.productionSubtotal.clientPrice)}</td></tr></tbody></table>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,marginBottom:32}}><thead><tr style={{borderBottom:"1px solid #E5E5E5"}}><th style={{textAlign:"left",padding:"10px 0",fontWeight:600,color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:".06em"}}>Agency Services</th><th style={{textAlign:"right",padding:"10px 0",fontWeight:600,color:"#555",fontSize:11,textTransform:"uppercase",letterSpacing:".06em"}}>Cost</th></tr></thead>
-        <tbody>{ag.map(it=>{const c=ci(it);return<tr key={it.id} style={{borderBottom:"1px solid #F0F0F0"}}><td style={{padding:"11px 0",color:"#333"}}>{it.name}</td><td className="num" style={{padding:"11px 0",textAlign:"right",fontFamily:"monospace",color:"#333"}}>{f$(c.clientPrice)}</td></tr>})}
-          <tr style={{borderTop:"1px solid #DDD"}}><td style={{padding:"11px 0",fontWeight:600,color:"#555"}}>Agency Costs Subtotal</td><td className="num" style={{padding:"11px 0",textAlign:"right",fontWeight:600,fontFamily:"monospace",color:"#555"}}>{f$(comp.agencyCostsSubtotal.clientPrice)}</td></tr>
-          <tr><td style={{padding:"11px 0",color:"#777"}}>Agency Fee ({fp(feeP)})</td><td className="num" style={{padding:"11px 0",textAlign:"right",fontFamily:"monospace",color:"#777"}}>{f$(comp.agencyFee.clientPrice)}</td></tr></tbody></table>
-      <div style={{background:"#1E293B",borderRadius:10,padding:"20px 28px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,fontWeight:700,color:"#fff",letterSpacing:".06em"}}>GRAND TOTAL</span><span className="num" style={{fontSize:26,fontWeight:700,color:"#fff",fontFamily:"monospace"}}>{f$(comp.grandTotal)}</span></div>
-      <OrgFooter/>
+    </div>
+
+    {/* Live table — dark theme, client-facing columns only */}
+    <Card style={{overflow:"hidden",marginBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
+        {["Item","Description","Client Price"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===2?"right":"left"}}>{h}</span>)}
+      </div>
+      {cats.map((c,ci2)=>{const t=ct(c.items).totals;const accent=["#F59E0B","#14B8A6","#8B5CF6","#EC4899","#06B6D4","#6366F1","#10B981","#F47264"][ci2%8];return<React.Fragment key={c.id}>
+        <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:`${accent}08`,borderLeft:`3px solid ${accent}`}}>
+          <span style={{fontSize:12,fontWeight:600,color:T.cream,gridColumn:"1/3"}}>{c.name}</span>
+          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(t.clientPrice)}</span>
+        </div>
+        {c.items.filter(it=>ci(it).clientPrice>0).map(it=><div key={it.id} style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"10px 18px 10px 28px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <span style={{fontSize:12,color:T.cream}}>{it.name}</span>
+          <span style={{fontSize:11,color:T.dim,fontStyle:"italic"}}>{it.details||""}</span>
+          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(ci(it).clientPrice)}</span>
+        </div>)}
+      </React.Fragment>})}
+    </Card>
+
+    {/* Production subtotal */}
+    <div style={{display:"flex",justifyContent:"space-between",padding:"12px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:4}}>
+      <span style={{fontSize:11,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".06em"}}>Production Subtotal</span>
+      <span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(comp.productionSubtotal.clientPrice)}</span>
+    </div>
+
+    {/* Agency */}
+    <Card style={{overflow:"hidden",marginTop:12,marginBottom:4}}>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
+        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>Agency Services</span>
+        <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:"right"}}>Cost</span>
+      </div>
+      {ag.map(it=>{const c=ci(it);return<div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        <span style={{fontSize:12,color:T.cream}}>{it.name}</span>
+        <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(c.clientPrice)}</span>
+      </div>})}
+    </Card>
+    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:2}}>
+      <span style={{fontSize:11,fontWeight:600,color:T.dim,textTransform:"uppercase"}}>Agency Subtotal</span>
+      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(comp.agencyCostsSubtotal.clientPrice)}</span>
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 18px",borderRadius:T.rS,marginBottom:8}}>
+      <span style={{fontSize:11,color:T.dim}}>Agency Fee ({fp(feeP)})</span>
+      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{f$(comp.agencyFee.clientPrice)}</span>
+    </div>
+
+    {/* Grand Total */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 22px",borderRadius:T.rS,background:`linear-gradient(135deg,rgba(99,102,241,.08),rgba(20,184,166,.06))`,border:`1px solid rgba(99,102,241,.15)`}}>
+      <span style={{fontSize:12,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".08em"}}>Grand Total</span>
+      <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(comp.grandTotal)}</span>
     </div>
   </div>;
 
