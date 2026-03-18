@@ -81,6 +81,15 @@ function BudgetV(p){
   const balance=cb-gt;
   const overBudget=balance<0;
   const spendPct=cb>0?Math.min(Math.round((totalSpend/cb)*100),100):0;
+  /* Remaining production spend capacity: how much actual cost can I add and stay within budget?
+     Each $1 of actual cost becomes $(1+margin) at client price, then $(1+margin)*(1+feeP) after agency fee.
+     Use blended margin from existing items to estimate. */
+  const totalActual=p.comp.productionSubtotal.actualCost+p.comp.agencyCostsSubtotal.actualCost;
+  const totalClient=p.comp.productionSubtotal.clientPrice+p.comp.agencyCostsSubtotal.clientPrice;
+  const blendedMarkup=totalActual>0?(totalClient/totalActual):1.15;
+  const effectiveMultiplier=blendedMarkup*(1+p.feeP);
+  const remainingClientRoom=Math.max(0,cb-gt);
+  const remainingSpendCapacity=effectiveMultiplier>0?remainingClientRoom/effectiveMultiplier:0;
 
   return<div>
     {/* ── Header ── */}
@@ -122,9 +131,9 @@ function BudgetV(p){
         </div>}
       </div>
       <div style={{padding:"18px 20px",borderRadius:T.rS,background:overBudget?"rgba(248,113,113,.04)":T.surfEl,border:`1px solid ${overBudget?"rgba(248,113,113,.15)":T.border}`,borderLeft:`3px solid ${overBudget?T.neg:T.pos}`}}>
-        <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Balance</div>
-        <div className="num" style={{fontSize:28,fontWeight:700,color:overBudget?T.neg:T.pos,fontFamily:T.mono,lineHeight:1}}>{f0(Math.abs(balance))}</div>
-        <div style={{fontSize:10,color:overBudget?T.neg:T.pos,marginTop:6}}>{overBudget?"Over budget":"Under budget"}</div>
+        <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Remaining Spend Capacity</div>
+        <div className="num" style={{fontSize:28,fontWeight:700,color:overBudget?T.neg:T.pos,fontFamily:T.mono,lineHeight:1}}>{overBudget?`-${f0(Math.abs(balance))}`:f0(remainingSpendCapacity)}</div>
+        <div style={{fontSize:10,color:T.dim,marginTop:6}}>{overBudget?<span style={{color:T.neg}}>Over budget by {f0(Math.abs(balance))}</span>:`${f0(remainingClientRoom)} client-side room`}</div>
       </div>
     </div>
 
