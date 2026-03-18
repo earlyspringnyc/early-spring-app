@@ -56,8 +56,8 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
       {/* Category margin control */}
       {canEdit&&!isAg&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 18px",borderBottom:`1px solid ${T.border}`,background:`${ac}06`}}>
         <span style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em"}}>Category Margin</span>
-        <input type="range" min="0" max="40" step="1" value={catMargin} onChange={e=>setCatMargin(parseInt(e.target.value))} style={{flex:1,maxWidth:140}}/>
-        <input value={catMargin} onChange={e=>{const v=parseInt(e.target.value)||0;setCatMargin(Math.max(0,Math.min(100,v)))}} style={{width:36,padding:"3px 4px",borderRadius:4,background:T.surfEl,border:`1px solid ${T.border}`,color:T.gold,fontSize:12,fontFamily:T.mono,fontWeight:700,textAlign:"center",outline:"none"}}/>
+        <input type="range" min="0" max="40" step="any" value={catMargin} onChange={e=>setCatMargin(parseFloat(e.target.value))} style={{flex:1,maxWidth:140}}/>
+        <input value={Math.round(catMargin)} onChange={e=>{const v=parseFloat(e.target.value)||0;setCatMargin(Math.max(0,Math.min(100,v)))}} style={{width:36,padding:"3px 4px",borderRadius:4,background:T.surfEl,border:`1px solid ${T.border}`,color:T.gold,fontSize:12,fontFamily:T.mono,fontWeight:700,textAlign:"center",outline:"none"}}/>
         <span style={{fontSize:12,fontWeight:700,color:T.gold}}>%</span>
         <button onClick={applyCatMargin} style={{padding:"4px 10px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Apply</button>
       </div>}

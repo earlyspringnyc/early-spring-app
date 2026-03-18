@@ -174,10 +174,11 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
           <button onClick={e=>{e.stopPropagation();onDeleteTask&&onDeleteTask(t.id);setEditingTask(null)}} style={{background:"none",border:"none",color:T.neg,fontSize:10,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Delete task">×</button>
         </div>;
         /* Multi-day: show name on start, continuation bar on middle/end */
-        if(t._isMultiDay&&!t._isStart)return<div key={t.id+d} style={{marginBottom:2}} onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}}>
+        const taskTitle=`${t.name}${t.category?" · "+t.category:""}${t.startDate?" · "+t.startDate:""}${t.endDate&&t.endDate!==t.startDate?" — "+t.endDate:""}`;
+        if(t._isMultiDay&&!t._isStart)return<div key={t.id+d} title={taskTitle} style={{marginBottom:2}} onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}}>
           <div style={{fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:canEdit?"pointer":"default",borderRadius:t._isEnd?"0 3px 3px 0":"0",marginLeft:-6,paddingLeft:8,opacity:.7}}>{t._isEnd?`— ${t.name}`:""}</div>
         </div>;
-        return<div key={t.id+d} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
+        return<div key={t.id+d} title={taskTitle} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
           <div onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${tc.fg}`,borderRadius:t._isMultiDay?"3px 0 0 3px":"3px",marginRight:t._isMultiDay?-6:0,cursor:canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}{t._isMultiDay?" →":""}</div>
           {canEdit&&!t._isMultiDay&&<button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:10,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
         </div>})}
