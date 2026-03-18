@@ -85,6 +85,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
   const[contactDraft,setContactDraft]=useState({name:"",title:"",email:"",phone:""});
   const[weather,setWeather]=useState(null);
   const[weatherLoading,setWeatherLoading]=useState(false);
+  const[tempUnit,setTempUnit]=useState(()=>{try{return localStorage.getItem("es_temp_unit")||"F"}catch(e){return"F"}});
   const[clockTime,setClockTime]=useState(()=>new Date());
 
   // Live clock
@@ -291,19 +292,45 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
       </div>}
     </>,
     weather:()=>{
-      const weatherIcon=code=>{if(code===0)return"\u2600\uFE0F";if(code<=3)return"\u26C5";if(code<=48)return"\uD83C\uDF2B\uFE0F";if(code<=67)return"\uD83C\uDF27\uFE0F";if(code<=77)return"\u2744\uFE0F";if(code<=82)return"\uD83C\uDF26\uFE0F";if(code<=99)return"\u26C8\uFE0F";return"\u2601\uFE0F"};
       const weatherLabel=code=>{if(code===0)return"Clear";if(code<=3)return"Partly cloudy";if(code<=48)return"Foggy";if(code<=55)return"Drizzle";if(code<=67)return"Rain";if(code<=77)return"Snow";if(code<=82)return"Showers";if(code<=99)return"Thunderstorm";return"Cloudy"};
-      return<>
-        <Label>Event Weather</Label>
-        {weatherLoading?<div style={{marginTop:12,fontSize:12,color:T.dim}}>Loading...</div>
-        :weather?<>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginTop:10}}>
-            <span style={{fontSize:36}}>{weatherIcon(weather.code)}</span>
-            <div><Big size={36}>{weather.temp}°F</Big><div style={{fontSize:11,color:T.dim,marginTop:2}}>{weatherLabel(weather.code)}</div></div>
-          </div>
-          <div style={{fontSize:10,color:T.dim,marginTop:10}}>{weather.city}</div>
-        </>:<div style={{marginTop:12,fontSize:12,color:T.dim}}>No weather data</div>}
-      </>;
+      // Atmospheric gradient based on time of day + conditions
+      const getAtmosphere=(code)=>{
+        const h=clockTime.getHours();
+        const isNight=h<6||h>=20;const isDusk=h>=17&&h<20;const isDawn=h>=5&&h<8;
+        const isRain=code>=51&&code<=82;const isStorm=code>=95;const isSnow=code>=71&&code<=77;const isFog=code>=45&&code<=48;const isClear=code<=1;const isCloudy=code>=2&&code<=3;
+        if(isStorm)return"linear-gradient(160deg,#1a1a2e 0%,#2d1b4e 30%,#4a2545 60%,#1a1a2e 100%)";
+        if(isSnow)return"linear-gradient(160deg,#e8eaf0 0%,#b8c4d8 40%,#8899b3 70%,#667799 100%)";
+        if(isRain&&isNight)return"linear-gradient(160deg,#0d1117 0%,#1a2332 40%,#243447 70%,#1a2332 100%)";
+        if(isRain)return"linear-gradient(160deg,#3d4f5f 0%,#566e7f 30%,#4a6070 60%,#384858 100%)";
+        if(isFog)return"linear-gradient(160deg,#8895a0 0%,#a0aab5 40%,#8895a0 70%,#778590 100%)";
+        if(isNight&&isClear)return"linear-gradient(160deg,#0a0e27 0%,#141834 40%,#1a1f45 60%,#0d1230 100%)";
+        if(isNight)return"linear-gradient(160deg,#111827 0%,#1a2234 40%,#1f2942 100%)";
+        if(isDusk&&isClear)return"linear-gradient(160deg,#1a1a3e 0%,#4a2040 25%,#c4584a 50%,#e8a050 75%,#d4804a 100%)";
+        if(isDusk)return"linear-gradient(160deg,#2a2040 0%,#4a3050 30%,#8a5040 60%,#c07050 100%)";
+        if(isDawn&&isClear)return"linear-gradient(160deg,#1a2040 0%,#3a4070 25%,#7a90b0 50%,#d4a070 75%,#e8c090 100%)";
+        if(isDawn)return"linear-gradient(160deg,#2a3050 0%,#4a5575 40%,#7a90a0 70%,#a0b0b8 100%)";
+        if(isClear)return"linear-gradient(160deg,#1e5090 0%,#3a80c0 30%,#60a0d8 60%,#80c0e8 100%)";
+        if(isCloudy)return"linear-gradient(160deg,#4a5a6a 0%,#607080 30%,#7a8a98 60%,#8a9aaa 100%)";
+        return"linear-gradient(160deg,#3a5068 0%,#507088 40%,#6888a0 100%)";
+      };
+      const tempF=weather?.temp;
+      const tempC=tempF!=null?Math.round((tempF-32)*5/9):null;
+      const displayTemp=tempUnit==="C"?tempC:tempF;
+      const toggleUnit=e=>{e.stopPropagation();const u=tempUnit==="F"?"C":"F";setTempUnit(u);try{localStorage.setItem("es_temp_unit",u)}catch(e){}};
+      return<div style={{margin:"-24px -28px",padding:"24px 28px",borderRadius:"inherit",background:weather?getAtmosphere(weather.code):"none",minHeight:120,display:"flex",flexDirection:"column",justifyContent:"space-between",position:"relative",overflow:"hidden"}}>
+        {/* subtle noise overlay */}
+        {weather&&<div style={{position:"absolute",inset:0,opacity:.06,background:"url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"n\"><feTurbulence baseFrequency=\".65\" numOctaves=\"3\" stitchTiles=\"stitch\"/></filter><rect width=\"100%25\" height=\"100%25\" filter=\"url(%23n)\" opacity=\".5\"/></svg>')",borderRadius:"inherit",pointerEvents:"none"}}/>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative"}}>
+          <Label>Event Weather</Label>
+          {weather&&<button onClick={toggleUnit} style={{background:"rgba(255,255,255,.12)",border:"none",borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.7)",cursor:"pointer",fontFamily:T.mono,backdropFilter:"blur(4px)"}}>{tempUnit==="F"?"°C":"°F"}</button>}
+        </div>
+        {weatherLoading?<div style={{fontSize:12,color:"rgba(255,255,255,.5)",position:"relative"}}>Loading...</div>
+        :weather?<div style={{position:"relative"}}>
+          <div style={{fontSize:42,fontWeight:700,fontFamily:T.mono,color:"#fff",lineHeight:1,letterSpacing:"-0.04em",textShadow:"0 2px 12px rgba(0,0,0,.3)"}}>{displayTemp}°{tempUnit}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:6,fontWeight:500}}>{weatherLabel(weather.code)}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,.45)",marginTop:4}}>{weather.city}</div>
+        </div>:<div style={{fontSize:12,color:"rgba(255,255,255,.4)",position:"relative"}}>No weather data</div>}
+      </div>;
     },
     timezone:()=>{
       const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
