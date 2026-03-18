@@ -72,12 +72,26 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject}){
 
   const removeCard=(id)=>{const next=cardOrder.filter(c=>c!==id);setCardOrder(next);updateProject&&updateProject({dashCardOrder:next})};
   const DragCell=({id,span=1,children,style:sx={},onClick})=>(
-    <div draggable onDragStart={()=>setDragCard(id)} onDragOver={e=>{e.preventDefault();setDropTarget(id)}} onDrop={()=>handleCardDrop(id)} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}} onClick={onClick}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='.5'}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0'}}
-      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${dropTarget===id&&dragCard?T.gold:T.border}`,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between",transition:"all .2s",cursor:onClick?"pointer":"grab",opacity:dragCard===id?.4:1,gridColumn:span>1?`span ${span}`:"auto",position:"relative",...sx}}>
-      <button className="card-remove" onClick={e=>{e.stopPropagation();removeCard(id)}} style={{position:"absolute",top:8,right:8,width:18,height:18,borderRadius:9,background:"rgba(248,113,113,.1)",border:"none",color:T.neg,fontSize:10,cursor:"pointer",opacity:0,transition:"opacity .15s",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2}} onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='.5'}>&times;</button>
-      {children}
+    <div onDragOver={e=>{e.preventDefault();setDropTarget(id)}} onDrop={e=>{e.preventDefault();handleCardDrop(id)}} onClick={onClick}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.borderGlow;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=T.shadow;const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='.4';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='.4'}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=sx.borderColor||T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";const h=e.currentTarget.querySelector('.drag-grip');if(h)h.style.opacity='0';const x=e.currentTarget.querySelector('.card-remove');if(x)x.style.opacity='0'}}
+      style={{background:T.surfEl,borderRadius:T.r,border:`1px solid ${dropTarget===id&&dragCard?T.gold:T.border}`,display:"flex",transition:"all .2s",cursor:onClick?"pointer":"default",opacity:dragCard===id?.4:1,gridColumn:span>1?`span ${span}`:"auto",position:"relative",overflow:"hidden",...sx}}>
+      {/* Drag handle */}
+      <div className="drag-grip" draggable onDragStart={e=>{e.stopPropagation();setDragCard(id)}} onDragEnd={()=>{setDragCard(null);setDropTarget(null)}}
+        style={{position:"absolute",left:0,top:0,bottom:0,width:16,display:"flex",alignItems:"center",justifyContent:"center",cursor:"grab",opacity:0,transition:"opacity .15s",zIndex:3,background:"linear-gradient(90deg,rgba(148,163,184,.08),transparent)"}}
+        onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.cursor="grab"}}
+        onMouseLeave={e=>{e.currentTarget.style.opacity='.4'}}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          {[0,1,2].map(i=><div key={i} style={{display:"flex",gap:2}}><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/><div style={{width:2,height:2,borderRadius:1,background:T.dim}}/></div>)}
+        </div>
+      </div>
+      {/* Remove button */}
+      <button className="card-remove" onClick={e=>{e.stopPropagation();removeCard(id)}} style={{position:"absolute",top:8,right:8,width:18,height:18,borderRadius:9,background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.15)",color:T.neg,fontSize:10,cursor:"pointer",opacity:0,transition:"opacity .15s",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}} onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.opacity='.4';e.currentTarget.style.background="rgba(248,113,113,.08)"}}>&times;</button>
+      {/* Content */}
+      <div style={{padding:"24px 28px",flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+        {children}
+      </div>
     </div>
   );
 
