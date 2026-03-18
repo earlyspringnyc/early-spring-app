@@ -10,6 +10,8 @@ import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
+const getGreeting=()=>{const h=new Date().getHours();if(h<6)return"Burning the midnight oil";if(h<9)return"You're up early";if(h<12)return"Good morning";if(h<17)return"Good afternoon";if(h<20)return"Good evening";return"Working hard"};
+
 function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage}){
   const sorted=[...projects].sort((a,b)=>b.createdAt-a.createdAt);
   const canCreate=user.role!=="viewer";
@@ -28,7 +30,6 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
   allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
 
-  /* Master vendor database — deduplicate by name+email across projects */
   const masterVendors=useMemo(()=>{
     const map=new Map();
     projects.forEach(p=>{
@@ -50,16 +51,23 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   });
 
   const activeProjects=projects.filter(p=>(p.stage||"pitching")!=="archived").length;
+  const firstName=(user.name||user.email||"").split(" ")[0]||"there";
+  const statusParts=[];
+  if(allOverdue.length>0)statusParts.push(`${allOverdue.length} invoice${allOverdue.length>1?"s":""} overdue`);
+  if(allUpcoming.length>0)statusParts.push(`${allUpcoming.length} deadline${allUpcoming.length>1?"s":""} coming up`);
+  if(activeProjects>0)statusParts.push(`${activeProjects} active project${activeProjects>1?"s":""}`);
+  if(totalRevenue>0)statusParts.push(`${f0(totalRevenue)} total revenue`);
+  const statusLine=statusParts.join(" · ");
 
   return<div style={{height:"100vh",background:T.bg,fontFamily:T.sans,overflow:"auto"}}>
-    <div className="portfolio-container" style={{maxWidth:1100,margin:"0 auto",padding:"40px 32px"}}>
+    {/* ── Accent gradient line ── */}
+    <div style={{height:2,background:`linear-gradient(90deg,${T.gold},${T.cyan},${T.magenta},${T.pos})`,opacity:.4}}/>
+
+    <div className="portfolio-container" style={{maxWidth:1100,margin:"0 auto",padding:"36px 32px"}}>
 
       {/* ── Header ── */}
-      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:24}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-          <ESWordmark height={14} color={T.gold}/>
-          <h1 style={{fontSize:"clamp(20px, 4vw, 24px)",fontWeight:700,color:T.cream,whiteSpace:"nowrap"}}>Home</h1>
-        </div>
+      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:14,marginBottom:8}}>
+        <ESWordmark height={14} color={T.gold}/>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
           {canCreate&&<button onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={11} color={T.gold}/> New Project</button>}
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -70,29 +78,25 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         </div>
       </div>
 
-      {/* ── Quick stats ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:10,marginBottom:24}}>
-        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Active Projects</div><div className="num" style={{fontSize:24,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{activeProjects}</div></div>
-        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Total Revenue</div><div className="num" style={{fontSize:24,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(totalRevenue)}</div></div>
-        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Total Vendors</div><div className="num" style={{fontSize:24,fontWeight:700,color:T.cyan,fontFamily:T.mono}}>{masterVendors.length}</div></div>
-        <div style={{padding:"14px 16px",borderRadius:T.rS,background:allOverdue.length>0?"rgba(248,113,113,.04)":T.surfEl,border:`1px solid ${allOverdue.length>0?"rgba(248,113,113,.15)":T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Overdue</div><div className="num" style={{fontSize:24,fontWeight:700,color:allOverdue.length>0?T.neg:T.dim,fontFamily:T.mono}}>{allOverdue.length}</div></div>
-        <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Net Profit</div><div className="num" style={{fontSize:24,fontWeight:700,color:totalProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(totalProfit)}</div></div>
+      {/* ── Welcome ── */}
+      <div style={{marginBottom:28}}>
+        <h1 style={{fontSize:"clamp(22px, 4vw, 30px)",fontWeight:700,color:T.cream,letterSpacing:"-0.03em"}}>{getGreeting()}, {firstName}.</h1>
+        {statusLine&&<p style={{fontSize:12,color:T.dim,marginTop:6}}>{statusLine}</p>}
       </div>
 
-      {/* ── Nav ── */}
-      <div style={{display:"flex",gap:2,marginBottom:24,background:T.surface,borderRadius:T.rS,padding:3,width:"fit-content"}}>
+      {/* ── Nav — full width ── */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:2,marginBottom:24,background:T.surface,borderRadius:T.rS,padding:3}}>
         {[["projects","Projects"],["vendors","Vendors"],["dashboard","Dashboard"]].map(([id,label])=>
-          <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 20px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim,transition:"all .15s"}}>
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"9px 0",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim,transition:"all .15s",textAlign:"center"}}>
             {label}
             {id==="dashboard"&&allOverdue.length>0?<span style={{marginLeft:6,fontSize:9,fontWeight:700,padding:"2px 5px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{allOverdue.length}</span>:""}
-            {id==="vendors"&&<span style={{marginLeft:6,fontSize:9,color:T.dim}}>({masterVendors.length})</span>}
           </button>
         )}
       </div>
 
       {/* ── Projects tab ── */}
       {tab==="projects"&&<div className="fade-up">
-        {projects.length===0?<div style={{textAlign:"center",padding:"80px 20px"}}><div style={{fontSize:48,marginBottom:16,opacity:.15}}>◈</div><h2 style={{fontSize:18,fontWeight:500,color:T.cream,marginBottom:8}}>No projects yet</h2><p style={{fontSize:13,color:T.dim,marginBottom:28}}>Create your first production budget to get started.</p>{canCreate&&<button onClick={onNew} style={{padding:"12px 28px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Create Project</button>}</div>
+        {projects.length===0?<div style={{textAlign:"center",padding:"80px 20px"}}><div style={{fontSize:48,marginBottom:16,opacity:.15}}>&#9674;</div><h2 style={{fontSize:18,fontWeight:500,color:T.cream,marginBottom:8}}>No projects yet</h2><p style={{fontSize:13,color:T.dim,marginBottom:28}}>Create your first production budget to get started.</p>{canCreate&&<button onClick={onNew} style={{padding:"12px 28px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Create Project</button>}</div>
         :<div>
           {/* Overdue alert */}
           {allOverdue.length>0&&<div style={{padding:"14px 18px",marginBottom:20,borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
@@ -129,8 +133,8 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                 <p style={{fontSize:12,color:isDropTarget?STAGE_COLORS[stage]:T.dim}}>{isDropTarget?"Drop here to move to "+STAGE_LABELS[stage]:"No "+STAGE_LABELS[stage].toLowerCase()+" projects"}</p>
               </div>
               :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))",gap:14,padding:isDropTarget?8:0,border:isDropTarget?`2px dashed ${STAGE_COLORS[stage]}`:"2px dashed transparent",borderRadius:T.r,transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}06`:"transparent"}}>
-                {stageProjects.map(p=>{const comp=calcProject(p);const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;
-                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab"}}>
+                {stageProjects.map(p=>{const comp=calcProject(p);const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;const tasksDone=(p.timeline||[]).filter(t=>t.status==="done").length;const tasksTotal=(p.timeline||[]).length;const taskPct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
+                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab",borderLeft:`3px solid ${STAGE_COLORS[stage]}`}}>
                     <div style={{padding:"18px 20px 14px"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
                         <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
@@ -148,6 +152,11 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                         <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Grand Total</div><div className="num" style={{fontSize:16,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div>
                         <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Net Profit</div><div className="num" style={{fontSize:16,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div>
                       </div>
+                      {/* Task progress bar */}
+                      {tasksTotal>0&&<div style={{marginTop:12}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{tasksDone}/{tasksTotal} tasks</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
+                        <div style={{height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:`linear-gradient(90deg,${STAGE_COLORS[stage]},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+                      </div>}
                     </div>
                     <div style={{padding:"8px 20px",background:"rgba(255,255,255,.015)",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
                       <span style={{fontSize:10,color:T.dim}}>{p.eventDate?`Event: ${p.eventDate}`:p.date||"No date"}</span>
@@ -164,19 +173,19 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         </div>}
       </div>}
 
-      {/* ── Vendors tab — Master Database ── */}
+      {/* ── Vendors tab ── */}
       {tab==="vendors"&&<div className="fade-up">
         <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-          <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors…" style={{flex:1,minWidth:180,padding:"8px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+          <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors..." style={{flex:1,minWidth:180,padding:"8px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
           <div style={{position:"relative"}}>
             <select value={vendorTypeFilter} onChange={e=>setVendorTypeFilter(e.target.value)} style={{padding:"8px 28px 8px 10px",borderRadius:T.rS,background:vendorTypeFilter!=="all"?`${VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold}12`:T.surface,border:`1px solid ${vendorTypeFilter!=="all"?`${VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold}33`:T.border}`,color:vendorTypeFilter!=="all"?VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold:T.dim,fontSize:11,fontWeight:vendorTypeFilter!=="all"?600:400,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
               <option value="all">All Types</option>
               {VENDOR_TYPES.map(t=><option key={t} value={t}>{VENDOR_TYPE_LABELS[t]}</option>)}
             </select>
-            <span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:8,color:T.dim,pointerEvents:"none"}}>▼</span>
+            <span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:8,color:T.dim,pointerEvents:"none"}}>&#9660;</span>
           </div>
           {vendorTypeFilter!=="all"&&<button onClick={()=>setVendorTypeFilter("all")} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"rgba(248,113,113,.08)",color:T.neg}}>Clear</button>}
-          <span style={{fontSize:11,color:T.dim}}>{filteredVendors.length} vendor{filteredVendors.length!==1?"s":""}</span>
+          <span style={{fontSize:11,color:T.dim,marginLeft:"auto"}}>{filteredVendors.length} vendor{filteredVendors.length!==1?"s":""}</span>
         </div>
 
         {filteredVendors.length===0?<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No vendors{vendorSearch||vendorTypeFilter!=="all"?" match this search":""}</div>
@@ -187,8 +196,8 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           {filteredVendors.map(v=><div key={v.id+v._projectId} onClick={()=>{setVendorDetailId(v.id);setVendorProjectId(v._projectId)}} style={{display:"grid",gridTemplateColumns:"2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(80px,1fr)",padding:"14px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.notes}</div>}</div>
             <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],display:"inline-block",lineHeight:1.4,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
-            <div style={{fontSize:12,color:T.cream}}>{v.contactName||"—"}</div>
-            <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.email||"—"}</div>
+            <div style={{fontSize:12,color:T.cream}}>{v.contactName||"\u2014"}</div>
+            <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.email||"\u2014"}</div>
             <div style={{display:"flex",gap:4,justifyContent:"flex-end",flexWrap:"wrap"}}>{v.projects.map(p=><Pill key={p.id} color={T.dim} size="xs">{p.name}</Pill>)}</div>
           </div>)}
         </Card>}
@@ -221,7 +230,6 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
       </div>}
     </div>
 
-    {/* Vendor detail modal */}
     {vendorDetailId&&vendorProjectId&&(()=>{
       const proj=projects.find(p=>p.id===vendorProjectId);
       if(!proj)return null;
