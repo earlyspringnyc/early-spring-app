@@ -23,6 +23,9 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   const[nLnkCat,setNLnkCat]=useState("");const[nLnkItem,setNLnkItem]=useState("");const[nDVId,setNDVId]=useState("");
   const[dragging,setDragging]=useState(false);
   const[viewingDoc,setViewingDoc]=useState(null);
+  const[analyzing,setAnalyzing]=useState(null); // {docId, fileName}
+  const[analysisResult,setAnalysisResult]=useState(null); // {docId, type, amount, dueDate, vendor, number}
+  const[analysisVendorId,setAnalysisVendorId]=useState("");
   const fileInputRef=useRef(null);
   const dragCounter=useRef(0);
 
@@ -46,6 +49,49 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
     return"invoice";
   };
 
+  // AI document analysis
+  const analyzeDoc=async(fileData,fileName,docId)=>{
+    setAnalyzing({docId,fileName});
+    try{
+      const isImage=fileData.startsWith("data:image");
+      const content=isImage?[
+        {type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},
+        {type:"text",text:"Extract from this document: 1) type (invoice/contract/w9/w2), 2) total amount as number, 3) due date in MM/DD/YYYY, 4) invoice/doc number, 5) vendor/company name. Return ONLY JSON: {\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"number\":\"\",\"vendor\":\"\"}"}
+      ]:[{type:"text",text:`Uploaded file: "${fileName}". Based on filename, determine: type (invoice/contract/w9/w2), any amount/date hints. Return ONLY JSON: {"type":"invoice","amount":0,"dueDate":"","number":"","vendor":""}`}];
+      const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
+      if(!res.ok){setAnalyzing(null);return}
+      const data=await res.json();const text=data.content[0].text;
+      const match=text.match(/\{[\s\S]*\}/);if(!match){setAnalyzing(null);return}
+      const parsed=JSON.parse(match[0]);
+      // Try to match vendor name to existing vendors
+      let matchedVendorId="";
+      if(parsed.vendor){const vName=parsed.vendor.toLowerCase();const found=(project.vendors||[]).find(v=>(v.name||"").toLowerCase().includes(vName)||vName.includes((v.name||"").toLowerCase()));if(found)matchedVendorId=found.id}
+      setAnalysisResult({docId,...parsed,matchedVendorId});
+      setAnalysisVendorId(matchedVendorId);
+      setAnalyzing(null);
+    }catch(e){setAnalyzing(null)}
+  };
+
+  const confirmAnalysis=()=>{
+    if(!analysisResult)return;
+    const r=analysisResult;
+    updateProject({docs:docs.map(d=>{
+      if(d.id!==r.docId)return d;
+      const updates={};
+      if(r.type)updates.type=r.type;
+      if(r.amount&&r.amount>0)updates.amount=r.amount;
+      if(r.dueDate)updates.dueDate=r.dueDate;
+      if(r.number)updates.name=r.number;
+      if(analysisVendorId)updates.vendorId=analysisVendorId;
+      const updated={...d,...updates};
+      if(isOverdue(updated))updated.status="overdue";
+      return updated;
+    })});
+    setAnalysisResult(null);setAnalysisVendorId("");
+  };
+
+  const dismissAnalysis=()=>{setAnalysisResult(null);setAnalysisVendorId("")};
+
   // File handling for drag-and-drop / upload
   const handleFiles=useCallback((files)=>{
     Array.from(files).forEach(file=>{
@@ -56,6 +102,8 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
         const doc=mkDoc(name,type,"",0,"","pending","","","",ev.target.result);
         if(isOverdue(doc))doc.status="overdue";
         updateProject({docs:[...docs,doc]});
+        // Analyze in background
+        analyzeDoc(ev.target.result,file.name,doc.id);
       };
       reader.readAsDataURL(file);
     });
@@ -186,6 +234,33 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
 
     {/* ===== DOCUMENTS TAB ===== */}
     {tab==="documents"&&<>
+      {/* AI Analysis confirmation */}
+      {analyzing&&<Card style={{padding:"14px 18px",marginBottom:12,borderLeft:`3px solid ${T.cyan}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{display:"flex",gap:4}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:T.cyan,animation:`pulse 1.2s ease-in-out ${i*.2}s infinite`}}/>)}</div>
+          <span style={{fontSize:11,color:T.cyan}}>Analyzing {analyzing.fileName}...</span>
+        </div>
+      </Card>}
+      {analysisResult&&<Card style={{padding:"18px 20px",marginBottom:12,borderLeft:`3px solid ${T.pos}`,background:"rgba(74,222,128,.03)"}}>
+        <div style={{fontSize:10,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Document Analyzed</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:14}}>
+          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Type</div><div style={{fontSize:12,color:T.cream,fontWeight:500,textTransform:"capitalize"}}>{analysisResult.type||"—"}</div></div>
+          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Amount</div><div style={{fontSize:12,color:T.gold,fontWeight:600,fontFamily:T.mono}}>{analysisResult.amount?f$(analysisResult.amount):"—"}</div></div>
+          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Due Date</div><div style={{fontSize:12,color:T.cream,fontFamily:T.mono}}>{analysisResult.dueDate||"—"}</div></div>
+          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Number</div><div style={{fontSize:12,color:T.cream}}>{analysisResult.number||"—"}</div></div>
+        </div>
+        {analysisResult.vendor&&<div style={{marginBottom:12}}>
+          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Detected Vendor: <span style={{color:T.cream}}>{analysisResult.vendor}</span></div>
+        </div>}
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+          <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>Assign to</span>
+          <div style={{maxWidth:250}}><VendorSelect value={analysisVendorId} onChange={setAnalysisVendorId} vendors={project.vendors} onAddVendor={v=>{updateProject({vendors:[...(project.vendors||[]),v]})}} compact/></div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={confirmAnalysis} style={{padding:"7px 16px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Confirm & Apply</button>
+          <button onClick={dismissAnalysis} style={{padding:"7px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Dismiss</button>
+        </div>
+      </Card>}
       {showDocAdd&&<Card style={{padding:20,marginBottom:16}}>
         <div style={{display:"flex",gap:6,marginBottom:14}}>{DOC_TYPES.map(t=><button key={t} onClick={()=>setNDTy(t)} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:11,fontWeight:nDTy===t?600:400,fontFamily:T.sans,background:nDTy===t?`${DOC_TYPE_COLORS[t]}22`:"transparent",color:nDTy===t?DOC_TYPE_COLORS[t]:T.dim,textTransform:"capitalize"}}>{t==="w9"?"W-9":t==="w2"?"W-2":t}</button>)}</div>
         <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
