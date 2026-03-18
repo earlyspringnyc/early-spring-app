@@ -1,5 +1,5 @@
 import { uid } from '../utils/uid.js';
-import { mkI, mkA, mkTask, mkROS } from './factories.js';
+import { mkI, mkA, mkTask, mkROS, mkVendor, mkDoc, mkTxn, mkMeeting } from './factories.js';
 
 export function defaultCats() {
   return [
@@ -36,4 +36,132 @@ export const DEFAULT_USERS = [
 
 export function mkProject(name, client, date, eventDate, logo, clientBudget, stage) {
   return { id: uid(), name, client, date: date || new Date().toLocaleDateString(), eventDate: eventDate || "", logo: logo || "", clientBudget: clientBudget || 0, stage: stage || "pitching", cats: defaultCats(), ag: defaultAg(), feeP: .20, timeline: defaultTimeline(), ros: defaultROS(), docs: [], txns: [], vendors: [], clientFiles: [], meetings: [], createdAt: Date.now() };
+}
+
+export function mkSampleProject() {
+  const vendors = [
+    mkVendor("The Williamsburg Hotel", "events@thewilliamsburghotel.com", "718-362-8100", "Rooftop + ballroom available", "received", "venue", "Sarah Chen"),
+    mkVendor("Devoción Catering", "catering@devocion.com", "718-285-6180", "Colombian-inspired menu", "received", "catering", "Marco Rivera"),
+    mkVendor("PRG Lighting", "rentals@prg.com", "212-539-7000", "LED wall + intelligent lighting", "pending", "av", "Jake Morrison"),
+    mkVendor("Sweets by Chloe", "hello@sweetsbychloe.com", "347-555-0192", "Custom dessert bar", "pending", "catering", "Chloe Park"),
+    mkVendor("Tandem Photo + Film", "book@tandempf.com", "917-555-0234", "Photo + video team", "received", "creative", "Dia Okafor"),
+    mkVendor("SHOWTIME Staffing", "dispatch@showtimestaffing.com", "212-555-0371", "Brand ambassadors + event staff", "pending", "staffing", "Devon Clark"),
+  ];
+
+  const cats = [
+    { id: uid(), name: "Venue", items: [
+      { ...mkI("Rooftop Buyout", 28000, .18), qty: 1, rate: 28000, unit: "ea", vendorId: vendors[0].id, details: "Full rooftop exclusive 6pm–1am" },
+      { ...mkI("Ballroom Hold (Rain Plan)", 5000, .18), vendorId: vendors[0].id, details: "Indoor backup — released 48hr prior if clear" },
+      { ...mkI("Security Deposit", 3000, 0), vendorId: vendors[0].id },
+      mkI("Permit Fees", 1200, .10),
+    ]},
+    { id: uid(), name: "Catering & Beverage", items: [
+      { ...mkI("Dinner Service", 18750, .15), qty: 150, rate: 125, unit: "ea", vendorId: vendors[1].id, details: "3-course seated, family style" },
+      { ...mkI("Open Bar Package", 11250, .15), qty: 150, rate: 75, unit: "ea", vendorId: vendors[1].id, details: "Premium spirits, craft cocktails, wine, beer — 4hrs" },
+      { ...mkI("Late Night Snacks", 2500, .15), vendorId: vendors[1].id, details: "Empanadas + slider station" },
+      { ...mkI("Custom Dessert Bar", 3200, .20), vendorId: vendors[3].id, details: "Branded macarons, mini cakes, chocolate truffles" },
+      mkI("F&B Staffing", 4800, .12),
+    ]},
+    { id: uid(), name: "Staging & AV", items: [
+      { ...mkI("LED Wall (12×8)", 8500, .15), vendorId: vendors[2].id, details: "2.6mm pixel pitch, content-ready" },
+      { ...mkI("Sound System + DJ Booth", 4200, .15), vendorId: vendors[2].id },
+      { ...mkI("Lighting Design", 6800, .18), vendorId: vendors[2].id, details: "Intelligent fixtures, uplighting, pin spots" },
+      { ...mkI("AV Tech", 3600, .10), qty: 2, rate: 1800, unit: "ea", vendorId: vendors[2].id, details: "On-site techs for load-in through strike" },
+    ]},
+    { id: uid(), name: "Fabrication & Scenic", items: [
+      mkI("Custom Entry Arch", 7500, .20),
+      mkI("Step & Repeat Wall", 3500, .15),
+      mkI("Branded Bar Wrap", 2800, .15),
+      mkI("Lounge Furniture", 4500, .12),
+      { ...mkI("Install / Strike Labor", 6400, .10), qty: 8, rate: 800, unit: "ea", details: "8-person crew, load-in + strike" },
+    ]},
+    { id: uid(), name: "Content & Capture", items: [
+      { ...mkI("Photography", 4500, .15), vendorId: vendors[4].id, details: "2 photographers, 6hrs + edited gallery" },
+      { ...mkI("Videography", 6500, .15), vendorId: vendors[4].id, details: "Highlight reel + social cuts, 2 operators" },
+      mkI("Drone Operator", 1800, .15),
+      mkI("Photo Booth", 2200, .12),
+    ]},
+    { id: uid(), name: "Staffing", items: [
+      mkI("Event Manager (Day-of)", 3500, .10),
+      { ...mkI("Brand Ambassadors", 4800, .10), qty: 6, rate: 800, unit: "ea", vendorId: vendors[5].id },
+      { ...mkI("Registration Staff", 1600, .10), qty: 2, rate: 800, unit: "ea", vendorId: vendors[5].id },
+      mkI("Security", 2400, .08),
+    ]},
+    { id: uid(), name: "Travel & Logistics", items: [
+      mkI("Team Hotels (2 nights)", 3200, .05),
+      mkI("Ground Transport", 1500, .05),
+      mkI("Shipping / Freight", 2800, .08),
+    ]},
+    { id: uid(), name: "Contingency", items: [mkI("Contingency", 7500, 0)] },
+  ];
+
+  const ag = [
+    mkA("Account Lead", 5, 1200, .15),
+    mkA("Creative Director", 4, 1500, .15),
+    mkA("Production Manager", 8, 900, .15),
+    mkA("Production Coordinator", 10, 550, .12),
+    mkA("Designer", 6, 800, .15),
+  ];
+
+  const today = new Date();
+  const eventDate = new Date(today);
+  eventDate.setDate(today.getDate() + 45);
+  const fmtDate = d => `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+
+  const timeline = [
+    { ...mkTask("Confirm venue contract", "Venue", "Account Lead"), status: "done", startDate: fmtDate(new Date(today.getTime() - 30*86400000)), endDate: fmtDate(new Date(today.getTime() - 25*86400000)) },
+    { ...mkTask("Finalize catering menu", "Catering", "Production Manager"), status: "done", startDate: fmtDate(new Date(today.getTime() - 20*86400000)), endDate: fmtDate(new Date(today.getTime() - 14*86400000)) },
+    { ...mkTask("AV walkthrough at venue", "Production", "Production Manager"), status: "in-progress", startDate: fmtDate(new Date(today.getTime() - 3*86400000)), endDate: fmtDate(new Date(today.getTime() + 2*86400000)) },
+    { ...mkTask("Approve lighting design", "Design", "Creative Director"), status: "in-progress", startDate: fmtDate(today), endDate: fmtDate(new Date(today.getTime() + 5*86400000)) },
+    { ...mkTask("Finalize floor plan + CAD", "Design", "Designer"), status: "todo", startDate: fmtDate(new Date(today.getTime() + 3*86400000)), endDate: fmtDate(new Date(today.getTime() + 10*86400000)) },
+    { ...mkTask("Order branded collateral", "Print", "Production Coordinator"), status: "todo", startDate: fmtDate(new Date(today.getTime() + 7*86400000)), endDate: fmtDate(new Date(today.getTime() + 14*86400000)) },
+    { ...mkTask("Confirm staffing headcount", "Staffing", "Production Manager"), status: "todo", startDate: fmtDate(new Date(today.getTime() + 10*86400000)), endDate: fmtDate(new Date(today.getTime() + 18*86400000)) },
+    { ...mkTask("Final vendor payments", "Finance", "Account Lead"), status: "todo", startDate: fmtDate(new Date(today.getTime() + 30*86400000)), endDate: fmtDate(new Date(today.getTime() + 38*86400000)) },
+    { ...mkTask("Load-in / strike plan", "Production", "Production Manager"), status: "todo", startDate: fmtDate(new Date(today.getTime() + 35*86400000)), endDate: fmtDate(new Date(today.getTime() + 42*86400000)) },
+    { ...mkTask("Day-of run of show finalized", "Production", "Production Manager"), status: "todo", startDate: fmtDate(new Date(today.getTime() + 40*86400000)), endDate: fmtDate(eventDate) },
+  ];
+
+  const ros = defaultROS();
+
+  const docs = [
+    mkDoc("Venue Contract — Williamsburg Hotel", "contract", vendors[0].id, 36000, fmtDate(new Date(today.getTime() - 20*86400000)), "paid"),
+    mkDoc("Devoción Catering Proposal", "invoice", vendors[1].id, 37300, fmtDate(new Date(today.getTime() + 14*86400000)), "pending"),
+    mkDoc("PRG AV Quote", "invoice", vendors[2].id, 23100, fmtDate(new Date(today.getTime() + 21*86400000)), "pending"),
+    mkDoc("Tandem Photo+Film Agreement", "contract", vendors[4].id, 11000, fmtDate(new Date(today.getTime() + 7*86400000)), "pending"),
+  ];
+
+  const txns = [
+    mkTxn("expense", "Venue deposit — Williamsburg Hotel", 18000, fmtDate(new Date(today.getTime() - 20*86400000)), "Venue", vendors[0].id),
+    mkTxn("expense", "Venue final payment", 18000, fmtDate(new Date(today.getTime() - 5*86400000)), "Venue", vendors[0].id),
+  ];
+
+  const meetings = [
+    { ...mkMeeting("Client Kickoff", fmtDate(new Date(today.getTime() - 28*86400000)), "10:00", "1h", ["Account Lead", "Creative Director"], "Align on vision, budget, timeline", "Zoom", true), summary: "Client wants immersive, elevated vibe. Rooftop mandatory. Budget approved at $250K." },
+    mkMeeting("Venue Site Visit", fmtDate(new Date(today.getTime() - 15*86400000)), "14:00", "1.5h", ["Production Manager", "AV Tech"], "Walk rooftop, check power drops, measure LED wall placement", "The Williamsburg Hotel"),
+    mkMeeting("Creative Review", fmtDate(new Date(today.getTime() + 5*86400000)), "11:00", "45m", ["Creative Director", "Designer", "Account Lead"], "Review mood boards, signage concepts, entry arch design", "Studio", true),
+  ];
+
+  return {
+    id: uid(),
+    name: "Meridian Summer Launch",
+    client: "Meridian Spirits",
+    date: fmtDate(new Date(today.getTime() - 30*86400000)),
+    eventDate: fmtDate(eventDate),
+    logo: "",
+    clientBudget: 250000,
+    stage: "awarded",
+    currency: "USD",
+    cats,
+    ag,
+    feeP: .20,
+    timeline,
+    ros,
+    docs,
+    txns,
+    vendors,
+    clientFiles: [],
+    meetings,
+    createdAt: Date.now(),
+    _isSample: true,
+  };
 }

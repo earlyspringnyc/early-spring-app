@@ -1,6 +1,6 @@
 import { uid } from '../utils/uid.js';
 
-export const mkI = (n, c = 0, m = .15) => ({ id: uid(), name: n, budget: 0, estCost: 0, actualCost: c, margin: m, vendorId: "", notes: "", details: "", linkedDocIds: [] });
+export const mkI = (n, c = 0, m = .15) => ({ id: uid(), name: n, budget: 0, estCost: 0, actualCost: c, margin: m, vendorId: "", notes: "", details: "", linkedDocIds: [], qty: 0, rate: 0, unit: "" });
 export const mkA = (n, d = 0, r = 0, m = .15) => ({ id: uid(), name: n, actualCost: d * r, margin: m, days: d, dayRate: r });
 export const mkTask = (name, cat = "General", assignee = "", start = "", end = "", linkedItemId = "") => ({ id: uid(), name, category: cat, assignee, status: "todo", startDate: start, endDate: end, linkedItemId });
 export const mkROS = (time, item, loc = "", lead = "", dur = "", notes = "") => ({ id: uid(), time, duration: dur, item, location: loc, lead, notes });

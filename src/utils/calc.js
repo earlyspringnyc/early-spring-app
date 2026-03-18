@@ -16,7 +16,9 @@ export function calcProject(p) {
   const agT = p.ag.reduce((a, it) => { const c = ci(it); return { actualCost: a.actualCost + c.actualCost, clientPrice: a.clientPrice + c.clientPrice, variance: a.variance + c.variance }; }, { actualCost: 0, clientPrice: 0, variance: 0 });
   const fA = (prod.actualCost + agT.actualCost) * p.feeP, fC = (prod.clientPrice + agT.clientPrice) * p.feeP;
   const fee = { actualCost: fA, clientPrice: fC, variance: fC - fA };
-  return { productionSubtotal: prod, agencyCostsSubtotal: agT, agencyFee: fee, grandTotal: fee.clientPrice + prod.clientPrice + agT.clientPrice, netProfit: prod.variance + agT.variance + fee.clientPrice };
+  const repFeeAmt = p.repFeeEnabled ? fA * (p.repFeeP || 0.10) : 0;
+  const netProfit = prod.variance + agT.variance + fee.clientPrice - repFeeAmt;
+  return { productionSubtotal: prod, agencyCostsSubtotal: agT, agencyFee: fee, repFee: repFeeAmt, grandTotal: fee.clientPrice + prod.clientPrice + agT.clientPrice, netProfit };
 }
 
 export function isOverdue(doc) {

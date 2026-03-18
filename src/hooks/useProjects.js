@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import * as db from '../lib/db.js';
-import { mkProject } from '../data/defaults.js';
+import { mkProject, mkSampleProject } from '../data/defaults.js';
 
 export function useProjects(orgId) {
   const [projects, setProjects] = useState([]);
@@ -19,9 +19,19 @@ export function useProjects(orgId) {
     if (usesDb) {
       console.log('[projects] Loading from Supabase for org:', orgId);
       setLoaded(false);
-      db.getProjects(orgId).then(p => {
+      db.getProjects(orgId).then(async p => {
         console.log('[projects] Loaded', p.length, 'projects from Supabase');
-        setProjects(p);
+        if (p.length === 0) {
+          console.log('[projects] No projects found — creating sample project');
+          const sample = mkSampleProject();
+          try {
+            const saved = await db.createProject(orgId, sample);
+            if (saved) { setProjects([saved]); setLoaded(true); return; }
+          } catch (e2) { console.error('[projects] Sample create failed:', e2); }
+          setProjects([sample]);
+        } else {
+          setProjects(p);
+        }
         setLoaded(true);
       }).catch(e => {
         console.error('[projects] Failed to load from Supabase:', e);
@@ -44,7 +54,8 @@ export function useProjects(orgId) {
           }
         }
       } catch (e) {}
-      setProjects([]);
+      const sample = mkSampleProject();
+      setProjects([sample]);
       setLoaded(true);
     }
   }, [orgId, usesDb]);
