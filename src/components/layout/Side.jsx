@@ -22,7 +22,6 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
 
   const toolItems=[
     {id:"pnl",label:"Finance",icon:"\u25C7"},
-    {id:"docs",label:"Documents",icon:"\u25A7"},
     {id:"ros",label:"Run of Show",icon:"\u25B6"},
   ];
 

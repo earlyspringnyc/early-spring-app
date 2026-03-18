@@ -14,7 +14,6 @@ function MobileNav({view,setView,project}){
     {id:"ai",label:"ES AI",icon:"\u25C9"},
     {id:"export",label:`Client: ${clientName}`,icon:"\u25CE"},
     {id:"pnl",label:"Finance",icon:"\u25C7"},
-    {id:"docs",label:"Documents",icon:"\u25A7"},
     {id:"ros",label:"Run of Show",icon:"\u25B6"},
     {id:"settings",label:"Settings",icon:"\u25CE"},
   ];

@@ -48,8 +48,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="dashboard"&&<DashV cats={project.cats} comp={comp} feeP={project.feeP} project={project} onNavigate={setView}/>}
       {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit}/>}
-      {view==="pnl"&&<PnLV project={project} updateProject={updateProject} comp={comp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
-      {view==="docs"&&<DocsV project={project} updateProject={updateProject} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
+      {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={comp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId}/>}
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={comp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={comp}/>}
