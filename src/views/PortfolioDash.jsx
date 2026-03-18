@@ -106,14 +106,6 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
             </div>)}
           </div>}
 
-          {/* Upcoming deadlines */}
-          {allUpcoming.length>0&&<div style={{padding:"14px 18px",marginBottom:20,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Upcoming Deadlines</div>
-            {allUpcoming.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
-            </div>)}
-          </div>}
-
           {/* Stage sections */}
           {PROJECT_STAGES.map(stage=>{
             const stageProjects=sorted.filter(p=>(p.stage||"pitching")===stage);
