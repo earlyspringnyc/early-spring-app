@@ -247,7 +247,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
       </div>})()}
 
       {/* ── Contacts ── */}
-      <div onClick={()=>setActiveView("contacts")} style={{...cardStyle("#06B6D4"),gridColumn:"1/-1"}} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+      <div onClick={()=>setActiveView("contacts")} style={cardStyle("#06B6D4")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
         <div style={{padding:"24px 26px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Client Contacts</div><span style={{fontSize:12,color:T.dim}}>{clientContacts.length} contact{clientContacts.length!==1?"s":""}</span></div>

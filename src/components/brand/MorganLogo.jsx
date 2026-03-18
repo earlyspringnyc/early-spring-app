@@ -1,28 +1,36 @@
-// Morgan Wordmark — elegant, geometric sans-serif with a production feel
-// The "M" has a subtle architectural quality
+// Morgan — clean wordmark + isotype with experiential/spatial hint
+// The isotype is an abstract "stage" mark — two converging planes suggesting a venue/space
 
 export function MorganWordmark({ height = 24, color = "#E8E8EC" }) {
-  return <svg height={height} viewBox="0 0 420 60" fill={color} style={{ display: "inline-block" }}>
-    {/* M */}
-    <path d="M0 58V2h8l28 40L64 2h8v56h-7V14L39 50h-6L7 14v44H0z" />
+  const h = height;
+  const scale = h / 20;
+  return <svg height={h} viewBox="0 0 140 20" fill={color} style={{ display: "inline-block" }}>
+    {/* M — slightly wider, architectural */}
+    <path d="M0 18V2h1.8L9 14.5 16.2 2H18v16h-1.6V4.5L9.5 16h-1L1.6 4.5V18H0z" />
     {/* O */}
-    <path d="M102 0c17 0 30 13 30 30s-13 30-30 30-30-13-30-30S85 0 102 0zm0 7c-13 0-23 10-23 23s10 23 23 23 23-10 23-23-10-23-23-23z" />
+    <path d="M28 1.2c4.8 0 8.5 3.8 8.5 8.8s-3.7 8.8-8.5 8.8-8.5-3.8-8.5-8.8S23.2 1.2 28 1.2zm0 1.6c-3.8 0-6.8 3.2-6.8 7.2s3 7.2 6.8 7.2 6.8-3.2 6.8-7.2-3-7.2-6.8-7.2z" />
     {/* R */}
-    <path d="M142 58V2h26c14 0 22 8 22 18 0 8-5 15-14 17l16 21h-9l-15-20h-19v20h-7zm7-26h19c9 0 15-5 15-12s-6-12-15-12h-19v24z" />
+    <path d="M40 18V2h7.5c4 0 6.3 2.3 6.3 5.2 0 2.4-1.5 4.3-4 5l4.5 5.8h-2l-4.3-5.6H41.6V18H40zm1.6-7.2h5.8c2.8 0 4.7-1.5 4.7-3.6S50.2 3.6 47.4 3.6H41.6v7.2z" />
     {/* G */}
-    <path d="M226 0c17 0 30 13 30 30 0 17-13 30-30 30s-30-13-30-30S209 0 226 0zm0 7c-13 0-23 10-23 23s10 23 23 23 23-10 23-23v-2h-22v6h15c-2 9-9 13-16 13-13 0-23-7-23-17s10-23 23-23z" />
+    <path d="M63.5 1.2c4.8 0 8.5 3.8 8.5 8.8 0 5-3.7 8.8-8.5 8.8S55 15 55 10s3.7-8.8 8.5-8.8zm0 1.6c-3.8 0-6.8 3.2-6.8 7.2s3 7.2 6.8 7.2c3.5 0 6.3-2.8 6.7-6.4h-6.4V9.2h8v.8c0 5-3.7 8.8-8.3 8.8z" />
     {/* A */}
-    <path d="M280 58l24-56h8l24 56h-8l-6-15h-28l-6 15h-8zm16-21h22l-11-28-11 28z" />
+    <path d="M79 18l7-16h1.6l7 16h-1.8l-1.8-4.3h-8.4L80.8 18H79zm4.5-5.8h6.6L86.8 4 83.5 12.2z" />
     {/* N */}
-    <path d="M344 58V2h7l38 44V2h7v56h-7L351 14v44h-7z" />
+    <path d="M97 18V2h1.6L109.8 15V2h1.6v16h-1.6L98.6 5V18H97z" />
+    {/* small dot — experiential accent */}
+    <circle cx="120" cy="10" r="1.8" opacity=".5" />
   </svg>;
 }
 
-// Morgan Isotype — abstract "M" mark with production/architectural feel
+// Isotype — abstract converging planes (like a stage/venue from above)
 export function MorganIsotype({ size = 28, color = "#E8E8EC" }) {
-  return <svg width={size} height={size} viewBox="0 0 60 60" fill="none" style={{ display: "inline-block" }}>
-    <rect x="2" y="2" width="56" height="56" rx="12" stroke={color} strokeWidth="2.5" fill="none" />
-    <path d="M14 44V16h3l13 20 13-20h3v28h-3V22L30 40h-2L15 22v22h-1z" fill={color} />
+  return <svg width={size} height={size} viewBox="0 0 40 40" fill="none" style={{ display: "inline-block" }}>
+    {/* Outer frame — rounded square */}
+    <rect x="2" y="2" width="36" height="36" rx="8" stroke={color} strokeWidth="1.5" />
+    {/* Abstract M / converging stage planes */}
+    <path d="M10 28V12l10 10 10-10v16" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    {/* Small accent dot — experiential spark */}
+    <circle cx="20" cy="14" r="1.2" fill={color} opacity=".4" />
   </svg>;
 }
 

@@ -1,2 +1,2 @@
 export { default as ESIsotype } from './ESIsotype.jsx';
-export { default as ESWordmark } from './ESWordmark.jsx';
+export { MorganWordmark as ESWordmark } from './MorganLogo.jsx';
