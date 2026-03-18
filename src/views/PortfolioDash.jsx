@@ -132,33 +132,40 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
               {showEmpty?<div style={{padding:"24px 20px",border:`2px dashed ${isDropTarget?STAGE_COLORS[stage]:T.border}`,borderRadius:T.r,textAlign:"center",transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}08`:"transparent"}}>
                 <p style={{fontSize:12,color:isDropTarget?STAGE_COLORS[stage]:T.dim}}>{isDropTarget?"Drop here to move to "+STAGE_LABELS[stage]:"No "+STAGE_LABELS[stage].toLowerCase()+" projects"}</p>
               </div>
-              :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))",gap:14,padding:isDropTarget?8:0,border:isDropTarget?`2px dashed ${STAGE_COLORS[stage]}`:"2px dashed transparent",borderRadius:T.r,transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}06`:"transparent"}}>
-                {stageProjects.map(p=>{const comp=calcProject(p);const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;const tasksDone=(p.timeline||[]).filter(t=>t.status==="done").length;const tasksTotal=(p.timeline||[]).length;const taskPct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
-                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab",borderLeft:`3px solid ${STAGE_COLORS[stage]}`}}>
-                    <div style={{padding:"18px 20px 14px"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
-                          {p.logo&&<img src={p.logo} alt={p.client||p.name||"Client logo"} style={{width:26,height:26,borderRadius:4,objectFit:"contain",flexShrink:0}}/>}
+              :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))",gap:14,padding:isDropTarget?8:0,border:isDropTarget?`2px dashed ${STAGE_COLORS[stage]}`:"2px dashed transparent",borderRadius:T.r,transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}06`:"transparent"}}>
+                {stageProjects.map((p,pi)=>{const comp=calcProject(p);const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;const tasksDone=(p.timeline||[]).filter(t=>t.status==="done").length;const tasksTotal=(p.timeline||[]).length;const taskPct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
+                  const cardColors=[
+                    [`${STAGE_COLORS[stage]}08`,`${STAGE_COLORS[stage]}15`],
+                    ["rgba(125,211,252,.05)","rgba(125,211,252,.12)"],
+                    ["rgba(196,181,253,.05)","rgba(196,181,253,.12)"],
+                    ["rgba(74,222,128,.05)","rgba(74,222,128,.12)"],
+                    ["rgba(253,186,116,.05)","rgba(253,186,116,.12)"],
+                  ];
+                  const[cardBg,cardBorder]=cardColors[pi%cardColors.length];
+                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab",background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${STAGE_COLORS[stage]}`}}>
+                    <div style={{padding:"22px 24px 18px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:12}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                          {p.logo&&<img src={p.logo} alt={p.client||p.name||"Client logo"} style={{width:30,height:30,borderRadius:6,objectFit:"contain",flexShrink:0}}/>}
                           <div style={{flex:1,minWidth:0}}>
-                            <h3 style={{fontSize:13,fontWeight:600,color:T.cream,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</h3>
-                            <p style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.client||"No client"}</p>
+                            <h3 style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</h3>
+                            <p style={{fontSize:12,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.client||"No client"}</p>
                           </div>
                         </div>
                         <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
                           {ov>0&&<Pill color={T.neg} size="xs">{ov} overdue</Pill>}
                         </div>
                       </div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:14}}>
-                        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Grand Total</div><div className="num" style={{fontSize:16,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div>
-                        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Net Profit</div><div className="num" style={{fontSize:16,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginTop:18}}>
+                        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Grand Total</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div>
+                        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Net Profit</div><div className="num" style={{fontSize:20,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div>
                       </div>
-                      {/* Task progress bar */}
-                      {tasksTotal>0&&<div style={{marginTop:12}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{tasksDone}/{tasksTotal} tasks</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
-                        <div style={{height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:`linear-gradient(90deg,${STAGE_COLORS[stage]},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+                      {tasksTotal>0&&<div style={{marginTop:16}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:10,color:T.dim}}>{tasksDone}/{tasksTotal} tasks</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
+                        <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:`linear-gradient(90deg,${STAGE_COLORS[stage]},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
                       </div>}
                     </div>
-                    <div style={{padding:"8px 20px",background:"rgba(255,255,255,.015)",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+                    <div style={{padding:"10px 24px",background:"rgba(255,255,255,.02)",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
                       <span style={{fontSize:10,color:T.dim}}>{p.eventDate?`Event: ${p.eventDate}`:p.date||"No date"}</span>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         {onDuplicate&&<button onClick={e=>{e.stopPropagation();onDuplicate(p.id)}} style={{fontSize:10,color:T.dim,background:"none",border:"none",cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Duplicate</button>}
