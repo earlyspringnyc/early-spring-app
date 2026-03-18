@@ -66,7 +66,8 @@ function App(){
   const[lastSaved,setLastSaved]=useState(null);
 
   const[showLogin,setShowLogin]=useState(false);
-  const[activeId,setActiveId]=useState(null);
+  const[activeId,setActiveIdRaw]=useState(()=>{try{return sessionStorage.getItem("es_activeProject")||null}catch(e){return null}});
+  const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id)sessionStorage.setItem("es_activeProject",id);else sessionStorage.removeItem("es_activeProject")}catch(e){}},[]);
   const[showNew,setShowNew]=useState(false);
   const[undoStack,setUndoStack]=useState([]);
   const[toasts,setToasts]=useState([]);

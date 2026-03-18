@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { calcProject } from '../utils/calc.js';
@@ -20,7 +20,8 @@ import AIV from './AIV.jsx';
 import SetV from './SetV.jsx';
 
 function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved,onUpdateUser}){
-  const[view,setView]=useState("dashboard");
+  const[view,setViewRaw]=useState(()=>{try{return sessionStorage.getItem("es_view")||"dashboard"}catch(e){return"dashboard"}});
+  const setView=useCallback(v=>{setViewRaw(v);try{sessionStorage.setItem("es_view",v)}catch(e){}},[]);
   const[exp,setExp]=useState(new Set());
   const canEdit=user.role!=="viewer";
   const tog=useCallback(id=>setExp(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n}),[]);
