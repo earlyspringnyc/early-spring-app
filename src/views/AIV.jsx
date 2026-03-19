@@ -18,7 +18,7 @@ const ACTION_COLORS={
 };
 
 function AIV({project,updateProject,comp}){
-  const defaultMsg={role:"assistant",content:"I have full context on **"+project.name+"** — budget, timeline, documents, cashflow, client files, and creative assets. I can also **see and analyze images** from your project files.\n\nTry: *\"What do you think of the renders?\"* or *\"Add realistic line items to missing categories\"*"};
+  const defaultMsg={role:"assistant",content:"I have full context on **"+project.name+"** — budget, timeline, documents, cashflow, client files, and creative assets. I can **see and analyze images and PDFs** from your project files.\n\nTry: *\"Review the Wimbledon renders\"* or *\"What does the NDA say?\"* or *\"Add realistic line items to missing categories\"*"};
   const[messages,setMessages]=useState(()=>{const saved=project.aiChat;return saved&&saved.length>0?saved:[defaultMsg]});
   const[input,setInput]=useState("");
   const[loading,setLoading]=useState(false);
@@ -114,28 +114,79 @@ function AIV({project,updateProject,comp}){
     actions.forEach((a,i)=>{if(!a.applied)applyAction(msgIdx,i)});
   };
 
-  // Gather available images from creative assets and client files
-  const getAvailableImages=()=>{
-    const images=[];
-    // Creative assets (images only)
-    (project.creativeAssets||[]).forEach(a=>{
-      if(!a.isImage)return;
-      const data=a.fileData||(a._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${a.id}`)}catch(e){return null}})():null);
-      if(data&&data.startsWith("data:image/"))images.push({name:a.name,section:a.section||"creative",status:a.status,data});
-    });
-    // Client files (images only)
-    (project.clientFiles||[]).forEach(f=>{
-      const data=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null);
-      if(data&&data.startsWith("data:image/"))images.push({name:f.name,section:"client-"+f.category,status:"uploaded",data});
-    });
-    return images;
+  // Resolve file data from project or localStorage
+  const resolveFileData=(item)=>{
+    if(item.fileData)return item.fileData;
+    if(item._hasLocalFile){try{return localStorage.getItem(`es_file_${item.id}`)}catch(e){}}
+    return null;
   };
 
-  // Check if the user's message likely refers to visuals
+  // Render a PDF's first page to a base64 PNG image
+  const renderPdfToImage=async(dataUrl)=>{
+    try{
+      const pdfjsLib=await import('pdfjs-dist');
+      const pdfjsWorker=await import('pdfjs-dist/build/pdf.worker.min.js?url');
+      pdfjsLib.GlobalWorkerOptions.workerSrc=pdfjsWorker.default;
+      const raw=atob(dataUrl.split(",")[1]);
+      const arr=new Uint8Array(raw.length);
+      for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+      const doc=await pdfjsLib.getDocument({data:arr}).promise;
+      const page=await doc.getPage(1);
+      const vp=page.getViewport({scale:1.5});
+      const canvas=document.createElement("canvas");
+      canvas.width=vp.width;canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+      return canvas.toDataURL("image/png");
+    }catch(e){console.error("[ai] PDF render failed:",e);return null}
+  };
+
+  // Gather all viewable files (images + PDFs rendered as images)
+  const getAvailableVisuals=async(userText)=>{
+    const visuals=[];
+    const allFiles=[];
+    const t=userText.toLowerCase();
+
+    // Collect all files from both sources
+    (project.creativeAssets||[]).forEach(a=>{
+      const data=resolveFileData(a);
+      if(!data)return;
+      const isImg=data.startsWith("data:image/");
+      const isPdf=data.startsWith("data:application/pdf")||(a.fileName&&/\.pdf$/i.test(a.fileName));
+      if(isImg||isPdf)allFiles.push({name:a.name,fileName:a.fileName||"",source:"creative",data,isImg,isPdf});
+    });
+    (project.clientFiles||[]).forEach(f=>{
+      const data=resolveFileData(f);
+      if(!data)return;
+      const isImg=data.startsWith("data:image/");
+      const isPdf=data.startsWith("data:application/pdf")||(f.fileName&&/\.pdf$/i.test(f.fileName));
+      if(isImg||isPdf)allFiles.push({name:f.name,fileName:f.fileName||"",source:"client",data,isImg,isPdf});
+    });
+
+    // Prioritize files mentioned by name in the user's message
+    const mentioned=allFiles.filter(f=>t.includes(f.name.toLowerCase())||t.includes(f.fileName.toLowerCase().replace(/\.[^.]+$/,"")));
+    const rest=allFiles.filter(f=>!mentioned.includes(f));
+    const ordered=[...mentioned,...rest];
+
+    // Convert up to 5 files (images pass through, PDFs get rendered to PNG)
+    for(const f of ordered.slice(0,5)){
+      if(f.isImg){
+        visuals.push({name:f.name,source:f.source,data:f.data});
+      }else if(f.isPdf){
+        const rendered=await renderPdfToImage(f.data);
+        if(rendered)visuals.push({name:f.name+" (page 1)",source:f.source,data:rendered});
+      }
+    }
+    return visuals;
+  };
+
+  // Check if the user's message likely refers to visuals or files
   const wantsVisuals=(text)=>{
     const t=text.toLowerCase();
-    const keywords=["image","photo","render","design","visual","creative","look","see","review","asset","mockup","mock","deck","logo","brand","graphic","layout","comp","show me","what do you think","feedback","critique","analyze","compare"];
-    return keywords.some(k=>t.includes(k));
+    const keywords=["image","photo","render","design","visual","creative","look","see","review","asset","mockup","mock","deck","logo","brand","graphic","layout","comp","show me","what do you think","feedback","critique","analyze","compare","pdf","document","file","contract","nda","brief","rfp","presentation"];
+    if(keywords.some(k=>t.includes(k)))return true;
+    // Also check if user mentions a specific file by name
+    const allNames=[...(project.creativeAssets||[]).map(a=>a.name.toLowerCase()),...(project.clientFiles||[]).map(f=>f.name.toLowerCase())];
+    return allNames.some(n=>n&&t.includes(n));
   };
 
   const send=async()=>{
@@ -146,25 +197,24 @@ function AIV({project,updateProject,comp}){
 
     const projectContext=serializeProject(project,comp);
 
-    // Build API messages — attach images to the latest user message if relevant
-    const apiMessages=newMsgs.map((m,i)=>{
-      if(m.role==="user"&&i===newMsgs.length-1&&wantsVisuals(m.content)){
-        const images=getAvailableImages();
-        if(images.length>0){
-          // Cap at 5 images to stay within limits
-          const selected=images.slice(0,5);
-          const content=[{type:"text",text:m.content+`\n\n[${selected.length} image(s) attached from project files: ${selected.map(im=>im.name).join(", ")}]`}];
-          selected.forEach(img=>{
-            const parts=img.data.split(",");
-            const mimeMatch=parts[0].match(/data:(image\/[^;]+)/);
-            const mediaType=mimeMatch?mimeMatch[1]:"image/png";
-            content.push({type:"image",source:{type:"base64",media_type:mediaType,data:parts[1]}});
-          });
-          return{role:"user",content};
-        }
+    // Build API messages — attach visuals to the latest user message if relevant
+    let apiMessages=newMsgs.map(m=>({role:m.role,content:m.content}));
+
+    // If user wants visuals, attach them (async)
+    const lastMsg=newMsgs[newMsgs.length-1];
+    if(lastMsg.role==="user"&&wantsVisuals(lastMsg.content)){
+      const visuals=await getAvailableVisuals(lastMsg.content);
+      if(visuals.length>0){
+        const content=[{type:"text",text:lastMsg.content+`\n\n[${visuals.length} file(s) attached: ${visuals.map(v=>v.name).join(", ")}]`}];
+        visuals.forEach(v=>{
+          const parts=v.data.split(",");
+          const mimeMatch=parts[0].match(/data:(image\/[^;]+)/);
+          const mediaType=mimeMatch?mimeMatch[1]:"image/png";
+          content.push({type:"image",source:{type:"base64",media_type:mediaType,data:parts[1]}});
+        });
+        apiMessages=[...apiMessages.slice(0,-1),{role:"user",content}];
       }
-      return{role:m.role,content:m.content};
-    });
+    }
 
     try{
       const res=await fetch("/api/chat",{

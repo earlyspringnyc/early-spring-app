@@ -94,10 +94,13 @@ function FileViewerModal({file,onClose}){
       const pg=await pdf.getPage(page+1);
       const canvas=canvasRef.current;
       const ctx=canvas.getContext("2d");
-      // Use full viewport width minus padding (32px total)
+      // Scale to fill viewport — use width or height, whichever fills more
       const targetWidth=window.innerWidth-32;
+      const targetHeight=window.innerHeight-100;
       const baseVp=pg.getViewport({scale:1});
-      const scale=targetWidth/baseVp.width;
+      const scaleByWidth=targetWidth/baseVp.width;
+      const scaleByHeight=targetHeight/baseVp.height;
+      const scale=Math.max(scaleByWidth,scaleByHeight);
       const vp=pg.getViewport({scale});
       canvas.width=vp.width;canvas.height=vp.height;
       await pg.render({canvasContext:ctx,viewport:vp}).promise;
