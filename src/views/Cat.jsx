@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { getPayStatus } from '../utils/calc.js';
@@ -6,13 +6,25 @@ import { PAYMENT_COLORS, PAYMENT_LABELS } from '../constants/index.js';
 import { Chev, PlusI, TrashI } from '../components/icons/index.js';
 import { NI, VendorSelect } from '../components/primitives/index.js';
 
+function EditableName({value,onChange}){
+  const[ed,setEd]=useState(false);
+  const[tmp,setTmp]=useState(value);
+  const ref=useRef(null);
+  useEffect(()=>{if(ed&&ref.current)ref.current.select()},[ed]);
+  const start=()=>{setEd(true);setTmp(value)};
+  const commit=()=>{setEd(false);if(tmp.trim()&&tmp!==value)onChange(tmp.trim())};
+  if(ed)return<input ref={ref} autoFocus value={tmp} onChange={e=>setTmp(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Tab")commit();if(e.key==="Escape")setEd(false)}} style={{background:"transparent",border:"none",borderBottom:`1.5px solid ${T.cyan}`,outline:"none",color:T.cream,fontSize:13,fontFamily:T.sans,padding:"2px 0",width:"100%",minWidth:80}}/>;
+  return<span tabIndex={0} onClick={start} onFocus={start} style={{fontSize:13,color:T.cream,cursor:"pointer",borderRadius:4,padding:"2px 4px",outline:"none"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{value}</span>;
+}
+
 function DetailsInput({value,onChange,canEdit}){
   const[editing,setEditing]=useState(false);
   const[expanded,setExpanded]=useState(false);
   const[tmp,setTmp]=useState(value);
-  if(editing)return<input autoFocus value={tmp} onChange={e=>setTmp(e.target.value)} onBlur={()=>{onChange(tmp);setEditing(false)}} onKeyDown={e=>{if(e.key==="Enter"){onChange(tmp);setEditing(false)}if(e.key==="Escape")setEditing(false)}} style={{width:"100%",padding:"5px 8px",fontSize:11,color:T.cream,background:T.surface,border:`1px solid ${T.cyan}`,borderRadius:T.rS,outline:"none",fontFamily:T.sans}}/>;
-  if(value)return<div title={value} onClick={()=>{if(canEdit&&expanded)setEditing(true);else setExpanded(!expanded)}} style={{fontSize:11,color:T.dim,fontStyle:"italic",padding:"4px 0",cursor:"pointer",overflow:expanded?"visible":"hidden",textOverflow:expanded?"unset":"ellipsis",whiteSpace:expanded?"normal":"nowrap",lineHeight:expanded?1.5:undefined,background:expanded?T.surface:"transparent",borderRadius:expanded?T.rS:0,padding:expanded?"6px 8px":"4px 0",margin:expanded?"-2px -8px":"0",transition:"all .15s"}}>{value}{expanded&&canEdit&&<span style={{fontSize:9,color:T.cyan,marginLeft:6,fontStyle:"normal"}}>click to edit</span>}</div>;
-  if(canEdit)return<button onClick={()=>{setTmp("");setEditing(true)}} style={{fontSize:10,color:T.dim,opacity:.4,background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontFamily:T.sans,fontStyle:"italic"}}>Add description...</button>;
+  const startEdit=()=>{if(!canEdit)return;setTmp(value||"");setEditing(true)};
+  if(editing)return<input autoFocus value={tmp} onChange={e=>setTmp(e.target.value)} onBlur={()=>{onChange(tmp);setEditing(false)}} onKeyDown={e=>{if(e.key==="Enter"){onChange(tmp);setEditing(false)}if(e.key==="Tab"){onChange(tmp);setEditing(false)}if(e.key==="Escape")setEditing(false)}} style={{width:"100%",padding:"5px 8px",fontSize:11,color:T.cream,background:T.surface,border:`1px solid ${T.cyan}`,borderRadius:T.rS,outline:"none",fontFamily:T.sans}}/>;
+  if(value)return<div tabIndex={canEdit?0:-1} title={value} onClick={()=>{if(canEdit&&expanded)startEdit();else setExpanded(!expanded)}} onFocus={startEdit} style={{fontSize:11,color:T.dim,fontStyle:"italic",padding:"4px 0",cursor:"pointer",overflow:expanded?"visible":"hidden",textOverflow:expanded?"unset":"ellipsis",whiteSpace:expanded?"normal":"nowrap",lineHeight:expanded?1.5:undefined,background:expanded?T.surface:"transparent",borderRadius:expanded?T.rS:0,padding:expanded?"6px 8px":"4px 0",margin:expanded?"-2px -8px":"0",transition:"all .15s",outline:"none"}}>{value}</div>;
+  if(canEdit)return<button tabIndex={0} onClick={startEdit} onFocus={startEdit} style={{fontSize:10,color:T.dim,opacity:.4,background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontFamily:T.sans,fontStyle:"italic"}}>Add description...</button>;
   return<div style={{padding:"4px 0",fontSize:10,color:T.dim,opacity:.2}}>{"\u2014"}</div>;
 }
 
@@ -67,7 +79,7 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
       </div>
       {items.map((it,idx)=><div key={it.id} draggable={!!onReorder} onDragStart={e=>{setDragItem(idx);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverItem(idx)}} onDrop={e=>{e.preventDefault();if(dragItem!==null&&dragItem!==idx&&onReorder)onReorder(dragItem,idx);setDragItem(null);setOverItem(null)}} onDragEnd={()=>{setDragItem(null);setOverItem(null)}} style={{display:"grid",gridTemplateColumns:cols,alignItems:"center",padding:"9px 18px",borderBottom:idx<items.length-1?`1px solid ${T.border}`:"none",transition:"background .12s",opacity:dragItem===idx?.5:1,borderTop:overItem===idx&&dragItem!==null?`2px solid ${ac}`:"none"}}
         onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,color:T.cream}}>{it.name}</span>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>{canEdit?<EditableName value={it.name} onChange={v=>onUp(idx,{name:v})}/>:<span style={{fontSize:13,color:T.cream}}>{it.name}</span>}
           {canEdit&&!isAg&&(()=>{const isQxr=it.qxr||(it.qty>0&&it.rate>0);return<button title={isQxr?"Switch to fixed price":"Switch to qty × rate"} onClick={()=>{if(isQxr){onUp(idx,{qxr:false,qty:0,rate:0,unit:""})}else{onUp(idx,{qxr:true,qty:1,rate:it.actualCost||0,unit:"day"})}}} style={{background:isQxr?`${T.cyan}18`:"none",border:`1px solid ${isQxr?`${T.cyan}40`:"transparent"}`,borderRadius:4,cursor:"pointer",opacity:isQxr?1:.25,padding:"1px 5px",transition:"all .15s",fontSize:9,fontWeight:600,color:isQxr?T.cyan:T.dim,fontFamily:T.mono,letterSpacing:".03em"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=isQxr?1:.25}>Q×R</button>})()}
           {canEdit&&<button title="Delete item" onClick={()=>onRm(idx)} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}</div>
         {isAg?<><NI value={it.days||0} fmt="" onChange={v=>onUp(idx,{days:v,actualCost:v*(it.dayRate||0)})} disabled={!canEdit}/><NI value={it.dayRate||0} onChange={v=>onUp(idx,{dayRate:v,actualCost:(it.days||0)*v})} disabled={!canEdit}/></>
