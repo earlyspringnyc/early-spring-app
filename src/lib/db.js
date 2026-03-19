@@ -302,11 +302,11 @@ export async function uploadFile(orgId, projectId, file) {
   if (!isSupabaseConfigured()) return null;
   const path = `${orgId}/${projectId}/${Date.now()}_${file.name}`;
   const { data, error } = await supabase.storage
-    .from('Files')
+    .from('files')
     .upload(path, file);
   if (error) throw error;
   const { data: urlData } = supabase.storage
-    .from('Files')
+    .from('files')
     .getPublicUrl(path);
   return urlData?.publicUrl || null;
 }
@@ -327,7 +327,7 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
 
     const path = `${orgId}/${projectId}/${fileId}_${fileName}`;
     const { error } = await supabase.storage
-      .from('Files')
+      .from('files')
       .upload(path, blob, { upsert: true, contentType: mime });
     if (error) { console.error('[storage] Upload failed:', error.message); return null; }
 
@@ -344,7 +344,7 @@ export async function downloadFileData(storagePath) {
   if (!isSupabaseConfigured() || !storagePath) return null;
   try {
     const { data, error } = await supabase.storage
-      .from('Files')
+      .from('files')
       .download(storagePath);
     if (error || !data) return null;
     return new Promise(resolve => {
@@ -362,7 +362,7 @@ export async function downloadFileData(storagePath) {
 export async function deleteFile(filePath) {
   if (!isSupabaseConfigured()) return;
   await supabase.storage
-    .from('Files')
+    .from('files')
     .remove([filePath]);
 }
 
