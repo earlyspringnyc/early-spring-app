@@ -85,9 +85,11 @@ export function useProjects(orgId) {
   // One-time migration: upload ALL files to Supabase Storage
   // Checks: in-memory fileData, es_file_* localStorage, es_projects cache
   const migrated = useRef(false);
+  const canStorage = isSupabaseConfigured();
   useEffect(() => {
-    if (!loaded || !usesDb || migrated.current || !projects.length) return;
+    if (!loaded || !canStorage || migrated.current || !projects.length) return;
     migrated.current = true;
+    const effectiveOrgId = orgId && orgId !== 'local' ? orgId : 'default';
 
     // Also load the full es_projects cache which may have unstripped file data
     let cachedProjects = [];
@@ -123,7 +125,7 @@ export function useProjects(orgId) {
             if (!data || data.length <= 100) continue; // skip empty/tiny
 
             console.log('[migrate] Uploading:', item.name || item.fileName, `(${Math.round(data.length/1024)}KB)`);
-            const result = await db.uploadFileData(orgId, p.id, item.id, item.fileName || item.name || 'file', data);
+            const result = await db.uploadFileData(effectiveOrgId, p.id, item.id, item.fileName || item.name || 'file', data);
             if (result) {
               items[ii] = { ...item, storagePath: result.storagePath, _hasLocalFile: false, fileData: null };
               projectChanged = true;
@@ -154,7 +156,7 @@ export function useProjects(orgId) {
       }
     };
     migrateFiles().catch(e => console.error('[migrate] Migration failed:', e));
-  }, [loaded, usesDb, projects, orgId]);
+  }, [loaded, canStorage, projects, orgId]);
 
   // Upload file data to Supabase Storage, return item with storagePath
   const uploadFileToStorage = async (item, projectId) => {
