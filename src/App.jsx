@@ -225,13 +225,21 @@ function App(){
   const[undoStack,setUndoStack]=useState([]);
   const[toasts,setToasts]=useState([]);
   const[showDriveOnboarding,setShowDriveOnboarding]=useState(false);
-  // Show Drive onboarding for first-time users who haven't set up Drive
+  // Show Drive onboarding only if: user is logged in, has projects loaded,
+  // no project has driveFolders set, and localStorage doesn't have drive location
   useEffect(()=>{
     if(!user||!accessToken||!loaded)return;
+    // If any project already has Drive set up, user has done this before
+    const anyProjectHasDrive=projects.some(p=>p.driveFolders);
+    if(anyProjectHasDrive){
+      // Sync the drive location to localStorage for this device
+      const driveLoc=projects.find(p=>p.driveFolders)?.driveLocation;
+      if(driveLoc){try{localStorage.setItem("es_drive_location",JSON.stringify(driveLoc))}catch(e){}}
+      return;
+    }
     const hasDriveLoc=(()=>{try{return!!localStorage.getItem("es_drive_location")}catch(e){return false}})();
-    const dismissed=(()=>{try{return!!localStorage.getItem("es_drive_onboarding_dismissed")}catch(e){return false}})();
-    if(!hasDriveLoc&&!dismissed)setShowDriveOnboarding(true);
-  },[user,accessToken,loaded]);
+    if(!hasDriveLoc)setShowDriveOnboarding(true);
+  },[user,accessToken,loaded,projects]);
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
 
@@ -321,7 +329,7 @@ function App(){
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
-  return<>{showDriveOnboarding&&<DriveOnboarding accessToken={accessToken} onComplete={(driveId,driveName)=>{setShowDriveOnboarding(false)}} onSkip={()=>{setShowDriveOnboarding(false);try{localStorage.setItem("es_drive_onboarding_dismissed","1")}catch(e){}}}/>}<PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<>{showDriveOnboarding&&<DriveOnboarding accessToken={accessToken} onComplete={(driveId,driveName)=>{setShowDriveOnboarding(false)}} onSkip={()=>{setShowDriveOnboarding(false);try{localStorage.setItem("es_drive_location",JSON.stringify({driveId:null,driveName:"Skipped"}))}catch(e){}}}/>}<PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
