@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
-import { ci, ct } from '../utils/calc.js';
+import { ci, ct, calcProject } from '../utils/calc.js';
 import { STATUS_LABELS, CLIENT_FILE_CATS, CLIENT_FILE_LABELS, CLIENT_FILE_COLORS } from '../constants/index.js';
 import { mkClientFile } from '../data/factories.js';
 import { PlusI, DlI, TrashI } from '../components/icons/index.js';
@@ -132,13 +132,15 @@ function FileViewerModal({file,onClose}){
   </div>;
 }
 
-function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
+function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
   const[activeView,setActiveView]=useState(null); // null=grid, "budget"|"timeline"|"files"
   const tasks=project.timeline||[];
   const clientFiles=project.clientFiles||[];
   const[included,setIncluded]=useState(()=>new Set(tasks.map(t=>t.id)));
   const[tlFormat,setTlFormat]=useState("both");
   const[emailTo,setEmailTo]=useState("");const[emailSending,setEmailSending]=useState(false);const[emailSent,setEmailSent]=useState("");
+  const[emailMsg,setEmailMsg]=useState("");
+  const[selectedBudgetId,setSelectedBudgetId]=useState(null); // null = primary
   const[fileFilter,setFileFilter]=useState("all");
   const[fileSearch,setFileSearch]=useState("");
   const[viewingFile,setViewingFile]=useState(null);
@@ -225,19 +227,34 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
 
   const doSendEmail=async(subject,bodyFn)=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=await bodyFn();await gmailSend(accessToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
 
-  const sendBudget=()=>doSendEmail(`Production Estimate: ${project.name||""}`,async()=>{const{budgetEmailHtml}=await import('../utils/emailTemplates.js');return budgetEmailHtml(project,cats,ag,comp,feeP)});
-  const sendTimeline=()=>doSendEmail(`Production Schedule: ${project.name||""}`,async()=>{const{timelineEmailHtml}=await import('../utils/emailTemplates.js');return timelineEmailHtml(project,clientTasks)});
+  const getSelectedBudgetData=()=>{
+    if(!selectedBudgetId)return{cats,ag,comp,feeP};
+    const alt=(budgets||[]).find(b=>b.id===selectedBudgetId);
+    if(!alt)return{cats,ag,comp,feeP};
+    const altComp=calcProject({...project,cats:alt.cats,ag:alt.ag,feeP:alt.feeP});
+    return{cats:alt.cats,ag:alt.ag,comp:altComp,feeP:alt.feeP};
+  };
+  const sendBudget=()=>{const bd=getSelectedBudgetData();const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";doSendEmail(`Production Estimate${label?` (${label})`:""}: ${project.name||""}`,async()=>{const{budgetEmailHtml}=await import('../utils/emailTemplates.js');return budgetEmailHtml(project,bd.cats,bd.ag,bd.comp,bd.feeP,emailMsg)})};
+  const sendTimeline=()=>doSendEmail(`Production Schedule: ${project.name||""}`,async()=>{const{timelineEmailHtml}=await import('../utils/emailTemplates.js');return timelineEmailHtml(project,clientTasks,emailMsg)});
 
   const getOrgInfo=()=>{let orgN="Early Spring LLC",orgA="",orgW="earlyspring.nyc";try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgN=o.name;if(o.address)orgA=o.address;if(o.website)orgW=o.website}catch(e){}return{orgN,orgA,orgW}};
   const OrgLogo=({color="#475569"})=>{try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.logo)return<img src={o.logo} alt={o.name||"Logo"} style={{height:16,objectFit:"contain"}}/>;if(o.name)return<span style={{fontSize:10,fontWeight:700,color,letterSpacing:".14em",textTransform:"uppercase"}}>{o.name}</span>}catch(e){}return<ESWordmark height={16} color={color}/>};
   const OrgFooter=()=>{const{orgN,orgA,orgW}=getOrgInfo();const w=orgW.replace(/^https?:\/\//,'');return<div style={{textAlign:"center",marginTop:36,paddingTop:18,borderTop:"1px solid #EEE"}}><div style={{fontSize:10,color:"#BBB"}}>Sent from <a href="https://early-spring-app.vercel.app" style={{color:"#999",textDecoration:"none"}}>Morgan</a> @ <a href={orgW.startsWith("http")?orgW:`https://${w}`} style={{color:"#999",textDecoration:"none"}}>{orgN}</a></div>{orgA&&<div style={{fontSize:9,color:"#CCC",marginTop:4}}>{orgA}</div>}</div>};
 
   /* Share bar component */
-  const ShareBar=({onSend})=><div style={{display:"flex",gap:8,alignItems:"center",padding:"12px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:16}}>
-    <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase().replace(/\s/g,"")}@email.com`} onKeyDown={e=>e.key==="Enter"&&onSend()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-    <button onClick={onSend} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending...":"Send"}</button>
-    <button onClick={()=>window.print()} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
-    {emailSent&&<span style={{fontSize:10,color:T.pos}}>Sent</span>}
+  const ShareBar=({onSend,showBudgetPicker})=><div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:16}}>
+    {showBudgetPicker&&(budgets||[]).length>0&&<div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",alignSelf:"center",marginRight:4}}>Budget:</span>
+      <button onClick={()=>setSelectedBudgetId(null)} style={{padding:"4px 10px",borderRadius:14,border:"none",fontSize:10,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
+      {(budgets||[]).map(b=><button key={b.id} onClick={()=>setSelectedBudgetId(b.id)} style={{padding:"4px 10px",borderRadius:14,border:"none",fontSize:10,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
+    </div>}
+    <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{width:"100%",padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical",marginBottom:10}}/>
+    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+      <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase().replace(/\s/g,"")}@email.com`} onKeyDown={e=>e.key==="Enter"&&onSend()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+      <button onClick={onSend} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending...":"Send"}</button>
+      <button onClick={()=>window.print()} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
+      {emailSent&&<span style={{fontSize:10,color:T.pos}}>Sent</span>}
+    </div>
   </div>;
 
   /* Back button */
@@ -284,7 +301,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      {/* ── Estimate ── */}
+      {/* ── Estimate(s) ── */}
       <div onClick={()=>setActiveView("budget")} style={cardStyle("#F59E0B")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
         <div style={{padding:"24px 26px"}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Production Estimate</div>
@@ -298,6 +315,12 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
             <span style={{color:T.cream,fontFamily:T.mono,flexShrink:0,marginLeft:8}}>{f0(t.clientPrice)}</span>
           </div>})}
           {cats.length>4&&<div style={{fontSize:10,color:T.dim,paddingTop:4}}>+{cats.length-4} more</div>}
+          {(budgets||[]).length>0&&<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
+            {(budgets||[]).map(b=>{const bc=calcProject({...project,cats:b.cats,ag:b.ag,feeP:b.feeP});return<div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0"}}>
+              <span style={{fontSize:11,color:T.dim}}>{b.name}</span>
+              <span className="num" style={{fontSize:13,fontWeight:600,color:T.gold,fontFamily:T.mono}}>{f0(bc.grandTotal)}</span>
+            </div>})}
+          </div>}
         </div>
       </div>
 
@@ -464,7 +487,12 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
             {/* Email section */}
             <div style={{padding:"14px 16px"}}>
               <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Send via email</div>
-              <div style={{position:"relative",marginBottom:12}}>
+              {(budgets||[]).length>0&&<div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+                <span style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",alignSelf:"center",marginRight:2}}>Budget:</span>
+                <button onClick={()=>setSelectedBudgetId(null)} style={{padding:"3px 8px",borderRadius:12,border:"none",fontSize:9,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
+                {(budgets||[]).map(b=><button key={b.id} onClick={()=>setSelectedBudgetId(b.id)} style={{padding:"3px 8px",borderRadius:12,border:"none",fontSize:9,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
+              </div>}
+              <div style={{position:"relative",marginBottom:8}}>
                 <input value={emailTo} onChange={e=>searchEmailContacts(e.target.value)} onFocus={()=>{if(contactSugs.length)setShowContactSugs(true)}} onBlur={()=>setTimeout(()=>setShowContactSugs(false),200)} placeholder="Start typing a name or email..." style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
                 {showContactSugs&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:140,overflow:"auto"}}>
                   {contactSugs.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickContact(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -472,8 +500,9 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
                   </button>)}
                 </div>}
               </div>
+              <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{width:"100%",padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",resize:"vertical",marginBottom:10}}/>
               <div style={{display:"flex",flex:"column",gap:6}}>
-                <button onClick={()=>{sendBudget();setShowShareMenu(false)}} disabled={!emailTo.trim()||emailSending} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:emailTo.trim()?T.surfHov:"transparent",color:emailTo.trim()?T.cream:T.dim,fontSize:11,fontWeight:500,cursor:emailTo.trim()?"pointer":"default",fontFamily:T.sans,textAlign:"center"}}>Send as Email</button>
+                <button onClick={()=>{sendBudget();setShowShareMenu(false)}} disabled={!emailTo.trim()||emailSending} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:emailTo.trim()?T.surfHov:"transparent",color:emailTo.trim()?T.cream:T.dim,fontSize:11,fontWeight:500,cursor:emailTo.trim()?"pointer":"default",fontFamily:T.sans,textAlign:"center"}}>{emailSending?"Sending...":"Send as Email"}</button>
                 <button onClick={()=>{window.print();setShowShareMenu(false)}} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>Send as PDF</button>
               </div>
               {emailSent&&<div style={{marginTop:8,fontSize:10,color:T.pos}}>Sent to {emailSent}</div>}

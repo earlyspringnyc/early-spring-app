@@ -13,6 +13,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
   const[emailTo,setEmailTo]=useState("");
   const[emailSending,setEmailSending]=useState(false);
   const[emailSent,setEmailSent]=useState(false);
+  const[emailMsg,setEmailMsg]=useState("");
   const[editingAddress,setEditingAddress]=useState(false);
 
   const sorted=[...entries].sort((a,b)=>a.time.localeCompare(b.time));
@@ -31,7 +32,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
   };
 
   // Build email HTML
-  const buildEmailHtml=()=>{
+  const buildEmailHtml=(message)=>{
     let orgName="Early Spring LLC";
     try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name}catch(e){}
 
@@ -86,6 +87,8 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       ${venueAddress?`<div style="font-size:13px;color:#555;margin-top:4px;line-height:1.5">${venueAddress.replace(/\n/g,"<br>")}</div>`:""}
     </div>`:""}
 
+    ${message?`<div style="margin-bottom:24px;padding:16px 20px;background:#FFF8E1;border-radius:8px;border-left:3px solid #B8860B"><div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div>`:""}
+
     <table style="width:100%;border-collapse:collapse;margin-bottom:32px">
       <tr style="border-bottom:2px solid #EEE">
         <th style="text-align:left;padding:8px 0;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.06em">Start</th>
@@ -126,7 +129,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
     setEmailSending(true);
     try{
       const{sendEmail}=await import('../utils/google.js');
-      await sendEmail(accessToken,emailTo.trim(),`Run of Show: ${project.name||""}`,buildEmailHtml());
+      await sendEmail(accessToken,emailTo.trim(),`Run of Show: ${project.name||""}`,buildEmailHtml(emailMsg));
       setEmailSent(true);setEmailTo("");setTimeout(()=>setEmailSent(false),3000);
     }catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}
     setEmailSending(false);
@@ -147,6 +150,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
     {showShare&&<Card style={{padding:20,marginBottom:16}}>
       <div style={{fontSize:10,fontWeight:700,color:T.cyan,textTransform:"uppercase",letterSpacing:".06em",marginBottom:12}}>Share Run of Show</div>
       <p style={{fontSize:11,color:T.dim,marginBottom:12}}>Sends the full ROS with venue address, vendor contacts, and production team info.</p>
+      <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{...inputStyle,resize:"vertical",marginBottom:10}}/>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" onKeyDown={e=>e.key==="Enter"&&sendROS()} style={{flex:1,...inputStyle}}/>
         <button onClick={sendROS} disabled={!emailTo.trim()||emailSending||!accessToken} style={{padding:"10px 20px",borderRadius:T.rS,background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",border:"none",fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>{emailSending?"Sending...":"Send"}</button>

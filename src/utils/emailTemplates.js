@@ -1,7 +1,7 @@
 import { f$, fp } from './format.js';
 import { ci, ct } from './calc.js';
 
-export function budgetEmailHtml(project, cats, ag, comp, feeP) {
+export function budgetEmailHtml(project, cats, ag, comp, feeP, message) {
   let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
   try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
   const catRows = cats.map(c => {
@@ -35,6 +35,8 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
       </td>
     </tr></table>
 
+    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div>`:''}
+
     <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
       <thead><tr style="border-bottom:2px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Item</th><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Description</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Cost</th></tr></thead>
       <tbody>
@@ -65,7 +67,7 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP) {
 </div></body></html>`;
 }
 
-export function timelineEmailHtml(project, tasks) {
+export function timelineEmailHtml(project, tasks, message) {
   let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
   try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
   const dated = tasks.filter(t => t.startDate).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
@@ -95,6 +97,8 @@ export function timelineEmailHtml(project, tasks) {
         ${project.eventDate ? `<div><strong style="color:#555">Event:</strong> ${project.eventDate}</div>` : ''}
       </td>
     </tr></table>
+
+    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div>`:''}
 
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="border-bottom:2px solid #E5E5E5">
