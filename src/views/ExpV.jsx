@@ -112,7 +112,26 @@ function FileViewerModal({file,onClose}){
     render();
   },[pdf,page]);
 
-  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"#000",display:"flex",flexDirection:"column",height:"100vh",width:"100vw"}}>
+  // Scroll through pages with mouse wheel
+  const onWheel=useCallback(e=>{
+    if(!pdf||total<=1)return;
+    e.preventDefault();
+    if(e.deltaY>0)setPage(p=>Math.min(total-1,p+1));
+    else if(e.deltaY<0)setPage(p=>Math.max(0,p-1));
+  },[pdf,total]);
+
+  // Arrow keys for page navigation
+  useEffect(()=>{
+    if(!pdf||total<=1)return;
+    const onKey=e=>{
+      if(e.key==="ArrowRight"||e.key==="ArrowDown")setPage(p=>Math.min(total-1,p+1));
+      if(e.key==="ArrowLeft"||e.key==="ArrowUp")setPage(p=>Math.max(0,p-1));
+    };
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[pdf,total]);
+
+  return<div onClick={onClose} onWheel={onWheel} style={{position:"fixed",inset:0,zIndex:9999,background:"#000",display:"flex",flexDirection:"column",height:"100vh",width:"100vw"}}>
     {/* Header — compact */}
     <div onClick={e=>e.stopPropagation()} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",flexShrink:0,height:40,background:"rgba(255,255,255,.05)"}}>
       <div style={{fontSize:13,fontWeight:600,color:T.cream}}>{file.name}</div>
