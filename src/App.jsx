@@ -60,7 +60,111 @@ function DriveOnboarding({accessToken,onComplete,onSkip}){
   </div>;
 }
 
+/* ── Legal Pages ── */
+function LegalPage({title,children}){
+  return<div style={{minHeight:"100vh",background:T.bg,color:T.cream,fontFamily:T.sans}}>
+    <div style={{maxWidth:700,margin:"0 auto",padding:"60px 24px 80px"}}>
+      <a href="/" style={{fontSize:10,color:T.dim,textDecoration:"none",display:"block",marginBottom:24}}>&larr; Back to Morgan</a>
+      <h1 style={{fontSize:28,fontWeight:700,letterSpacing:"-0.02em",marginBottom:8}}>{title}</h1>
+      <p style={{fontSize:12,color:T.dim,marginBottom:40}}>Last updated: March 19, 2026</p>
+      <div style={{fontSize:14,color:T.dimH,lineHeight:1.8}}>{children}</div>
+    </div>
+  </div>;
+}
+const H2=({children})=><h2 style={{fontSize:18,fontWeight:600,color:T.cream,marginTop:36,marginBottom:12}}>{children}</h2>;
+const P=({children})=><p style={{marginBottom:16}}>{children}</p>;
+const UL=({children})=><ul style={{paddingLeft:24,marginBottom:16}}>{children}</ul>;
+const LI=({children})=><li style={{marginBottom:6}}>{children}</li>;
+
+function PrivacyPage(){
+  return<LegalPage title="Privacy Policy">
+    <P>Morgan ("we", "us", "the app") is a production management tool built by Early Spring LLC. This policy explains what data we collect, how we use it, and your rights.</P>
+
+    <H2>What We Collect</H2>
+    <UL>
+      <LI><strong style={{color:T.cream}}>Account information:</strong> Your Google account name, email address, and profile photo — used to sign you in and identify you within your team.</LI>
+      <LI><strong style={{color:T.cream}}>Project data:</strong> Budgets, timelines, vendor information, client contacts, files, and other content you create in the app.</LI>
+    </UL>
+
+    <H2>How We Use Your Google Access</H2>
+    <P>Morgan requests access to specific Google services. Here is exactly what we do with each:</P>
+    <UL>
+      <LI><strong style={{color:T.cream}}>Gmail:</strong> Only sends emails you explicitly compose and click "Send" on. We never read your inbox or send anything without your action.</LI>
+      <LI><strong style={{color:T.cream}}>Google Drive:</strong> Creates and organizes project folders and files you upload. Only touches folders Morgan created (the "Morgan" folder). Never reads or modifies your other Drive files.</LI>
+      <LI><strong style={{color:T.cream}}>Google Calendar:</strong> Creates calendar events you add from the app. Reads your upcoming events to display them in the timeline. Never modifies or deletes events it didn't create.</LI>
+      <LI><strong style={{color:T.cream}}>Google Contacts:</strong> Searches your contacts to autocomplete email addresses when you're composing. Read-only — never adds, edits, or deletes contacts.</LI>
+    </UL>
+
+    <H2>Where Your Data Is Stored</H2>
+    <UL>
+      <LI>Project data is stored in a secure Supabase database and your browser's local storage.</LI>
+      <LI>Files you upload are stored in your own Google Drive (in the Morgan folder you set up).</LI>
+      <LI>No data is sold, shared with third parties, or used for advertising.</LI>
+    </UL>
+
+    <H2>What We Don't Do</H2>
+    <UL>
+      <LI>We don't track you across other websites.</LI>
+      <LI>We don't use cookies for advertising or analytics.</LI>
+      <LI>We don't share your data with anyone outside your team.</LI>
+      <LI>We don't train AI models on your project data — the AI assistant processes your data in real-time and does not retain it after the conversation.</LI>
+    </UL>
+
+    <H2>Data Deletion</H2>
+    <UL>
+      <LI>Delete a project in the app and it is removed from the database.</LI>
+      <LI>Delete your account and all associated data is removed.</LI>
+      <LI>Your Google Drive files remain yours — Morgan does not delete them when you leave.</LI>
+    </UL>
+
+    <H2>Contact</H2>
+    <P>Questions about privacy? Contact us at <a href="mailto:hello@earlyspring.nyc" style={{color:T.cyan}}>hello@earlyspring.nyc</a></P>
+  </LegalPage>;
+}
+
+function TermsPage(){
+  return<LegalPage title="Terms of Service">
+    <P>By using Morgan ("the app"), you agree to these terms. Morgan is provided by Early Spring LLC.</P>
+
+    <H2>What Morgan Is</H2>
+    <P>Morgan is a production management tool for event and experiential producers. It helps manage budgets, timelines, vendors, client deliverables, and creative assets.</P>
+
+    <H2>Your Account</H2>
+    <UL>
+      <LI>You sign in with your Google account. You are responsible for maintaining the security of your account.</LI>
+      <LI>You must provide accurate information when creating projects and sharing with clients.</LI>
+    </UL>
+
+    <H2>Your Data</H2>
+    <UL>
+      <LI>You own all content you create in Morgan — budgets, documents, files, and project data.</LI>
+      <LI>We do not claim any ownership or license over your content beyond what's needed to operate the service.</LI>
+      <LI>You can export or delete your data at any time.</LI>
+    </UL>
+
+    <H2>Acceptable Use</H2>
+    <P>Don't use Morgan to store or transmit illegal content, malware, or content that infringes on others' rights.</P>
+
+    <H2>Service Availability</H2>
+    <P>We aim to keep Morgan available at all times but cannot guarantee 100% uptime. We may perform maintenance that temporarily affects availability.</P>
+
+    <H2>Limitation of Liability</H2>
+    <P>Morgan is provided "as is." Early Spring LLC is not liable for any indirect, incidental, or consequential damages arising from your use of the app. Our total liability is limited to the amount you paid for the service in the 12 months preceding the claim.</P>
+
+    <H2>Changes</H2>
+    <P>We may update these terms. Continued use of Morgan after changes constitutes acceptance.</P>
+
+    <H2>Contact</H2>
+    <P>Questions? Reach us at <a href="mailto:hello@earlyspring.nyc" style={{color:T.cyan}}>hello@earlyspring.nyc</a></P>
+  </LegalPage>;
+}
+
 function App(){
+  // Check for legal pages
+  const path=window.location.pathname;
+  if(path==="/privacy")return<PrivacyPage/>;
+  if(path==="/terms")return<TermsPage/>;
+
   // Check for share link
   const shareToken=new URLSearchParams(window.location.search).get("share");
   if(shareToken)return<SharedClientView token={shareToken}/>;

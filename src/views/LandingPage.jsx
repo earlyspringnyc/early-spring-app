@@ -410,6 +410,10 @@ function LandingPage({onGetStarted}){
         <MorganIsotype size={16} color={T.dim}/>
         <ESWordmark height={10} color={T.dim}/>
       </div>
+      <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:8}}>
+        <a href="/privacy" style={{fontSize:10,color:'rgba(255,255,255,.25)',textDecoration:'none'}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,.25)'}>Privacy Policy</a>
+        <a href="/terms" style={{fontSize:10,color:'rgba(255,255,255,.25)',textDecoration:'none'}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,.25)'}>Terms of Service</a>
+      </div>
       <p style={{fontSize:10,color:'rgba(255,255,255,.2)'}}>© 2026 Early Spring LLC. All rights reserved.</p>
     </footer>
 
