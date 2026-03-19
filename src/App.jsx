@@ -184,7 +184,7 @@ function MigratePage(){
         const res=await fetch(supabaseUrl+"/rest/v1/projects",{
           method:"POST",
           headers:{"Content-Type":"application/json","Authorization":"Bearer "+token,"apikey":import.meta.env.VITE_SUPABASE_ANON_KEY,"Prefer":"return=representation"},
-          body:JSON.stringify({org_id:orgId,data:clean})
+          body:JSON.stringify({org_id:orgId,name:clean.name||"Untitled",data:clean})
         });
         if(res.ok){log("SUCCESS: "+p.name)}
         else{const err=await res.text();log("FAILED: "+p.name+" — "+err)}
