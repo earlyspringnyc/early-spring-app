@@ -198,19 +198,20 @@ function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
       }}
     >
       {/* Isotype + Wordmark */}
-      <div style={{marginBottom:28}}>
-        <div style={{display:'flex',justifyContent:'center',marginBottom:14}}>
-          <MorganIsotype size={44} color={T.gold}/>
+      <div style={{marginBottom:32}}>
+        <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
+          <MorganIsotype size={48} color={T.gold}/>
         </div>
-        <MorganWordmark height={22} color={T.cream}/>
+        <MorganWordmark height={24} color={T.cream}/>
+        <div style={{fontSize:11,color:T.dim,marginTop:8,letterSpacing:'.06em'}}>by Early Spring</div>
       </div>
 
       {/* Tagline */}
-      <h1 style={{fontSize:20,fontWeight:700,color:T.cream,letterSpacing:'-0.03em',marginBottom:6,lineHeight:1.3}}>
-        Let's make something happen.
+      <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:'-0.03em',marginBottom:8,lineHeight:1.3}}>
+        Brief to build. One tool.
       </h1>
-      <p style={{fontSize:12,color:T.dim,marginBottom:36,lineHeight:1.5}}>
-        Production management for people who create experiences.
+      <p style={{fontSize:13,color:T.dim,marginBottom:36,lineHeight:1.6}}>
+        Budgets, production, creative, and finance — all in one place.
       </p>
 
       {/* Auth */}
