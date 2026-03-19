@@ -181,9 +181,23 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
     files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{
       const cat=autoCategory(file.name);
       newFiles.push(mkClientFile(file.name.replace(/\.[^/.]+$/,""),cat,ev.target.result,file.name));
-      processed++;if(processed===files.length)updateProject({clientFiles:[...clientFiles,...newFiles]});
+      processed++;if(processed===files.length){
+        updateProject({clientFiles:[...clientFiles,...newFiles]});
+        // Background upload to Google Drive
+        if(accessToken&&project.driveFolders){
+          import('../utils/drive.js').then(({uploadToDrive})=>{
+            newFiles.forEach(async(f)=>{
+              if(!f.fileData)return;
+              const result=await uploadToDrive(accessToken,f.fileData,f.fileName,project.driveFolders,null,"client");
+              if(result){
+                updateProject({clientFiles:(project.clientFiles||[]).concat(newFiles).map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+              }
+            });
+          });
+        }
+      }
     };reader.readAsDataURL(file)});
-  },[clientFiles,updateProject]);
+  },[clientFiles,updateProject,accessToken,project.driveFolders]);
 
   const searchEmailContacts=async(val)=>{
     setEmailTo(val);
@@ -223,7 +237,20 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
     files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{
       const cat=autoCategory(file.name);
       newFiles.push(mkClientFile(file.name.replace(/\.[^/.]+$/,""),cat,ev.target.result,file.name));
-      processed++;if(processed===files.length)updateProject({clientFiles:[...clientFiles,...newFiles]});
+      processed++;if(processed===files.length){
+        updateProject({clientFiles:[...clientFiles,...newFiles]});
+        if(accessToken&&project.driveFolders){
+          import('../utils/drive.js').then(({uploadToDrive})=>{
+            newFiles.forEach(async(f)=>{
+              if(!f.fileData)return;
+              const result=await uploadToDrive(accessToken,f.fileData,f.fileName,project.driveFolders,null,"client");
+              if(result){
+                updateProject({clientFiles:(project.clientFiles||[]).concat(newFiles).map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+              }
+            });
+          });
+        }
+      }
     };reader.readAsDataURL(file)});
     e.target.value="";
   };

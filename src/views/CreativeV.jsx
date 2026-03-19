@@ -98,7 +98,7 @@ const getFileType=(file)=>{
   return"other";
 };
 
-function CreativeV({project,updateProject,canEdit}){
+function CreativeV({project,updateProject,canEdit,accessToken}){
   const assets=project.creativeAssets||[];
   const[activeSection,setActiveSection]=useState(null);
   const[dragging,setDragging]=useState(false);
@@ -136,11 +136,25 @@ function CreativeV({project,updateProject,canEdit}){
           dateAdded:new Date().toLocaleDateString(),
           versions:[{id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()}],
         });
-        if(newAssets.length===files.length)updateProject({creativeAssets:[...assets,...newAssets]});
+        if(newAssets.length===files.length){
+          updateProject({creativeAssets:[...assets,...newAssets]});
+          // Background upload to Google Drive
+          if(accessToken&&project.driveFolders){
+            import('../utils/drive.js').then(({uploadToDrive})=>{
+              newAssets.forEach(async(a)=>{
+                if(!a.fileData)return;
+                const result=await uploadToDrive(accessToken,a.fileData,a.fileName,project.driveFolders,null,"creative");
+                if(result){
+                  updateProject({creativeAssets:(project.creativeAssets||[]).concat(newAssets).map(x=>x.id===a.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+                }
+              });
+            });
+          }
+        }
       };
       reader.readAsDataURL(file);
     });
-  },[assets,updateProject]);
+  },[assets,updateProject,accessToken,project.driveFolders]);
 
   const addLink=(targetSection)=>{
     if(!linkUrl.trim())return;
