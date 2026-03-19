@@ -18,9 +18,10 @@ const C={amber:'#F59E0B',teal:'#14B8A6',purple:'#8B5CF6',coral:'#F47264',cyan:'#
    INTERACTIVE PRODUCT MOCKUPS — hover to see them come alive
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Dashboard Hero — auto-animating cards ── */
+/* ── Dashboard Hero — full app layout with sidebar + animated cards ── */
 function DashboardHero(){
   const[step,setStep]=useState(0);
+  const[activeNav,setActiveNav]=useState(0);
   useEffect(()=>{const t=setInterval(()=>setStep(s=>(s+1)%4),2400);return()=>clearInterval(t)},[]);
   const fmt=n=>'$'+n.toLocaleString();
   const cards=[
@@ -30,19 +31,72 @@ function DashboardHero(){
     [{id:'total',l:'Project Total',v:fmt(392100),c:C.teal},{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'profit',l:'Net Profit',v:fmt(71800),c:C.emerald},{id:'margin',l:'Blended Margin',v:'18.3%',c:C.purple},{id:'vendors',l:'Owed to Vendors',v:fmt(118200),c:C.coral},{id:'tasks',l:'Tasks',v:'16 / 34',c:C.cyan},{id:'countdown',l:'Event Countdown',v:'86 days',c:C.amber},{id:'meetings',l:'Upcoming',v:'2 this week',c:C.cyan}],
   ];
   const cur=cards[step];
-  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:920}}>
-    <div style={{padding:'12px 18px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <div style={{display:'flex',alignItems:'center',gap:10}}>
-        <MorganIsotype size={18} color={C.amber}/>
-        <div><div style={{fontSize:13,fontWeight:600,color:T.cream}}>Neon Drift Summer Activation</div><div style={{fontSize:10,color:T.dim}}>NeonDrift Gaming · Jun 14, 2026</div></div>
+  const navItems=[
+    {icon:'◐',label:'Dashboard',active:true},
+    {icon:'◈',label:'Budget'},
+    {icon:'▤',label:'Production'},
+    {icon:'◆',label:'Vendors'},
+    {icon:'▨',label:'Creative'},
+    {icon:'◉',label:'ES AI'},
+  ];
+  const toolItems=[
+    {icon:'◎',label:'Client: NeonDrift'},
+    {icon:'◇',label:'Finance'},
+    {icon:'▶',label:'Run of Show'},
+  ];
+
+  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:1000,display:'flex',height:420}}>
+    {/* ── Sidebar ── */}
+    <div style={{width:180,borderRight:`1px solid ${T.border}`,display:'flex',flexDirection:'column',flexShrink:0,background:T.bg}}>
+      {/* Logo */}
+      <div style={{padding:'16px 14px',display:'flex',alignItems:'center',gap:8}}>
+        <MorganIsotype size={20} color={T.gold}/>
+        <ESWordmark height={11} color={T.cream}/>
       </div>
-      <div style={{display:'flex',gap:4}}>{['Dashboard','Budget','Timeline','Vendors'].map((t,i)=><span key={t} style={{fontSize:8,padding:'3px 8px',borderRadius:8,background:i===0?T.surfEl:'transparent',color:i===0?T.cream:T.dim,fontWeight:i===0?600:400}}>{t}</span>)}</div>
+      {/* Project name */}
+      <div style={{padding:'0 14px 12px'}}>
+        <div style={{fontSize:10,fontWeight:600,color:T.cream,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Neon Drift Summer</div>
+        <div style={{fontSize:9,color:T.dim,marginTop:1}}>NeonDrift Gaming</div>
+      </div>
+      {/* Main nav */}
+      <nav style={{flex:1,padding:'0 6px',display:'flex',flexDirection:'column',gap:1}}>
+        {navItems.map((n,i)=><div key={n.label} onMouseEnter={()=>setActiveNav(i)} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderRadius:6,background:activeNav===i?T.surfEl:'transparent',color:activeNav===i?T.cream:T.dim,fontSize:11,cursor:'pointer',transition:'all .15s'}}>
+          <span style={{fontSize:13,width:16,textAlign:'center',opacity:activeNav===i?1:.4}}>{n.icon}</span>
+          <span style={{fontWeight:activeNav===i?500:400}}>{n.label}</span>
+        </div>)}
+        {/* Divider */}
+        <div style={{height:1,background:T.border,margin:'6px 8px'}}/>
+        {toolItems.map((n,i)=><div key={n.label} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderRadius:6,color:T.dim,fontSize:11}}>
+          <span style={{fontSize:13,width:16,textAlign:'center',opacity:.4}}>{n.icon}</span>
+          <span>{n.label}</span>
+        </div>)}
+      </nav>
+      {/* Bottom */}
+      <div style={{padding:'8px 6px 12px',borderTop:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderRadius:6,color:T.dim,fontSize:11}}>
+          <span style={{fontSize:13,width:16,textAlign:'center',opacity:.4}}>◎</span>
+          <span>Settings</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderRadius:6,color:T.dim,fontSize:11}}>
+          <span style={{fontSize:13,width:16,textAlign:'center',opacity:.4}}>☀</span>
+          <span>Light</span>
+        </div>
+      </div>
     </div>
-    <div style={{padding:14,display:'grid',gridTemplateColumns:`repeat(${Math.min(cur.length,4)},1fr)`,gap:8,minHeight:200}}>
-      {cur.map((c,i)=><div key={c.id+step} style={{padding:'14px 12px',borderRadius:8,background:`${c.c}08`,border:`1px solid ${c.c}15`,borderLeft:`3px solid ${c.c}`,animation:'cardPop .4s ease-out forwards',animationDelay:`${i*.06}s`,opacity:0}}>
-        <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>{c.l}</div>
-        <div style={{fontSize:18,fontWeight:700,color:c.c,fontFamily:T.mono,lineHeight:1}}>{c.v}</div>
-      </div>)}
+    {/* ── Main content ── */}
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      {/* Header */}
+      <div style={{padding:'16px 20px 12px'}}>
+        <div style={{fontSize:16,fontWeight:600,color:T.cream}}>Dashboard</div>
+        <div style={{fontSize:11,color:T.dim,marginTop:2}}>Neon Drift Summer Activation · Jun 14, 2026</div>
+      </div>
+      {/* Card grid */}
+      <div style={{flex:1,padding:'0 16px 16px',display:'grid',gridTemplateColumns:`repeat(${Math.min(cur.length,4)},1fr)`,gap:8,alignContent:'start'}}>
+        {cur.map((c,i)=><div key={c.id+step} style={{padding:'14px 12px',borderRadius:8,background:`${c.c}08`,border:`1px solid ${c.c}15`,borderLeft:`3px solid ${c.c}`,animation:'cardPop .4s ease-out forwards',animationDelay:`${i*.06}s`,opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>{c.l}</div>
+          <div style={{fontSize:18,fontWeight:700,color:c.c,fontFamily:T.mono,lineHeight:1}}>{c.v}</div>
+        </div>)}
+      </div>
     </div>
     <style>{`@keyframes cardPop{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}`}</style>
   </div>;
