@@ -112,19 +112,26 @@ function BudgetV(p){
   const[renameVal,setRenameVal]=useState("");
   const[showNewBudget,setShowNewBudget]=useState(false);
   const[newBudgetName,setNewBudgetName]=useState("");
+  const[dragBudgetId,setDragBudgetId]=useState(null);
+  const[dropTarget,setDropTarget]=useState(null); // null or "primary"
 
   return<div>
-    {/* ── Budget tabs ── */}
+    {/* ── Budget tabs (drag alternate to Primary to swap) ── */}
     <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:20,borderBottom:`1px solid ${T.border}`,overflow:"auto",WebkitOverflowScrolling:"touch"}}>
-      <button onClick={()=>p.onSwitchBudget(null)} style={{padding:"10px 18px",background:"none",border:"none",borderBottom:isPrimary?`2px solid ${T.gold}`:"2px solid transparent",color:isPrimary?T.cream:T.dim,fontSize:12,fontWeight:isPrimary?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",transition:"all .15s"}} onMouseEnter={e=>{if(!isPrimary)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isPrimary)e.currentTarget.style.color=T.dim}}>
-        Primary Budget
+      <button onClick={()=>p.onSwitchBudget(null)}
+        onDragOver={e=>{if(dragBudgetId){e.preventDefault();setDropTarget("primary")}}}
+        onDragLeave={()=>setDropTarget(null)}
+        onDrop={e=>{e.preventDefault();if(dragBudgetId&&p.onMakePrimary){p.onMakePrimary(dragBudgetId)}setDragBudgetId(null);setDropTarget(null)}}
+        style={{padding:"10px 18px",background:dropTarget==="primary"?T.goldSoft:"none",border:"none",borderBottom:isPrimary?`2px solid ${T.gold}`:dropTarget==="primary"?`2px solid ${T.gold}`:"2px solid transparent",color:isPrimary||dropTarget==="primary"?T.cream:T.dim,fontSize:12,fontWeight:isPrimary?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",transition:"all .15s"}} onMouseEnter={e=>{if(!isPrimary&&!dropTarget)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isPrimary&&!dropTarget)e.currentTarget.style.color=T.dim}}>
+        {dropTarget==="primary"?"Drop to make primary":"Primary Budget"}
       </button>
       {budgets.map(b=>{
         const isActive=activeBudgetId===b.id;
         const isRenaming=renamingId===b.id;
-        return<div key={b.id} style={{display:"flex",alignItems:"center",position:"relative"}}>
+        const isDragging=dragBudgetId===b.id;
+        return<div key={b.id} draggable={canEdit&&!isRenaming} onDragStart={e=>{setDragBudgetId(b.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragBudgetId(null);setDropTarget(null)}} style={{display:"flex",alignItems:"center",position:"relative",opacity:isDragging?.4:1,cursor:canEdit?"grab":"default"}}>
           {isRenaming?<input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)} onBlur={()=>{if(renameVal.trim()&&p.onRenameBudget)p.onRenameBudget(b.id,renameVal.trim());setRenamingId(null)}} onKeyDown={e=>{if(e.key==="Enter"){if(renameVal.trim()&&p.onRenameBudget)p.onRenameBudget(b.id,renameVal.trim());setRenamingId(null)}if(e.key==="Escape")setRenamingId(null)}} style={{padding:"8px 14px",background:"transparent",border:"none",borderBottom:`2px solid ${T.cyan}`,color:T.cream,fontSize:12,fontWeight:600,fontFamily:T.sans,outline:"none",width:140}}/>
-          :<button onClick={()=>p.onSwitchBudget(b.id)} onDoubleClick={()=>{if(canEdit){setRenamingId(b.id);setRenameVal(b.name)}}} style={{padding:"10px 18px",paddingRight:canEdit?32:18,background:"none",border:"none",borderBottom:isActive?`2px solid ${T.gold}`:"2px solid transparent",color:isActive?T.cream:T.dim,fontSize:12,fontWeight:isActive?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",transition:"all .15s"}} onMouseEnter={e=>{if(!isActive)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.color=T.dim}} title="Double-click to rename">
+          :<button onClick={()=>p.onSwitchBudget(b.id)} onDoubleClick={()=>{if(canEdit){setRenamingId(b.id);setRenameVal(b.name)}}} style={{padding:"10px 18px",paddingRight:canEdit?32:18,background:"none",border:"none",borderBottom:isActive?`2px solid ${T.gold}`:"2px solid transparent",color:isActive?T.cream:T.dim,fontSize:12,fontWeight:isActive?600:400,cursor:"inherit",fontFamily:T.sans,whiteSpace:"nowrap",transition:"all .15s"}} onMouseEnter={e=>{if(!isActive)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.color=T.dim}} title="Drag to Primary to promote · Double-click to rename">
             {b.name}
           </button>}
           {canEdit&&isActive&&!isRenaming&&<button onClick={e=>{e.stopPropagation();if(p.onDeleteBudget)p.onDeleteBudget(b.id)}} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.dim,fontSize:14,cursor:"pointer",padding:"2px 4px",lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color=T.neg} onMouseLeave={e=>e.currentTarget.style.color=T.dim} title="Delete budget">×</button>}
