@@ -211,7 +211,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
         Brief to build. One tool.
       </h1>
       <p style={{fontSize:13,color:T.dim,marginBottom:36,lineHeight:1.6}}>
-        Budgets, production, creative, and finance — all in one place.
+        Total project management for<br/>people who build experiences.
       </p>
 
       {/* Auth */}
