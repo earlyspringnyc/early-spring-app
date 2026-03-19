@@ -256,10 +256,10 @@ function LandingPage({onGetStarted}){
           <div>
             <div style={{fontSize:11,fontWeight:700,color:T.gold,textTransform:'uppercase',letterSpacing:'.15em',marginBottom:24,fontFamily:T.sans}}>Production Management</div>
             <h1 style={{fontSize:'clamp(36px,5.5vw,64px)',fontWeight:400,lineHeight:1.05,letterSpacing:'-0.035em',marginBottom:28,color:T.cream,fontFamily:T.serif}}>
-              The production tool<br/>you wish you had<br/>on your last show.
+              Brief to build.<br/>One tool.
             </h1>
             <p style={{fontSize:'clamp(14px,1.2vw,17px)',color:T.dim,lineHeight:1.75,marginBottom:40,maxWidth:460}}>
-              Budgets, timelines, vendors, client deliverables, and an AI that actually understands production. Morgan handles the ops so you can focus on the experience.
+              Budgets, production, creative, and finance — from the pitch deck to the run of show. Built by producers who got tired of stitching it together in spreadsheets.
             </p>
             <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
               <button onClick={onGetStarted} style={{padding:'14px 36px',borderRadius:T.rS,border:`1px solid ${T.borderGlow}`,background:T.goldSoft,color:T.gold,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:T.sans,transition:'all .25s'}} onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 24px rgba(148,163,184,.15)'}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none'}}>Start Free</button>
