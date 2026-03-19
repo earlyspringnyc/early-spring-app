@@ -239,7 +239,7 @@ function LandingPage({onGetStarted}){
     <header style={{maxWidth:1200,margin:'0 auto',padding:'160px clamp(20px,5vw,48px) 120px'}}>
       <Fade>
         <div style={{textAlign:'center',maxWidth:700,margin:'0 auto 80px'}}>
-          <h1 style={{fontSize:'clamp(40px,6vw,72px)',fontWeight:400,lineHeight:1.05,letterSpacing:'-0.04em',fontFamily:T.serif,marginBottom:24}}>
+          <h1 style={{fontSize:'clamp(40px,6vw,72px)',fontWeight:700,lineHeight:1.05,letterSpacing:'-0.04em',fontFamily:T.sans,marginBottom:24}}>
             Brief to build.<br/>One tool.
           </h1>
           <p style={{fontSize:'clamp(15px,1.3vw,18px)',color:T.dim,lineHeight:1.7,maxWidth:520,margin:'0 auto 40px'}}>
@@ -263,7 +263,7 @@ function LandingPage({onGetStarted}){
     <section style={{borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
       <Fade>
         <div style={{maxWidth:900,margin:'0 auto',padding:'80px clamp(20px,5vw,48px)',textAlign:'center'}}>
-          <p style={{fontSize:'clamp(20px,2.5vw,32px)',fontWeight:400,lineHeight:1.5,fontFamily:T.serif,color:T.dimH}}>
+          <p style={{fontSize:'clamp(20px,2.5vw,32px)',fontWeight:500,lineHeight:1.5,fontFamily:T.sans,color:T.dimH}}>
             Spreadsheets don't know what a load-in is.<br/>
             <span style={{color:T.cream}}>Morgan does.</span>
           </p>
@@ -281,7 +281,7 @@ function LandingPage({onGetStarted}){
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'clamp(40px,6vw,100px)',alignItems:'center'}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:C.amber,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:16}}>Budgets & Margins</div>
-            <h2 style={{fontSize:'clamp(26px,3.5vw,44px)',fontWeight:400,lineHeight:1.15,letterSpacing:'-0.03em',fontFamily:T.serif,marginBottom:20}}>
+            <h2 style={{fontSize:'clamp(26px,3.5vw,44px)',fontWeight:700,lineHeight:1.15,letterSpacing:'-0.03em',fontFamily:T.sans,marginBottom:20}}>
               Every line item.<br/>Every margin.<br/>In real time.
             </h2>
             <p style={{fontSize:15,color:T.dim,lineHeight:1.7}}>
@@ -306,7 +306,7 @@ function LandingPage({onGetStarted}){
           </div>
           <div style={{order:0}}>
             <div style={{fontSize:11,fontWeight:700,color:C.teal,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:16}}>Production</div>
-            <h2 style={{fontSize:'clamp(26px,3.5vw,44px)',fontWeight:400,lineHeight:1.15,letterSpacing:'-0.03em',fontFamily:T.serif,marginBottom:20}}>
+            <h2 style={{fontSize:'clamp(26px,3.5vw,44px)',fontWeight:700,lineHeight:1.15,letterSpacing:'-0.03em',fontFamily:T.sans,marginBottom:20}}>
               Calendar. Tasks.<br/>Gantt. All linked.
             </h2>
             <p style={{fontSize:15,color:T.dim,lineHeight:1.7}}>
@@ -325,7 +325,7 @@ function LandingPage({onGetStarted}){
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'clamp(40px,6vw,100px)',alignItems:'center'}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:C.cyan,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:16}}>Morgan AI</div>
-            <h2 style={{fontSize:'clamp(26px,3.5vw,44px)',fontWeight:400,lineHeight:1.15,letterSpacing:'-0.03em',fontFamily:T.serif,marginBottom:20}}>
+            <h2 style={{fontSize:'clamp(26px,3.5vw,44px)',fontWeight:700,lineHeight:1.15,letterSpacing:'-0.03em',fontFamily:T.sans,marginBottom:20}}>
               An AI that doesn't<br/>just talk.
             </h2>
             <p style={{fontSize:15,color:T.dim,lineHeight:1.7}}>
@@ -347,17 +347,17 @@ function LandingPage({onGetStarted}){
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:20}}>
           <div style={{padding:'32px 28px',borderRadius:12,border:`1px solid ${T.border}`,background:'rgba(255,255,255,.015)'}}>
             <div style={{fontSize:11,fontWeight:700,color:C.coral,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:14}}>Client Portal</div>
-            <h3 style={{fontSize:20,fontWeight:400,fontFamily:T.serif,lineHeight:1.3,marginBottom:12}}>Estimates, decks, files. One link.</h3>
+            <h3 style={{fontSize:20,fontWeight:600,fontFamily:T.sans,lineHeight:1.3,marginBottom:12}}>Estimates, decks, files. One link.</h3>
             <p style={{fontSize:13,color:T.dim,lineHeight:1.7}}>Send polished production estimates, timelines, and creative decks. Track client contacts and meeting notes. Share via email with a personal message or a single link.</p>
           </div>
           <div style={{padding:'32px 28px',borderRadius:12,border:`1px solid ${T.border}`,background:'rgba(255,255,255,.015)'}}>
             <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:14}}>Vendors</div>
-            <h3 style={{fontSize:20,fontWeight:400,fontFamily:T.serif,lineHeight:1.3,marginBottom:12}}>Your vendor rolodex, leveled up.</h3>
+            <h3 style={{fontSize:20,fontWeight:600,fontFamily:T.sans,lineHeight:1.3,marginBottom:12}}>Your vendor rolodex, leveled up.</h3>
             <p style={{fontSize:13,color:T.dim,lineHeight:1.7}}>Full profiles with contacts, addresses, and financials. Upload invoices — AI reads the amount and due date. W-9 tracking, payment status, and budget line item linking built in.</p>
           </div>
           <div style={{padding:'32px 28px',borderRadius:12,border:`1px solid ${T.border}`,background:'rgba(255,255,255,.015)'}}>
             <div style={{fontSize:11,fontWeight:700,color:C.emerald,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:14}}>Creative</div>
-            <h3 style={{fontSize:20,fontWeight:400,fontFamily:T.serif,lineHeight:1.3,marginBottom:12}}>Review, comment, approve.</h3>
+            <h3 style={{fontSize:20,fontWeight:600,fontFamily:T.sans,lineHeight:1.3,marginBottom:12}}>Review, comment, approve.</h3>
             <p style={{fontSize:13,color:T.dim,lineHeight:1.7}}>Upload renders, decks, and design files. Page-by-page PDF viewer with commenting. Figma and Canva embeds. Track approval status across rounds and versions.</p>
           </div>
         </div>
@@ -370,7 +370,7 @@ function LandingPage({onGetStarted}){
     <section style={{borderTop:`1px solid ${T.border}`}}>
       <Fade>
         <div style={{maxWidth:700,margin:'0 auto',padding:'100px clamp(20px,5vw,48px)',textAlign:'center'}}>
-          <p style={{fontSize:'clamp(18px,2vw,24px)',fontWeight:400,fontFamily:T.serif,color:T.dimH,lineHeight:1.7,marginBottom:28}}>
+          <p style={{fontSize:'clamp(18px,2vw,24px)',fontWeight:400,fontFamily:T.sans,color:T.dimH,lineHeight:1.7,marginBottom:28}}>
             "We built Morgan because every production tool we tried was either built for software teams or built for weddings. Neither works when you're producing a brand activation with a $300K budget and 15 vendors."
           </p>
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
@@ -387,7 +387,7 @@ function LandingPage({onGetStarted}){
     <section style={{borderTop:`1px solid ${T.border}`}}>
       <Fade>
         <div style={{maxWidth:600,margin:'0 auto',padding:'120px clamp(20px,5vw,48px)',textAlign:'center'}}>
-          <h2 style={{fontSize:'clamp(28px,4vw,48px)',fontWeight:400,fontFamily:T.serif,letterSpacing:'-0.03em',marginBottom:20}}>Your next show starts here.</h2>
+          <h2 style={{fontSize:'clamp(28px,4vw,48px)',fontWeight:700,fontFamily:T.sans,letterSpacing:'-0.03em',marginBottom:20}}>Your next show starts here.</h2>
           <p style={{fontSize:15,color:T.dim,marginBottom:36}}>Free to start. No credit card.</p>
           <button onClick={onGetStarted} style={{padding:'14px 48px',borderRadius:T.rS,border:'none',background:T.cream,color:T.bg,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:T.sans,transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(255,255,255,.08)'}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none'}}>Start Free</button>
         </div>
