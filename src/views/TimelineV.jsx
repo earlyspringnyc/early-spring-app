@@ -76,7 +76,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     gcalFetched.current=true;
     setGcalLoading(true);
     const now=new Date();
-    const min=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const min=now; // Only fetch future events
     const max=new Date(now.getFullYear(),now.getMonth()+3,0);
     fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${min.toISOString()}&timeMax=${max.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=100`,{headers:{Authorization:`Bearer ${accessToken}`}})
       .then(r=>{if(!r.ok)throw new Error("Calendar fetch failed");return r.json()})
