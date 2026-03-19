@@ -18,7 +18,7 @@ const ACTION_COLORS={
 };
 
 function AIV({project,updateProject,comp}){
-  const defaultMsg={role:"assistant",content:"I have full context on **"+project.name+"**. Ask me anything about the budget, timeline, documents, or cashflow. I can also add tasks, flag risks, or help you optimize margins.\n\nTry: *\"Add realistic line items to missing categories\"* or *\"Staff the agency team for a 3-day event\"*"};
+  const defaultMsg={role:"assistant",content:"I have full context on **"+project.name+"** — budget, timeline, documents, cashflow, client files, and creative assets. I can also **see and analyze images** from your project files.\n\nTry: *\"What do you think of the renders?\"* or *\"Add realistic line items to missing categories\"*"};
   const[messages,setMessages]=useState(()=>{const saved=project.aiChat;return saved&&saved.length>0?saved:[defaultMsg]});
   const[input,setInput]=useState("");
   const[loading,setLoading]=useState(false);
@@ -114,6 +114,30 @@ function AIV({project,updateProject,comp}){
     actions.forEach((a,i)=>{if(!a.applied)applyAction(msgIdx,i)});
   };
 
+  // Gather available images from creative assets and client files
+  const getAvailableImages=()=>{
+    const images=[];
+    // Creative assets (images only)
+    (project.creativeAssets||[]).forEach(a=>{
+      if(!a.isImage)return;
+      const data=a.fileData||(a._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${a.id}`)}catch(e){return null}})():null);
+      if(data&&data.startsWith("data:image/"))images.push({name:a.name,section:a.section||"creative",status:a.status,data});
+    });
+    // Client files (images only)
+    (project.clientFiles||[]).forEach(f=>{
+      const data=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null);
+      if(data&&data.startsWith("data:image/"))images.push({name:f.name,section:"client-"+f.category,status:"uploaded",data});
+    });
+    return images;
+  };
+
+  // Check if the user's message likely refers to visuals
+  const wantsVisuals=(text)=>{
+    const t=text.toLowerCase();
+    const keywords=["image","photo","render","design","visual","creative","look","see","review","asset","mockup","mock","deck","logo","brand","graphic","layout","comp","show me","what do you think","feedback","critique","analyze","compare"];
+    return keywords.some(k=>t.includes(k));
+  };
+
   const send=async()=>{
     if(!input.trim()||loading)return;
     const userMsg={role:"user",content:input.trim()};
@@ -121,7 +145,26 @@ function AIV({project,updateProject,comp}){
     setMessages(newMsgs);setInput("");setLoading(true);
 
     const projectContext=serializeProject(project,comp);
-    const apiMessages=newMsgs.map(m=>({role:m.role,content:m.content}));
+
+    // Build API messages — attach images to the latest user message if relevant
+    const apiMessages=newMsgs.map((m,i)=>{
+      if(m.role==="user"&&i===newMsgs.length-1&&wantsVisuals(m.content)){
+        const images=getAvailableImages();
+        if(images.length>0){
+          // Cap at 5 images to stay within limits
+          const selected=images.slice(0,5);
+          const content=[{type:"text",text:m.content+`\n\n[${selected.length} image(s) attached from project files: ${selected.map(im=>im.name).join(", ")}]`}];
+          selected.forEach(img=>{
+            const parts=img.data.split(",");
+            const mimeMatch=parts[0].match(/data:(image\/[^;]+)/);
+            const mediaType=mimeMatch?mimeMatch[1]:"image/png";
+            content.push({type:"image",source:{type:"base64",media_type:mediaType,data:parts[1]}});
+          });
+          return{role:"user",content};
+        }
+      }
+      return{role:m.role,content:m.content};
+    });
 
     try{
       const res=await fetch("/api/chat",{
