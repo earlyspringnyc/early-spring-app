@@ -104,11 +104,38 @@ function BudgetV(p){
   const remainingClientRoom=Math.max(0,cb-gt);
   const remainingSpendCapacity=effectiveMultiplier>0?remainingClientRoom/effectiveMultiplier:0;
 
+  const budgets=p.budgets||[];
+  const activeBudgetId=p.activeBudgetId;
+  const isPrimary=!activeBudgetId;
+  const activeBudget=activeBudgetId?budgets.find(b=>b.id===activeBudgetId):null;
+  const[renamingId,setRenamingId]=useState(null);
+  const[renameVal,setRenameVal]=useState("");
+
   return<div>
+    {/* ── Budget tabs ── */}
+    <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:20,borderBottom:`1px solid ${T.border}`,overflow:"auto",WebkitOverflowScrolling:"touch"}}>
+      <button onClick={()=>p.onSwitchBudget(null)} style={{padding:"10px 18px",background:"none",border:"none",borderBottom:isPrimary?`2px solid ${T.gold}`:"2px solid transparent",color:isPrimary?T.cream:T.dim,fontSize:12,fontWeight:isPrimary?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",transition:"all .15s"}} onMouseEnter={e=>{if(!isPrimary)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isPrimary)e.currentTarget.style.color=T.dim}}>
+        Primary Budget
+      </button>
+      {budgets.map(b=>{
+        const isActive=activeBudgetId===b.id;
+        const isRenaming=renamingId===b.id;
+        return<div key={b.id} style={{display:"flex",alignItems:"center",position:"relative"}}>
+          {isRenaming?<input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)} onBlur={()=>{if(renameVal.trim()&&p.onRenameBudget)p.onRenameBudget(b.id,renameVal.trim());setRenamingId(null)}} onKeyDown={e=>{if(e.key==="Enter"){if(renameVal.trim()&&p.onRenameBudget)p.onRenameBudget(b.id,renameVal.trim());setRenamingId(null)}if(e.key==="Escape")setRenamingId(null)}} style={{padding:"8px 14px",background:"transparent",border:"none",borderBottom:`2px solid ${T.cyan}`,color:T.cream,fontSize:12,fontWeight:600,fontFamily:T.sans,outline:"none",width:140}}/>
+          :<button onClick={()=>p.onSwitchBudget(b.id)} onDoubleClick={()=>{if(canEdit){setRenamingId(b.id);setRenameVal(b.name)}}} style={{padding:"10px 18px",paddingRight:canEdit?32:18,background:"none",border:"none",borderBottom:isActive?`2px solid ${T.gold}`:"2px solid transparent",color:isActive?T.cream:T.dim,fontSize:12,fontWeight:isActive?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",transition:"all .15s"}} onMouseEnter={e=>{if(!isActive)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.color=T.dim}} title="Double-click to rename">
+            {b.name}
+          </button>}
+          {canEdit&&isActive&&!isRenaming&&<button onClick={e=>{e.stopPropagation();if(p.onDeleteBudget)p.onDeleteBudget(b.id)}} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.dim,fontSize:14,cursor:"pointer",padding:"2px 4px",lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color=T.neg} onMouseLeave={e=>e.currentTarget.style.color=T.dim} title="Delete budget">×</button>}
+        </div>})}
+      {canEdit&&<button onClick={()=>{const name=prompt("Budget name (e.g. 'Option B', 'Scaled Down'):");if(name&&p.onAddBudget)p.onAddBudget(name)}} style={{padding:"10px 14px",background:"none",border:"none",borderBottom:"2px solid transparent",color:T.dim,fontSize:12,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>e.currentTarget.style.color=T.gold} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
+        <PlusI size={10} color="currentColor"/> Add Budget
+      </button>}
+    </div>
+
     {/* ── Header ── */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
       <div>
-        <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Production Budget</h1>
+        <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>{activeBudget?activeBudget.name:"Production Budget"}</h1>
         <p style={{fontSize:12,color:T.dim,marginTop:6}}>{canEdit?"Internal view with live margins":"View-only"}</p>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
