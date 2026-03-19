@@ -91,7 +91,7 @@ function App(){
         const driveLoc=getDriveLocation();
         const sharedDriveId=driveLoc?.driveId||null;
         import('./utils/drive.js').then(async({createProjectFoldersInDrive,shareWithTeam})=>{
-          const folderIds=await createProjectFoldersInDrive(accessToken,name||"Untitled Project",sharedDriveId,stage||"pitching");
+          const folderIds=await createProjectFoldersInDrive(accessToken,name||"Untitled Project",sharedDriveId,stage||"pitching",client||"General");
           if(folderIds){
             updateProj(id,{driveFolders:folderIds,driveLocation:driveLoc});
             // Auto-share folders with team members based on roles

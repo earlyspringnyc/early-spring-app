@@ -41,27 +41,26 @@ async function createFolder(token, name, parentId) {
 /* ── Project folder structure ── */
 
 const PROJECT_FOLDERS = {
-  'Finance': ['Invoices', 'Contracts', 'Estimates', 'W-9s'],
+  'Budgets': [],
   'Creative': ['Design Files', 'Photography', 'Video', 'Decks'],
-  'Production': ['Run of Show', 'Floor Plans', 'Permits', 'Budgets'],
   'Client': ['RFPs & Briefs', 'Presentations', 'Contracts', 'References'],
-  'Vendor Documents': [],
+  'Finance': ['Invoices', 'Contracts', 'Estimates', 'W-9s'],
 };
 
 const STAGE_FOLDER_NAMES = { pitching: 'Pitching', awarded: 'Awarded', current: 'Awarded', wrapped: 'Wrapped', archived: 'Archived' };
 
 /* ── Create folders in a specific shared drive ── */
-export async function createProjectFoldersInDrive(token, projectName, sharedDriveId, stage = 'pitching') {
+export async function createProjectFoldersInDrive(token, projectName, sharedDriveId, stage = 'pitching', clientName = '') {
+  const client = clientName || 'General';
   if (sharedDriveId) {
-    return createProjectFoldersShared(token, projectName, sharedDriveId, stage);
+    return createProjectFoldersShared(token, projectName, sharedDriveId, stage, client);
   }
-  return createProjectFolders(token, projectName, stage);
+  return createProjectFolders(token, projectName, stage, client);
 }
 
-async function createProjectFoldersShared(token, projectName, driveId, stage = 'pitching') {
+async function createProjectFoldersShared(token, projectName, driveId, stage = 'pitching', clientName = 'General') {
   console.log('[drive] Creating folder structure in shared drive:', driveId);
 
-  // Find or create Morgan folder in shared drive
   const findInShared = async (name, parentId) => {
     const q = parentId
       ? `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
@@ -87,6 +86,7 @@ async function createProjectFoldersShared(token, projectName, driveId, stage = '
     return (await res.json()).id;
   };
 
+  // MORGAN / YEAR / STAGE / CLIENT / PROJECT
   const morganId = await createInShared('Morgan', driveId);
   if (!morganId) return null;
   const year = String(new Date().getFullYear());
@@ -95,10 +95,12 @@ async function createProjectFoldersShared(token, projectName, driveId, stage = '
   const stageLabel = STAGE_FOLDER_NAMES[stage] || 'Pitching';
   const stageId = await createInShared(stageLabel, yearId);
   if (!stageId) return null;
-  const projectId = await createInShared(projectName, stageId);
+  const clientId = await createInShared(clientName, stageId);
+  if (!clientId) return null;
+  const projectId = await createInShared(projectName, clientId);
   if (!projectId) return null;
 
-  const folderIds = { _morgan: morganId, _year: yearId, _stage: stageId, _root: projectId, _driveId: driveId, _stageName: stageLabel };
+  const folderIds = { _morgan: morganId, _year: yearId, _stage: stageId, _client: clientId, _clientName: clientName, _root: projectId, _driveId: driveId, _stageName: stageLabel };
   for (const [parent, children] of Object.entries(PROJECT_FOLDERS)) {
     const parentFolderId = await createInShared(parent, projectId);
     if (parentFolderId) {
@@ -113,8 +115,9 @@ async function createProjectFoldersShared(token, projectName, driveId, stage = '
   return folderIds;
 }
 
-export async function createProjectFolders(token, projectName, stage = 'pitching') {
+export async function createProjectFolders(token, projectName, stage = 'pitching', clientName = 'General') {
   console.log('[drive] Creating folder structure for:', projectName);
+  // MORGAN / YEAR / STAGE / CLIENT / PROJECT
   const morganId = await createFolder(token, 'Morgan', null);
   if (!morganId) return null;
   const year = String(new Date().getFullYear());
@@ -123,10 +126,12 @@ export async function createProjectFolders(token, projectName, stage = 'pitching
   const stageLabel = STAGE_FOLDER_NAMES[stage] || 'Pitching';
   const stageId = await createFolder(token, stageLabel, yearId);
   if (!stageId) return null;
-  const projectId = await createFolder(token, projectName, stageId);
+  const clientId = await createFolder(token, clientName, stageId);
+  if (!clientId) return null;
+  const projectId = await createFolder(token, projectName, clientId);
   if (!projectId) return null;
 
-  const folderIds = { _morgan: morganId, _year: yearId, _stage: stageId, _root: projectId, _stageName: stageLabel };
+  const folderIds = { _morgan: morganId, _year: yearId, _stage: stageId, _client: clientId, _clientName: clientName, _root: projectId, _stageName: stageLabel };
 
   for (const [parent, children] of Object.entries(PROJECT_FOLDERS)) {
     const parentFolderId = await createFolder(token, parent, projectId);
@@ -155,11 +160,10 @@ export async function moveProjectToStage(token, folderIds, newStage) {
   const yearId = folderIds._year;
   if (!yearId) return folderIds;
 
-  // Create the new stage folder if it doesn't exist
+  // Find or create the new stage folder
   let newStageId;
   if (isShared) {
     const driveId = folderIds._driveId;
-    // Find or create in shared drive
     const q = `name='${newStageLabel}' and '${yearId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
     const findRes = await fetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${driveId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -182,17 +186,18 @@ export async function moveProjectToStage(token, folderIds, newStage) {
 
   if (!newStageId) return folderIds;
 
-  // Move the project folder: remove old parent, add new parent
+  // Move the CLIENT folder (not just project) so all projects from same client move together
+  const moveTargetId = folderIds._client || folderIds._root;
   const oldStageId = folderIds._stage;
   const supportsParam = isShared ? '&supportsAllDrives=true' : '';
-  const moveRes = await fetch(`${DRIVE_API}/files/${folderIds._root}?addParents=${newStageId}&removeParents=${oldStageId}${supportsParam}&fields=id`, {
+  const moveRes = await fetch(`${DRIVE_API}/files/${moveTargetId}?addParents=${newStageId}&removeParents=${oldStageId}${supportsParam}&fields=id`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!moveRes.ok) { console.error('[drive] Move failed:', await moveRes.text()); return folderIds; }
 
-  console.log('[drive] Moved project from', oldStageLabel, 'to', newStageLabel);
+  console.log('[drive] Moved client folder from', oldStageLabel, 'to', newStageLabel);
   return { ...folderIds, _stage: newStageId, _stageName: newStageLabel };
 }
 
@@ -222,10 +227,10 @@ export async function shareFolderWithUser(token, folderId, email, role = 'writer
 /* ── Role-based folder access ── */
 
 const ROLE_FOLDER_ACCESS = {
-  admin:    ['Finance', 'Creative', 'Production', 'Client', 'Vendor Documents'],
-  producer: ['Finance', 'Creative', 'Production', 'Client', 'Vendor Documents'],
-  creative: ['Creative', 'Production'],
-  finance:  ['Finance', 'Vendor Documents'],
+  admin:    ['Budgets', 'Creative', 'Client', 'Finance'],
+  producer: ['Budgets', 'Creative', 'Client', 'Finance'],
+  creative: ['Creative', 'Budgets'],
+  finance:  ['Finance', 'Budgets'],
   viewer:   ['Client'],
   client:   ['Client'],
   vendor:   [],
@@ -279,11 +284,9 @@ function getTargetFolder(docType, uploadContext) {
     brief: 'Client/RFPs & Briefs',
     presentation: 'Client/Presentations',
     reference: 'Client/References',
-    // Production
-    ros: 'Production/Run of Show',
-    floorplan: 'Production/Floor Plans',
-    permit: 'Production/Permits',
-    budget: 'Production/Budgets',
+    // Budgets
+    budget: 'Budgets',
+    ros: 'Budgets',
   };
 
   if (map[docType]) return map[docType];
@@ -293,8 +296,7 @@ function getTargetFolder(docType, uploadContext) {
     finance: 'Finance',
     creative: 'Creative',
     client: 'Client',
-    vendor: 'Vendor Documents',
-    production: 'Production',
+    budget: 'Budgets',
   };
   return contextMap[uploadContext] || 'Finance';
 }

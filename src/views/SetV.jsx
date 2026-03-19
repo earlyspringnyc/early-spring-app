@@ -32,7 +32,7 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
     if(accessToken){
       try{
         const{createProjectFoldersInDrive,shareWithTeam}=await import('../utils/drive.js');
-        const folderIds=await createProjectFoldersInDrive(accessToken,project.name||"Untitled",driveId);
+        const folderIds=await createProjectFoldersInDrive(accessToken,project.name||"Untitled",driveId,project.stage||"pitching",project.client||"General");
         if(folderIds){
           updateProject({driveFolders:folderIds});
           // Share with team based on roles
