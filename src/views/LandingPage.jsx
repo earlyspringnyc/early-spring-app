@@ -15,24 +15,88 @@ function Fade({children,style:sx={},delay=0,...p}){const{ref,style}=useFadeIn();
 const C={amber:'#F59E0B',teal:'#14B8A6',purple:'#8B5CF6',coral:'#F47264',cyan:'#06B6D4',emerald:'#10B981'};
 
 /* ════════════════════════════════════════════════════════════════════
-   PRODUCT UI MOCKUPS — realistic data, not decorative
+   PRODUCT UI MOCKUPS — realistic Neon Drift data
    ════════════════════════════════════════════════════════════════════ */
+
+/* ── Animated Dashboard — cards shuffle and appear ── */
+function DashboardHero(){
+  const[step,setStep]=useState(0);
+  const totalSteps=4;
+  useEffect(()=>{
+    const t=setInterval(()=>setStep(s=>(s+1)%totalSteps),2800);
+    return()=>clearInterval(t);
+  },[]);
+
+  const fmt=n=>'$'+n.toLocaleString();
+
+  // Card definitions — position changes per step
+  const allCards=[
+    {id:'budget',label:'Client Budget',value:fmt(481000),color:C.amber,size:1},
+    {id:'total',label:'Project Total',value:fmt(387450),color:C.teal,size:1},
+    {id:'tasks',label:'Tasks',value:'12 / 34',sub:'35% complete',color:C.cyan,size:1},
+    {id:'vendors',label:'Owed to Vendors',value:fmt(142800),color:C.coral,size:1},
+    {id:'profit',label:'Net Profit',value:fmt(68200),color:C.emerald,size:1},
+    {id:'margin',label:'Blended Margin',value:'17.6%',color:C.purple,size:1},
+    {id:'countdown',label:'Event Countdown',value:'87 days',sub:'Jun 14, 2026',color:C.amber,size:1},
+    {id:'meetings',label:'Upcoming Meetings',value:'3 this week',color:C.cyan,size:1},
+  ];
+
+  // Which cards are visible at each step (progressively adds cards)
+  const visibleIds=[
+    ['budget','total','tasks','vendors'],
+    ['budget','total','tasks','vendors','profit','margin'],
+    ['budget','total','vendors','profit','margin','countdown','tasks','meetings'],
+    ['total','budget','profit','margin','vendors','tasks','countdown','meetings'],
+  ];
+
+  const visible=visibleIds[step];
+  const cards=visible.map(id=>allCards.find(c=>c.id===id)).filter(Boolean);
+
+  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:900}}>
+    {/* Dashboard header */}
+    <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div>
+        <div style={{fontSize:15,fontWeight:600,color:T.cream}}>Neon Drift Summer Activation</div>
+        <div style={{fontSize:11,color:T.dim,marginTop:2}}>NeonDrift Gaming · Jun 14, 2026</div>
+      </div>
+      <div style={{display:'flex',gap:6}}>
+        {['Dashboard','Budget','Production'].map((t,i)=><span key={t} style={{fontSize:9,padding:'4px 10px',borderRadius:10,background:i===0?T.surfEl:'transparent',color:i===0?T.cream:T.dim,fontWeight:i===0?600:400}}>{t}</span>)}
+      </div>
+    </div>
+    {/* Animated card grid */}
+    <div style={{padding:16,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,minHeight:220}}>
+      {cards.map((c,i)=><div key={c.id} style={{
+        padding:'18px 16px',borderRadius:10,
+        background:`${c.color}06`,border:`1px solid ${c.color}18`,borderLeft:`3px solid ${c.color}`,
+        animation:'cardIn .5s ease-out forwards',
+        animationDelay:`${i*0.08}s`,
+        opacity:0,
+      }}>
+        <div style={{fontSize:8,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>{c.label}</div>
+        <div style={{fontSize:22,fontWeight:700,color:c.color,fontFamily:T.mono,lineHeight:1}}>{c.value}</div>
+        {c.sub&&<div style={{fontSize:9,color:T.dim,marginTop:4}}>{c.sub}</div>}
+      </div>)}
+    </div>
+    <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}`}</style>
+  </div>;
+}
 
 function BudgetUI(){
   const cats=[
     {name:'Venue',accent:C.amber,items:[
-      {name:'Rooftop Buyout',vendor:'The Williamsburg Hotel',actual:28000,margin:.18},
-      {name:'Security Deposit',vendor:'The Williamsburg Hotel',actual:3000,margin:0},
-    ]},
-    {name:'Catering & Beverage',accent:C.teal,items:[
-      {name:'Dinner Service',vendor:'LIC Catering Co',detail:'150 × $125',actual:18750,margin:.15},
-      {name:'Open Bar Package',vendor:'LIC Catering Co',detail:'150 × $75',actual:11250,margin:.15},
-      {name:'Late Night Snacks',vendor:'LIC Catering Co',actual:2500,margin:.15},
+      {name:'Venue Buyout',vendor:'Terminal 5',actual:45000,margin:.18},
+      {name:'Security',vendor:'Terminal 5',actual:8200,margin:.10},
     ]},
     {name:'Staging & AV',accent:C.purple,items:[
-      {name:'LED Wall 12×8',vendor:'Prism AV',actual:8500,margin:.15},
-      {name:'Sound + DJ Booth',vendor:'Prism AV',actual:4200,margin:.15},
-      {name:'Lighting Design',vendor:'Prism AV',actual:6800,margin:.18},
+      {name:'LED Wall 16×9',vendor:'Prism AV',actual:12500,margin:.15},
+      {name:'Sound System + DJ',vendor:'Prism AV',actual:8400,margin:.15},
+      {name:'Lighting Design',vendor:'Prism AV',actual:9800,margin:.18},
+      {name:'Gaming Stations',vendor:'Neon Rentals',detail:'8 × $2,400',actual:19200,margin:.15},
+    ]},
+    {name:'Fabrication & Scenic',accent:C.teal,items:[
+      {name:'Custom Entry Arch',vendor:'Atlas Staging',actual:14500,margin:.20},
+      {name:'Branded Bar Wrap',vendor:'Atlas Staging',actual:6800,margin:.15},
+      {name:'Neon Signage',vendor:'Glow Works',actual:8200,margin:.18},
     ]},
     {name:'Content & Capture',accent:C.coral,items:[
       {name:'Photography',vendor:'Lens & Light',actual:4500,margin:.15},
@@ -44,22 +108,19 @@ function BudgetUI(){
   cats.forEach(c=>c.items.forEach(it=>{totalActual+=it.actual;totalClient+=it.actual*(1+it.margin)}));
 
   return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:680}}>
-    {/* Header */}
     <div style={{padding:'16px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <div>
-        <div style={{fontSize:14,fontWeight:600,color:T.cream}}>Montauk Capital Summer Party</div>
-        <div style={{fontSize:11,color:T.dim,marginTop:2}}>Montauk Capital Partners · June 14, 2026</div>
+        <div style={{fontSize:14,fontWeight:600,color:T.cream}}>Neon Drift Summer Activation</div>
+        <div style={{fontSize:11,color:T.dim,marginTop:2}}>NeonDrift Gaming · Jun 14, 2026</div>
       </div>
       <div style={{textAlign:'right'}}>
         <div style={{fontSize:9,color:T.dim,textTransform:'uppercase',letterSpacing:'.06em'}}>Grand Total</div>
         <div style={{fontSize:20,fontWeight:700,color:C.amber,fontFamily:T.mono}}>{fmt(Math.round(totalClient*1.20))}</div>
       </div>
     </div>
-    {/* Column headers */}
     <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr .8fr .8fr',padding:'8px 20px',borderBottom:`1px solid ${T.border}`,background:'rgba(255,255,255,.015)'}}>
       {['Item','Vendor','Actual','Client'].map((h,i)=><span key={i} style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.08em',textAlign:i>1?'right':'left'}}>{h}</span>)}
     </div>
-    {/* Categories */}
     {cats.map(c=><div key={c.name}>
       <div style={{padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${c.accent}06`,borderLeft:`3px solid ${c.accent}`}}>
         <span style={{fontSize:11,fontWeight:600,color:T.cream,textTransform:'uppercase',letterSpacing:'.06em'}}>{c.name}</span>
@@ -79,13 +140,13 @@ function BudgetUI(){
 
 function TimelineUI(){
   const tasks=[
-    {name:'Confirm venue contract',date:'Apr 28',status:'done',cat:'Venue'},
-    {name:'Submit permit applications',date:'May 1',status:'done',cat:'Permits'},
-    {name:'Finalize floor plan',date:'May 5',status:'progress',cat:'Design'},
-    {name:'AV walkthrough @ Williamsburg',date:'May 12',status:'upcoming',cat:'Production'},
-    {name:'LED wall content specs to Prism AV',date:'May 14',status:'upcoming',cat:'Production'},
+    {name:'Confirm Terminal 5 contract',date:'Apr 28',status:'done',cat:'Venue'},
+    {name:'Submit noise & street permits',date:'May 1',status:'done',cat:'Permits'},
+    {name:'Finalize floor plan + gaming layout',date:'May 5',status:'progress',cat:'Design'},
+    {name:'AV walkthrough @ Terminal 5',date:'May 12',status:'upcoming',cat:'Production'},
+    {name:'Gaming station specs to Neon Rentals',date:'May 14',status:'upcoming',cat:'Production'},
     {name:'Client kickoff deck due',date:'May 16',status:'upcoming',cat:'Client'},
-    {name:'Catering tasting',date:'May 20',status:'upcoming',cat:'Catering'},
+    {name:'Neon signage proof from Glow Works',date:'May 20',status:'upcoming',cat:'Fabrication'},
     {name:'Final vendor payments',date:'Jun 7',status:'upcoming',cat:'Finance'},
   ];
   const sc={done:C.emerald,progress:C.cyan,upcoming:T.dim};
@@ -115,7 +176,7 @@ function AIchatUI(){
       {/* User message */}
       <div style={{display:'flex',justifyContent:'flex-end'}}>
         <div style={{maxWidth:'75%',padding:'10px 14px',borderRadius:'12px 12px 4px 12px',background:'rgba(148,163,184,.08)',border:`1px solid rgba(148,163,184,.1)`,fontSize:12,lineHeight:1.6,color:T.cream}}>
-          Staff the agency team for a 3-day activation with a $340K budget
+          Staff the agency team for the Neon Drift 3-day activation
         </div>
       </div>
       {/* AI response */}
@@ -191,7 +252,7 @@ function LandingPage({onGetStarted}){
       </Fade>
       <Fade delay={.15}>
         <div style={{display:'flex',justifyContent:'center'}}>
-          <BudgetUI/>
+          <DashboardHero/>
         </div>
       </Fade>
     </header>
