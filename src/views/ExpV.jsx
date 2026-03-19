@@ -94,13 +94,11 @@ function FileViewerModal({file,onClose}){
       const pg=await pdf.getPage(page+1);
       const canvas=canvasRef.current;
       const ctx=canvas.getContext("2d");
-      // Scale to fill viewport — use width or height, whichever fills more
+      // Fit entire page in viewport (both width and height visible)
       const targetWidth=window.innerWidth-32;
       const targetHeight=window.innerHeight-100;
       const baseVp=pg.getViewport({scale:1});
-      const scaleByWidth=targetWidth/baseVp.width;
-      const scaleByHeight=targetHeight/baseVp.height;
-      const scale=Math.max(scaleByWidth,scaleByHeight);
+      const scale=Math.min(targetWidth/baseVp.width,targetHeight/baseVp.height);
       const vp=pg.getViewport({scale});
       canvas.width=vp.width;canvas.height=vp.height;
       await pg.render({canvasContext:ctx,viewport:vp}).promise;
@@ -108,8 +106,8 @@ function FileViewerModal({file,onClose}){
     render();
   },[pdf,page]);
 
-  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"stretch",padding:16}}>
-    <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",flexDirection:"column",gap:12,overflow:"auto"}}>
+  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div onClick={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,maxHeight:"95vh",maxWidth:"95vw"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",flexShrink:0}}>
         <div style={{fontSize:14,fontWeight:600,color:T.cream}}>{file.name}</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
