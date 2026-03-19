@@ -94,15 +94,15 @@ function FileViewerModal({file,onClose}){
       const pg=await pdf.getPage(page+1);
       const canvas=canvasRef.current;
       const ctx=canvas.getContext("2d");
-      const vp=pg.getViewport({scale:1.5});
+      const vp=pg.getViewport({scale:2.0});
       canvas.width=vp.width;canvas.height=vp.height;
       await pg.render({canvasContext:ctx,viewport:vp}).promise;
     };
     render();
   },[pdf,page]);
 
-  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}>
-    <div onClick={e=>e.stopPropagation()} style={{maxWidth:900,maxHeight:"90vh",width:"100%",display:"flex",flexDirection:"column",alignItems:"center",gap:12,overflow:"auto"}}>
+  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div onClick={e=>e.stopPropagation()} style={{maxWidth:"95vw",maxHeight:"95vh",width:"100%",display:"flex",flexDirection:"column",alignItems:"center",gap:12,overflow:"auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",flexShrink:0}}>
         <div style={{fontSize:14,fontWeight:600,color:T.cream}}>{file.name}</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>

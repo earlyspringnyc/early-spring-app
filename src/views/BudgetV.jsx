@@ -110,6 +110,8 @@ function BudgetV(p){
   const activeBudget=activeBudgetId?budgets.find(b=>b.id===activeBudgetId):null;
   const[renamingId,setRenamingId]=useState(null);
   const[renameVal,setRenameVal]=useState("");
+  const[showNewBudget,setShowNewBudget]=useState(false);
+  const[newBudgetName,setNewBudgetName]=useState("");
 
   return<div>
     {/* ── Budget tabs ── */}
@@ -127,9 +129,14 @@ function BudgetV(p){
           </button>}
           {canEdit&&isActive&&!isRenaming&&<button onClick={e=>{e.stopPropagation();if(p.onDeleteBudget)p.onDeleteBudget(b.id)}} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.dim,fontSize:14,cursor:"pointer",padding:"2px 4px",lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color=T.neg} onMouseLeave={e=>e.currentTarget.style.color=T.dim} title="Delete budget">×</button>}
         </div>})}
-      {canEdit&&<button onClick={()=>{const name=prompt("Budget name (e.g. 'Option B', 'Scaled Down'):");if(name&&p.onAddBudget)p.onAddBudget(name)}} style={{padding:"10px 14px",background:"none",border:"none",borderBottom:"2px solid transparent",color:T.dim,fontSize:12,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>e.currentTarget.style.color=T.gold} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
+      {canEdit&&!showNewBudget&&<button onClick={()=>{setShowNewBudget(true);setNewBudgetName("")}} style={{padding:"10px 14px",background:"none",border:"none",borderBottom:"2px solid transparent",color:T.dim,fontSize:12,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>e.currentTarget.style.color=T.gold} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
         <PlusI size={10} color="currentColor"/> Add Budget
       </button>}
+      {showNewBudget&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0"}}>
+        <input autoFocus value={newBudgetName} onChange={e=>setNewBudgetName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newBudgetName.trim()){p.onAddBudget(newBudgetName.trim());setShowNewBudget(false)}if(e.key==="Escape")setShowNewBudget(false)}} placeholder="Budget name..." style={{padding:"6px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.cyan}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",width:160}}/>
+        <button onClick={()=>{if(newBudgetName.trim()){p.onAddBudget(newBudgetName.trim());setShowNewBudget(false)}}} disabled={!newBudgetName.trim()} style={{padding:"6px 12px",borderRadius:T.rS,background:newBudgetName.trim()?T.goldSoft:"transparent",color:newBudgetName.trim()?T.gold:T.dim,border:`1px solid ${newBudgetName.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:600,cursor:newBudgetName.trim()?"pointer":"default",fontFamily:T.sans}}>Create</button>
+        <button onClick={()=>setShowNewBudget(false)} style={{padding:"6px 8px",borderRadius:T.rS,background:"none",border:"none",color:T.dim,fontSize:14,cursor:"pointer",lineHeight:1}}>×</button>
+      </div>}
     </div>
 
     {/* ── Header ── */}
