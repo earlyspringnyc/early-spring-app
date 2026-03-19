@@ -20,7 +20,7 @@ const ACTION_COLORS={
   update_fee:"#F59E0B",update_item:"#14B8A6",update_agency:"#8B5CF6",
 };
 
-function AIV({project,updateProject,comp}){
+function AIV({project,updateProject,comp,accessToken}){
   const defaultMsg={role:"assistant",content:"I have full context on **"+project.name+"** — budget, timeline, documents, cashflow, client files, and creative assets. I can **see and analyze images and PDFs** from your project files.\n\nTry: *\"Review the Wimbledon renders\"* or *\"What does the NDA say?\"* or *\"Add realistic line items to missing categories\"*"};
   const[messages,setMessages]=useState(()=>{const saved=project.aiChat;return saved&&saved.length>0?saved:[defaultMsg]});
   const[input,setInput]=useState("");
@@ -117,8 +117,8 @@ function AIV({project,updateProject,comp}){
     actions.forEach((a,i)=>{if(!a.applied)applyAction(msgIdx,i)});
   };
 
-  // Resolve file data from project state, localStorage, or es_projects cache
-  const resolveFileData=(item)=>{
+  // Resolve file data from project state, localStorage, es_projects cache, or Google Drive
+  const resolveFileData=async(item)=>{
     if(item.fileData)return item.fileData;
     // Try localStorage file cache
     try{const f=localStorage.getItem(`es_file_${item.id}`);if(f)return f}catch(e){}
@@ -133,6 +133,24 @@ function AIV({project,updateProject,comp}){
         }
       }
     }catch(e){}
+    // Last resort: download from Google Drive
+    if(item.driveId&&accessToken){
+      try{
+        console.log("[ai] Downloading from Drive:",item.name,item.driveId);
+        const res=await fetch(`https://www.googleapis.com/drive/v3/files/${item.driveId}?alt=media`,{
+          headers:{Authorization:`Bearer ${accessToken}`}
+        });
+        if(res.ok){
+          const blob=await res.blob();
+          return new Promise(resolve=>{
+            const reader=new FileReader();
+            reader.onload=()=>resolve(reader.result);
+            reader.onerror=()=>resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }catch(e){console.error("[ai] Drive download failed:",e)}
+    }
     return null;
   };
 
@@ -163,9 +181,9 @@ function AIV({project,updateProject,comp}){
     const allFiles=[];
     const t=userText.toLowerCase();
 
-    // Collect all files from both sources
-    const collectFile=(item,source)=>{
-      const data=resolveFileData(item);
+    // Collect all files from both sources (async — may download from Drive)
+    const collectFile=async(item,source)=>{
+      const data=await resolveFileData(item);
       if(!data){
         console.log("[ai] No data for file:",item.name,"hasLocalFile:",item._hasLocalFile,"hasDriveId:",!!item.driveId);
         return;
@@ -174,8 +192,10 @@ function AIV({project,updateProject,comp}){
       const isPdf=data.startsWith("data:application/pdf")||(item.isPdf)||(item.fileName&&/\.pdf$/i.test(item.fileName));
       if(isImg||isPdf)allFiles.push({name:item.name,fileName:item.fileName||"",source,data,isImg,isPdf});
     };
-    (project.creativeAssets||[]).forEach(a=>collectFile(a,"creative"));
-    (project.clientFiles||[]).forEach(f=>collectFile(f,"client"));
+    await Promise.all([
+      ...(project.creativeAssets||[]).map(a=>collectFile(a,"creative")),
+      ...(project.clientFiles||[]).map(f=>collectFile(f,"client")),
+    ]);
 
     // Prioritize files mentioned by name in the user's message
     const mentioned=allFiles.filter(f=>t.includes(f.name.toLowerCase())||t.includes(f.fileName.toLowerCase().replace(/\.[^.]+$/,"")));
