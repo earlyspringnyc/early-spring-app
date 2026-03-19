@@ -83,69 +83,59 @@ export function useProjects(orgId) {
   }, [projects, loaded]);
 
   // Strip large file data before saving to Supabase to prevent payload too large errors
+  // Files with driveId are safely on Google Drive — no need for localStorage cache
+  const stripFileItem = (item) => {
+    if (!item.fileData || item.fileData.length <= 50000) return item;
+    // If already on Google Drive, just strip the base64 — Drive is the source of truth
+    if (item.driveId) return { ...item, fileData: null, _hasLocalFile: false };
+    // Otherwise try to cache in localStorage
+    let cached = false;
+    try { localStorage.setItem(`es_file_${item.id}`, item.fileData); cached = true; } catch (e) {
+      console.warn(`[persist] localStorage quota exceeded for ${item.id}, file data may be lost without Google Drive`);
+    }
+    return { ...item, fileData: null, _hasLocalFile: cached };
+  };
+
   const stripFileData = (data) => {
     const stripped = { ...data };
-    // Strip base64 fileData from creative assets (keep metadata)
-    if (stripped.creativeAssets) {
-      stripped.creativeAssets = stripped.creativeAssets.map(a => {
-        if (a.fileData && a.fileData.length > 50000) {
-          // Store in localStorage keyed by asset ID
-          try { localStorage.setItem(`es_file_${a.id}`, a.fileData); } catch (e) {}
-          return { ...a, fileData: null, _hasLocalFile: true };
-        }
-        return a;
-      });
-    }
-    // Strip base64 from docs too
-    if (stripped.docs) {
-      stripped.docs = stripped.docs.map(d => {
-        if (d.fileData && d.fileData.length > 50000) {
-          try { localStorage.setItem(`es_file_${d.id}`, d.fileData); } catch (e) {}
-          return { ...d, fileData: null, _hasLocalFile: true };
-        }
-        return d;
-      });
-    }
-    // Strip base64 from client files
-    if (stripped.clientFiles) {
-      stripped.clientFiles = stripped.clientFiles.map(f => {
-        if (f.fileData && f.fileData.length > 50000) {
-          try { localStorage.setItem(`es_file_${f.id}`, f.fileData); } catch (e) {}
-          return { ...f, fileData: null, _hasLocalFile: true };
-        }
-        return f;
-      });
-    }
+    if (stripped.creativeAssets) stripped.creativeAssets = stripped.creativeAssets.map(stripFileItem);
+    if (stripped.docs) stripped.docs = stripped.docs.map(stripFileItem);
+    if (stripped.clientFiles) stripped.clientFiles = stripped.clientFiles.map(stripFileItem);
     return stripped;
   };
 
-  // Restore file data from localStorage
+  // Restore file data from localStorage (for files not yet on Google Drive)
+  const restoreFileItem = (item) => {
+    if (item.fileData) return item; // already has data
+    if (item.driveId) return item; // on Drive — app can display via driveLink
+    if (!item._hasLocalFile) return item;
+    try {
+      const f = localStorage.getItem(`es_file_${item.id}`);
+      if (f) return { ...item, fileData: f };
+    } catch (e) {}
+    return item;
+  };
+
   const restoreFileData = (data) => {
-    if (data.creativeAssets) {
-      data.creativeAssets = data.creativeAssets.map(a => {
-        if (a._hasLocalFile && !a.fileData) {
-          try { const f = localStorage.getItem(`es_file_${a.id}`); if (f) return { ...a, fileData: f }; } catch (e) {}
-        }
-        return a;
-      });
-    }
-    if (data.docs) {
-      data.docs = data.docs.map(d => {
-        if (d._hasLocalFile && !d.fileData) {
-          try { const f = localStorage.getItem(`es_file_${d.id}`); if (f) return { ...d, fileData: f }; } catch (e) {}
-        }
-        return d;
-      });
-    }
-    if (data.clientFiles) {
-      data.clientFiles = data.clientFiles.map(f => {
-        if (f._hasLocalFile && !f.fileData) {
-          try { const d = localStorage.getItem(`es_file_${f.id}`); if (d) return { ...f, fileData: d }; } catch (e) {}
-        }
-        return f;
-      });
-    }
+    if (data.creativeAssets) data.creativeAssets = data.creativeAssets.map(restoreFileItem);
+    if (data.docs) data.docs = data.docs.map(restoreFileItem);
+    if (data.clientFiles) data.clientFiles = data.clientFiles.map(restoreFileItem);
     return data;
+  };
+
+  // Clean up orphaned localStorage file entries when files are removed
+  const cleanupFileCache = (oldProject, newProject) => {
+    const oldIds = new Set();
+    const newIds = new Set();
+    ['creativeAssets', 'docs', 'clientFiles'].forEach(key => {
+      (oldProject[key] || []).forEach(f => oldIds.add(f.id));
+      (newProject[key] || []).forEach(f => newIds.add(f.id));
+    });
+    oldIds.forEach(id => {
+      if (!newIds.has(id)) {
+        try { localStorage.removeItem(`es_file_${id}`); } catch (e) {}
+      }
+    });
   };
 
   // Immediate save to Supabase (with debounce for rapid updates)
@@ -186,6 +176,7 @@ export function useProjects(orgId) {
       const next = prev.map(p => {
         if (p.id !== projectId) return p;
         const updated = { ...p, ...updates };
+        cleanupFileCache(p, updated);
         saveToSupabase(projectId, updated);
         return updated;
       });
@@ -194,11 +185,20 @@ export function useProjects(orgId) {
   }, [saveToSupabase]);
 
   const deleteProjectById = useCallback(async (projectId) => {
+    // Clean up all file cache entries for this project
+    const proj = projects.find(p => p.id === projectId);
+    if (proj) {
+      ['creativeAssets', 'docs', 'clientFiles'].forEach(key => {
+        (proj[key] || []).forEach(f => {
+          try { localStorage.removeItem(`es_file_${f.id}`); } catch (e) {}
+        });
+      });
+    }
     if (usesDb) {
       try { await db.deleteProject(projectId); } catch (e) { console.error('[projects] Delete failed:', e); }
     }
     setProjects(prev => prev.filter(p => p.id !== projectId));
-  }, [usesDb]);
+  }, [usesDb, projects]);
 
   return {
     projects,

@@ -1,12 +1,13 @@
 import { ct, isOverdue } from '../utils/calc.js';
 
 export function serializeProject(project,comp){
-  const docs=project.docs||[];const txns=project.txns||[];const tasks=project.timeline||[];
+  const docs=project.docs||[];const txns=project.txns||[];const tasks=project.timeline||[];const vendors=project.vendors||[];const meetings=project.meetings||[];
   const overdue=docs.filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d)));
   const pending=docs.filter(d=>d.status==="pending"&&!isOverdue(d));
   const tasksDone=tasks.filter(t=>t.status==="done").length;
   const totalIncome=txns.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);
   const totalExpenses=txns.filter(t=>t.type==="expense").reduce((a,t)=>a+t.amount,0);
+  const getVendorName=id=>(vendors.find(v=>v.id===id)||{}).name||"none";
   return`PROJECT: ${project.name}
 Client: ${project.client||"None"}
 Start: ${project.date||"Not set"} | Event: ${project.eventDate||"Not set"}
@@ -33,8 +34,14 @@ ${tasks.map(t=>`[${t.status}] ${t.name} (${t.category}) ${t.startDate||"no date"
 RUN OF SHOW (${(project.ros||[]).length} cues):
 ${(project.ros||[]).map(r=>`${r.time} - ${r.item} @ ${r.location||"TBD"} (${r.lead||"no lead"}) ${r.duration||""}`).join("\n")}
 
+VENDORS (${vendors.length}):
+${vendors.map(v=>`- ${v.name} (${v.vendorType||"other"}) ${v.email||""} ${v.phone||""} w9:${v.w9Status||"pending"}`).join("\n")||"None"}
+
 DOCUMENTS (${docs.length} total, ${overdue.length} overdue):
-${docs.map(d=>`[${d.status}] ${d.name} (${d.type}) vendor:${d.vendor||"none"} $${d.amount} due:${d.dueDate||"none"}`).join("\n")}
+${docs.map(d=>`[${d.status}] ${d.name} (${d.type}) vendor:${getVendorName(d.vendorId)} $${d.amount} due:${d.dueDate||"none"}`).join("\n")}
+
+MEETINGS (${meetings.length}):
+${meetings.map(m=>`- ${m.title} ${m.date||""} ${m.time||""} (${m.duration||""}) ${m.location||""} ${m.isClientMeeting?"[CLIENT]":""}`).join("\n")||"None"}
 
 P&L TRANSACTIONS:
 ${txns.map(t=>`[${t.type}] ${t.description} $${t.amount} ${t.date} ${t.category||""}`).join("\n")}
