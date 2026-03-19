@@ -85,28 +85,28 @@ function DashboardHero(){
       {/* Bento grid — 4 columns, cards span 1 or 2 */}
       <div style={{flex:1,padding:'4px 14px 14px',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:7,alignContent:'start',gridAutoRows:'min-content'}}>
         {/* Row 1: Budget (2) + Spend (2) */}
-        <div key={'budget'+step} style={{gridColumn:'1/3',padding:'12px',borderRadius:7,background:`${C.amber}06`,border:`1px solid ${C.amber}12`,borderLeft:`3px solid ${C.amber}`,animation:'cardPop .4s ease-out forwards',opacity:0}}>
+        <div key={'budget'+step} style={{gridColumn:'1/3',padding:'12px',borderRadius:7,background:`${C.amber}06`,border:`1px solid ${C.amber}12`,borderLeft:`3px solid ${C.amber}`,animation:'cardPop 1s ease-out forwards',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Client Budget</div>
           <div style={{fontSize:22,fontWeight:700,color:C.amber,fontFamily:T.mono,lineHeight:1}}>{fmt(481000)}</div>
           <div style={{height:3,background:T.surface,borderRadius:2,marginTop:8,overflow:'hidden'}}><div style={{width:'81%',height:'100%',background:`linear-gradient(90deg,${C.amber},${C.teal})`,borderRadius:2}}/></div>
           <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}><span style={{fontSize:7,color:T.dim}}>81% allocated</span><span style={{fontSize:7,color:T.dim,fontFamily:T.mono}}>{fmt(93550)} remaining</span></div>
         </div>
-        <div key={'spend'+step} style={{gridColumn:'3/5',padding:'12px',borderRadius:7,background:`${C.teal}06`,border:`1px solid ${C.teal}12`,borderLeft:`3px solid ${C.teal}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.06s',opacity:0}}>
+        <div key={'spend'+step} style={{gridColumn:'3/5',padding:'12px',borderRadius:7,background:`${C.teal}06`,border:`1px solid ${C.teal}12`,borderLeft:`3px solid ${C.teal}`,animation:'cardPop 1s ease-out forwards',animationDelay:'1.5s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Project Total</div>
           <div style={{fontSize:22,fontWeight:700,color:C.teal,fontFamily:T.mono,lineHeight:1}}>{fmt(387450)}</div>
           <div style={{fontSize:8,color:T.dim,marginTop:6}}>Production: {fmt(298200)} · Agency: {fmt(89250)}</div>
         </div>
 
         {/* Row 2: Owed (1) + Due (1) + Tasks (2) */}
-        <div key={'owed'+step} style={{padding:'12px',borderRadius:7,background:`${C.coral}06`,border:`1px solid ${C.coral}12`,borderLeft:`3px solid ${C.coral}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.12s',opacity:0}}>
+        <div key={'owed'+step} style={{padding:'12px',borderRadius:7,background:`${C.coral}06`,border:`1px solid ${C.coral}12`,borderLeft:`3px solid ${C.coral}`,animation:'cardPop 1s ease-out forwards',animationDelay:'3s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Owed to Vendors</div>
           <div style={{fontSize:16,fontWeight:700,color:C.coral,fontFamily:T.mono,lineHeight:1}}>{fmt(142800)}</div>
         </div>
-        <div key={'due'+step} style={{padding:'12px',borderRadius:7,background:`${C.cyan}06`,border:`1px solid ${C.cyan}12`,borderLeft:`3px solid ${C.cyan}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.18s',opacity:0}}>
+        <div key={'due'+step} style={{padding:'12px',borderRadius:7,background:`${C.cyan}06`,border:`1px solid ${C.cyan}12`,borderLeft:`3px solid ${C.cyan}`,animation:'cardPop 1s ease-out forwards',animationDelay:'.9s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Due from Client</div>
           <div style={{fontSize:16,fontWeight:700,color:C.cyan,fontFamily:T.mono,lineHeight:1}}>{fmt(195000)}</div>
         </div>
-        <div key={'tasks'+step} style={{gridColumn:'3/5',padding:'12px',borderRadius:7,background:`${C.teal}06`,border:`1px solid ${C.teal}12`,borderLeft:`3px solid ${C.teal}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.24s',opacity:0}}>
+        <div key={'tasks'+step} style={{gridColumn:'3/5',padding:'12px',borderRadius:7,background:`${C.teal}06`,border:`1px solid ${C.teal}12`,borderLeft:`3px solid ${C.teal}`,animation:'cardPop 1s ease-out forwards',animationDelay:'1.2s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Tasks</div>
           <div style={{display:'flex',alignItems:'baseline',gap:4}}>
             <span style={{fontSize:16,fontWeight:700,color:C.teal,fontFamily:T.mono}}>16</span>
@@ -116,26 +116,26 @@ function DashboardHero(){
         </div>
 
         {/* Row 3: Prod (1) + Margin (1) + Profit (1) + Countdown (1) */}
-        <div key={'prod'+step} style={{padding:'12px',borderRadius:7,background:`rgba(255,255,255,.02)`,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.dim}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.3s',opacity:0}}>
+        <div key={'prod'+step} style={{padding:'12px',borderRadius:7,background:`rgba(255,255,255,.02)`,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.dim}`,animation:'cardPop 1s ease-out forwards',animationDelay:'1.5s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Production Cost</div>
           <div style={{fontSize:14,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{fmt(298200)}</div>
         </div>
-        <div key={'margin'+step} style={{padding:'12px',borderRadius:7,background:`${C.purple}06`,border:`1px solid ${C.purple}12`,borderLeft:`3px solid ${C.purple}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.36s',opacity:0}}>
+        <div key={'margin'+step} style={{padding:'12px',borderRadius:7,background:`${C.purple}06`,border:`1px solid ${C.purple}12`,borderLeft:`3px solid ${C.purple}`,animation:'cardPop 1s ease-out forwards',animationDelay:'1.8s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Blended Margin</div>
           <div style={{fontSize:14,fontWeight:700,color:C.purple,fontFamily:T.mono}}>17.6%</div>
         </div>
-        <div key={'profit'+step} style={{padding:'12px',borderRadius:7,background:`${C.emerald}06`,border:`1px solid ${C.emerald}12`,borderLeft:`3px solid ${C.emerald}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.42s',opacity:0}}>
+        <div key={'profit'+step} style={{padding:'12px',borderRadius:7,background:`${C.emerald}06`,border:`1px solid ${C.emerald}12`,borderLeft:`3px solid ${C.emerald}`,animation:'cardPop 1s ease-out forwards',animationDelay:'2.1s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Net Profit</div>
           <div style={{fontSize:14,fontWeight:700,color:C.emerald,fontFamily:T.mono}}>{fmt(68200)}</div>
         </div>
-        <div key={'countdown'+step} style={{padding:'12px',borderRadius:7,background:`${C.amber}06`,border:`1px solid ${C.amber}12`,borderLeft:`3px solid ${C.amber}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.48s',opacity:0}}>
+        <div key={'countdown'+step} style={{padding:'12px',borderRadius:7,background:`${C.amber}06`,border:`1px solid ${C.amber}12`,borderLeft:`3px solid ${C.amber}`,animation:'cardPop 1s ease-out forwards',animationDelay:'2.4s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Event Countdown</div>
           <div style={{fontSize:14,fontWeight:700,color:C.amber,fontFamily:T.mono}}>87 days</div>
           <div style={{fontSize:7,color:T.dim,marginTop:2}}>Jun 14, 2026</div>
         </div>
 
         {/* Row 4: Donut (2) + Comp (2) */}
-        <div key={'donut'+step} style={{gridColumn:'1/3',padding:'12px',borderRadius:7,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.54s',opacity:0}}>
+        <div key={'donut'+step} style={{gridColumn:'1/3',padding:'12px',borderRadius:7,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,animation:'cardPop 1s ease-out forwards',animationDelay:'2.7s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Spend Distribution</div>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{width:48,height:48,borderRadius:'50%',border:`3px solid ${C.purple}50`,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -150,12 +150,12 @@ function DashboardHero(){
             </div>
           </div>
         </div>
-        <div key={'weather'+step} style={{padding:'12px',borderRadius:7,background:`${C.cyan}06`,border:`1px solid ${C.cyan}12`,borderLeft:`3px solid ${C.cyan}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.6s',opacity:0}}>
+        <div key={'weather'+step} style={{padding:'12px',borderRadius:7,background:`${C.cyan}06`,border:`1px solid ${C.cyan}12`,borderLeft:`3px solid ${C.cyan}`,animation:'cardPop 1s ease-out forwards',animationDelay:'3s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Event Weather</div>
           <div style={{fontSize:18,fontWeight:700,color:C.cyan,fontFamily:T.mono}}>82°F</div>
           <div style={{fontSize:7,color:T.dim,marginTop:2}}>☀ Mostly sunny · Brooklyn, NY</div>
         </div>
-        <div key={'timezone'+step} style={{padding:'12px',borderRadius:7,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.66s',opacity:0}}>
+        <div key={'timezone'+step} style={{padding:'12px',borderRadius:7,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,animation:'cardPop 1s ease-out forwards',animationDelay:'3.3s',opacity:0}}>
           <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Time & Timezone</div>
           <div style={{fontSize:14,fontWeight:700,color:T.cream,fontFamily:T.mono}}>2:45 PM</div>
           <div style={{fontSize:7,color:T.dim,marginTop:2}}>America/New_York (EDT)</div>
