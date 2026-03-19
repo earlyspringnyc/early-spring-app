@@ -117,10 +117,22 @@ function AIV({project,updateProject,comp}){
     actions.forEach((a,i)=>{if(!a.applied)applyAction(msgIdx,i)});
   };
 
-  // Resolve file data from project or localStorage
+  // Resolve file data from project state, localStorage, or es_projects cache
   const resolveFileData=(item)=>{
     if(item.fileData)return item.fileData;
-    if(item._hasLocalFile){try{return localStorage.getItem(`es_file_${item.id}`)}catch(e){}}
+    // Try localStorage file cache
+    try{const f=localStorage.getItem(`es_file_${item.id}`);if(f)return f}catch(e){}
+    // Try finding in the full project cache (es_projects has unstripped data)
+    try{
+      const cached=JSON.parse(localStorage.getItem("es_projects")||"[]");
+      const proj=cached.find(p=>p.id===project.id);
+      if(proj){
+        for(const key of["clientFiles","creativeAssets","docs"]){
+          const match=(proj[key]||[]).find(f=>f.id===item.id);
+          if(match?.fileData)return match.fileData;
+        }
+      }
+    }catch(e){}
     return null;
   };
 
@@ -152,20 +164,18 @@ function AIV({project,updateProject,comp}){
     const t=userText.toLowerCase();
 
     // Collect all files from both sources
-    (project.creativeAssets||[]).forEach(a=>{
-      const data=resolveFileData(a);
-      if(!data)return;
+    const collectFile=(item,source)=>{
+      const data=resolveFileData(item);
+      if(!data){
+        console.log("[ai] No data for file:",item.name,"hasLocalFile:",item._hasLocalFile,"hasDriveId:",!!item.driveId);
+        return;
+      }
       const isImg=data.startsWith("data:image/");
-      const isPdf=data.startsWith("data:application/pdf")||(a.fileName&&/\.pdf$/i.test(a.fileName));
-      if(isImg||isPdf)allFiles.push({name:a.name,fileName:a.fileName||"",source:"creative",data,isImg,isPdf});
-    });
-    (project.clientFiles||[]).forEach(f=>{
-      const data=resolveFileData(f);
-      if(!data)return;
-      const isImg=data.startsWith("data:image/");
-      const isPdf=data.startsWith("data:application/pdf")||(f.fileName&&/\.pdf$/i.test(f.fileName));
-      if(isImg||isPdf)allFiles.push({name:f.name,fileName:f.fileName||"",source:"client",data,isImg,isPdf});
-    });
+      const isPdf=data.startsWith("data:application/pdf")||(item.isPdf)||(item.fileName&&/\.pdf$/i.test(item.fileName));
+      if(isImg||isPdf)allFiles.push({name:item.name,fileName:item.fileName||"",source,data,isImg,isPdf});
+    };
+    (project.creativeAssets||[]).forEach(a=>collectFile(a,"creative"));
+    (project.clientFiles||[]).forEach(f=>collectFile(f,"client"));
 
     // Prioritize files mentioned by name in the user's message
     const mentioned=allFiles.filter(f=>t.includes(f.name.toLowerCase())||t.includes(f.fileName.toLowerCase().replace(/\.[^.]+$/,"")));
@@ -226,6 +236,13 @@ function AIV({project,updateProject,comp}){
           content.push({type:"image",source:{type:"base64",media_type:mediaType,data:parts[1]}});
         });
         apiMessages=[...apiMessages.slice(0,-1),{role:"user",content}];
+      }else{
+        // Files exist but data couldn't be loaded — tell the AI
+        const totalFiles=(project.clientFiles||[]).length+(project.creativeAssets||[]).length;
+        if(totalFiles>0){
+          const hint=`\n\n[Note: ${totalFiles} file(s) exist in the project but their visual data could not be loaded from browser storage. The file metadata is available in the project context above. To enable visual analysis, the user may need to re-upload the files.]`;
+          apiMessages=[...apiMessages.slice(0,-1),{role:"user",content:lastMsg.content+hint}];
+        }
       }
     }
 
