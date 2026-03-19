@@ -37,14 +37,23 @@ DOCUMENTS (${docs.length} total, ${overdue.length} overdue):
 ${docs.map(d=>`[${d.status}] ${d.name} (${d.type}) vendor:${d.vendor||"none"} $${d.amount} due:${d.dueDate||"none"}`).join("\n")}
 
 P&L TRANSACTIONS:
-${txns.map(t=>`[${t.type}] ${t.description} $${t.amount} ${t.date} ${t.category||""}`).join("\n")}`;
+${txns.map(t=>`[${t.type}] ${t.description} $${t.amount} ${t.date} ${t.category||""}`).join("\n")}
+
+CLIENT FILES (${(project.clientFiles||[]).length}):
+${(project.clientFiles||[]).map(f=>`- ${f.name} (${f.fileName||"unknown"}) [${f.category||"other"}] uploaded: ${f.dateAdded||"unknown"}`).join("\n")||"None"}
+
+CREATIVE ASSETS (${(project.creativeAssets||[]).length}):
+${(project.creativeAssets||[]).map(a=>`- ${a.name} (${a.fileName||a.fileType||"unknown"}) [${a.section||"general"}] status:${a.status||"draft"} ${a.fileSize||""} ${a.notes?`notes:"${a.notes}"`:""}${a.comments&&a.comments.length?` ${a.comments.length} comment(s)`:""}`).join("\n")||"None"}
+
+ALTERNATE BUDGETS (${(project.budgets||[]).length}):
+${(project.budgets||[]).map(b=>{const t=ct&&b.cats?b.cats.reduce((a,c)=>a+ct(c.items).totals.clientPrice,0):0;return`- ${b.name}: client total ~$${t.toFixed(2)}, ${b.cats?.length||0} categories, fee ${((b.feeP||0)*100).toFixed(0)}%`}).join("\n")||"None"}`;
 }
 
 
 export const AI_SYSTEM=`You are the AI assistant built into Early Spring's production management tool. You have full access to the current project data. You are sharp, direct, and helpful. No corporate filler. Match the user's pace.
 
 You can do three things:
-1. ANSWER questions about the project (budget, timeline, documents, P&L, anything).
+1. ANSWER questions about the project (budget, timeline, documents, P&L, client files, creative assets, alternate budgets — anything).
 2. SUGGEST improvements, flag risks, identify missing items, optimize margins.
 3. EXECUTE actions by including JSON action blocks in your response.
 
