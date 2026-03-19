@@ -117,12 +117,20 @@ function AIV({project,updateProject,comp,accessToken}){
     actions.forEach((a,i)=>{if(!a.applied)applyAction(msgIdx,i)});
   };
 
-  // Resolve file data from project state, localStorage, es_projects cache, or Google Drive
+  // Resolve file data from project state, Supabase Storage, localStorage, or Google Drive
   const resolveFileData=async(item)=>{
     if(item.fileData)return item.fileData;
+    // Try Supabase Storage
+    if(item.storagePath){
+      try{
+        const{downloadFileData}=await import('../lib/db.js');
+        const data=await downloadFileData(item.storagePath);
+        if(data)return data;
+      }catch(e){console.error("[ai] Supabase Storage download failed:",e)}
+    }
     // Try localStorage file cache
     try{const f=localStorage.getItem(`es_file_${item.id}`);if(f)return f}catch(e){}
-    // Try finding in the full project cache (es_projects has unstripped data)
+    // Try es_projects cache
     try{
       const cached=JSON.parse(localStorage.getItem("es_projects")||"[]");
       const proj=cached.find(p=>p.id===project.id);

@@ -311,6 +311,57 @@ export async function uploadFile(orgId, projectId, file) {
   return urlData?.publicUrl || null;
 }
 
+// Upload base64 data URL to Supabase Storage
+export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl) {
+  if (!isSupabaseConfigured() || !dataUrl) return null;
+  try {
+    // Convert base64 data URL to blob
+    const parts = dataUrl.split(',');
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const byteStr = atob(parts[1]);
+    const ab = new ArrayBuffer(byteStr.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+    const blob = new Blob([ab], { type: mime });
+
+    const path = `${orgId}/${projectId}/${fileId}_${fileName}`;
+    const { error } = await supabase.storage
+      .from('files')
+      .upload(path, blob, { upsert: true, contentType: mime });
+    if (error) { console.error('[storage] Upload failed:', error.message); return null; }
+
+    const { data: urlData } = supabase.storage
+      .from('files')
+      .getPublicUrl(path);
+    console.log('[storage] Uploaded:', fileName, '→', path);
+    return { storagePath: path, storageUrl: urlData?.publicUrl || null };
+  } catch (e) {
+    console.error('[storage] Upload error:', e);
+    return null;
+  }
+}
+
+// Download file from Supabase Storage as base64 data URL
+export async function downloadFileData(storagePath) {
+  if (!isSupabaseConfigured() || !storagePath) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from('files')
+      .download(storagePath);
+    if (error || !data) return null;
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(data);
+    });
+  } catch (e) {
+    console.error('[storage] Download error:', e);
+    return null;
+  }
+}
+
 export async function deleteFile(filePath) {
   if (!isSupabaseConfigured()) return;
   await supabase.storage

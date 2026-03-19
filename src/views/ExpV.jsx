@@ -67,9 +67,17 @@ function FileViewerModal({file,onClose}){
   const[resolvedData,setResolvedData]=useState(file.fileData);
   useEffect(()=>{
     if(file.fileData){setResolvedData(file.fileData);return}
+    // Try Supabase Storage
+    if(file.storagePath){
+      import('../lib/db.js').then(({downloadFileData})=>downloadFileData(file.storagePath)).then(d=>{if(d)setResolvedData(d)}).catch(()=>{});
+      return;
+    }
+    // Try localStorage
     if(file._hasLocalFile){
       try{const d=localStorage.getItem(`es_file_${file.id}`);if(d){setResolvedData(d);return}}catch(e){}
     }
+    // Try storageUrl as direct image src (for images only)
+    if(file.storageUrl){setResolvedData(file.storageUrl);return}
     setResolvedData(null);
   },[file]);
   const isPdf=(file.fileName&&/\.pdf$/i.test(file.fileName))||(resolvedData&&resolvedData.startsWith("data:application/pdf"));
@@ -817,10 +825,10 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     </div>
     {filteredFiles.length>0?<div className="file-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:14}}>
       {filteredFiles.map(f=>{
-        // Resolve fileData from localStorage if stripped
-        const fd=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null);
-        const isPdf=(f.fileName&&/\.pdf$/i.test(f.fileName))||(fd&&fd.startsWith("data:application/pdf"));
-        const isImg=fd&&/^data:image\//i.test(fd);
+        // Resolve fileData from localStorage, storageUrl, or null
+        const fd=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null)||(f.storageUrl||null);
+        const isPdf=(f.fileName&&/\.pdf$/i.test(f.fileName));
+        const isImg=(fd&&/^data:image\//i.test(fd))||(f.storageUrl&&/\.(png|jpe?g|gif|webp)$/i.test(f.fileName||""));
         return<div key={f.id} onClick={()=>fd&&setViewingFile({...f,fileData:fd})} style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,overflow:"hidden",cursor:fd?"pointer":"default",transition:"border-color .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none"}}>
           {/* Thumbnail area */}
           <div style={{height:130,background:T.surface,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
