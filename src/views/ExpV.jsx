@@ -94,11 +94,10 @@ function FileViewerModal({file,onClose}){
       const pg=await pdf.getPage(page+1);
       const canvas=canvasRef.current;
       const ctx=canvas.getContext("2d");
-      // Fit entire page in viewport (both width and height visible)
-      const targetWidth=window.innerWidth-32;
-      const targetHeight=window.innerHeight-100;
+      // Render at full viewport width — scrollable container handles overflow
+      const targetWidth=window.innerWidth-64;
       const baseVp=pg.getViewport({scale:1});
-      const scale=Math.min(targetWidth/baseVp.width,targetHeight/baseVp.height);
+      const scale=Math.max(targetWidth/baseVp.width,2);
       const vp=pg.getViewport({scale});
       canvas.width=vp.width;canvas.height=vp.height;
       await pg.render({canvasContext:ctx,viewport:vp}).promise;
@@ -106,29 +105,31 @@ function FileViewerModal({file,onClose}){
     render();
   },[pdf,page]);
 
-  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
-    <div onClick={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,maxHeight:"95vh",maxWidth:"95vw"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",flexShrink:0}}>
-        <div style={{fontSize:14,fontWeight:600,color:T.cream}}>{file.name}</div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none",fontFamily:T.sans,cursor:"pointer"}}>Download</a>}
-          <button onClick={onClose} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Close</button>
-        </div>
+  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",padding:0}}>
+    {/* Fixed header bar */}
+    <div onClick={e=>e.stopPropagation()} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 20px",flexShrink:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(12px)",borderBottom:"1px solid rgba(255,255,255,.08)",zIndex:1}}>
+      <div style={{fontSize:14,fontWeight:600,color:T.cream}}>{file.name}</div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none",fontFamily:T.sans,cursor:"pointer"}}>Download</a>}
+        <button onClick={onClose} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Close</button>
       </div>
+    </div>
+    {/* Scrollable content area */}
+    <div onClick={e=>e.stopPropagation()} style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column",alignItems:"center",padding:16}}>
       {!resolvedData?<div style={{padding:48,textAlign:"center"}}>
         <div style={{fontSize:13,color:T.dim}}>File data not available — it may have been cleared from storage</div>
       </div>
       :isPdf?<>
         {loading&&<div style={{color:T.dim,fontSize:13,padding:48}}>Loading PDF...</div>}
         {error&&<div style={{color:T.neg,fontSize:13,padding:48}}>{error}</div>}
-        {pdf&&<canvas ref={canvasRef} style={{maxWidth:"100%",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>}
-        {pdf&&total>1&&<div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+        {pdf&&<canvas ref={canvasRef} style={{borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>}
+        {pdf&&total>1&&<div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0,padding:"12px 0"}}>
           <button onClick={()=>setPage(Math.max(0,page-1))} disabled={page===0} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page===0?"transparent":T.border}`,color:page===0?T.dim:T.cream,fontSize:12,cursor:page===0?"default":"pointer",fontFamily:T.sans}}>&larr; Prev</button>
           <span style={{fontSize:12,fontFamily:T.mono,color:T.cream,fontWeight:600}}>Page {page+1} of {total}</span>
           <button onClick={()=>setPage(Math.min(total-1,page+1))} disabled={page>=total-1} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page>=total-1?"transparent":T.border}`,color:page>=total-1?T.dim:T.cream,fontSize:12,cursor:page>=total-1?"default":"pointer",fontFamily:T.sans}}>Next &rarr;</button>
         </div>}
       </>
-      :isImage?<img src={resolvedData} alt={file.name} style={{maxWidth:"100%",maxHeight:"calc(95vh - 60px)",objectFit:"contain",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>
+      :isImage?<img src={resolvedData} alt={file.name} style={{maxWidth:"100%",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>
       :<div style={{padding:48,textAlign:"center"}}>
         <div style={{fontSize:13,color:T.dim,marginBottom:12}}>Preview not available for this file type</div>
         {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} style={{padding:"8px 18px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:12,fontWeight:600,textDecoration:"none",fontFamily:T.sans}}>Download File</a>}
