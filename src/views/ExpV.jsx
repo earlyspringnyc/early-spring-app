@@ -353,14 +353,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
             {/* To field */}
             <div>
               <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>To</div>
-              <div style={{position:"relative"}}>
-                <input value={emailTo} onChange={e=>searchEmailContacts(e.target.value)} onFocus={()=>{if(contactSugs.length)setShowContactSugs(true)}} onBlur={()=>setTimeout(()=>setShowContactSugs(false),200)} placeholder="recipient@email.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-                {showContactSugs&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:140,overflow:"auto"}}>
-                  {contactSugs.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickContact(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    {c.name&&<span>{c.name}</span>}<span style={{color:T.dim}}>{c.email}</span>
-                  </button>)}
-                </div>}
-              </div>
+              <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
             </div>
             {/* Message */}
             <div>
@@ -675,7 +668,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
       <span style={{fontSize:12,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".08em"}}>Grand Total</span>
       <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(viewComp.grandTotal)}</span>
     </div>
-    <ShareEmailModal/>
+    {ShareEmailModal()}
   </div>}
 
   /* ══ PRODUCTION (CLIENT) VIEW ══ */
@@ -736,7 +729,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
     </div>
 
     {clientSections.map(k=>sectionMap[k])}
-    <ShareEmailModal/>
+    {ShareEmailModal()}
   </div>}
 
   /* ══ FILES VIEW ══ */
