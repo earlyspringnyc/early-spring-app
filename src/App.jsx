@@ -16,6 +16,50 @@ import SharedClientView from './views/SharedClientView.jsx';
 
 const MAX_UNDO=15;
 
+/* ── Drive Onboarding Modal — shown once for new users ── */
+function DriveOnboarding({accessToken,onComplete,onSkip}){
+  const[drives,setDrives]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[setting,setSetting]=useState(false);
+
+  useEffect(()=>{
+    if(!accessToken)return;
+    setLoading(true);
+    fetch("https://www.googleapis.com/drive/v3/drives?pageSize=50",{headers:{Authorization:`Bearer ${accessToken}`}})
+      .then(r=>r.ok?r.json():{drives:[]}).then(d=>setDrives(d.drives||[])).catch(()=>{}).finally(()=>setLoading(false));
+  },[accessToken]);
+
+  const selectDrive=async(driveId,driveName)=>{
+    setSetting(true);
+    try{localStorage.setItem("es_drive_location",JSON.stringify({driveId,driveName:driveName||"My Drive"}))}catch(e){}
+    onComplete(driveId,driveName);
+  };
+
+  return<div style={{position:"fixed",inset:0,zIndex:10000,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:T.sans}}>
+    <div style={{width:"100%",maxWidth:480,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(0,0,0,.5)",padding:32}}>
+      <div style={{fontSize:20,fontWeight:700,color:T.cream,marginBottom:8}}>Connect Google Drive</div>
+      <p style={{fontSize:13,color:T.dim,lineHeight:1.6,marginBottom:6}}>Morgan stores all your project files — budgets, creative assets, client documents — in Google Drive so nothing is lost when you switch devices or clear your browser.</p>
+      <p style={{fontSize:12,color:T.gold,lineHeight:1.6,marginBottom:24}}>We recommend setting this up now to keep your files safe.</p>
+
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+        <button onClick={()=>selectDrive(null,"My Drive")} disabled={setting} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontWeight:500,cursor:setting?"wait":"pointer",fontFamily:T.sans,textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.borderColor=T.borderGlow} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+          <span style={{fontSize:18}}>&#128193;</span>
+          <div><div>My Drive</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>Personal Google Drive</div></div>
+        </button>
+        {loading&&<div style={{textAlign:"center",padding:12,color:T.dim,fontSize:12}}>Loading shared drives...</div>}
+        {drives.map(d=><button key={d.id} onClick={()=>selectDrive(d.id,d.name)} disabled={setting} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontWeight:500,cursor:setting?"wait":"pointer",fontFamily:T.sans,textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.borderColor=T.borderGlow} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+          <span style={{fontSize:18}}>&#128101;</span>
+          <div><div>{d.name}</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>Shared Drive</div></div>
+        </button>)}
+      </div>
+
+      {setting&&<div style={{textAlign:"center",padding:12,color:T.gold,fontSize:12}}>Setting up Drive...</div>}
+
+      <button onClick={onSkip} style={{width:"100%",padding:"10px 0",background:"none",border:"none",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Skip for now (files will only be saved locally)</button>
+    </div>
+  </div>;
+}
+
 function App(){
   // Check for share link
   const shareToken=new URLSearchParams(window.location.search).get("share");
@@ -76,6 +120,14 @@ function App(){
   const[showNew,setShowNew]=useState(false);
   const[undoStack,setUndoStack]=useState([]);
   const[toasts,setToasts]=useState([]);
+  const[showDriveOnboarding,setShowDriveOnboarding]=useState(false);
+  // Show Drive onboarding for first-time users who haven't set up Drive
+  useEffect(()=>{
+    if(!user||!accessToken||!loaded)return;
+    const hasDriveLoc=(()=>{try{return!!localStorage.getItem("es_drive_location")}catch(e){return false}})();
+    const dismissed=(()=>{try{return!!localStorage.getItem("es_drive_onboarding_dismissed")}catch(e){return false}})();
+    if(!hasDriveLoc&&!dismissed)setShowDriveOnboarding(true);
+  },[user,accessToken,loaded]);
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
 
@@ -165,7 +217,7 @@ function App(){
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
-  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<>{showDriveOnboarding&&<DriveOnboarding accessToken={accessToken} onComplete={(driveId,driveName)=>{setShowDriveOnboarding(false)}} onSkip={()=>{setShowDriveOnboarding(false);try{localStorage.setItem("es_drive_onboarding_dismissed","1")}catch(e){}}}/>}<PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
