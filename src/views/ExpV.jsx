@@ -350,60 +350,75 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const OrgLogo=({color="#475569"})=>{try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.logo)return<img src={o.logo} alt={o.name||"Logo"} style={{height:16,objectFit:"contain"}}/>;if(o.name)return<span style={{fontSize:10,fontWeight:700,color,letterSpacing:".14em",textTransform:"uppercase"}}>{o.name}</span>}catch(e){}return<ESWordmark height={16} color={color}/>};
   const OrgFooter=()=>{const{orgN,orgA,orgW}=getOrgInfo();const w=orgW.replace(/^https?:\/\//,'');return<div style={{textAlign:"center",marginTop:36,paddingTop:18,borderTop:"1px solid #EEE"}}><div style={{fontSize:10,color:"#BBB"}}>Sent from <a href="https://early-spring-app.vercel.app" style={{color:"#999",textDecoration:"none"}}>Morgan</a> @ <a href={orgW.startsWith("http")?orgW:`https://${w}`} style={{color:"#999",textDecoration:"none"}}>{orgN}</a></div>{orgA&&<div style={{fontSize:9,color:"#CCC",marginTop:4}}>{orgA}</div>}</div>};
 
-  /* ── Share Email Modal ── */
+  /* ── Share Email Modal — full email composer ── */
+  const[showPreview,setShowPreview]=useState(false);
+  const editorRef=useRef(null);
+  const execCmd=(cmd,val)=>{document.execCommand(cmd,false,val||null);editorRef.current?.focus()};
   const ShareEmailModal=()=>{
     if(!shareModal)return null;
     const isBudget=shareModal==="budget";
     const onSend=isBudget?sendBudget:sendTimeline;
     const title=isBudget?"Share Production Estimate":"Share Production Schedule";
-    return<div onClick={()=>setShareModal(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:1000,maxHeight:"92vh",background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    const FmtBtn=({cmd,icon,title:t,val})=><button onClick={()=>execCmd(cmd,val)} title={t} style={{padding:"4px 8px",background:"none",border:"none",color:T.dim,fontSize:14,cursor:"pointer",borderRadius:4,lineHeight:1}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}}>{icon}</button>;
+    return<div onClick={()=>setShareModal(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:1100,height:"90vh",background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
-          <div style={{fontSize:16,fontWeight:600,color:T.cream}}>{title}</div>
-          <button onClick={()=>setShareModal(null)} style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
-        </div>
-        {/* Body — sidebar controls + preview */}
-        <div style={{display:"flex",flex:1,overflow:"hidden",minHeight:0}}>
-          {/* Left: controls */}
-          <div style={{width:320,flexShrink:0,borderRight:`1px solid ${T.border}`,padding:20,overflow:"auto",display:"flex",flexDirection:"column",gap:14}}>
-            {/* Budget picker */}
-            {isBudget&&(budgets||[]).length>0&&<div>
-              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Budget Version</div>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                <button onClick={()=>refreshPreview(null)} style={{padding:"5px 12px",borderRadius:14,border:"none",fontSize:10,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
-                {(budgets||[]).map(b=><button key={b.id} onClick={()=>refreshPreview(b.id)} style={{padding:"5px 12px",borderRadius:14,border:"none",fontSize:10,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
-              </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{fontSize:15,fontWeight:600,color:T.cream}}>{title}</div>
+            {isBudget&&(budgets||[]).length>0&&<div style={{display:"flex",gap:4,marginLeft:8}}>
+              <button onClick={()=>refreshPreview(null)} style={{padding:"3px 10px",borderRadius:12,border:"none",fontSize:9,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
+              {(budgets||[]).map(b=><button key={b.id} onClick={()=>refreshPreview(b.id)} style={{padding:"3px 10px",borderRadius:12,border:"none",fontSize:9,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
             </div>}
-            {/* To field */}
-            <div>
-              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>To</div>
-              <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button onClick={()=>setShowPreview(!showPreview)} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${showPreview?T.borderGlow:T.border}`,background:showPreview?T.surfEl:"transparent",color:showPreview?T.cream:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showPreview?"Hide Preview":"Preview"}</button>
+            <button onClick={()=>setShareModal(null)} style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
+          </div>
+        </div>
+        {/* To field */}
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          <span style={{fontSize:11,fontWeight:600,color:T.dim,flexShrink:0}}>To:</span>
+          <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" style={{flex:1,padding:"6px 0",background:"transparent",border:"none",color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/>
+        </div>
+        {/* Body */}
+        <div style={{display:"flex",flex:1,overflow:"hidden",minHeight:0}}>
+          {/* Compose area */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+            {/* Formatting toolbar */}
+            <div style={{display:"flex",alignItems:"center",gap:2,padding:"6px 16px",borderBottom:`1px solid ${T.border}`,flexShrink:0,flexWrap:"wrap"}}>
+              <FmtBtn cmd="bold" icon="B" title="Bold (Cmd+B)"/>
+              <FmtBtn cmd="italic" icon="I" title="Italic (Cmd+I)"/>
+              <FmtBtn cmd="underline" icon="U" title="Underline (Cmd+U)"/>
+              <span style={{width:1,height:16,background:T.border,margin:"0 4px"}}/>
+              <FmtBtn cmd="insertUnorderedList" icon="•" title="Bullet list"/>
+              <FmtBtn cmd="insertOrderedList" icon="1." title="Numbered list"/>
+              <span style={{width:1,height:16,background:T.border,margin:"0 4px"}}/>
+              <FmtBtn cmd="formatBlock" icon="H" title="Heading" val="h3"/>
+              <FmtBtn cmd="formatBlock" icon="¶" title="Normal text" val="div"/>
+              <span style={{width:1,height:16,background:T.border,margin:"0 4px"}}/>
+              <button onClick={()=>{const url=prompt("Link URL:");if(url)execCmd("createLink",url)}} title="Insert link" style={{padding:"4px 8px",background:"none",border:"none",color:T.dim,fontSize:12,cursor:"pointer",borderRadius:4,lineHeight:1}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}}>&#128279;</button>
+              <FmtBtn cmd="removeFormat" icon="✕" title="Clear formatting"/>
             </div>
-            {/* Message — rich text editor */}
-            <div>
-              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Message</div>
-              <div contentEditable suppressContentEditableWarning onInput={e=>setEmailMsg(e.currentTarget.innerHTML)} onPaste={e=>{
-                // Allow rich paste — grab HTML if available, otherwise plain text
-                const html=e.clipboardData.getData("text/html");
-                if(html){e.preventDefault();document.execCommand("insertHTML",false,html)}
-              }} data-placeholder="Add a personal note..." style={{width:"100%",minHeight:100,maxHeight:200,overflow:"auto",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}/>
-              <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T.dim};pointer-events:none} [contenteditable] ul,[contenteditable] ol{padding-left:20px;margin:4px 0} [contenteditable] li{margin:2px 0}`}</style>
-            </div>
-            {/* Actions */}
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:"auto",paddingTop:14}}>
-              <button onClick={()=>{onSend();setShareModal(null)}} disabled={!emailTo.trim()||emailSending} style={{padding:"10px 0",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,textAlign:"center"}}>{emailSending?"Sending...":"Send Email"}</button>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={copyLink} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>{linkCopied?"Copied":"Copy Link"}</button>
-                <button onClick={()=>window.print()} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>PDF</button>
-              </div>
-              {emailSent&&<div style={{fontSize:11,color:T.pos,textAlign:"center"}}>Sent to {emailSent}</div>}
+            {/* Editor */}
+            <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={e=>setEmailMsg(e.currentTarget.innerHTML)} onPaste={e=>{
+              const html=e.clipboardData.getData("text/html");
+              if(html){e.preventDefault();document.execCommand("insertHTML",false,html)}
+            }} data-placeholder="Compose your message..." style={{flex:1,overflow:"auto",padding:"16px 20px",color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",lineHeight:1.7,whiteSpace:"pre-wrap",wordBreak:"break-word"}}/>
+            <style>{`[data-placeholder]:empty:before{content:attr(data-placeholder);color:${T.dim};pointer-events:none} [contenteditable] ul,[contenteditable] ol{padding-left:24px;margin:8px 0} [contenteditable] li{margin:4px 0} [contenteditable] h3{font-size:16px;font-weight:600;margin:12px 0 6px} [contenteditable] a{color:${T.cyan};text-decoration:underline}`}</style>
+            {/* Bottom bar */}
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderTop:`1px solid ${T.border}`,flexShrink:0}}>
+              <button onClick={()=>{onSend();setShareModal(null)}} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 24px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending...":"Send"}</button>
+              <button onClick={copyLink} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
+              <button onClick={()=>window.print()} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
+              <div style={{flex:1}}/>
+              {emailSent&&<span style={{fontSize:11,color:T.pos,fontWeight:600}}>Sent to {emailSent}</span>}
             </div>
           </div>
-          {/* Right: email preview */}
-          <div style={{flex:1,overflow:"auto",background:"#F5F4F1"}}>
-            <iframe srcDoc={previewHtml} style={{width:"100%",height:"100%",border:"none",minHeight:500}} title="Email preview"/>
-          </div>
+          {/* Preview panel — toggle */}
+          {showPreview&&<div style={{width:420,flexShrink:0,borderLeft:`1px solid ${T.border}`,overflow:"auto",background:"#F5F4F1"}}>
+            <iframe srcDoc={previewHtml} style={{width:"100%",height:"100%",border:"none"}} title="Email preview"/>
+          </div>}
         </div>
       </div>
     </div>;
