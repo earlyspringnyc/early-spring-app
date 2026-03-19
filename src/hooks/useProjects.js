@@ -82,41 +82,75 @@ export function useProjects(orgId) {
     try { localStorage.setItem("es_projects", JSON.stringify(projects)); } catch (e) {}
   }, [projects, loaded]);
 
-  // One-time migration: upload files from localStorage to Supabase Storage
+  // One-time migration: upload ALL files to Supabase Storage
+  // Checks: in-memory fileData, es_file_* localStorage, es_projects cache
   const migrated = useRef(false);
   useEffect(() => {
     if (!loaded || !usesDb || migrated.current || !projects.length) return;
     migrated.current = true;
+
+    // Also load the full es_projects cache which may have unstripped file data
+    let cachedProjects = [];
+    try { cachedProjects = JSON.parse(localStorage.getItem("es_projects") || "[]"); } catch (e) {}
+
     const migrateFiles = async () => {
-      let changed = false;
-      for (const p of projects) {
+      let totalUploaded = 0;
+      const updatedProjects = [...projects];
+
+      for (let pi = 0; pi < updatedProjects.length; pi++) {
+        const p = updatedProjects[pi];
+        let projectChanged = false;
+
         for (const key of ['creativeAssets', 'clientFiles', 'docs']) {
           const items = p[key] || [];
-          for (const item of items) {
-            if (item.storagePath || !item._hasLocalFile) continue;
-            // Has localStorage data but no Supabase Storage path — migrate it
-            let data = null;
-            try { data = localStorage.getItem(`es_file_${item.id}`); } catch (e) {}
-            if (!data) continue;
+          for (let ii = 0; ii < items.length; ii++) {
+            const item = items[ii];
+            // Skip if already in Supabase Storage
+            if (item.storagePath) continue;
+
+            // Try every source for file data
+            let data = item.fileData || null;
+            if (!data) { try { data = localStorage.getItem(`es_file_${item.id}`); } catch (e) {} }
+            if (!data) {
+              // Try the cached es_projects blob
+              const cachedP = cachedProjects.find(cp => cp.id === p.id);
+              if (cachedP) {
+                const cachedItem = (cachedP[key] || []).find(ci => ci.id === item.id);
+                if (cachedItem?.fileData) data = cachedItem.fileData;
+              }
+            }
+
+            if (!data || data.length <= 100) continue; // skip empty/tiny
+
+            console.log('[migrate] Uploading:', item.name || item.fileName, `(${Math.round(data.length/1024)}KB)`);
             const result = await db.uploadFileData(orgId, p.id, item.id, item.fileName || item.name || 'file', data);
             if (result) {
-              item.storagePath = result.storagePath;
-              item._hasLocalFile = false;
-              changed = true;
-              console.log('[migrate] Uploaded to Supabase Storage:', item.name);
-              // Clean up localStorage
+              items[ii] = { ...item, storagePath: result.storagePath, _hasLocalFile: false, fileData: null };
+              projectChanged = true;
+              totalUploaded++;
+              // Clean up localStorage copy
               try { localStorage.removeItem(`es_file_${item.id}`); } catch (e) {}
             }
           }
         }
-        if (changed) {
-          // Save the updated metadata (with storagePath) to Supabase
-          try { await db.updateProject(p.id, p); } catch (e) { console.error('[migrate] Save failed:', e); }
+
+        if (projectChanged) {
+          try {
+            // Strip any remaining large fileData before saving to DB
+            const toSave = { ...p };
+            ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
+              if (toSave[k]) toSave[k] = toSave[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
+            });
+            await db.updateProject(p.id, toSave);
+          } catch (e) { console.error('[migrate] Save failed:', e); }
         }
       }
-      if (changed) {
-        console.log('[migrate] File migration to Supabase Storage complete');
-        setProjects([...projects]); // trigger re-render with updated paths
+
+      if (totalUploaded > 0) {
+        console.log(`[migrate] ✓ ${totalUploaded} file(s) backed up to Supabase Storage`);
+        setProjects([...updatedProjects]);
+      } else {
+        console.log('[migrate] No files needed migration');
       }
     };
     migrateFiles().catch(e => console.error('[migrate] Migration failed:', e));
