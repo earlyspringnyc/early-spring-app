@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { setCurrency } from '../utils/format.js';
@@ -97,6 +97,24 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
   const activeProjectForCalc=isAlt?{...project,cats:activeCats,ag:activeAg,feeP:activeFeeP}:project;
   const comp=useMemo(()=>isAlt?calcProject(activeProjectForCalc):primaryComp,[activeProjectForCalc,primaryComp,isAlt]);
   useEffect(()=>{setCurrency(project.currency)},[project.currency]);
+
+  // Auto-sync budgets to Google Sheets (debounced)
+  const sheetSyncTimer=useRef(null);
+  useEffect(()=>{
+    if(!accessToken||!project.driveFolders)return;
+    if(sheetSyncTimer.current)clearTimeout(sheetSyncTimer.current);
+    sheetSyncTimer.current=setTimeout(async()=>{
+      try{
+        const{syncBudgetToSheets}=await import('../utils/drive.js');
+        const result=await syncBudgetToSheets(accessToken,project,primaryComp,calcProject);
+        if(result&&!project.budgetSheetId){
+          updateProject({budgetSheetId:result.spreadsheetId});
+        }
+      }catch(e){console.error('[sheets] Auto-sync failed:',e)}
+    },5000); // 5s debounce
+    return()=>{if(sheetSyncTimer.current)clearTimeout(sheetSyncTimer.current)};
+  },[project.cats,project.ag,project.feeP,project.budgets,accessToken,project.driveFolders]);
+
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const reorderCat=useCallback((ci2,from,to)=>{const cats=[...activeCats];const items=[...cats[ci2].items];const[moved]=items.splice(from,1);items.splice(to,0,moved);cats[ci2]={...cats[ci2],items};isAlt?updateAltBudget({cats}):updateProject({cats})},[activeCats,isAlt,updateProject,updateAltBudget]);
   const reorderSection=useCallback((from,to)=>{const cats=[...activeCats];const[moved]=cats.splice(from,1);cats.splice(to,0,moved);isAlt?updateAltBudget({cats}):updateProject({cats})},[activeCats,isAlt,updateProject,updateAltBudget]);

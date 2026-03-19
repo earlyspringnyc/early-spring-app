@@ -347,12 +347,172 @@ export async function uploadToDrive(token, fileData, fileName, folderIds, docTyp
   }
 }
 
-/* ── Export budget to Google Sheets ── */
+/* ── Auto-sync budget to Google Sheets (single spreadsheet, one tab per budget) ── */
+
+function buildBudgetRows(label, cats, ag, comp, feeP, project) {
+  const vendors = project.vendors || [];
+  const getVendor = id => vendors.find(v => v.id === id)?.name || '';
+  const rows = [
+    [label, '', '', '', '', '', '', ''],
+    [`Updated: ${new Date().toLocaleDateString()}`, '', '', `Client: ${project.client || ''}`, '', '', '', ''],
+    [],
+    ['Category', 'Item', 'Description', 'Vendor', 'Actual Cost', 'Margin %', 'Client Price', 'Variance'],
+  ];
+  cats.forEach(c => {
+    c.items.forEach(it => {
+      const cp = it.actualCost === 0 ? 0 : it.actualCost * (1 + (it.margin || 0));
+      rows.push([c.name, it.name, it.details || '', getVendor(it.vendorId), it.actualCost, `${Math.round((it.margin || 0) * 100)}%`, cp, cp - it.actualCost]);
+    });
+  });
+  rows.push([]);
+  rows.push(['', '', '', '', 'PRODUCTION SUBTOTAL', '', comp.productionSubtotal.clientPrice, '']);
+  rows.push([]);
+  rows.push(['Agency Role', '', '', '', 'Days', 'Day Rate', 'Cost', '']);
+  ag.forEach(it => {
+    const cp = it.actualCost === 0 ? 0 : it.actualCost * (1 + (it.margin || 0));
+    rows.push([it.name, '', '', '', it.days || '', it.dayRate || '', cp, '']);
+  });
+  rows.push(['', '', '', '', 'AGENCY SUBTOTAL', '', comp.agencyCostsSubtotal.clientPrice, '']);
+  rows.push(['', '', '', '', `AGENCY FEE (${Math.round(feeP * 100)}%)`, '', comp.agencyFee.clientPrice, '']);
+  rows.push([]);
+  rows.push(['', '', '', '', 'GRAND TOTAL', '', comp.grandTotal, '']);
+  rows.push(['', '', '', '', 'NET PROFIT', '', comp.netProfit, '']);
+  return rows;
+}
+
+export async function syncBudgetToSheets(token, project, primaryComp, calcProjectFn) {
+  if (!token || !project.driveFolders) return null;
+  const folderIds = project.driveFolders;
+  const budgetsFolderId = folderIds?.['Budgets'] || folderIds?.['Production/Budgets'] || folderIds?.['Production'] || folderIds?._root;
+
+  let spreadsheetId = project.budgetSheetId;
+  const sheetTitle = `${project.name || 'Budget'} — Production Budget`;
+
+  // Create spreadsheet if it doesn't exist
+  if (!spreadsheetId) {
+    const createRes = await fetch(SHEETS_API, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ properties: { title: sheetTitle }, sheets: [{ properties: { title: 'Primary Budget' } }] }),
+    });
+    if (!createRes.ok) { console.error('[sheets] Create failed:', await createRes.text()); return null; }
+    const sheet = await createRes.json();
+    spreadsheetId = sheet.spreadsheetId;
+
+    // Move to budgets folder
+    if (budgetsFolderId) {
+      await fetch(`${DRIVE_API}/files/${spreadsheetId}?addParents=${budgetsFolderId}&fields=id`, {
+        method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  }
+
+  // Get existing sheets in the spreadsheet
+  const metaRes = await fetch(`${SHEETS_API}/${spreadsheetId}?fields=sheets.properties`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!metaRes.ok) { console.error('[sheets] Meta failed:', await metaRes.text()); return null; }
+  const meta = await metaRes.json();
+  const existingSheets = (meta.sheets || []).map(s => ({ id: s.properties.sheetId, title: s.properties.title }));
+
+  // Build list of budgets to sync: primary + alternates
+  const allBudgets = [{ name: 'Primary Budget', cats: project.cats, ag: project.ag, feeP: project.feeP, comp: primaryComp }];
+  (project.budgets || []).forEach(b => {
+    const bComp = calcProjectFn({ ...project, cats: b.cats, ag: b.ag, feeP: b.feeP });
+    allBudgets.push({ name: b.name, cats: b.cats, ag: b.ag, feeP: b.feeP, comp: bComp });
+  });
+
+  const requests = [];
+  const dataUpdates = [];
+
+  for (let i = 0; i < allBudgets.length; i++) {
+    const b = allBudgets[i];
+    const existing = existingSheets.find(s => s.title === b.name);
+
+    if (existing) {
+      // Clear existing data
+      requests.push({ updateCells: { range: { sheetId: existing.id }, fields: 'userEnteredValue' } });
+    } else if (i === 0 && existingSheets.length > 0) {
+      // Rename first sheet to "Primary Budget" if needed
+      if (existingSheets[0].title !== b.name) {
+        requests.push({ updateSheetProperties: { properties: { sheetId: existingSheets[0].id, title: b.name }, fields: 'title' } });
+      }
+      requests.push({ updateCells: { range: { sheetId: existingSheets[0].id }, fields: 'userEnteredValue' } });
+    } else {
+      // Add new sheet
+      requests.push({ addSheet: { properties: { title: b.name } } });
+    }
+
+    const rows = buildBudgetRows(b.name, b.cats, b.ag, b.comp, b.feeP, project);
+    dataUpdates.push({ tabName: b.name, rows });
+  }
+
+  // Remove tabs that no longer exist (except the ones we're keeping)
+  const keepNames = new Set(allBudgets.map(b => b.name));
+  existingSheets.forEach(s => {
+    if (!keepNames.has(s.title) && existingSheets.length > 1) {
+      requests.push({ deleteSheet: { sheetId: s.id } });
+    }
+  });
+
+  // Execute batch update (add/remove/rename sheets)
+  if (requests.length > 0) {
+    await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests }),
+    });
+  }
+
+  // Write data to each tab
+  const valueRanges = dataUpdates.map(d => ({
+    range: `'${d.tabName}'!A1`,
+    majorDimension: 'ROWS',
+    values: d.rows,
+  }));
+
+  if (valueRanges.length > 0) {
+    await fetch(`${SHEETS_API}/${spreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: valueRanges }),
+    });
+  }
+
+  // Format all tabs
+  const fmtMeta = await fetch(`${SHEETS_API}/${spreadsheetId}?fields=sheets.properties`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (fmtMeta.ok) {
+    const fmtData = await fmtMeta.json();
+    const fmtRequests = [];
+    (fmtData.sheets || []).forEach(s => {
+      const sid = s.properties.sheetId;
+      fmtRequests.push(
+        { repeatCell: { range: { sheetId: sid, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } }, fields: 'userEnteredFormat.textFormat' } },
+        { repeatCell: { range: { sheetId: sid, startRowIndex: 3, endRowIndex: 4 }, cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 } } }, fields: 'userEnteredFormat(textFormat,backgroundColor)' } },
+        { autoResizeDimensions: { dimensions: { sheetId: sid, dimension: 'COLUMNS', startIndex: 0, endIndex: 8 } } },
+      );
+    });
+    if (fmtRequests.length > 0) {
+      await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: fmtRequests }),
+      });
+    }
+  }
+
+  console.log('[sheets] Budget synced:', spreadsheetId, allBudgets.length, 'tab(s)');
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}` };
+}
+
+/* ── Export budget to Google Sheets (manual, legacy) ── */
 
 export async function exportBudgetToSheets(token, project, cats, ag, comp, feeP, folderIds) {
   if (!token) return null;
 
-  const budgetsFolderId = folderIds?.['Production/Budgets'] || folderIds?.['Production'] || folderIds?._root;
+  const budgetsFolderId = folderIds?.['Budgets'] || folderIds?.['Production/Budgets'] || folderIds?.['Production'] || folderIds?._root;
 
   // Create spreadsheet
   const sheetTitle = `${project.name || 'Budget'} — Production Budget`;
