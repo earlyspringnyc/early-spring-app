@@ -738,6 +738,16 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
           <input value={fileSearch} onChange={e=>setFileSearch(e.target.value)} placeholder="Search files..." style={{padding:"7px 12px 7px 30px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",width:180}} onFocus={e=>e.currentTarget.style.borderColor=T.borderGlow} onBlur={e=>e.currentTarget.style.borderColor=T.border}/>
           <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:T.dim,pointerEvents:"none"}}>&#128269;</span>
         </div>
+        {accessToken&&project.driveFolders&&clientFiles.some(f=>!f.driveId&&(f.fileData||f._hasLocalFile))&&<button onClick={async()=>{
+          const{uploadToDrive}=await import('../utils/drive.js');
+          for(const f of clientFiles){
+            if(f.driveId)continue;
+            const data=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null);
+            if(!data)continue;
+            const result=await uploadToDrive(accessToken,data,f.fileName,project.driveFolders,null,"client");
+            if(result)updateProject({clientFiles:clientFiles.map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+          }
+        }} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:"transparent",color:T.cyan,border:`1px solid ${T.cyan}40`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Sync to Drive</button>}
         <button onClick={()=>fileInputRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload</button>
       </div>
     </div>

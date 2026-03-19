@@ -257,10 +257,13 @@ function AIV({project,updateProject,comp,accessToken}){
         });
         apiMessages=[...apiMessages.slice(0,-1),{role:"user",content}];
       }else{
-        // Files exist but data couldn't be loaded — tell the AI
-        const totalFiles=(project.clientFiles||[]).length+(project.creativeAssets||[]).length;
-        if(totalFiles>0){
-          const hint=`\n\n[Note: ${totalFiles} file(s) exist in the project but their visual data could not be loaded from browser storage. The file metadata is available in the project context above. To enable visual analysis, the user may need to re-upload the files.]`;
+        // Files exist but data couldn't be loaded — diagnose why
+        const allItems=[...(project.clientFiles||[]).map(f=>({...f,_src:"client"})),...(project.creativeAssets||[]).map(a=>({...a,_src:"creative"}))];
+        const diag=allItems.map(f=>`${f.name}: fileData=${f.fileData?"yes":"no"}, _hasLocalFile=${f._hasLocalFile}, driveId=${f.driveId||"none"}`).join("; ");
+        console.log("[ai] File diagnosis:",diag);
+        if(allItems.length>0){
+          const missingDrive=allItems.filter(f=>!f.driveId).map(f=>f.name);
+          const hint=`\n\n[Note: ${allItems.length} file(s) exist but their data could not be loaded. ${missingDrive.length>0?`Files without Google Drive backup: ${missingDrive.join(", ")}. These need to be re-uploaded from the Client Files section to enable visual analysis.`:"Files are on Drive but download failed — check Google sign-in."}]`;
           apiMessages=[...apiMessages.slice(0,-1),{role:"user",content:lastMsg.content+hint}];
         }
       }
