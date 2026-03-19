@@ -51,6 +51,12 @@ function PdfThumbnail({fileData}){
 }
 
 function FileViewerModal({file,onClose}){
+  // Close on Escape key
+  useEffect(()=>{
+    const onKey=e=>{if(e.key==="Escape")onClose()};
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[onClose]);
   const canvasRef=useRef(null);
   const[pdf,setPdf]=useState(null);
   const[page,setPage]=useState(0);
@@ -94,10 +100,10 @@ function FileViewerModal({file,onClose}){
       const pg=await pdf.getPage(page+1);
       const canvas=canvasRef.current;
       const ctx=canvas.getContext("2d");
-      // Render at full viewport width — scrollable container handles overflow
-      const targetWidth=window.innerWidth-64;
+      // Render to fit viewport width exactly — scroll vertically if needed
+      const targetWidth=window.innerWidth-40;
       const baseVp=pg.getViewport({scale:1});
-      const scale=Math.max(targetWidth/baseVp.width,2);
+      const scale=targetWidth/baseVp.width;
       const vp=pg.getViewport({scale});
       canvas.width=vp.width;canvas.height=vp.height;
       await pg.render({canvasContext:ctx,viewport:vp}).promise;
@@ -114,16 +120,16 @@ function FileViewerModal({file,onClose}){
         <button onClick={onClose} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Close</button>
       </div>
     </div>
-    {/* Scrollable content area */}
-    <div onClick={e=>e.stopPropagation()} style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column",alignItems:"center",padding:16}}>
+    {/* Scrollable content area — takes all remaining height */}
+    <div onClick={e=>e.stopPropagation()} style={{flex:1,overflow:"auto",padding:16,minHeight:0}}>
       {!resolvedData?<div style={{padding:48,textAlign:"center"}}>
         <div style={{fontSize:13,color:T.dim}}>File data not available — it may have been cleared from storage</div>
       </div>
       :isPdf?<>
         {loading&&<div style={{color:T.dim,fontSize:13,padding:48}}>Loading PDF...</div>}
         {error&&<div style={{color:T.neg,fontSize:13,padding:48}}>{error}</div>}
-        {pdf&&<canvas ref={canvasRef} style={{borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>}
-        {pdf&&total>1&&<div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0,padding:"12px 0"}}>
+        {pdf&&<canvas ref={canvasRef} style={{display:"block",maxWidth:"100%"}}/>}
+        {pdf&&total>1&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"16px 0"}}>
           <button onClick={()=>setPage(Math.max(0,page-1))} disabled={page===0} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page===0?"transparent":T.border}`,color:page===0?T.dim:T.cream,fontSize:12,cursor:page===0?"default":"pointer",fontFamily:T.sans}}>&larr; Prev</button>
           <span style={{fontSize:12,fontFamily:T.mono,color:T.cream,fontWeight:600}}>Page {page+1} of {total}</span>
           <button onClick={()=>setPage(Math.min(total-1,page+1))} disabled={page>=total-1} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page>=total-1?"transparent":T.border}`,color:page>=total-1?T.dim:T.cream,fontSize:12,cursor:page>=total-1?"default":"pointer",fontFamily:T.sans}}>Next &rarr;</button>
