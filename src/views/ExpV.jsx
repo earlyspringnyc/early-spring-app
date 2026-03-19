@@ -566,32 +566,49 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
     </div>
   </div>;
 
-  /* Export helpers for estimate */
+  /* Export helpers for estimate — use selected budget */
   const exportEstimateXLSX=async()=>{
+    const bd=getSelectedBudgetData();
     const XLSX=await import('xlsx');
     const rows=[["Category","Item","Description","Cost"]];
-    cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
-    rows.push([]);rows.push(["","","PRODUCTION SUBTOTAL",comp.productionSubtotal.clientPrice]);
-    ag.forEach(it=>{rows.push(["Agency",it.name,"",ci(it).clientPrice])});
-    rows.push(["","","AGENCY SUBTOTAL",comp.agencyCostsSubtotal.clientPrice]);
-    rows.push(["","",`AGENCY FEE (${fp(feeP)})`,comp.agencyFee.clientPrice]);
-    rows.push(["","","GRAND TOTAL",comp.grandTotal]);
+    bd.cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
+    rows.push([]);rows.push(["","","PRODUCTION SUBTOTAL",bd.comp.productionSubtotal.clientPrice]);
+    bd.ag.forEach(it=>{rows.push(["Agency",it.name,"",ci(it).clientPrice])});
+    rows.push(["","","AGENCY SUBTOTAL",bd.comp.agencyCostsSubtotal.clientPrice]);
+    rows.push(["","",`AGENCY FEE (${fp(bd.feeP)})`,bd.comp.agencyFee.clientPrice]);
+    rows.push(["","","GRAND TOTAL",bd.comp.grandTotal]);
     const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:14}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Estimate");
-    XLSX.writeFile(wb,(project.name||"estimate")+"-client-estimate.xlsx");
+    const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
+    XLSX.writeFile(wb,(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.xlsx");
   };
   const exportEstimateCSV=()=>{
+    const bd=getSelectedBudgetData();
     const rows=[["Category","Item","Description","Cost"]];
-    cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
-    rows.push([]);rows.push(["","","GRAND TOTAL",comp.grandTotal]);
+    bd.cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
+    rows.push([]);rows.push(["","","GRAND TOTAL",bd.comp.grandTotal]);
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
-    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(project.name||"estimate")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
+    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";a.download=(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
   };
   /* ══ ESTIMATE VIEW ══ */
-  if(activeView==="budget")return<div>
+  if(activeView==="budget"){
+  // Resolve which budget to display
+  const altBudget=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId):null;
+  const viewCats=altBudget?altBudget.cats:cats;
+  const viewAg=altBudget?altBudget.ag:ag;
+  const viewFeeP=altBudget?altBudget.feeP:feeP;
+  const viewComp=altBudget?calcProject({...project,cats:altBudget.cats,ag:altBudget.ag,feeP:altBudget.feeP}):comp;
+  const viewLabel=altBudget?altBudget.name:"Production Estimate";
+
+  return<div>
     <BackBtn/>
+    {/* Budget tabs */}
+    {(budgets||[]).length>0&&<div style={{display:"flex",gap:0,marginBottom:16,borderBottom:`1px solid ${T.border}`}}>
+      <button onClick={()=>setSelectedBudgetId(null)} style={{padding:"10px 18px",background:"none",border:"none",borderBottom:!selectedBudgetId?`2px solid ${T.gold}`:"2px solid transparent",color:!selectedBudgetId?T.cream:T.dim,fontSize:12,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}} onMouseEnter={e=>{if(selectedBudgetId)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(selectedBudgetId)e.currentTarget.style.color=T.dim}}>Primary Estimate</button>
+      {(budgets||[]).map(b=><button key={b.id} onClick={()=>setSelectedBudgetId(b.id)} style={{padding:"10px 18px",background:"none",border:"none",borderBottom:selectedBudgetId===b.id?`2px solid ${T.gold}`:"2px solid transparent",color:selectedBudgetId===b.id?T.cream:T.dim,fontSize:12,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}} onMouseEnter={e=>{if(selectedBudgetId!==b.id)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(selectedBudgetId!==b.id)e.currentTarget.style.color=T.dim}}>{b.name}</button>)}
+    </div>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-      <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Production Estimate</h2>
+      <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>{viewLabel}</h2>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         {/* Export dropdown */}
         <div style={{position:"relative"}}>
@@ -614,7 +631,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
       <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
         {["Item","Description","Cost"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===2?"right":"left"}}>{h}</span>)}
       </div>
-      {cats.map((c,ci2)=>{const t=ct(c.items).totals;const accent=["#F59E0B","#14B8A6","#8B5CF6","#EC4899","#06B6D4","#6366F1","#10B981","#F47264"][ci2%8];return<React.Fragment key={c.id}>
+      {viewCats.map((c,ci2)=>{const t=ct(c.items).totals;const accent=["#F59E0B","#14B8A6","#8B5CF6","#EC4899","#06B6D4","#6366F1","#10B981","#F47264"][ci2%8];return<React.Fragment key={c.id}>
         <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:`${accent}08`,borderLeft:`3px solid ${accent}`}}>
           <span style={{fontSize:12,fontWeight:600,color:T.cream,gridColumn:"1/3"}}>{c.name}</span>
           <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(t.clientPrice)}</span>
@@ -630,7 +647,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
     {/* Production subtotal */}
     <div style={{display:"flex",justifyContent:"space-between",padding:"12px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:4}}>
       <span style={{fontSize:11,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".06em"}}>Production Subtotal</span>
-      <span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(comp.productionSubtotal.clientPrice)}</span>
+      <span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(viewComp.productionSubtotal.clientPrice)}</span>
     </div>
 
     {/* Agency */}
@@ -639,27 +656,27 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
         <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>Agency Services</span>
         <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:"right"}}>Cost</span>
       </div>
-      {ag.map(it=>{const c=ci(it);return<div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+      {viewAg.map(it=>{const c=ci(it);return<div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
         <span style={{fontSize:12,color:T.cream}}>{it.name}</span>
         <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(c.clientPrice)}</span>
       </div>})}
     </Card>
     <div style={{display:"flex",justifyContent:"space-between",padding:"10px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:2}}>
       <span style={{fontSize:11,fontWeight:600,color:T.dim,textTransform:"uppercase"}}>Agency Subtotal</span>
-      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(comp.agencyCostsSubtotal.clientPrice)}</span>
+      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(viewComp.agencyCostsSubtotal.clientPrice)}</span>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",padding:"10px 18px",borderRadius:T.rS,marginBottom:8}}>
-      <span style={{fontSize:11,color:T.dim}}>Agency Fee ({fp(feeP)})</span>
-      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{f$(comp.agencyFee.clientPrice)}</span>
+      <span style={{fontSize:11,color:T.dim}}>Agency Fee ({fp(viewFeeP)})</span>
+      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{f$(viewComp.agencyFee.clientPrice)}</span>
     </div>
 
     {/* Grand Total */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 22px",borderRadius:T.rS,background:`linear-gradient(135deg,rgba(99,102,241,.08),rgba(20,184,166,.06))`,border:`1px solid rgba(99,102,241,.15)`}}>
       <span style={{fontSize:12,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".08em"}}>Grand Total</span>
-      <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(comp.grandTotal)}</span>
+      <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(viewComp.grandTotal)}</span>
     </div>
     <ShareEmailModal/>
-  </div>;
+  </div>}
 
   /* ══ PRODUCTION (CLIENT) VIEW ══ */
   if(activeView==="timeline"){
