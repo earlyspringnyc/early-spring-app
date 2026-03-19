@@ -355,10 +355,15 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
               <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>To</div>
               <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
             </div>
-            {/* Message */}
+            {/* Message — rich text editor */}
             <div>
               <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Message</div>
-              <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a personal note..." rows={4} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical",lineHeight:1.5}}/>
+              <div contentEditable suppressContentEditableWarning onInput={e=>setEmailMsg(e.currentTarget.innerHTML)} onPaste={e=>{
+                // Allow rich paste — grab HTML if available, otherwise plain text
+                const html=e.clipboardData.getData("text/html");
+                if(html){e.preventDefault();document.execCommand("insertHTML",false,html)}
+              }} data-placeholder="Add a personal note..." style={{width:"100%",minHeight:100,maxHeight:200,overflow:"auto",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}/>
+              <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T.dim};pointer-events:none} [contenteditable] ul,[contenteditable] ol{padding-left:20px;margin:4px 0} [contenteditable] li{margin:2px 0}`}</style>
             </div>
             {/* Actions */}
             <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:"auto",paddingTop:14}}>

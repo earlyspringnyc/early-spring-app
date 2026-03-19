@@ -1,6 +1,38 @@
 import { f$, fp } from './format.js';
 import { ci, ct } from './calc.js';
 
+// Convert message to email-safe HTML
+// Handles both rich HTML (from contentEditable paste) and plain text with bullet markers
+function formatMessage(msg) {
+  if (!msg) return '';
+  // If it already contains HTML tags (from rich paste), sanitize and use directly
+  if (msg.includes('<') && (msg.includes('<br') || msg.includes('<div') || msg.includes('<li') || msg.includes('<ul') || msg.includes('<p') || msg.includes('<b'))) {
+    // Strip dangerous tags but keep formatting
+    return msg
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/on\w+="[^"]*"/gi, '')
+      .replace(/on\w+='[^']*'/gi, '');
+  }
+  // Plain text — convert bullet patterns and newlines
+  const escaped = msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = escaped.split('\n');
+  let html = '';
+  let inList = false;
+  for (const line of lines) {
+    const bulletMatch = line.match(/^\s*[-•*]\s+(.*)/);
+    if (bulletMatch) {
+      if (!inList) { html += '<ul style="margin:8px 0;padding-left:20px">'; inList = true; }
+      html += `<li style="margin:4px 0;color:#333">${bulletMatch[1]}</li>`;
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += (line.trim() === '' ? '<br>' : `<div>${line}</div>`);
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
 export function budgetEmailHtml(project, cats, ag, comp, feeP, message) {
   let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
   try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
@@ -35,7 +67,7 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP, message) {
       </td>
     </tr></table>
 
-    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div>`:''}
+    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6">${formatMessage(message)}</div></div>`:''}
 
     <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
       <thead><tr style="border-bottom:2px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Item</th><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Description</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Cost</th></tr></thead>
@@ -98,7 +130,7 @@ export function timelineEmailHtml(project, tasks, message) {
       </td>
     </tr></table>
 
-    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div>`:''}
+    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6">${formatMessage(message)}</div></div>`:''}
 
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="border-bottom:2px solid #E5E5E5">
