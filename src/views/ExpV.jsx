@@ -76,8 +76,6 @@ function FileViewerModal({file,onClose}){
     if(file._hasLocalFile){
       try{const d=localStorage.getItem(`es_file_${file.id}`);if(d){setResolvedData(d);return}}catch(e){}
     }
-    // Try storageUrl as direct image src (for images only)
-    if(file.storageUrl){setResolvedData(file.storageUrl);return}
     setResolvedData(null);
   },[file]);
   const isPdf=(file.fileName&&/\.pdf$/i.test(file.fileName))||(resolvedData&&resolvedData.startsWith("data:application/pdf"));
@@ -825,11 +823,13 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     </div>
     {filteredFiles.length>0?<div className="file-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:14}}>
       {filteredFiles.map(f=>{
-        // Resolve fileData from localStorage, storageUrl, or null
-        const fd=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null)||(f.storageUrl||null);
+        // Resolve fileData from memory or localStorage (Supabase Storage fetched on-demand in viewer)
+        const fd=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null);
+        const hasStorage=!!f.storagePath;
         const isPdf=(f.fileName&&/\.pdf$/i.test(f.fileName));
-        const isImg=(fd&&/^data:image\//i.test(fd))||(f.storageUrl&&/\.(png|jpe?g|gif|webp)$/i.test(f.fileName||""));
-        return<div key={f.id} onClick={()=>fd&&setViewingFile({...f,fileData:fd})} style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,overflow:"hidden",cursor:fd?"pointer":"default",transition:"border-color .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none"}}>
+        const isImg=(fd&&/^data:image\//i.test(fd))||(!fd&&hasStorage&&/\.(png|jpe?g|gif|webp)$/i.test(f.fileName||""));
+        const canView=fd||hasStorage||f.driveId;
+        return<div key={f.id} onClick={()=>canView&&setViewingFile({...f,fileData:fd||null})} style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,overflow:"hidden",cursor:canView?"pointer":"default",transition:"border-color .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none"}}>
           {/* Thumbnail area */}
           <div style={{height:130,background:T.surface,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
             {isImg?<img src={fd} alt={f.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>

@@ -311,7 +311,7 @@ export async function uploadFile(orgId, projectId, file) {
   return urlData?.publicUrl || null;
 }
 
-// Upload base64 data URL to Supabase Storage
+// Upload base64 data URL to Supabase Storage (private bucket)
 export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl) {
   if (!isSupabaseConfigured() || !dataUrl) return null;
   try {
@@ -331,11 +331,8 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
       .upload(path, blob, { upsert: true, contentType: mime });
     if (error) { console.error('[storage] Upload failed:', error.message); return null; }
 
-    const { data: urlData } = supabase.storage
-      .from('files')
-      .getPublicUrl(path);
     console.log('[storage] Uploaded:', fileName, '→', path);
-    return { storagePath: path, storageUrl: urlData?.publicUrl || null };
+    return { storagePath: path };
   } catch (e) {
     console.error('[storage] Upload error:', e);
     return null;

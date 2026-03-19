@@ -101,7 +101,6 @@ export function useProjects(orgId) {
             const result = await db.uploadFileData(orgId, p.id, item.id, item.fileName || item.name || 'file', data);
             if (result) {
               item.storagePath = result.storagePath;
-              item.storageUrl = result.storageUrl;
               item._hasLocalFile = false;
               changed = true;
               console.log('[migrate] Uploaded to Supabase Storage:', item.name);
@@ -135,7 +134,7 @@ export function useProjects(orgId) {
       const result = await db.uploadFileData(orgId, projectId, item.id, item.fileName || item.name || 'file', item.fileData);
       if (result) {
         console.log('[storage] Stored:', item.name, '→', result.storagePath);
-        return { ...item, fileData: null, storagePath: result.storagePath, storageUrl: result.storageUrl };
+        return { ...item, fileData: null, storagePath: result.storagePath };
       }
     }
     // Fallback to localStorage if Supabase Storage fails
@@ -154,11 +153,10 @@ export function useProjects(orgId) {
   };
 
   // Restore file data — from Supabase Storage, Google Drive, or localStorage
+  // Note: Supabase Storage files are fetched on-demand by components via downloadFileData()
   const restoreFileItem = (item) => {
     if (item.fileData) return item;
-    // If in Supabase Storage, storageUrl is available for display
-    // Actual base64 data fetched on-demand by components that need it
-    if (item.storagePath || item.storageUrl) return item;
+    if (item.storagePath) return item; // will be fetched on-demand
     if (item.driveId) return item;
     if (!item._hasLocalFile) return item;
     try {
