@@ -141,6 +141,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
   const[emailTo,setEmailTo]=useState("");const[emailSending,setEmailSending]=useState(false);const[emailSent,setEmailSent]=useState("");
   const[emailMsg,setEmailMsg]=useState("");
   const[selectedBudgetId,setSelectedBudgetId]=useState(null); // null = primary
+  const[shareModal,setShareModal]=useState(null); // null | "budget" | "timeline"
+  const[previewHtml,setPreviewHtml]=useState("");
   const[fileFilter,setFileFilter]=useState("all");
   const[fileSearch,setFileSearch]=useState("");
   const[viewingFile,setViewingFile]=useState(null);
@@ -237,25 +239,94 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
   const sendBudget=()=>{const bd=getSelectedBudgetData();const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";doSendEmail(`Production Estimate${label?` (${label})`:""}: ${project.name||""}`,async()=>{const{budgetEmailHtml}=await import('../utils/emailTemplates.js');return budgetEmailHtml(project,bd.cats,bd.ag,bd.comp,bd.feeP,emailMsg)})};
   const sendTimeline=()=>doSendEmail(`Production Schedule: ${project.name||""}`,async()=>{const{timelineEmailHtml}=await import('../utils/emailTemplates.js');return timelineEmailHtml(project,clientTasks,emailMsg)});
 
+  // Prepopulate client emails
+  const clientEmails=(project.clientContacts||[]).map(c=>c.email).filter(Boolean).join(", ");
+  const openShareModal=async(type)=>{
+    setShareModal(type);setEmailSent("");setEmailMsg("");
+    if(!emailTo)setEmailTo(clientEmails);
+    // Generate preview
+    if(type==="budget"){
+      const bd=getSelectedBudgetData();
+      const{budgetEmailHtml}=await import('../utils/emailTemplates.js');
+      setPreviewHtml(budgetEmailHtml(project,bd.cats,bd.ag,bd.comp,bd.feeP,""));
+    }else{
+      const{timelineEmailHtml}=await import('../utils/emailTemplates.js');
+      setPreviewHtml(timelineEmailHtml(project,clientTasks,""));
+    }
+  };
+  // Refresh preview when budget selection changes
+  const refreshPreview=async(budgetId)=>{
+    setSelectedBudgetId(budgetId);
+    const alt=budgetId?(budgets||[]).find(b=>b.id===budgetId):null;
+    const bd=alt?{cats:alt.cats,ag:alt.ag,comp:calcProject({...project,cats:alt.cats,ag:alt.ag,feeP:alt.feeP}),feeP:alt.feeP}:{cats,ag,comp,feeP};
+    const{budgetEmailHtml}=await import('../utils/emailTemplates.js');
+    setPreviewHtml(budgetEmailHtml(project,bd.cats,bd.ag,bd.comp,bd.feeP,emailMsg));
+  };
+
   const getOrgInfo=()=>{let orgN="Early Spring LLC",orgA="",orgW="earlyspring.nyc";try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgN=o.name;if(o.address)orgA=o.address;if(o.website)orgW=o.website}catch(e){}return{orgN,orgA,orgW}};
   const OrgLogo=({color="#475569"})=>{try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.logo)return<img src={o.logo} alt={o.name||"Logo"} style={{height:16,objectFit:"contain"}}/>;if(o.name)return<span style={{fontSize:10,fontWeight:700,color,letterSpacing:".14em",textTransform:"uppercase"}}>{o.name}</span>}catch(e){}return<ESWordmark height={16} color={color}/>};
   const OrgFooter=()=>{const{orgN,orgA,orgW}=getOrgInfo();const w=orgW.replace(/^https?:\/\//,'');return<div style={{textAlign:"center",marginTop:36,paddingTop:18,borderTop:"1px solid #EEE"}}><div style={{fontSize:10,color:"#BBB"}}>Sent from <a href="https://early-spring-app.vercel.app" style={{color:"#999",textDecoration:"none"}}>Morgan</a> @ <a href={orgW.startsWith("http")?orgW:`https://${w}`} style={{color:"#999",textDecoration:"none"}}>{orgN}</a></div>{orgA&&<div style={{fontSize:9,color:"#CCC",marginTop:4}}>{orgA}</div>}</div>};
 
-  /* Share bar component */
-  const ShareBar=({onSend,showBudgetPicker})=><div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:16}}>
-    {showBudgetPicker&&(budgets||[]).length>0&&<div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",alignSelf:"center",marginRight:4}}>Budget:</span>
-      <button onClick={()=>setSelectedBudgetId(null)} style={{padding:"4px 10px",borderRadius:14,border:"none",fontSize:10,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
-      {(budgets||[]).map(b=><button key={b.id} onClick={()=>setSelectedBudgetId(b.id)} style={{padding:"4px 10px",borderRadius:14,border:"none",fontSize:10,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
-    </div>}
-    <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{width:"100%",padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical",marginBottom:10}}/>
-    <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder={`${clientName.toLowerCase().replace(/\s/g,"")}@email.com`} onKeyDown={e=>e.key==="Enter"&&onSend()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-      <button onClick={onSend} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending...":"Send"}</button>
-      <button onClick={()=>window.print()} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
-      {emailSent&&<span style={{fontSize:10,color:T.pos}}>Sent</span>}
-    </div>
-  </div>;
+  /* ── Share Email Modal ── */
+  const ShareEmailModal=()=>{
+    if(!shareModal)return null;
+    const isBudget=shareModal==="budget";
+    const onSend=isBudget?sendBudget:sendTimeline;
+    const title=isBudget?"Share Production Estimate":"Share Production Schedule";
+    return<div onClick={()=>setShareModal(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:1000,maxHeight:"92vh",background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          <div style={{fontSize:16,fontWeight:600,color:T.cream}}>{title}</div>
+          <button onClick={()=>setShareModal(null)} style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
+        </div>
+        {/* Body — sidebar controls + preview */}
+        <div style={{display:"flex",flex:1,overflow:"hidden",minHeight:0}}>
+          {/* Left: controls */}
+          <div style={{width:320,flexShrink:0,borderRight:`1px solid ${T.border}`,padding:20,overflow:"auto",display:"flex",flexDirection:"column",gap:14}}>
+            {/* Budget picker */}
+            {isBudget&&(budgets||[]).length>0&&<div>
+              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Budget Version</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                <button onClick={()=>refreshPreview(null)} style={{padding:"5px 12px",borderRadius:14,border:"none",fontSize:10,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
+                {(budgets||[]).map(b=><button key={b.id} onClick={()=>refreshPreview(b.id)} style={{padding:"5px 12px",borderRadius:14,border:"none",fontSize:10,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
+              </div>
+            </div>}
+            {/* To field */}
+            <div>
+              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>To</div>
+              <div style={{position:"relative"}}>
+                <input value={emailTo} onChange={e=>searchEmailContacts(e.target.value)} onFocus={()=>{if(contactSugs.length)setShowContactSugs(true)}} onBlur={()=>setTimeout(()=>setShowContactSugs(false),200)} placeholder="recipient@email.com" style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+                {showContactSugs&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:140,overflow:"auto"}}>
+                  {contactSugs.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickContact(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    {c.name&&<span>{c.name}</span>}<span style={{color:T.dim}}>{c.email}</span>
+                  </button>)}
+                </div>}
+              </div>
+            </div>
+            {/* Message */}
+            <div>
+              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Message</div>
+              <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a personal note..." rows={4} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical",lineHeight:1.5}}/>
+            </div>
+            {/* Actions */}
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:"auto",paddingTop:14}}>
+              <button onClick={()=>{onSend();setShareModal(null)}} disabled={!emailTo.trim()||emailSending} style={{padding:"10px 0",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,textAlign:"center"}}>{emailSending?"Sending...":"Send Email"}</button>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={copyLink} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>{linkCopied?"Copied":"Copy Link"}</button>
+                <button onClick={()=>window.print()} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>PDF</button>
+              </div>
+              {emailSent&&<div style={{fontSize:11,color:T.pos,textAlign:"center"}}>Sent to {emailSent}</div>}
+            </div>
+          </div>
+          {/* Right: email preview */}
+          <div style={{flex:1,overflow:"auto",background:"#F5F4F1"}}>
+            <iframe srcDoc={previewHtml} style={{width:"100%",height:"100%",border:"none",minHeight:500}} title="Email preview"/>
+          </div>
+        </div>
+      </div>
+    </div>;
+  };
 
   /* Back button */
   const BackBtn=()=><button onClick={()=>{setActiveView(null);setEmailSent("")}} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:12,fontFamily:T.sans,marginBottom:16,padding:0}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}><span style={{fontSize:14}}>&larr;</span> Back</button>;
@@ -475,40 +546,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
               </button>)}
           </div>}
         </div>
-        {/* Share dropdown */}
-        <div style={{position:"relative"}}>
-          <button onClick={()=>{setShowShareMenu(!showShareMenu);setShowExportMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share &#9662;</button>
-          {showShareMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",width:300,overflow:"visible"}}>
-            {/* Copy link */}
-            <button onClick={copyLink} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>&#128279;</span><span style={{fontSize:12,fontWeight:500,color:T.cream}}>Copy Link</span></div>
-              {linkCopied&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Copied</span>}
-            </button>
-            {/* Email section */}
-            <div style={{padding:"14px 16px"}}>
-              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Send via email</div>
-              {(budgets||[]).length>0&&<div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
-                <span style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",alignSelf:"center",marginRight:2}}>Budget:</span>
-                <button onClick={()=>setSelectedBudgetId(null)} style={{padding:"3px 8px",borderRadius:12,border:"none",fontSize:9,fontWeight:!selectedBudgetId?600:400,cursor:"pointer",fontFamily:T.sans,background:!selectedBudgetId?T.goldSoft:"transparent",color:!selectedBudgetId?T.gold:T.dim}}>Primary</button>
-                {(budgets||[]).map(b=><button key={b.id} onClick={()=>setSelectedBudgetId(b.id)} style={{padding:"3px 8px",borderRadius:12,border:"none",fontSize:9,fontWeight:selectedBudgetId===b.id?600:400,cursor:"pointer",fontFamily:T.sans,background:selectedBudgetId===b.id?T.goldSoft:"transparent",color:selectedBudgetId===b.id?T.gold:T.dim}}>{b.name}</button>)}
-              </div>}
-              <div style={{position:"relative",marginBottom:8}}>
-                <input value={emailTo} onChange={e=>searchEmailContacts(e.target.value)} onFocus={()=>{if(contactSugs.length)setShowContactSugs(true)}} onBlur={()=>setTimeout(()=>setShowContactSugs(false),200)} placeholder="Start typing a name or email..." style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-                {showContactSugs&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:140,overflow:"auto"}}>
-                  {contactSugs.map((c,i)=><button key={i} onMouseDown={e=>{e.preventDefault();pickContact(c.email)}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    {c.name&&<span>{c.name}</span>}<span style={{color:T.dim}}>{c.email}</span>
-                  </button>)}
-                </div>}
-              </div>
-              <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{width:"100%",padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",resize:"vertical",marginBottom:10}}/>
-              <div style={{display:"flex",flex:"column",gap:6}}>
-                <button onClick={()=>{sendBudget();setShowShareMenu(false)}} disabled={!emailTo.trim()||emailSending} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:emailTo.trim()?T.surfHov:"transparent",color:emailTo.trim()?T.cream:T.dim,fontSize:11,fontWeight:500,cursor:emailTo.trim()?"pointer":"default",fontFamily:T.sans,textAlign:"center"}}>{emailSending?"Sending...":"Send as Email"}</button>
-                <button onClick={()=>{window.print();setShowShareMenu(false)}} style={{flex:1,padding:"8px 0",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:T.sans,textAlign:"center"}}>Send as PDF</button>
-              </div>
-              {emailSent&&<div style={{marginTop:8,fontSize:10,color:T.pos}}>Sent to {emailSent}</div>}
-            </div>
-          </div>}
-        </div>
+        {/* Share buttons */}
+        <button onClick={()=>openShareModal("budget")} style={{padding:"8px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share</button>
       </div>
     </div>
 
@@ -561,6 +600,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
       <span style={{fontSize:12,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".08em"}}>Grand Total</span>
       <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(comp.grandTotal)}</span>
     </div>
+    <ShareEmailModal/>
   </div>;
 
   /* ══ PRODUCTION (CLIENT) VIEW ══ */
@@ -614,12 +654,14 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
         <div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
           {[["calendar","Calendar"],["gantt","Gantt"]].map(([k,l])=><button key={k} onClick={()=>setClientViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:clientViewMode===k?600:400,fontFamily:T.sans,background:clientViewMode===k?T.goldSoft:"transparent",color:clientViewMode===k?T.gold:T.dim}}>{l}</button>)}
         </div>
+        <button onClick={()=>openShareModal("timeline")} style={{padding:"7px 12px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share</button>
         <button onClick={copyLink} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
         <button onClick={()=>window.print()} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
       </div>
     </div>
 
     {clientSections.map(k=>sectionMap[k])}
+    <ShareEmailModal/>
   </div>}
 
   /* ══ FILES VIEW ══ */
