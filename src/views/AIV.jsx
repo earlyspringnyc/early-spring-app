@@ -5,6 +5,9 @@ import { mkTask, mkDoc, mkTxn, mkROS, mkI, mkA } from '../data/factories.js';
 import { isOverdue } from '../utils/calc.js';
 import { Card } from '../components/primitives/index.js';
 import { serializeProject, AI_SYSTEM } from '../ai/serialize.js';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const ACTION_LABELS={
   add_task:"Add Task",add_doc:"Add Document",add_txn:"Add Transaction",add_ros:"Add ROS Cue",
@@ -121,23 +124,25 @@ function AIV({project,updateProject,comp}){
     return null;
   };
 
-  // Render a PDF's first page to a base64 PNG image
-  const renderPdfToImage=async(dataUrl)=>{
+  // Render a PDF's first page (or multiple pages) to base64 PNG images
+  const renderPdfToImages=async(dataUrl,maxPages=3)=>{
     try{
-      const pdfjsLib=await import('pdfjs-dist');
-      const pdfjsWorker=await import('pdfjs-dist/build/pdf.worker.min.js?url');
-      pdfjsLib.GlobalWorkerOptions.workerSrc=pdfjsWorker.default;
       const raw=atob(dataUrl.split(",")[1]);
       const arr=new Uint8Array(raw.length);
       for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
       const doc=await pdfjsLib.getDocument({data:arr}).promise;
-      const page=await doc.getPage(1);
-      const vp=page.getViewport({scale:1.5});
-      const canvas=document.createElement("canvas");
-      canvas.width=vp.width;canvas.height=vp.height;
-      await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
-      return canvas.toDataURL("image/png");
-    }catch(e){console.error("[ai] PDF render failed:",e);return null}
+      const pages=Math.min(doc.numPages,maxPages);
+      const results=[];
+      for(let p=1;p<=pages;p++){
+        const page=await doc.getPage(p);
+        const vp=page.getViewport({scale:1.5});
+        const canvas=document.createElement("canvas");
+        canvas.width=vp.width;canvas.height=vp.height;
+        await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+        results.push(canvas.toDataURL("image/png"));
+      }
+      return results;
+    }catch(e){console.error("[ai] PDF render failed:",e);return[]}
   };
 
   // Gather all viewable files (images + PDFs rendered as images)
@@ -167,13 +172,21 @@ function AIV({project,updateProject,comp}){
     const rest=allFiles.filter(f=>!mentioned.includes(f));
     const ordered=[...mentioned,...rest];
 
-    // Convert up to 5 files (images pass through, PDFs get rendered to PNG)
-    for(const f of ordered.slice(0,5)){
+    // Convert files (images pass through, PDFs get rendered to PNG pages)
+    // Cap at 8 total images to stay within API limits
+    let remaining=8;
+    for(const f of ordered){
+      if(remaining<=0)break;
       if(f.isImg){
         visuals.push({name:f.name,source:f.source,data:f.data});
+        remaining--;
       }else if(f.isPdf){
-        const rendered=await renderPdfToImage(f.data);
-        if(rendered)visuals.push({name:f.name+" (page 1)",source:f.source,data:rendered});
+        const maxPages=Math.min(remaining,3);
+        const rendered=await renderPdfToImages(f.data,maxPages);
+        rendered.forEach((img,i)=>{
+          visuals.push({name:`${f.name} (page ${i+1})`,source:f.source,data:img});
+          remaining--;
+        });
       }
     }
     return visuals;
