@@ -163,7 +163,7 @@ function FileViewerModal({file,onClose}){
   </div>;
 }
 
-function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
+function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,requestCalendarAccess}){
   const[activeView,setActiveView]=useState(null); // null=grid, "budget"|"timeline"|"files"
   const tasks=project.timeline||[];
   const clientFiles=project.clientFiles||[];
@@ -285,7 +285,32 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets}){
   const filteredFiles=(fileFilter==="all"?clientFiles:clientFiles.filter(f=>f.category===fileFilter)).filter(f=>!fileSearch||f.name.toLowerCase().includes(fileSearch.toLowerCase())||((f.fileName||"").toLowerCase().includes(fileSearch.toLowerCase())));
   const fileCounts=CLIENT_FILE_CATS.reduce((a,c)=>{a[c]=clientFiles.filter(f=>f.category===c).length;return a},{});
 
-  const doSendEmail=async(subject,bodyFn)=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=await bodyFn();await gmailSend(accessToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
+  const doSendEmail=async(subject,bodyFn)=>{
+    if(!emailTo.trim())return;
+    // Try to get a valid token — refresh if expired
+    let token=accessToken;
+    if(!token&&requestCalendarAccess){
+      try{token=await requestCalendarAccess()}catch(e){}
+    }
+    if(!token){
+      // Try localStorage fallback
+      try{token=localStorage.getItem("es_google_token")}catch(e){}
+    }
+    if(!token){alert("Google sign-in expired. Please sign out and sign back in.");return}
+    setEmailSending(true);
+    try{
+      const{sendEmail:gmailSend}=await import('../utils/google.js');
+      const htmlBody=await bodyFn();
+      await gmailSend(token,emailTo.trim(),subject,htmlBody);
+      setEmailSent(emailTo);setEmailTo("");
+    }catch(e){
+      // If 401, token is truly expired
+      if(e.message&&e.message.includes("401")&&requestCalendarAccess){
+        try{const newToken=await requestCalendarAccess();if(newToken){const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=await bodyFn();await gmailSend(newToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("");return}}catch(e2){}
+      }
+      alert("Failed to send: "+(e.message||"Unknown error"));
+    }finally{setEmailSending(false)}
+  };
 
   const getSelectedBudgetData=()=>{
     if(!selectedBudgetId)return{cats,ag,comp,feeP};
