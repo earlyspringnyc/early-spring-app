@@ -88,13 +88,18 @@ function FileViewerModal({file,onClose}){
     load();
   },[resolvedData]);
 
+  const containerRef=useRef(null);
   useEffect(()=>{
     if(!pdf||!canvasRef.current)return;
     const render=async()=>{
       const pg=await pdf.getPage(page+1);
       const canvas=canvasRef.current;
       const ctx=canvas.getContext("2d");
-      const vp=pg.getViewport({scale:2.0});
+      // Scale to fill container width
+      const containerWidth=containerRef.current?.clientWidth||window.innerWidth-80;
+      const baseVp=pg.getViewport({scale:1});
+      const scale=Math.max(containerWidth/baseVp.width,1.5);
+      const vp=pg.getViewport({scale});
       canvas.width=vp.width;canvas.height=vp.height;
       await pg.render({canvasContext:ctx,viewport:vp}).promise;
     };
@@ -102,7 +107,7 @@ function FileViewerModal({file,onClose}){
   },[pdf,page]);
 
   return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
-    <div onClick={e=>e.stopPropagation()} style={{maxWidth:"95vw",maxHeight:"95vh",width:"100%",display:"flex",flexDirection:"column",alignItems:"center",gap:12,overflow:"auto"}}>
+    <div ref={containerRef} onClick={e=>e.stopPropagation()} style={{width:"95vw",maxHeight:"95vh",display:"flex",flexDirection:"column",alignItems:"center",gap:12,overflow:"auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",flexShrink:0}}>
         <div style={{fontSize:14,fontWeight:600,color:T.cream}}>{file.name}</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
