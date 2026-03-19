@@ -270,9 +270,11 @@ function AIV({project,updateProject,comp,accessToken}){
     }
 
     try{
+      let authHeaders={"Content-Type":"application/json"};
+      try{const{getSession}=await import('../lib/db.js');const s=await getSession();if(s?.access_token)authHeaders.Authorization=`Bearer ${s.access_token}`}catch(e){}
       const res=await fetch("/api/chat",{
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:authHeaders,
         body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2048,system:AI_SYSTEM+"\n\nCURRENT PROJECT DATA:\n"+projectContext,messages:apiMessages})
       });
       if(!res.ok){const err=await res.text();throw new Error(err)}

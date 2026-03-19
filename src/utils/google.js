@@ -1,3 +1,12 @@
+// Get Supabase session token for API auth
+async function getAuthToken() {
+  try {
+    const { getSession } = await import('../lib/db.js');
+    const session = await getSession();
+    return session?.access_token || null;
+  } catch (e) { return null; }
+}
+
 // Create a Google Calendar event
 export async function createCalendarEvent(accessToken, meeting) {
   // Parse date from MM/DD/YYYY format
@@ -49,9 +58,10 @@ export async function createCalendarEvent(accessToken, meeting) {
     },
   };
 
+  const authToken = await getAuthToken();
   const res = await fetch('/api/calendar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
     body: JSON.stringify({ accessToken, event, conferenceDataVersion: 1 }),
   });
 
@@ -66,9 +76,10 @@ export async function createCalendarEvent(accessToken, meeting) {
 // Search contacts (people you've emailed)
 export async function searchContacts(accessToken, query) {
   try {
+    const authToken = await getAuthToken();
     const res = await fetch('/api/contacts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
       body: JSON.stringify({ accessToken, query }),
     });
     if (!res.ok) return [];
@@ -81,9 +92,10 @@ export async function searchContacts(accessToken, query) {
 
 // Send an email via Gmail API
 export async function sendEmail(accessToken, to, subject, htmlBody) {
+  const authToken = await getAuthToken();
   const res = await fetch('/api/email', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
     body: JSON.stringify({ accessToken, to, subject, htmlBody }),
   });
 

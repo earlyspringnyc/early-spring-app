@@ -1,6 +1,20 @@
+import { verifyAuth, rateLimit } from './_auth.js';
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!rateLimit(req)) {
+    return res.status(429).json({ error: "Too many requests" });
+  }
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  if (supabaseUrl) {
+    const user = await verifyAuth(req);
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
   }
 
   const { accessToken, to, subject, htmlBody } = req.body;
@@ -9,8 +23,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Build the MIME message
-    const boundary = "boundary_" + Date.now();
     const mimeMessage = [
       `To: ${to}`,
       `Subject: ${subject}`,
@@ -20,7 +32,6 @@ export default async function handler(req, res) {
       htmlBody || '',
     ].join('\r\n');
 
-    // Base64url encode
     const encoded = Buffer.from(mimeMessage)
       .toString('base64')
       .replace(/\+/g, '-')

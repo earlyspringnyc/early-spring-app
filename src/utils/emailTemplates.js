@@ -5,14 +5,23 @@ import { ci, ct } from './calc.js';
 // Handles both rich HTML (from contentEditable paste) and plain text with bullet markers
 function formatMessage(msg) {
   if (!msg) return '';
-  // If it already contains HTML tags (from rich paste), sanitize and use directly
+  // If it already contains HTML tags (from rich paste), sanitize with whitelist
   if (msg.includes('<') && (msg.includes('<br') || msg.includes('<div') || msg.includes('<li') || msg.includes('<ul') || msg.includes('<p') || msg.includes('<b'))) {
-    // Strip dangerous tags but keep formatting
     return msg
+      // Strip dangerous elements entirely
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/on\w+="[^"]*"/gi, '')
-      .replace(/on\w+='[^']*'/gi, '');
+      .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+      .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
+      .replace(/<embed[^>]*>/gi, '')
+      .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
+      // Strip all event handlers
+      .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+      // Strip javascript: URLs
+      .replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"')
+      .replace(/src\s*=\s*["']javascript:[^"']*["']/gi, '')
+      // Strip data: URLs in src (potential XSS)
+      .replace(/src\s*=\s*["']data:text\/html[^"']*["']/gi, '');
   }
   // Plain text — convert bullet patterns and newlines
   const escaped = msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
