@@ -326,12 +326,13 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
     const blob = new Blob([ab], { type: mime });
 
     const path = `${orgId}/${projectId}/${fileId}_${fileName}`;
-    const { error } = await supabase.storage
+    console.log('[storage] Attempting upload:', path, `(${Math.round(blob.size/1024)}KB, ${mime})`);
+    const { data, error } = await supabase.storage
       .from('files')
       .upload(path, blob, { upsert: true, contentType: mime });
-    if (error) { console.error('[storage] Upload failed:', error.message); return null; }
+    if (error) { console.error('[storage] Upload FAILED:', error.message, error); return null; }
 
-    console.log('[storage] Uploaded:', fileName, '→', path);
+    console.log('[storage] SUCCESS:', fileName, '→', path, data);
     return { storagePath: path };
   } catch (e) {
     console.error('[storage] Upload error:', e);
