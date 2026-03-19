@@ -327,12 +327,31 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
 
     const path = `${orgId}/${projectId}/${fileId}_${fileName}`;
     console.log('[storage] Attempting upload:', path, `(${Math.round(blob.size/1024)}KB, ${mime})`);
-    const { data, error } = await supabase.storage
-      .from('files')
-      .upload(path, blob, { upsert: true, contentType: mime });
-    if (error) { console.error('[storage] Upload FAILED:', error.message, error); return null; }
 
-    console.log('[storage] SUCCESS:', fileName, '→', path, data);
+    // Use direct REST API to avoid Supabase realtime/websocket issues
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const session = await supabase.auth.getSession();
+    const token = session?.data?.session?.access_token;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+    const res = await fetch(`${supabaseUrl}/storage/v1/object/files/${encodeURIComponent(path)}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token || anonKey}`,
+        'apikey': anonKey,
+        'Content-Type': mime,
+        'x-upsert': 'true',
+      },
+      body: blob,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('[storage] Upload FAILED:', res.status, errText);
+      return null;
+    }
+
+    console.log('[storage] SUCCESS:', fileName, '→', path);
     return { storagePath: path };
   } catch (e) {
     console.error('[storage] Upload error:', e);
@@ -344,15 +363,24 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
 export async function downloadFileData(storagePath) {
   if (!isSupabaseConfigured() || !storagePath) return null;
   try {
-    const { data, error } = await supabase.storage
-      .from('files')
-      .download(storagePath);
-    if (error || !data) return null;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const session = await supabase.auth.getSession();
+    const token = session?.data?.session?.access_token;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+    const res = await fetch(`${supabaseUrl}/storage/v1/object/files/${encodeURIComponent(storagePath)}`, {
+      headers: {
+        'Authorization': `Bearer ${token || anonKey}`,
+        'apikey': anonKey,
+      },
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
     return new Promise(resolve => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
       reader.onerror = () => resolve(null);
-      reader.readAsDataURL(data);
+      reader.readAsDataURL(blob);
     });
   } catch (e) {
     console.error('[storage] Download error:', e);
