@@ -1,6 +1,7 @@
 import { f$ } from './format.js';
 
 export function ci(item) {
+  if (item.excluded) return { ...item, clientPrice: 0, variance: 0, _originalCost: item.actualCost * (1 + item.margin) };
   const cp = item.actualCost === 0 ? 0 : item.actualCost * (1 + item.margin);
   return { ...item, clientPrice: cp, variance: cp - item.actualCost };
 }
