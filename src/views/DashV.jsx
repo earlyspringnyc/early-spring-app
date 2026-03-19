@@ -481,7 +481,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
     </div>
 
     {/* ── Bento Grid ── */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+    <div className="bento-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
 
       {order.map((cardKey,slotIdx)=>{
         const slot=adjustedSlots[slotIdx];

@@ -118,7 +118,7 @@ function BudgetV(p){
     </div>
 
     {/* ── Top metrics with budget health ── */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
+    <div className="budget-metrics" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
       <div style={{padding:"18px 20px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,borderLeft:"3px solid "+T.cream,cursor:canEdit&&!editingBudget?"pointer":"default"}} onClick={!editingBudget?startEditBudget:undefined}>
         <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Client Budget</div>
         {editingBudget?<div>

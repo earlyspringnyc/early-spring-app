@@ -106,6 +106,16 @@ export function useProjects(orgId) {
         return d;
       });
     }
+    // Strip base64 from client files
+    if (stripped.clientFiles) {
+      stripped.clientFiles = stripped.clientFiles.map(f => {
+        if (f.fileData && f.fileData.length > 50000) {
+          try { localStorage.setItem(`es_file_${f.id}`, f.fileData); } catch (e) {}
+          return { ...f, fileData: null, _hasLocalFile: true };
+        }
+        return f;
+      });
+    }
     return stripped;
   };
 
@@ -125,6 +135,14 @@ export function useProjects(orgId) {
           try { const f = localStorage.getItem(`es_file_${d.id}`); if (f) return { ...d, fileData: f }; } catch (e) {}
         }
         return d;
+      });
+    }
+    if (data.clientFiles) {
+      data.clientFiles = data.clientFiles.map(f => {
+        if (f._hasLocalFile && !f.fileData) {
+          try { const d = localStorage.getItem(`es_file_${f.id}`); if (d) return { ...f, fileData: d }; } catch (e) {}
+        }
+        return f;
       });
     }
     return data;

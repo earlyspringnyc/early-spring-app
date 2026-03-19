@@ -179,19 +179,19 @@ function LandingPage({onGetStarted}){
     <div style={{position:'fixed',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},${T.cyan},${T.magenta},${T.pos})`,opacity:.4,zIndex:200}}/>
 
     {/* ── Nav ── */}
-    <nav style={{position:'fixed',top:2,left:0,right:0,zIndex:100,padding:'0 32px',height:56,display:'flex',alignItems:'center',justifyContent:'space-between',background:scrolled?'rgba(8,8,12,.88)':'transparent',backdropFilter:scrolled?'blur(20px)':'none',borderBottom:scrolled?`1px solid ${T.border}`:'none',transition:'all .3s'}}>
+    <nav style={{position:'fixed',top:2,left:0,right:0,zIndex:100,padding:'0 clamp(16px,4vw,32px)',height:56,display:'flex',alignItems:'center',justifyContent:'space-between',background:scrolled?'rgba(8,8,12,.88)':'transparent',backdropFilter:scrolled?'blur(20px)':'none',borderBottom:scrolled?`1px solid ${T.border}`:'none',transition:'all .3s'}}>
       <ESWordmark height={16} color={T.cream}/>
-      <div style={{display:'flex',alignItems:'center',gap:24}}>
-        <button onClick={()=>scrollTo('features')} style={{background:'none',border:'none',color:T.dim,fontSize:13,cursor:'pointer',fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Features</button>
-        <button onClick={()=>scrollTo('pricing')} style={{background:'none',border:'none',color:T.dim,fontSize:13,cursor:'pointer',fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Pricing</button>
+      <div style={{display:'flex',alignItems:'center',gap:'clamp(12px,3vw,24px)'}}>
+        <button onClick={()=>scrollTo('features')} className="nav-link-hide" style={{background:'none',border:'none',color:T.dim,fontSize:13,cursor:'pointer',fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Features</button>
+        <button onClick={()=>scrollTo('pricing')} className="nav-link-hide" style={{background:'none',border:'none',color:T.dim,fontSize:13,cursor:'pointer',fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Pricing</button>
         <button onClick={onGetStarted} style={{padding:'8px 20px',borderRadius:T.rS,border:`1px solid ${T.borderGlow}`,background:T.goldSoft,color:T.gold,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:T.sans,transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-1px)'}} onMouseLeave={e=>{e.currentTarget.style.transform='none'}}>Sign In</button>
       </div>
     </nav>
 
     {/* ── Hero ── */}
-    <header style={{maxWidth:1200,margin:'0 auto',padding:'140px 32px 80px',position:'relative'}}>
+    <header style={{maxWidth:1200,margin:'0 auto',padding:'120px clamp(16px,4vw,32px) 60px',position:'relative'}}>
       <Fade>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:60,alignItems:'center'}}>
+        <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:60,alignItems:'center'}}>
           <div>
             <div style={{fontSize:12,fontWeight:700,color:T.gold,textTransform:'uppercase',letterSpacing:'.15em',marginBottom:20}}>By Producers, For Producers</div>
             <h1 style={{fontSize:'clamp(32px,5vw,52px)',fontWeight:800,lineHeight:1.08,letterSpacing:'-0.04em',marginBottom:24,color:T.cream}}>
@@ -228,7 +228,7 @@ function LandingPage({onGetStarted}){
     </Fade>
 
     {/* ── Features bento grid ── */}
-    <section id="features" style={{maxWidth:1200,margin:'0 auto',padding:'100px 32px'}}>
+    <section id="features" style={{maxWidth:1200,margin:'0 auto',padding:'80px clamp(16px,4vw,32px)'}}>
       <Fade>
         <div style={{textAlign:'center',marginBottom:64}}>
           <div style={{fontSize:11,fontWeight:700,color:T.gold,textTransform:'uppercase',letterSpacing:'.15em',marginBottom:12}}>Features</div>
@@ -237,7 +237,7 @@ function LandingPage({onGetStarted}){
         </div>
       </Fade>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gridTemplateRows:'auto auto',gap:14}}>
+      <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gridTemplateRows:'auto auto',gap:14}}>
         {/* Budget — large */}
         <Fade delay={.1} style={{gridColumn:'1/3'}}>
           <div style={{borderRadius:T.r,border:`1px solid ${T.border}`,borderLeft:`3px solid ${C.amber}`,background:`${C.amber}05`,padding:0,overflow:'hidden',display:'grid',gridTemplateColumns:'1fr 1fr',height:'100%',transition:'border-color .3s,transform .3s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${C.amber}40`;e.currentTarget.style.transform='translateY(-2px)'}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform='none'}}>
@@ -301,7 +301,7 @@ function LandingPage({onGetStarted}){
         </div>
       </Fade>
       <Fade delay={.1}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:40,maxWidth:900,margin:'0 auto'}}>
+        <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:40,maxWidth:900,margin:'0 auto'}}>
           {[
             {n:'01',t:'Create a project',d:'Set the client budget, name, and event date. That\'s it.'},
             {n:'02',t:'Build your budget',d:'Add categories, line items, vendors. Margins calculate live.'},

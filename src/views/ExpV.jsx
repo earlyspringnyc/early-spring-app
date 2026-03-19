@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
@@ -13,6 +13,125 @@ import GanttChart from './GanttChart.jsx';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
+/* ── Inline file viewer modal (PDF via pdf.js, images native) ── */
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+/* ── PDF thumbnail — renders first page at small scale ── */
+function PdfThumbnail({fileData}){
+  const canvasRef=useRef(null);
+  const[loaded,setLoaded]=useState(false);
+  useEffect(()=>{
+    if(!fileData||!fileData.includes(","))return;
+    const render=async()=>{
+      try{
+        const raw=atob(fileData.split(",")[1]);
+        const arr=new Uint8Array(raw.length);
+        for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+        const doc=await pdfjsLib.getDocument({data:arr}).promise;
+        const pg=await doc.getPage(1);
+        const vp=pg.getViewport({scale:.4});
+        const canvas=canvasRef.current;
+        if(!canvas)return;
+        canvas.width=vp.width;canvas.height=vp.height;
+        await pg.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+        setLoaded(true);
+      }catch(e){console.error("[pdf thumb]",e)}
+    };
+    render();
+  },[fileData]);
+  return<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+    <canvas ref={canvasRef} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",opacity:loaded?1:0,transition:"opacity .2s"}}/>
+    {!loaded&&<div style={{position:"absolute",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+      <span style={{fontSize:32,opacity:.3}}>&#128196;</span>
+      <span style={{fontSize:9,fontWeight:600,color:T.neg,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",padding:"2px 6px",borderRadius:4,background:"rgba(248,113,113,.1)"}}>PDF</span>
+    </div>}
+  </div>;
+}
+
+function FileViewerModal({file,onClose}){
+  const canvasRef=useRef(null);
+  const[pdf,setPdf]=useState(null);
+  const[page,setPage]=useState(0);
+  const[total,setTotal]=useState(0);
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState(null);
+  // Resolve fileData — may need to restore from localStorage
+  const[resolvedData,setResolvedData]=useState(file.fileData);
+  useEffect(()=>{
+    if(file.fileData){setResolvedData(file.fileData);return}
+    if(file._hasLocalFile){
+      try{const d=localStorage.getItem(`es_file_${file.id}`);if(d){setResolvedData(d);return}}catch(e){}
+    }
+    setResolvedData(null);
+  },[file]);
+  const isPdf=(file.fileName&&/\.pdf$/i.test(file.fileName))||(resolvedData&&resolvedData.startsWith("data:application/pdf"));
+  const isImage=(file.fileName&&/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(file.fileName))||(resolvedData&&/^data:image\//i.test(resolvedData));
+
+  useEffect(()=>{
+    if(!isPdf||!resolvedData)return;
+    const load=async()=>{
+      try{
+        setLoading(true);setError(null);
+        let loadArg;
+        if(resolvedData.includes(",")){
+          const raw=atob(resolvedData.split(",")[1]);
+          const arr=new Uint8Array(raw.length);
+          for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+          loadArg={data:arr};
+        } else { setError("Invalid PDF data");setLoading(false);return; }
+        const doc=await pdfjsLib.getDocument(loadArg).promise;
+        setPdf(doc);setTotal(doc.numPages);setLoading(false);
+      }catch(e){console.error("[pdf]",e);setError("Could not load PDF");setLoading(false)}
+    };
+    load();
+  },[resolvedData]);
+
+  useEffect(()=>{
+    if(!pdf||!canvasRef.current)return;
+    const render=async()=>{
+      const pg=await pdf.getPage(page+1);
+      const canvas=canvasRef.current;
+      const ctx=canvas.getContext("2d");
+      const vp=pg.getViewport({scale:1.5});
+      canvas.width=vp.width;canvas.height=vp.height;
+      await pg.render({canvasContext:ctx,viewport:vp}).promise;
+    };
+    render();
+  },[pdf,page]);
+
+  return<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}>
+    <div onClick={e=>e.stopPropagation()} style={{maxWidth:900,maxHeight:"90vh",width:"100%",display:"flex",flexDirection:"column",alignItems:"center",gap:12,overflow:"auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",flexShrink:0}}>
+        <div style={{fontSize:14,fontWeight:600,color:T.cream}}>{file.name}</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none",fontFamily:T.sans,cursor:"pointer"}}>Download</a>}
+          <button onClick={onClose} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Close</button>
+        </div>
+      </div>
+      {!resolvedData?<div style={{padding:48,textAlign:"center"}}>
+        <div style={{fontSize:13,color:T.dim}}>File data not available — it may have been cleared from storage</div>
+      </div>
+      :isPdf?<>
+        {loading&&<div style={{color:T.dim,fontSize:13,padding:48}}>Loading PDF...</div>}
+        {error&&<div style={{color:T.neg,fontSize:13,padding:48}}>{error}</div>}
+        {pdf&&<canvas ref={canvasRef} style={{maxWidth:"100%",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>}
+        {pdf&&total>1&&<div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+          <button onClick={()=>setPage(Math.max(0,page-1))} disabled={page===0} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page===0?"transparent":T.border}`,color:page===0?T.dim:T.cream,fontSize:12,cursor:page===0?"default":"pointer",fontFamily:T.sans}}>&larr; Prev</button>
+          <span style={{fontSize:12,fontFamily:T.mono,color:T.cream,fontWeight:600}}>Page {page+1} of {total}</span>
+          <button onClick={()=>setPage(Math.min(total-1,page+1))} disabled={page>=total-1} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page>=total-1?"transparent":T.border}`,color:page>=total-1?T.dim:T.cream,fontSize:12,cursor:page>=total-1?"default":"pointer",fontFamily:T.sans}}>Next &rarr;</button>
+        </div>}
+      </>
+      :isImage?<img src={resolvedData} alt={file.name} style={{maxWidth:"100%",maxHeight:"80vh",borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}/>
+      :<div style={{padding:48,textAlign:"center"}}>
+        <div style={{fontSize:13,color:T.dim,marginBottom:12}}>Preview not available for this file type</div>
+        {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} style={{padding:"8px 18px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:12,fontWeight:600,textDecoration:"none",fontFamily:T.sans}}>Download File</a>}
+      </div>}
+    </div>
+  </div>;
+}
+
 function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[activeView,setActiveView]=useState(null); // null=grid, "budget"|"timeline"|"files"
   const tasks=project.timeline||[];
@@ -21,6 +140,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   const[tlFormat,setTlFormat]=useState("both");
   const[emailTo,setEmailTo]=useState("");const[emailSending,setEmailSending]=useState(false);const[emailSent,setEmailSent]=useState("");
   const[fileFilter,setFileFilter]=useState("all");
+  const[fileSearch,setFileSearch]=useState("");
+  const[viewingFile,setViewingFile]=useState(null);
   const fileInputRef=useRef(null);
   const deckRef=useRef(null);
   const[deckEmail,setDeckEmail]=useState("");const[deckSending,setDeckSending]=useState(false);const[deckSent,setDeckSent]=useState("");
@@ -99,7 +220,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
   };
   const removeFile=id=>updateProject({clientFiles:clientFiles.filter(f=>f.id!==id)});
   const updateFileCategory=(id,cat)=>updateProject({clientFiles:clientFiles.map(f=>f.id===id?{...f,category:cat}:f)});
-  const filteredFiles=fileFilter==="all"?clientFiles:clientFiles.filter(f=>f.category===fileFilter);
+  const filteredFiles=(fileFilter==="all"?clientFiles:clientFiles.filter(f=>f.category===fileFilter)).filter(f=>!fileSearch||f.name.toLowerCase().includes(fileSearch.toLowerCase())||((f.fileName||"").toLowerCase().includes(fileSearch.toLowerCase())));
   const fileCounts=CLIENT_FILE_CATS.reduce((a,c)=>{a[c]=clientFiles.filter(f=>f.category===c).length;return a},{});
 
   const doSendEmail=async(subject,bodyFn)=>{if(!emailTo.trim())return;if(!accessToken){alert("Google access token required. Sign in with Google OAuth.");return}setEmailSending(true);try{const{sendEmail:gmailSend}=await import('../utils/google.js');const htmlBody=await bodyFn();await gmailSend(accessToken,emailTo.trim(),subject,htmlBody);setEmailSent(emailTo);setEmailTo("")}catch(e){alert("Failed to send: "+(e.message||"Unknown error"))}finally{setEmailSending(false)}};
@@ -483,29 +604,52 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken}){
     <input ref={fileInputRef} type="file" multiple accept="*" onChange={handleFileUpload} style={{display:"none"}}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>Files</h2>
-      <button onClick={()=>fileInputRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload</button>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{position:"relative"}}>
+          <input value={fileSearch} onChange={e=>setFileSearch(e.target.value)} placeholder="Search files..." style={{padding:"7px 12px 7px 30px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",width:180}} onFocus={e=>e.currentTarget.style.borderColor=T.borderGlow} onBlur={e=>e.currentTarget.style.borderColor=T.border}/>
+          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:12,color:T.dim,pointerEvents:"none"}}>&#128269;</span>
+        </div>
+        <button onClick={()=>fileInputRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload</button>
+      </div>
     </div>
     <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
       <button onClick={()=>setFileFilter("all")} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:fileFilter==="all"?600:400,fontFamily:T.sans,background:fileFilter==="all"?T.goldSoft:"transparent",color:fileFilter==="all"?T.gold:T.dim}}>All ({clientFiles.length})</button>
       {CLIENT_FILE_CATS.map(c=>fileCounts[c]>0&&<button key={c} onClick={()=>setFileFilter(c)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:fileFilter===c?600:400,fontFamily:T.sans,background:fileFilter===c?`${CLIENT_FILE_COLORS[c]}18`:"transparent",color:fileFilter===c?CLIENT_FILE_COLORS[c]:T.dim}}>{CLIENT_FILE_LABELS[c]} ({fileCounts[c]})</button>)}
     </div>
-    {filteredFiles.length>0?<Card style={{overflow:"hidden"}}>
-      {filteredFiles.map((f,idx)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:idx<filteredFiles.length-1?`1px solid ${T.border}`:"none"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <Pill color={CLIENT_FILE_COLORS[f.category]} size="xs">{CLIENT_FILE_LABELS[f.category]}</Pill>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
-          <div style={{fontSize:10,color:T.dim,marginTop:1}}>{f.fileName} · {f.dateAdded}</div>
-        </div>
-        <select value={f.category} onChange={e=>updateFileCategory(f.id,e.target.value)} style={{padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:10,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>{CLIENT_FILE_CATS.map(c=><option key={c} value={c}>{CLIENT_FILE_LABELS[c]}</option>)}</select>
-        {f.fileData&&<button onClick={()=>window.open(f.fileData,"_blank")} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>View</button>}
-        <button onClick={()=>removeFile(f.id)} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)"}}><TrashI size={11} color={T.neg}/></button>
-      </div>)}
-    </Card>
+    {filteredFiles.length>0?<div className="file-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:14}}>
+      {filteredFiles.map(f=>{
+        // Resolve fileData from localStorage if stripped
+        const fd=f.fileData||(f._hasLocalFile?(()=>{try{return localStorage.getItem(`es_file_${f.id}`)}catch(e){return null}})():null);
+        const isPdf=(f.fileName&&/\.pdf$/i.test(f.fileName))||(fd&&fd.startsWith("data:application/pdf"));
+        const isImg=fd&&/^data:image\//i.test(fd);
+        return<div key={f.id} onClick={()=>fd&&setViewingFile({...f,fileData:fd})} style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,overflow:"hidden",cursor:fd?"pointer":"default",transition:"border-color .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none"}}>
+          {/* Thumbnail area */}
+          <div style={{height:130,background:T.surface,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
+            {isImg?<img src={fd} alt={f.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            :isPdf?<PdfThumbnail fileData={fd}/>
+            :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+              <span style={{fontSize:32,opacity:.3}}>&#128462;</span>
+              <span style={{fontSize:9,fontWeight:600,color:T.dim,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{(f.fileName||"").split(".").pop()||"FILE"}</span>
+            </div>}
+            <div style={{position:"absolute",top:6,left:6}}><Pill color={CLIENT_FILE_COLORS[f.category]} size="xs">{CLIENT_FILE_LABELS[f.category]}</Pill></div>
+          </div>
+          {/* Info area */}
+          <div style={{padding:"10px 12px"}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>{f.name}</div>
+            <div style={{fontSize:9,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:8}}>{f.fileName} · {f.dateAdded}</div>
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+              <select value={f.category} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();updateFileCategory(f.id,e.target.value)}} style={{flex:1,padding:"3px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>{CLIENT_FILE_CATS.map(c=><option key={c} value={c}>{CLIENT_FILE_LABELS[c]}</option>)}</select>
+              <button onClick={e=>{e.stopPropagation();removeFile(f.id)}} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:4,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)"}}><TrashI size={10} color={T.neg}/></button>
+            </div>
+          </div>
+        </div>})}
+    </div>
     :<div onClick={()=>fileInputRef.current.click()} style={{textAlign:"center",padding:48,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
       <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#8593;</div>
       <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No files yet</div>
       <p style={{fontSize:12,color:T.dim}}>Upload RFPs, briefs, design files, contracts, decks</p>
     </div>}
+    {viewingFile&&<FileViewerModal file={viewingFile} onClose={()=>setViewingFile(null)}/>}
   </div>;
 
   /* ══ MEETINGS VIEW ══ */

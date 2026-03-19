@@ -50,14 +50,14 @@ export function mkSampleProject() {
 
   const cats = [
     { id: uid(), name: "Venue", items: [
-      { ...mkI("Rooftop Buyout", 28000, .18), qty: 1, rate: 28000, unit: "ea", vendorId: vendors[0].id, details: "Full rooftop exclusive 6pm–1am" },
+      { ...mkI("Rooftop Buyout", 28000, .18), qxr: true, qty: 1, rate: 28000, unit: "ea", vendorId: vendors[0].id, details: "Full rooftop exclusive 6pm–1am" },
       { ...mkI("Ballroom Hold (Rain Plan)", 5000, .18), vendorId: vendors[0].id, details: "Indoor backup — released 48hr prior if clear" },
       { ...mkI("Security Deposit", 3000, 0), vendorId: vendors[0].id },
       mkI("Permit Fees", 1200, .10),
     ]},
     { id: uid(), name: "Catering & Beverage", items: [
-      { ...mkI("Dinner Service", 18750, .15), qty: 150, rate: 125, unit: "ea", vendorId: vendors[1].id, details: "3-course seated, family style" },
-      { ...mkI("Open Bar Package", 11250, .15), qty: 150, rate: 75, unit: "ea", vendorId: vendors[1].id, details: "Premium spirits, craft cocktails, wine, beer — 4hrs" },
+      { ...mkI("Dinner Service", 18750, .15), qxr: true, qty: 150, rate: 125, unit: "ea", vendorId: vendors[1].id, details: "3-course seated, family style" },
+      { ...mkI("Open Bar Package", 11250, .15), qxr: true, qty: 150, rate: 75, unit: "ea", vendorId: vendors[1].id, details: "Premium spirits, craft cocktails, wine, beer — 4hrs" },
       { ...mkI("Late Night Snacks", 2500, .15), vendorId: vendors[1].id, details: "Empanadas + slider station" },
       { ...mkI("Custom Dessert Bar", 3200, .20), vendorId: vendors[3].id, details: "Branded macarons, mini cakes, chocolate truffles" },
       mkI("F&B Staffing", 4800, .12),
@@ -66,14 +66,14 @@ export function mkSampleProject() {
       { ...mkI("LED Wall (12×8)", 8500, .15), vendorId: vendors[2].id, details: "2.6mm pixel pitch, content-ready" },
       { ...mkI("Sound System + DJ Booth", 4200, .15), vendorId: vendors[2].id },
       { ...mkI("Lighting Design", 6800, .18), vendorId: vendors[2].id, details: "Intelligent fixtures, uplighting, pin spots" },
-      { ...mkI("AV Tech", 3600, .10), qty: 2, rate: 1800, unit: "ea", vendorId: vendors[2].id, details: "On-site techs for load-in through strike" },
+      { ...mkI("AV Tech", 3600, .10), qxr: true, qty: 2, rate: 1800, unit: "ea", vendorId: vendors[2].id, details: "On-site techs for load-in through strike" },
     ]},
     { id: uid(), name: "Fabrication & Scenic", items: [
       mkI("Custom Entry Arch", 7500, .20),
       mkI("Step & Repeat Wall", 3500, .15),
       mkI("Branded Bar Wrap", 2800, .15),
       mkI("Lounge Furniture", 4500, .12),
-      { ...mkI("Install / Strike Labor", 6400, .10), qty: 8, rate: 800, unit: "ea", details: "8-person crew, load-in + strike" },
+      { ...mkI("Install / Strike Labor", 6400, .10), qxr: true, qty: 8, rate: 800, unit: "ea", details: "8-person crew, load-in + strike" },
     ]},
     { id: uid(), name: "Content & Capture", items: [
       { ...mkI("Photography", 4500, .15), vendorId: vendors[4].id, details: "2 photographers, 6hrs + edited gallery" },
@@ -83,8 +83,8 @@ export function mkSampleProject() {
     ]},
     { id: uid(), name: "Staffing", items: [
       mkI("Event Manager (Day-of)", 3500, .10),
-      { ...mkI("Brand Ambassadors", 4800, .10), qty: 6, rate: 800, unit: "ea", vendorId: vendors[5].id },
-      { ...mkI("Registration Staff", 1600, .10), qty: 2, rate: 800, unit: "ea", vendorId: vendors[5].id },
+      { ...mkI("Brand Ambassadors", 4800, .10), qxr: true, qty: 6, rate: 800, unit: "ea", vendorId: vendors[5].id },
+      { ...mkI("Registration Staff", 1600, .10), qxr: true, qty: 2, rate: 800, unit: "ea", vendorId: vendors[5].id },
       mkI("Security", 2400, .08),
     ]},
     { id: uid(), name: "Travel & Logistics", items: [

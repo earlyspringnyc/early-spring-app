@@ -61,17 +61,18 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
         <span style={{fontSize:12,fontWeight:700,color:T.gold}}>%</span>
         <button onClick={applyCatMargin} style={{padding:"4px 10px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Apply</button>
       </div>}
+      <div className="budget-scroll" style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div className="cat-grid">
       <div style={{display:"grid",gridTemplateColumns:cols,padding:"10px 18px",borderBottom:`1px solid ${T.border}`}}>
         {["Item",...(isAg?["Days","Day Rate"]:["Description","Vendor"]),"Actual","Margin","Client","Variance",...(isAg?[]:["Status"])].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===0||(!isAg&&i===1)?"left":"right"}}>{h}</span>)}
       </div>
       {items.map((it,idx)=><div key={it.id} draggable={!!onReorder} onDragStart={e=>{setDragItem(idx);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverItem(idx)}} onDrop={e=>{e.preventDefault();if(dragItem!==null&&dragItem!==idx&&onReorder)onReorder(dragItem,idx);setDragItem(null);setOverItem(null)}} onDragEnd={()=>{setDragItem(null);setOverItem(null)}} style={{display:"grid",gridTemplateColumns:cols,alignItems:"center",padding:"9px 18px",borderBottom:idx<items.length-1?`1px solid ${T.border}`:"none",transition:"background .12s",opacity:dragItem===idx?.5:1,borderTop:overItem===idx&&dragItem!==null?`2px solid ${ac}`:"none"}}
         onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,color:T.cream}}>{it.name}</span>
-          {canEdit&&!isAg&&<button title={it.qty>0||it.rate>0?"Switch to fixed price":"Switch to qty × rate"} onClick={()=>{if(it.qty>0||it.rate>0){onUp(idx,{qty:0,rate:0,unit:""})}else{onUp(idx,{qty:1,rate:it.actualCost||0,unit:"day"})}}} style={{background:it.qty>0&&it.rate>0?`${T.cyan}18`:"none",border:`1px solid ${it.qty>0&&it.rate>0?`${T.cyan}40`:"transparent"}`,borderRadius:4,cursor:"pointer",opacity:it.qty>0&&it.rate>0?1:.25,padding:"1px 5px",transition:"all .15s",fontSize:9,fontWeight:600,color:it.qty>0&&it.rate>0?T.cyan:T.dim,fontFamily:T.mono,letterSpacing:".03em"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=it.qty>0&&it.rate>0?1:.25}>Q×R</button>}
+          {canEdit&&!isAg&&(()=>{const isQxr=it.qxr||(it.qty>0&&it.rate>0);return<button title={isQxr?"Switch to fixed price":"Switch to qty × rate"} onClick={()=>{if(isQxr){onUp(idx,{qxr:false,qty:0,rate:0,unit:""})}else{onUp(idx,{qxr:true,qty:1,rate:it.actualCost||0,unit:"day"})}}} style={{background:isQxr?`${T.cyan}18`:"none",border:`1px solid ${isQxr?`${T.cyan}40`:"transparent"}`,borderRadius:4,cursor:"pointer",opacity:isQxr?1:.25,padding:"1px 5px",transition:"all .15s",fontSize:9,fontWeight:600,color:isQxr?T.cyan:T.dim,fontFamily:T.mono,letterSpacing:".03em"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=isQxr?1:.25}>Q×R</button>})()}
           {canEdit&&<button title="Delete item" onClick={()=>onRm(idx)} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}</div>
         {isAg?<><NI value={it.days||0} fmt="" onChange={v=>onUp(idx,{days:v,actualCost:v*(it.dayRate||0)})} disabled={!canEdit}/><NI value={it.dayRate||0} onChange={v=>onUp(idx,{dayRate:v,actualCost:(it.days||0)*v})} disabled={!canEdit}/></>
           :<><DetailsInput value={it.details||""} onChange={v=>onUp(idx,{details:v})} canEdit={canEdit}/><div style={{paddingRight:4}}><VendorSelect value={it.vendorId} onChange={v=>onUp(idx,{vendorId:v})} vendors={vendors} onAddVendor={onAddVendor} disabled={!canEdit} compact/></div></>}
-        {!isAg&&it.qty>0&&it.rate>0?<div style={{display:"flex",alignItems:"center",gap:2,justifyContent:"flex-end"}}>
+        {!isAg&&(it.qxr||(it.qty>0&&it.rate>0))?<div style={{display:"flex",alignItems:"center",gap:2,justifyContent:"flex-end"}}>
           <NI value={it.qty} fmt="" onChange={v=>{const q=Math.max(0,v);onUp(idx,{qty:q,actualCost:q*(it.rate||0)})}} disabled={!canEdit}/>
           <span style={{fontSize:10,color:T.dim,padding:"0 2px"}}>×</span>
           <NI value={it.rate} onChange={v=>{const r=Math.max(0,v);onUp(idx,{rate:r,actualCost:(it.qty||0)*r})}} disabled={!canEdit}/>
@@ -81,10 +82,11 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
         </div>
         :<NI value={it.actualCost} onChange={v=>onUp(idx,{actualCost:v})} disabled={!canEdit}/>}
         <NI value={it.margin} fmt="%" onChange={v=>onUp(idx,{margin:v>1?v/100:v})} disabled={!canEdit}/>
-        <NI value={it.clientPrice} onChange={v=>{const m=it.margin||0;const actual=m>0?v/(1+m):v;onUp(idx,{actualCost:actual})}} disabled={!canEdit} color={T.gold}/>
+        <NI value={it.clientPrice} onChange={v=>{const m=it.margin||0;const actual=m>0?v/(1+m):v;const upd={actualCost:actual};if(it.qxr&&it.qty>0){upd.rate=actual/it.qty}onUp(idx,upd)}} disabled={!canEdit} color={T.gold}/>
         <div className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:it.variance>0?T.pos:T.dim,fontWeight:500}}>{f$(it.variance)}</div>
         {!isAg&&(()=>{const ps=getPayStatus(it.id,docs);return<div style={{textAlign:"right"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 7px",borderRadius:20,background:`${PAYMENT_COLORS[ps]}18`,color:PAYMENT_COLORS[ps],textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{PAYMENT_LABELS[ps]}</span></div>})()}
       </div>)}
+      </div></div>
       {canEdit&&<button onClick={onAdd} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"none",border:"none",borderTop:`1px solid ${T.border}`,color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}
         onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}><PlusI size={12}/> Add line item</button>}
     </div>}

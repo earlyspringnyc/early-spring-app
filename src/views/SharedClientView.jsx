@@ -48,9 +48,9 @@ function SharedClientView({token}){
       </div>
     </div>
 
-    <div style={{padding:"32px 40px",maxWidth:1000,margin:"0 auto"}}>
+    <div style={{padding:"32px clamp(16px,4vw,40px)",maxWidth:1000,margin:"0 auto"}}>
       {/* Quick stats */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:32}}>
+      <div className="budget-metrics" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:32}}>
         <div style={{padding:"20px 24px",borderRadius:T.r,background:T.surfEl,border:`1px solid ${T.border}`}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Estimate Total</div>
           <div className="num" style={{fontSize:28,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(grandTotal)}</div>
