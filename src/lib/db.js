@@ -328,11 +328,19 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
     const path = `${orgId}/${projectId}/${fileId}_${fileName}`;
     console.log('[storage] Attempting upload:', path, `(${Math.round(blob.size/1024)}KB, ${mime})`);
 
-    // Use direct REST API to avoid Supabase realtime/websocket issues
+    // Use direct REST API — get token from localStorage to avoid hanging auth calls
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const session = await supabase.auth.getSession();
-    const token = session?.data?.session?.access_token;
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    let token = null;
+    try {
+      // Find Supabase session in localStorage
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      for (const k of keys) {
+        const raw = JSON.parse(localStorage.getItem(k));
+        if (raw?.access_token) { token = raw.access_token; break; }
+      }
+    } catch (e) {}
+    if (!token) { console.error('[storage] No auth token found'); return null; }
 
     const res = await fetch(`${supabaseUrl}/storage/v1/object/files/${encodeURIComponent(path)}`, {
       method: 'POST',
@@ -364,9 +372,15 @@ export async function downloadFileData(storagePath) {
   if (!isSupabaseConfigured() || !storagePath) return null;
   try {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const session = await supabase.auth.getSession();
-    const token = session?.data?.session?.access_token;
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    let token = null;
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      for (const k of keys) {
+        const raw = JSON.parse(localStorage.getItem(k));
+        if (raw?.access_token) { token = raw.access_token; break; }
+      }
+    } catch (e) {}
 
     const res = await fetch(`${supabaseUrl}/storage/v1/object/files/${encodeURIComponent(storagePath)}`, {
       headers: {
