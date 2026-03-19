@@ -22,15 +22,8 @@ const C={amber:'#F59E0B',teal:'#14B8A6',purple:'#8B5CF6',coral:'#F47264',cyan:'#
 function DashboardHero(){
   const[step,setStep]=useState(0);
   const[activeNav,setActiveNav]=useState(0);
-  useEffect(()=>{const t=setInterval(()=>setStep(s=>(s+1)%4),2400);return()=>clearInterval(t)},[]);
+  useEffect(()=>{const t=setInterval(()=>setStep(s=>s+1),3000);return()=>clearInterval(t)},[]);
   const fmt=n=>'$'+n.toLocaleString();
-  const cards=[
-    [{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'total',l:'Project Total',v:fmt(387450),c:C.teal},{id:'tasks',l:'Tasks',v:'12 / 34',c:C.cyan},{id:'vendors',l:'Owed to Vendors',v:fmt(142800),c:C.coral}],
-    [{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'total',l:'Project Total',v:fmt(387450),c:C.teal},{id:'profit',l:'Net Profit',v:fmt(68200),c:C.emerald},{id:'margin',l:'Blended Margin',v:'17.6%',c:C.purple},{id:'tasks',l:'Tasks',v:'12 / 34',c:C.cyan},{id:'vendors',l:'Owed to Vendors',v:fmt(142800),c:C.coral}],
-    [{id:'countdown',l:'Event Countdown',v:'87 days',c:C.amber},{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'total',l:'Project Total',v:fmt(387450),c:C.teal},{id:'profit',l:'Net Profit',v:fmt(68200),c:C.emerald},{id:'margin',l:'Blended Margin',v:'17.6%',c:C.purple},{id:'meetings',l:'Upcoming',v:'3 this week',c:C.cyan},{id:'tasks',l:'Tasks',v:'14 / 34',c:C.cyan},{id:'vendors',l:'Owed to Vendors',v:fmt(128600),c:C.coral}],
-    [{id:'total',l:'Project Total',v:fmt(392100),c:C.teal},{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'profit',l:'Net Profit',v:fmt(71800),c:C.emerald},{id:'margin',l:'Blended Margin',v:'18.3%',c:C.purple},{id:'vendors',l:'Owed to Vendors',v:fmt(118200),c:C.coral},{id:'tasks',l:'Tasks',v:'16 / 34',c:C.cyan},{id:'countdown',l:'Event Countdown',v:'86 days',c:C.amber},{id:'meetings',l:'Upcoming',v:'2 this week',c:C.cyan}],
-  ];
-  const cur=cards[step];
   const navItems=[
     {icon:'◐',label:'Dashboard',active:true},
     {icon:'◈',label:'Budget'},
@@ -45,7 +38,7 @@ function DashboardHero(){
     {icon:'▶',label:'Run of Show'},
   ];
 
-  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:1000,display:'flex',height:420}}>
+  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:1060,display:'flex',height:520}}>
     {/* ── Sidebar ── */}
     <div style={{width:180,borderRight:`1px solid ${T.border}`,display:'flex',flexDirection:'column',flexShrink:0,background:T.bg}}>
       {/* Logo */}
@@ -83,19 +76,90 @@ function DashboardHero(){
         </div>
       </div>
     </div>
-    {/* ── Main content ── */}
-    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-      {/* Header */}
-      <div style={{padding:'16px 20px 12px'}}>
-        <div style={{fontSize:16,fontWeight:600,color:T.cream}}>Dashboard</div>
-        <div style={{fontSize:11,color:T.dim,marginTop:2}}>Neon Drift Summer Activation · Jun 14, 2026</div>
+    {/* ── Main content — bento dashboard ── */}
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'auto'}}>
+      <div style={{padding:'14px 18px 8px'}}>
+        <div style={{fontSize:15,fontWeight:600,color:T.cream}}>Dashboard</div>
+        <div style={{fontSize:10,color:T.dim,marginTop:2}}>Neon Drift Summer Activation · Jun 14, 2026</div>
       </div>
-      {/* Card grid */}
-      <div style={{flex:1,padding:'0 16px 16px',display:'grid',gridTemplateColumns:`repeat(${Math.min(cur.length,4)},1fr)`,gap:8,alignContent:'start'}}>
-        {cur.map((c,i)=><div key={c.id+step} style={{padding:'14px 12px',borderRadius:8,background:`${c.c}08`,border:`1px solid ${c.c}15`,borderLeft:`3px solid ${c.c}`,animation:'cardPop .4s ease-out forwards',animationDelay:`${i*.06}s`,opacity:0}}>
-          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>{c.l}</div>
-          <div style={{fontSize:18,fontWeight:700,color:c.c,fontFamily:T.mono,lineHeight:1}}>{c.v}</div>
-        </div>)}
+      {/* Bento grid — 4 columns, cards span 1 or 2 */}
+      <div style={{flex:1,padding:'4px 14px 14px',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:7,alignContent:'start',gridAutoRows:'min-content'}}>
+        {/* Row 1: Budget (2) + Spend (2) */}
+        <div key={'budget'+step} style={{gridColumn:'1/3',padding:'12px',borderRadius:7,background:`${C.amber}06`,border:`1px solid ${C.amber}12`,borderLeft:`3px solid ${C.amber}`,animation:'cardPop .4s ease-out forwards',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Client Budget</div>
+          <div style={{fontSize:22,fontWeight:700,color:C.amber,fontFamily:T.mono,lineHeight:1}}>{fmt(481000)}</div>
+          <div style={{height:3,background:T.surface,borderRadius:2,marginTop:8,overflow:'hidden'}}><div style={{width:'81%',height:'100%',background:`linear-gradient(90deg,${C.amber},${C.teal})`,borderRadius:2}}/></div>
+          <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}><span style={{fontSize:7,color:T.dim}}>81% allocated</span><span style={{fontSize:7,color:T.dim,fontFamily:T.mono}}>{fmt(93550)} remaining</span></div>
+        </div>
+        <div key={'spend'+step} style={{gridColumn:'3/5',padding:'12px',borderRadius:7,background:`${C.teal}06`,border:`1px solid ${C.teal}12`,borderLeft:`3px solid ${C.teal}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.06s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Project Total</div>
+          <div style={{fontSize:22,fontWeight:700,color:C.teal,fontFamily:T.mono,lineHeight:1}}>{fmt(387450)}</div>
+          <div style={{fontSize:8,color:T.dim,marginTop:6}}>Production: {fmt(298200)} · Agency: {fmt(89250)}</div>
+        </div>
+
+        {/* Row 2: Owed (1) + Due (1) + Tasks (2) */}
+        <div key={'owed'+step} style={{padding:'12px',borderRadius:7,background:`${C.coral}06`,border:`1px solid ${C.coral}12`,borderLeft:`3px solid ${C.coral}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.12s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Owed to Vendors</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.coral,fontFamily:T.mono,lineHeight:1}}>{fmt(142800)}</div>
+        </div>
+        <div key={'due'+step} style={{padding:'12px',borderRadius:7,background:`${C.cyan}06`,border:`1px solid ${C.cyan}12`,borderLeft:`3px solid ${C.cyan}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.18s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Due from Client</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.cyan,fontFamily:T.mono,lineHeight:1}}>{fmt(195000)}</div>
+        </div>
+        <div key={'tasks'+step} style={{gridColumn:'3/5',padding:'12px',borderRadius:7,background:`${C.teal}06`,border:`1px solid ${C.teal}12`,borderLeft:`3px solid ${C.teal}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.24s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Tasks</div>
+          <div style={{display:'flex',alignItems:'baseline',gap:4}}>
+            <span style={{fontSize:16,fontWeight:700,color:C.teal,fontFamily:T.mono}}>16</span>
+            <span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>/ 34</span>
+          </div>
+          <div style={{height:3,background:T.surface,borderRadius:2,marginTop:6,overflow:'hidden'}}><div style={{width:'47%',height:'100%',background:C.teal,borderRadius:2}}/></div>
+        </div>
+
+        {/* Row 3: Prod (1) + Margin (1) + Profit (1) + Countdown (1) */}
+        <div key={'prod'+step} style={{padding:'12px',borderRadius:7,background:`rgba(255,255,255,.02)`,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.dim}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.3s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Production Cost</div>
+          <div style={{fontSize:14,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{fmt(298200)}</div>
+        </div>
+        <div key={'margin'+step} style={{padding:'12px',borderRadius:7,background:`${C.purple}06`,border:`1px solid ${C.purple}12`,borderLeft:`3px solid ${C.purple}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.36s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Blended Margin</div>
+          <div style={{fontSize:14,fontWeight:700,color:C.purple,fontFamily:T.mono}}>17.6%</div>
+        </div>
+        <div key={'profit'+step} style={{padding:'12px',borderRadius:7,background:`${C.emerald}06`,border:`1px solid ${C.emerald}12`,borderLeft:`3px solid ${C.emerald}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.42s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Net Profit</div>
+          <div style={{fontSize:14,fontWeight:700,color:C.emerald,fontFamily:T.mono}}>{fmt(68200)}</div>
+        </div>
+        <div key={'countdown'+step} style={{padding:'12px',borderRadius:7,background:`${C.amber}06`,border:`1px solid ${C.amber}12`,borderLeft:`3px solid ${C.amber}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.48s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Event Countdown</div>
+          <div style={{fontSize:14,fontWeight:700,color:C.amber,fontFamily:T.mono}}>87 days</div>
+          <div style={{fontSize:7,color:T.dim,marginTop:2}}>Jun 14, 2026</div>
+        </div>
+
+        {/* Row 4: Donut (2) + Comp (2) */}
+        <div key={'donut'+step} style={{gridColumn:'1/3',padding:'12px',borderRadius:7,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.54s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Spend Distribution</div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:48,height:48,borderRadius:'50%',border:`3px solid ${C.purple}50`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{width:34,height:34,borderRadius:'50%',border:`3px solid ${C.teal}40`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <div style={{width:20,height:20,borderRadius:'50%',border:`3px solid ${C.amber}35`}}/>
+              </div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:3}}>
+              {[{n:'Staging & AV',c:C.purple,v:'34%'},{n:'Venue',c:C.teal,v:'28%'},{n:'Fabrication',c:C.amber,v:'18%'},{n:'Content',c:C.coral,v:'12%'}].map(d=>
+                <div key={d.n} style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:4,height:4,borderRadius:1,background:d.c}}/><span style={{fontSize:7,color:T.dim}}>{d.n}</span><span style={{fontSize:7,color:T.dim,fontFamily:T.mono,marginLeft:'auto'}}>{d.v}</span></div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div key={'weather'+step} style={{padding:'12px',borderRadius:7,background:`${C.cyan}06`,border:`1px solid ${C.cyan}12`,borderLeft:`3px solid ${C.cyan}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.6s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Event Weather</div>
+          <div style={{fontSize:18,fontWeight:700,color:C.cyan,fontFamily:T.mono}}>82°F</div>
+          <div style={{fontSize:7,color:T.dim,marginTop:2}}>☀ Mostly sunny · Brooklyn, NY</div>
+        </div>
+        <div key={'timezone'+step} style={{padding:'12px',borderRadius:7,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,animation:'cardPop .4s ease-out forwards',animationDelay:'.66s',opacity:0}}>
+          <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Time & Timezone</div>
+          <div style={{fontSize:14,fontWeight:700,color:T.cream,fontFamily:T.mono}}>2:45 PM</div>
+          <div style={{fontSize:7,color:T.dim,marginTop:2}}>America/New_York (EDT)</div>
+        </div>
       </div>
     </div>
     <style>{`@keyframes cardPop{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}`}</style>
