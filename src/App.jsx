@@ -159,11 +159,58 @@ function TermsPage(){
   </LegalPage>;
 }
 
+function MigratePage(){
+  const[status,setStatus]=useState([]);
+  const[running,setRunning]=useState(false);
+  const run=async()=>{
+    setRunning(true);
+    const log=msg=>{setStatus(s=>[...s,msg]);console.log(msg)};
+    try{
+      const projects=JSON.parse(localStorage.getItem("es_projects")||"[]");
+      if(!projects.length){log("No projects in localStorage");setRunning(false);return}
+      log("Found "+projects.length+" projects to migrate");
+      let token=null;
+      try{const keys=Object.keys(localStorage).filter(k=>k.startsWith("sb-")&&k.endsWith("-auth-token"));token=JSON.parse(localStorage.getItem(keys[0])).access_token}catch(e){}
+      if(!token){log("ERROR: No auth token. Sign in first.");setRunning(false);return}
+      const supabaseUrl=import.meta.env.VITE_SUPABASE_URL;
+      if(!supabaseUrl){log("ERROR: No Supabase URL configured");setRunning(false);return}
+      const orgId="83f740bd-299f-4d88-b9a1-d4e7d01da2ec";
+      for(const p of projects){
+        const clean={...p};
+        ["creativeAssets","clientFiles","docs"].forEach(k=>{
+          if(clean[k])clean[k]=clean[k].map(it=>it.fileData&&it.fileData.length>50000?{...it,fileData:null}:it);
+        });
+        log("Uploading: "+p.name);
+        const res=await fetch(supabaseUrl+"/rest/v1/projects",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+token,"apikey":import.meta.env.VITE_SUPABASE_ANON_KEY,"Prefer":"return=representation"},
+          body:JSON.stringify({org_id:orgId,data:clean})
+        });
+        if(res.ok){log("SUCCESS: "+p.name)}
+        else{const err=await res.text();log("FAILED: "+p.name+" — "+err)}
+      }
+      log("Done!");
+    }catch(e){log("ERROR: "+e.message)}
+    setRunning(false);
+  };
+  return<div style={{minHeight:"100vh",background:T.bg,color:T.cream,fontFamily:T.sans,padding:40}}>
+    <h1 style={{fontSize:24,marginBottom:16}}>Migrate Projects to Supabase</h1>
+    <p style={{color:T.dim,marginBottom:24}}>This will push all projects from this browser's localStorage to the Supabase database.</p>
+    <button onClick={run} disabled={running} style={{padding:"12px 24px",background:T.goldSoft,color:T.gold,border:"1px solid "+T.borderGlow,borderRadius:T.rS,fontSize:14,fontWeight:700,cursor:running?"wait":"pointer",marginBottom:24}}>{running?"Migrating...":"Start Migration"}</button>
+    <div style={{background:T.surface,borderRadius:T.rS,padding:16,fontFamily:T.mono,fontSize:12,lineHeight:1.8,maxHeight:400,overflow:"auto"}}>
+      {status.length===0&&<span style={{color:T.dim}}>Click Start Migration to begin...</span>}
+      {status.map((s,i)=><div key={i} style={{color:s.startsWith("ERROR")||s.startsWith("FAILED")?T.neg:s.startsWith("SUCCESS")?T.pos:T.cream}}>{s}</div>)}
+    </div>
+    <a href="/" style={{display:"block",marginTop:24,color:T.dim,fontSize:12}}>← Back to Morgan</a>
+  </div>;
+}
+
 function App(){
-  // Check for legal pages
+  // Check for legal pages and migration
   const path=window.location.pathname;
   if(path==="/privacy")return<PrivacyPage/>;
   if(path==="/terms")return<TermsPage/>;
+  if(path==="/migrate")return<MigratePage/>;
 
   // Check for share link
   const shareToken=new URLSearchParams(window.location.search).get("share");
