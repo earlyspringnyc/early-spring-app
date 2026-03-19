@@ -28,19 +28,45 @@ export function useProjects(orgId) {
         if (p.length > 0) {
           markHasProjects();
           setProjects(p.map(restoreFileData));
-        } else if (!hasHadProjects()) {
-          // First time ever — create sample
-          console.log('[projects] First-time user — creating sample project');
-          markHasProjects();
-          const sample = mkSampleProject();
-          try {
-            const saved = await db.createProject(orgId, sample);
-            if (saved) { setProjects([saved]); setLoaded(true); return; }
-          } catch (e2) { console.error('[projects] Sample create failed:', e2); }
-          setProjects([sample]);
         } else {
-          // User has had projects before, just none right now
-          setProjects([]);
+          // No projects in Supabase — check localStorage for projects to migrate
+          let localProjects = [];
+          try {
+            const saved = localStorage.getItem("es_projects");
+            if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) localProjects = parsed; }
+          } catch (e2) {}
+
+          if (localProjects.length > 0) {
+            // Migrate localStorage projects to Supabase
+            console.log('[projects] Migrating', localProjects.length, 'projects from localStorage to Supabase');
+            const migrated = [];
+            for (const lp of localProjects) {
+              try {
+                // Strip large file data before saving to DB
+                const toSave = { ...lp };
+                ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
+                  if (toSave[k]) toSave[k] = toSave[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
+                });
+                const saved = await db.createProject(orgId, toSave);
+                if (saved) { migrated.push(saved); console.log('[projects] Migrated:', lp.name); }
+                else { migrated.push(lp); }
+              } catch (e2) { console.error('[projects] Migration failed for:', lp.name, e2); migrated.push(lp); }
+            }
+            markHasProjects();
+            setProjects(migrated.map(restoreFileData));
+          } else if (!hasHadProjects()) {
+            // First time ever — create sample
+            console.log('[projects] First-time user — creating sample project');
+            markHasProjects();
+            const sample = mkSampleProject();
+            try {
+              const saved = await db.createProject(orgId, sample);
+              if (saved) { setProjects([saved]); setLoaded(true); return; }
+            } catch (e2) { console.error('[projects] Sample create failed:', e2); }
+            setProjects([sample]);
+          } else {
+            setProjects([]);
+          }
         }
         setLoaded(true);
       }).catch(e => {
