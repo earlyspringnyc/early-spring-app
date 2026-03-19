@@ -15,193 +15,150 @@ function Fade({children,style:sx={},delay=0,...p}){const{ref,style}=useFadeIn();
 const C={amber:'#F59E0B',teal:'#14B8A6',purple:'#8B5CF6',coral:'#F47264',cyan:'#06B6D4',emerald:'#10B981'};
 
 /* ════════════════════════════════════════════════════════════════════
-   PRODUCT UI MOCKUPS — realistic Neon Drift data
+   INTERACTIVE PRODUCT MOCKUPS — hover to see them come alive
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Animated Dashboard — cards shuffle and appear ── */
+/* ── Dashboard Hero — auto-animating cards ── */
 function DashboardHero(){
   const[step,setStep]=useState(0);
-  const totalSteps=4;
-  useEffect(()=>{
-    const t=setInterval(()=>setStep(s=>(s+1)%totalSteps),2800);
-    return()=>clearInterval(t);
-  },[]);
-
+  useEffect(()=>{const t=setInterval(()=>setStep(s=>(s+1)%4),2400);return()=>clearInterval(t)},[]);
   const fmt=n=>'$'+n.toLocaleString();
-
-  // Card definitions — position changes per step
-  const allCards=[
-    {id:'budget',label:'Client Budget',value:fmt(481000),color:C.amber,size:1},
-    {id:'total',label:'Project Total',value:fmt(387450),color:C.teal,size:1},
-    {id:'tasks',label:'Tasks',value:'12 / 34',sub:'35% complete',color:C.cyan,size:1},
-    {id:'vendors',label:'Owed to Vendors',value:fmt(142800),color:C.coral,size:1},
-    {id:'profit',label:'Net Profit',value:fmt(68200),color:C.emerald,size:1},
-    {id:'margin',label:'Blended Margin',value:'17.6%',color:C.purple,size:1},
-    {id:'countdown',label:'Event Countdown',value:'87 days',sub:'Jun 14, 2026',color:C.amber,size:1},
-    {id:'meetings',label:'Upcoming Meetings',value:'3 this week',color:C.cyan,size:1},
+  const cards=[
+    [{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'total',l:'Project Total',v:fmt(387450),c:C.teal},{id:'tasks',l:'Tasks',v:'12 / 34',c:C.cyan},{id:'vendors',l:'Owed to Vendors',v:fmt(142800),c:C.coral}],
+    [{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'total',l:'Project Total',v:fmt(387450),c:C.teal},{id:'profit',l:'Net Profit',v:fmt(68200),c:C.emerald},{id:'margin',l:'Blended Margin',v:'17.6%',c:C.purple},{id:'tasks',l:'Tasks',v:'12 / 34',c:C.cyan},{id:'vendors',l:'Owed to Vendors',v:fmt(142800),c:C.coral}],
+    [{id:'countdown',l:'Event Countdown',v:'87 days',c:C.amber},{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'total',l:'Project Total',v:fmt(387450),c:C.teal},{id:'profit',l:'Net Profit',v:fmt(68200),c:C.emerald},{id:'margin',l:'Blended Margin',v:'17.6%',c:C.purple},{id:'meetings',l:'Upcoming',v:'3 this week',c:C.cyan},{id:'tasks',l:'Tasks',v:'14 / 34',c:C.cyan},{id:'vendors',l:'Owed to Vendors',v:fmt(128600),c:C.coral}],
+    [{id:'total',l:'Project Total',v:fmt(392100),c:C.teal},{id:'budget',l:'Client Budget',v:fmt(481000),c:C.amber},{id:'profit',l:'Net Profit',v:fmt(71800),c:C.emerald},{id:'margin',l:'Blended Margin',v:'18.3%',c:C.purple},{id:'vendors',l:'Owed to Vendors',v:fmt(118200),c:C.coral},{id:'tasks',l:'Tasks',v:'16 / 34',c:C.cyan},{id:'countdown',l:'Event Countdown',v:'86 days',c:C.amber},{id:'meetings',l:'Upcoming',v:'2 this week',c:C.cyan}],
   ];
-
-  // Which cards are visible at each step (progressively adds cards)
-  const visibleIds=[
-    ['budget','total','tasks','vendors'],
-    ['budget','total','tasks','vendors','profit','margin'],
-    ['budget','total','vendors','profit','margin','countdown','tasks','meetings'],
-    ['total','budget','profit','margin','vendors','tasks','countdown','meetings'],
-  ];
-
-  const visible=visibleIds[step];
-  const cards=visible.map(id=>allCards.find(c=>c.id===id)).filter(Boolean);
-
-  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:900}}>
-    {/* Dashboard header */}
-    <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <div>
-        <div style={{fontSize:15,fontWeight:600,color:T.cream}}>Neon Drift Summer Activation</div>
-        <div style={{fontSize:11,color:T.dim,marginTop:2}}>NeonDrift Gaming · Jun 14, 2026</div>
+  const cur=cards[step];
+  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',fontFamily:T.sans,width:'100%',maxWidth:920}}>
+    <div style={{padding:'12px 18px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <MorganIsotype size={18} color={C.amber}/>
+        <div><div style={{fontSize:13,fontWeight:600,color:T.cream}}>Neon Drift Summer Activation</div><div style={{fontSize:10,color:T.dim}}>NeonDrift Gaming · Jun 14, 2026</div></div>
       </div>
-      <div style={{display:'flex',gap:6}}>
-        {['Dashboard','Budget','Production'].map((t,i)=><span key={t} style={{fontSize:9,padding:'4px 10px',borderRadius:10,background:i===0?T.surfEl:'transparent',color:i===0?T.cream:T.dim,fontWeight:i===0?600:400}}>{t}</span>)}
-      </div>
+      <div style={{display:'flex',gap:4}}>{['Dashboard','Budget','Timeline','Vendors'].map((t,i)=><span key={t} style={{fontSize:8,padding:'3px 8px',borderRadius:8,background:i===0?T.surfEl:'transparent',color:i===0?T.cream:T.dim,fontWeight:i===0?600:400}}>{t}</span>)}</div>
     </div>
-    {/* Animated card grid */}
-    <div style={{padding:16,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,minHeight:220}}>
-      {cards.map((c,i)=><div key={c.id} style={{
-        padding:'18px 16px',borderRadius:10,
-        background:`${c.color}06`,border:`1px solid ${c.color}18`,borderLeft:`3px solid ${c.color}`,
-        animation:'cardIn .5s ease-out forwards',
-        animationDelay:`${i*0.08}s`,
-        opacity:0,
-      }}>
-        <div style={{fontSize:8,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>{c.label}</div>
-        <div style={{fontSize:22,fontWeight:700,color:c.color,fontFamily:T.mono,lineHeight:1}}>{c.value}</div>
-        {c.sub&&<div style={{fontSize:9,color:T.dim,marginTop:4}}>{c.sub}</div>}
+    <div style={{padding:14,display:'grid',gridTemplateColumns:`repeat(${Math.min(cur.length,4)},1fr)`,gap:8,minHeight:200}}>
+      {cur.map((c,i)=><div key={c.id+step} style={{padding:'14px 12px',borderRadius:8,background:`${c.c}08`,border:`1px solid ${c.c}15`,borderLeft:`3px solid ${c.c}`,animation:'cardPop .4s ease-out forwards',animationDelay:`${i*.06}s`,opacity:0}}>
+        <div style={{fontSize:7,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>{c.l}</div>
+        <div style={{fontSize:18,fontWeight:700,color:c.c,fontFamily:T.mono,lineHeight:1}}>{c.v}</div>
       </div>)}
     </div>
-    <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}`}</style>
+    <style>{`@keyframes cardPop{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}`}</style>
   </div>;
 }
 
+/* ── Budget — numbers type in on hover ── */
 function BudgetUI(){
-  const cats=[
-    {name:'Venue',accent:C.amber,items:[
-      {name:'Venue Buyout',vendor:'Terminal 5',actual:45000,margin:.18},
-      {name:'Security',vendor:'Terminal 5',actual:8200,margin:.10},
-    ]},
-    {name:'Staging & AV',accent:C.purple,items:[
-      {name:'LED Wall 16×9',vendor:'Prism AV',actual:12500,margin:.15},
-      {name:'Sound System + DJ',vendor:'Prism AV',actual:8400,margin:.15},
-      {name:'Lighting Design',vendor:'Prism AV',actual:9800,margin:.18},
-      {name:'Gaming Stations',vendor:'Neon Rentals',detail:'8 × $2,400',actual:19200,margin:.15},
-    ]},
-    {name:'Fabrication & Scenic',accent:C.teal,items:[
-      {name:'Custom Entry Arch',vendor:'Atlas Staging',actual:14500,margin:.20},
-      {name:'Branded Bar Wrap',vendor:'Atlas Staging',actual:6800,margin:.15},
-      {name:'Neon Signage',vendor:'Glow Works',actual:8200,margin:.18},
-    ]},
-    {name:'Content & Capture',accent:C.coral,items:[
-      {name:'Photography',vendor:'Lens & Light',actual:4500,margin:.15},
-      {name:'Videography',vendor:'Lens & Light',actual:6500,margin:.15},
-    ]},
+  const[hovered,setHovered]=useState(false);
+  const[typingRow,setTypingRow]=useState(-1);
+  const[typedVal,setTypedVal]=useState('');
+  const items=[
+    {name:'Venue Buyout',vendor:'Terminal 5',actual:45000,margin:.18,accent:C.amber},
+    {name:'LED Wall 16×9',vendor:'Prism AV',actual:12500,margin:.15,accent:C.purple},
+    {name:'Sound System + DJ',vendor:'Prism AV',actual:8400,margin:.15,accent:C.purple},
+    {name:'Gaming Stations',vendor:'Neon Rentals',detail:'8 × $2,400',actual:19200,margin:.15,accent:C.purple},
+    {name:'Custom Entry Arch',vendor:'Atlas Staging',actual:14500,margin:.20,accent:C.teal},
+    {name:'Neon Signage',vendor:'Glow Works',actual:8200,margin:.18,accent:C.teal},
+    {name:'Photography',vendor:'Lens & Light',actual:4500,margin:.15,accent:C.coral},
+    {name:'Brand Ambassadors',vendor:'Staff Co',detail:'6 × $800',actual:4800,margin:.10,accent:C.coral},
   ];
+  useEffect(()=>{
+    if(!hovered)return;
+    const target='$14,500';let i=0;setTypingRow(4);setTypedVal('');
+    const t=setInterval(()=>{if(i<target.length){setTypedVal(target.slice(0,i+1));i++}else{clearInterval(t);setTimeout(()=>{setTypingRow(-1);setTypedVal('')},1200)}},80);
+    return()=>clearInterval(t);
+  },[hovered]);
   const fmt=n=>'$'+n.toLocaleString();
-  let totalActual=0,totalClient=0;
-  cats.forEach(c=>c.items.forEach(it=>{totalActual+=it.actual;totalClient+=it.actual*(1+it.margin)}));
-
-  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:680}}>
-    <div style={{padding:'16px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <div>
-        <div style={{fontSize:14,fontWeight:600,color:T.cream}}>Neon Drift Summer Activation</div>
-        <div style={{fontSize:11,color:T.dim,marginTop:2}}>NeonDrift Gaming · Jun 14, 2026</div>
-      </div>
-      <div style={{textAlign:'right'}}>
-        <div style={{fontSize:9,color:T.dim,textTransform:'uppercase',letterSpacing:'.06em'}}>Grand Total</div>
-        <div style={{fontSize:20,fontWeight:700,color:C.amber,fontFamily:T.mono}}>{fmt(Math.round(totalClient*1.20))}</div>
-      </div>
+  const total=items.reduce((a,it)=>a+it.actual*(1+it.margin),0);
+  return<div onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>{setHovered(false);setTypingRow(-1)}} style={{background:T.bg,border:`1px solid ${hovered?T.borderGlow:T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:600,transition:'border-color .3s',boxShadow:hovered?'0 8px 40px rgba(0,0,0,.3)':'none'}}>
+    <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span style={{fontSize:12,fontWeight:600,color:T.cream}}>Production Budget</span>
+      <span style={{fontSize:16,fontWeight:700,color:C.amber,fontFamily:T.mono}}>{fmt(Math.round(total*1.2))}</span>
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr .8fr .8fr',padding:'8px 20px',borderBottom:`1px solid ${T.border}`,background:'rgba(255,255,255,.015)'}}>
-      {['Item','Vendor','Actual','Client'].map((h,i)=><span key={i} style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:'uppercase',letterSpacing:'.08em',textAlign:i>1?'right':'left'}}>{h}</span>)}
-    </div>
-    {cats.map(c=><div key={c.name}>
-      <div style={{padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${c.accent}06`,borderLeft:`3px solid ${c.accent}`}}>
-        <span style={{fontSize:11,fontWeight:600,color:T.cream,textTransform:'uppercase',letterSpacing:'.06em'}}>{c.name}</span>
-      </div>
-      {c.items.map(it=>{const client=it.actual*(1+it.margin);return<div key={it.name} style={{display:'grid',gridTemplateColumns:'2fr 1.2fr .8fr .8fr',padding:'8px 20px',borderBottom:`1px solid ${T.border}`}}>
-        <div>
-          <span style={{fontSize:12,color:T.cream}}>{it.name}</span>
-          {it.detail&&<span style={{fontSize:10,color:T.dim,marginLeft:6,fontFamily:T.mono}}>{it.detail}</span>}
-        </div>
-        <span style={{fontSize:11,color:T.dim}}>{it.vendor}</span>
-        <span style={{fontSize:11,fontFamily:T.mono,color:T.dim,textAlign:'right'}}>{fmt(it.actual)}</span>
-        <span style={{fontSize:11,fontFamily:T.mono,color:C.amber,textAlign:'right'}}>{fmt(Math.round(client))}</span>
+    {items.map((it,idx)=>{const client=it.actual*(1+it.margin);const isTyping=typingRow===idx;
+      return<div key={it.name} style={{display:'grid',gridTemplateColumns:'1.8fr 1fr .7fr .7fr',padding:'7px 16px',borderBottom:`1px solid ${T.border}`,borderLeft:`3px solid ${isTyping?C.cyan:it.accent}`,background:isTyping?'rgba(125,211,252,.04)':'transparent',transition:'all .2s'}}>
+        <div><span style={{fontSize:11,color:T.cream}}>{it.name}</span>{it.detail&&<span style={{fontSize:9,color:T.dim,marginLeft:4,fontFamily:T.mono}}>{it.detail}</span>}</div>
+        <span style={{fontSize:10,color:T.dim}}>{it.vendor}</span>
+        <span style={{fontSize:10,fontFamily:T.mono,color:T.dim,textAlign:'right'}}>{isTyping?<span style={{color:C.cyan,borderBottom:'1.5px solid '+C.cyan}}>{typedVal}<span style={{animation:'blink 1s infinite'}}>|</span></span>:fmt(it.actual)}</span>
+        <span style={{fontSize:10,fontFamily:T.mono,color:C.amber,textAlign:'right'}}>{isTyping?'—':fmt(Math.round(client))}</span>
       </div>})}
-    </div>)}
+    <style>{`@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}`}</style>
   </div>;
 }
 
+/* ── Timeline — tasks check off on hover ── */
 function TimelineUI(){
+  const[hovered,setHovered]=useState(false);
+  const[checked,setChecked]=useState(new Set());
   const tasks=[
-    {name:'Confirm Terminal 5 contract',date:'Apr 28',status:'done',cat:'Venue'},
-    {name:'Submit noise & street permits',date:'May 1',status:'done',cat:'Permits'},
-    {name:'Finalize floor plan + gaming layout',date:'May 5',status:'progress',cat:'Design'},
-    {name:'AV walkthrough @ Terminal 5',date:'May 12',status:'upcoming',cat:'Production'},
-    {name:'Gaming station specs to Neon Rentals',date:'May 14',status:'upcoming',cat:'Production'},
-    {name:'Client kickoff deck due',date:'May 16',status:'upcoming',cat:'Client'},
-    {name:'Neon signage proof from Glow Works',date:'May 20',status:'upcoming',cat:'Fabrication'},
-    {name:'Final vendor payments',date:'Jun 7',status:'upcoming',cat:'Finance'},
+    {name:'Confirm Terminal 5 contract',date:'Apr 28',done:true},
+    {name:'Submit noise & street permits',date:'May 1',done:true},
+    {name:'Finalize floor plan + gaming layout',date:'May 5',done:false},
+    {name:'AV walkthrough @ Terminal 5',date:'May 12',done:false},
+    {name:'Gaming station specs to Neon Rentals',date:'May 14',done:false},
+    {name:'Client kickoff deck due',date:'May 16',done:false},
+    {name:'Neon signage proof from Glow Works',date:'May 20',done:false},
   ];
-  const sc={done:C.emerald,progress:C.cyan,upcoming:T.dim};
-  const sl={done:'Done',progress:'In Progress',upcoming:'To Do'};
-  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:560}}>
-    <div style={{padding:'16px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <div style={{fontSize:14,fontWeight:600,color:T.cream}}>Production Timeline</div>
-      <div style={{fontSize:11,color:T.dim}}>{tasks.filter(t=>t.status==='done').length}/{tasks.length} complete</div>
+  useEffect(()=>{
+    if(!hovered){setChecked(new Set());return}
+    const timers=[2,3,4].map((idx,i)=>setTimeout(()=>setChecked(s=>{const n=new Set(s);n.add(idx);return n}),(i+1)*600));
+    return()=>timers.forEach(clearTimeout);
+  },[hovered]);
+  return<div onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)} style={{background:T.bg,border:`1px solid ${hovered?T.borderGlow:T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:520,transition:'border-color .3s',boxShadow:hovered?'0 8px 40px rgba(0,0,0,.3)':'none'}}>
+    <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span style={{fontSize:12,fontWeight:600,color:T.cream}}>Production Timeline</span>
+      <span style={{fontSize:10,color:T.dim}}>{tasks.filter((t,i)=>t.done||checked.has(i)).length}/{tasks.length}</span>
     </div>
-    {tasks.map(t=><div key={t.name} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 20px',borderBottom:`1px solid ${T.border}`}}>
-      <div style={{width:7,height:7,borderRadius:'50%',background:sc[t.status],flexShrink:0}}/>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:12,color:t.status==='done'?T.dim:T.cream,textDecoration:t.status==='done'?'line-through':'none'}}>{t.name}</div>
-      </div>
-      <span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{t.date}</span>
-      <span style={{fontSize:8,fontWeight:700,padding:'2px 8px',borderRadius:10,background:`${sc[t.status]}15`,color:sc[t.status],textTransform:'uppercase',letterSpacing:'.04em',flexShrink:0}}>{sl[t.status]}</span>
-    </div>)}
+    {tasks.map((t,i)=>{const isDone=t.done||checked.has(i);const justChecked=checked.has(i)&&!t.done;
+      return<div key={t.name} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',borderBottom:`1px solid ${T.border}`,transition:'all .3s',background:justChecked?'rgba(74,222,128,.04)':'transparent'}}>
+        <div style={{width:14,height:14,borderRadius:4,border:`1.5px solid ${isDone?C.emerald:T.dim}`,background:isDone?C.emerald:'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .3s',flexShrink:0}}>
+          {isDone&&<span style={{color:'#fff',fontSize:9,fontWeight:700}}>✓</span>}
+        </div>
+        <span style={{flex:1,fontSize:11,color:isDone?T.dim:T.cream,textDecoration:isDone?'line-through':'none',transition:'all .3s'}}>{t.name}</span>
+        <span style={{fontSize:9,fontFamily:T.mono,color:T.dim,flexShrink:0}}>{t.date}</span>
+      </div>})}
   </div>;
 }
 
+/* ── AI Chat — messages appear on hover ── */
 function AIchatUI(){
-  return<div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:560}}>
-    <div style={{padding:'16px 20px',borderBottom:`1px solid ${T.border}`}}>
-      <div style={{fontSize:14,fontWeight:600,color:T.cream}}>Morgan AI</div>
+  const[hovered,setHovered]=useState(false);
+  const[msgStep,setMsgStep]=useState(0);
+  useEffect(()=>{
+    if(!hovered){setMsgStep(0);return}
+    const t1=setTimeout(()=>setMsgStep(1),400);
+    const t2=setTimeout(()=>setMsgStep(2),1200);
+    const t3=setTimeout(()=>setMsgStep(3),2200);
+    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3)};
+  },[hovered]);
+  const roles=['Account Lead — 8d @ $950','Creative Director — 5d @ $1,200','Production Manager — 12d @ $800','Designer — 6d @ $750'];
+  return<div onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)} style={{background:T.bg,border:`1px solid ${hovered?T.borderGlow:T.border}`,borderRadius:12,overflow:'hidden',fontFamily:T.sans,maxWidth:520,transition:'border-color .3s',boxShadow:hovered?'0 8px 40px rgba(0,0,0,.3)':'none'}}>
+    <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.border}`}}>
+      <span style={{fontSize:12,fontWeight:600,color:T.cream}}>Morgan AI</span>
     </div>
-    <div style={{padding:20,display:'flex',flexDirection:'column',gap:14}}>
-      {/* User message */}
+    <div style={{padding:16,display:'flex',flexDirection:'column',gap:10,minHeight:220}}>
+      {/* User message — always visible */}
       <div style={{display:'flex',justifyContent:'flex-end'}}>
-        <div style={{maxWidth:'75%',padding:'10px 14px',borderRadius:'12px 12px 4px 12px',background:'rgba(148,163,184,.08)',border:`1px solid rgba(148,163,184,.1)`,fontSize:12,lineHeight:1.6,color:T.cream}}>
-          Staff the agency team for the Neon Drift 3-day activation
-        </div>
+        <div style={{maxWidth:'80%',padding:'8px 12px',borderRadius:'10px 10px 3px 10px',background:'rgba(148,163,184,.08)',border:'1px solid rgba(148,163,184,.1)',fontSize:11,color:T.cream}}>Staff the agency team for the Neon Drift 3-day activation</div>
       </div>
+      {/* Typing indicator */}
+      {msgStep===1&&<div style={{display:'flex',gap:3,padding:'8px 12px',animation:'fadeUp .3s ease-out'}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:'50%',background:T.dim,animation:`pulse 1s ease-in-out ${i*.15}s infinite`}}/>)}</div>}
       {/* AI response */}
-      <div style={{display:'flex',justifyContent:'flex-start'}}>
-        <div style={{maxWidth:'85%',padding:'10px 14px',borderRadius:'12px 12px 12px 4px',background:'rgba(255,255,255,.03)',border:`1px solid ${T.border}`,fontSize:12,lineHeight:1.7,color:T.dimH}}>
-          <div style={{fontSize:9,fontWeight:600,color:C.cyan,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Morgan</div>
-          For a 3-day activation at this budget level, here's what I'd staff:<br/><br/>
-          <strong style={{color:T.cream}}>Account Lead</strong> — 8 days @ $950/day<br/>
-          <strong style={{color:T.cream}}>Creative Director</strong> — 5 days @ $1,200/day<br/>
-          <strong style={{color:T.cream}}>Production Manager</strong> — 12 days @ $800/day<br/>
-          <strong style={{color:T.cream}}>Designer</strong> — 6 days @ $750/day<br/><br/>
-          Agency cost: <span style={{color:C.amber,fontFamily:T.mono}}>$24,950</span> · With 20% fee: <span style={{color:C.amber,fontFamily:T.mono}}>$29,940</span>
+      {msgStep>=2&&<div style={{display:'flex',justifyContent:'flex-start',animation:'fadeUp .4s ease-out'}}>
+        <div style={{maxWidth:'90%',padding:'8px 12px',borderRadius:'10px 10px 10px 3px',background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`,fontSize:11,lineHeight:1.6,color:T.dimH}}>
+          <span style={{fontSize:8,fontWeight:600,color:C.cyan,textTransform:'uppercase',letterSpacing:'.08em'}}>Morgan</span><br/>
+          Here's the recommended staffing:<br/>
+          {roles.map(r=><span key={r}><strong style={{color:T.cream}}>{r.split('—')[0]}</strong>—{r.split('—')[1]}<br/></span>)}
+          Total: <span style={{color:C.amber,fontFamily:T.mono,fontWeight:600}}>$24,950</span>
         </div>
-      </div>
-      {/* Action cards */}
-      <div style={{padding:'10px 12px',borderRadius:8,background:'rgba(255,255,255,.02)',border:`1px solid ${T.border}`}}>
-        <div style={{fontSize:9,fontWeight:600,color:C.amber,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>Suggested Actions (4)</div>
-        {['Account Lead — 8d @ $950','Creative Director — 5d @ $1,200','Production Manager — 12d @ $800','Designer — 6d @ $750'].map((a,i)=>
-          <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:i<3?`1px solid ${T.border}`:'none'}}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:C.teal}}/>
-            <span style={{flex:1,fontSize:11,color:T.cream}}>Add role: {a}</span>
-            <span style={{fontSize:9,padding:'3px 10px',borderRadius:12,background:`${C.teal}12`,color:C.teal,fontWeight:600,border:`1px solid ${C.teal}30`}}>Apply</span>
-          </div>)}
-      </div>
+      </div>}
+      {/* Action buttons */}
+      {msgStep>=3&&<div style={{display:'flex',gap:6,flexWrap:'wrap',animation:'fadeUp .3s ease-out'}}>
+        {roles.map(r=><span key={r} style={{fontSize:8,padding:'4px 10px',borderRadius:10,background:`${C.teal}10`,border:`1px solid ${C.teal}25`,color:C.teal,fontWeight:600,cursor:'default'}}>+ {r.split('—')[0].trim()}</span>)}
+      </div>}
     </div>
+    <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
   </div>;
 }
 
@@ -236,9 +193,9 @@ function LandingPage({onGetStarted}){
     {/* ═══════════════════════════════════════════════════════════════
         HERO — headline + product UI
         ═══════════════════════════════════════════════════════════════ */}
-    <header style={{maxWidth:1200,margin:'0 auto',padding:'160px clamp(20px,5vw,48px) 120px'}}>
+    <header style={{maxWidth:1200,margin:'0 auto',padding:'130px clamp(20px,5vw,48px) 80px'}}>
       <Fade>
-        <div style={{textAlign:'center',maxWidth:700,margin:'0 auto 80px'}}>
+        <div style={{textAlign:'center',maxWidth:700,margin:'0 auto 60px'}}>
           <h1 style={{fontSize:'clamp(40px,6vw,72px)',fontWeight:700,lineHeight:1.05,letterSpacing:'-0.04em',fontFamily:T.sans,marginBottom:24}}>
             Brief to build.<br/>One tool.
           </h1>
@@ -276,7 +233,7 @@ function LandingPage({onGetStarted}){
         ═══════════════════════════════════════════════════════════════ */}
 
     {/* ── Budget ── */}
-    <section style={{maxWidth:1200,margin:'0 auto',padding:'120px clamp(20px,5vw,48px)'}}>
+    <section style={{maxWidth:1200,margin:'0 auto',padding:'80px clamp(20px,5vw,48px)'}}>
       <Fade>
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'clamp(40px,6vw,100px)',alignItems:'center'}}>
           <div>
@@ -298,7 +255,7 @@ function LandingPage({onGetStarted}){
     <div style={{maxWidth:1200,margin:'0 auto',padding:'0 clamp(20px,5vw,48px)'}}><div style={{height:1,background:T.border}}/></div>
 
     {/* ── Timeline ── */}
-    <section style={{maxWidth:1200,margin:'0 auto',padding:'120px clamp(20px,5vw,48px)'}}>
+    <section style={{maxWidth:1200,margin:'0 auto',padding:'80px clamp(20px,5vw,48px)'}}>
       <Fade>
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'clamp(40px,6vw,100px)',alignItems:'center'}}>
           <div style={{order:1}}>
@@ -320,7 +277,7 @@ function LandingPage({onGetStarted}){
     <div style={{maxWidth:1200,margin:'0 auto',padding:'0 clamp(20px,5vw,48px)'}}><div style={{height:1,background:T.border}}/></div>
 
     {/* ── AI ── */}
-    <section style={{maxWidth:1200,margin:'0 auto',padding:'120px clamp(20px,5vw,48px)'}}>
+    <section style={{maxWidth:1200,margin:'0 auto',padding:'80px clamp(20px,5vw,48px)'}}>
       <Fade>
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'clamp(40px,6vw,100px)',alignItems:'center'}}>
           <div>
@@ -342,7 +299,7 @@ function LandingPage({onGetStarted}){
     <div style={{maxWidth:1200,margin:'0 auto',padding:'0 clamp(20px,5vw,48px)'}}><div style={{height:1,background:T.border}}/></div>
 
     {/* ── Client + Vendors + Creative — compact grid ── */}
-    <section style={{maxWidth:1200,margin:'0 auto',padding:'120px clamp(20px,5vw,48px)'}}>
+    <section style={{maxWidth:1200,margin:'0 auto',padding:'80px clamp(20px,5vw,48px)'}}>
       <Fade>
         <div className="grid-responsive" style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:20}}>
           <div style={{padding:'32px 28px',borderRadius:12,border:`1px solid ${T.border}`,background:'rgba(255,255,255,.015)'}}>
@@ -386,7 +343,7 @@ function LandingPage({onGetStarted}){
         ═══════════════════════════════════════════════════════════════ */}
     <section style={{borderTop:`1px solid ${T.border}`}}>
       <Fade>
-        <div style={{maxWidth:600,margin:'0 auto',padding:'120px clamp(20px,5vw,48px)',textAlign:'center'}}>
+        <div style={{maxWidth:600,margin:'0 auto',padding:'80px clamp(20px,5vw,48px)',textAlign:'center'}}>
           <h2 style={{fontSize:'clamp(28px,4vw,48px)',fontWeight:700,fontFamily:T.sans,letterSpacing:'-0.03em',marginBottom:20}}>Your next show starts here.</h2>
           <p style={{fontSize:15,color:T.dim,marginBottom:36}}>Free to start. No credit card.</p>
           <button onClick={onGetStarted} style={{padding:'14px 48px',borderRadius:T.rS,border:'none',background:T.cream,color:T.bg,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:T.sans,transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(255,255,255,.08)'}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none'}}>Start Free</button>
