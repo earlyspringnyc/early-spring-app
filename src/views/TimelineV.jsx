@@ -482,7 +482,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     {(()=>{
       const calendarBlock=showCalOrGantt&&<div style={{marginBottom:16}}>
         {viewMode==="calendar"?<CalendarView tasks={[...tasks,...gcalEvents]} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} canEdit={canEdit}/>
-        :<GanttChart tasks={[...tasks,...gcalEvents]}/>}
+        :<GanttChart tasks={tasks}/>}
       </div>;
 
       const taskListBlock=tasks.length===0&&!showAdd?
