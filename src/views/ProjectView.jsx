@@ -20,7 +20,7 @@ import ExpV from './ExpV.jsx';
 import AIV from './AIV.jsx';
 import SetV from './SetV.jsx';
 
-function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved,onUpdateUser}){
+function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,sharedVendors,addSharedVendor,saving,lastSaved,onUpdateUser,profiles,organizations,currentOrgId,switchOrg}){
   const[view,setViewRaw]=useState(()=>{try{return sessionStorage.getItem("es_view")||"dashboard"}catch(e){return"dashboard"}});
   const setView=useCallback(v=>{setViewRaw(v);try{sessionStorage.setItem("es_view",v)}catch(e){};window.history.pushState({view:v},"","")},[]);
   // Handle browser back/forward
@@ -121,7 +121,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
   const addVendor=useCallback(v=>updateProject({vendors:[...(project.vendors||[]),v]}),[project.vendors,updateProject]);
   const handleDelete=()=>{if(confirm(`Delete "${project.name}"? This cannot be undone.`))deleteProject(project.id)};
   return<div style={{display:"flex",height:"100vh",background:T.bg,color:T.cream,fontFamily:T.sans}}>
-    <Side view={view} setView={setView} comp={primaryComp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout} saving={saving} lastSaved={lastSaved}/>
+    <Side view={view} setView={setView} comp={primaryComp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout} saving={saving} lastSaved={lastSaved} profiles={profiles} organizations={organizations} currentOrgId={currentOrgId} switchOrg={switchOrg}/>
     <MobileNav view={view} setView={setView} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout}/>
     <main className="main-content" style={{flex:1,overflow:"auto",padding:32}}><div key={view} className="view-enter">
       {view==="budget"&&<BudgetV cats={activeCats} ag={activeAg} feeP={activeFeeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={activeClientBudget} onUpdateBudget={v=>{isAlt?updateAltBudget({clientBudget:v}):updateProject({clientBudget:v})}} reorderCat={reorderCat} reorderSection={reorderSection} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={activeProjectForCalc} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory} updateProject={isAlt?(fields)=>updateAltBudget(fields):updateProject} accessToken={accessToken} budgets={altBudgets} activeBudgetId={activeBudgetId} onSwitchBudget={setActiveBudgetId} onAddBudget={(name)=>{const cloneCats=JSON.parse(JSON.stringify(project.cats)).map(c=>({...c,id:uid(),items:c.items.map(it=>({...it,id:uid()}))}));const cloneAg=JSON.parse(JSON.stringify(project.ag)).map(a=>({...a,id:uid()}));const b={id:uid(),name,cats:cloneCats,ag:cloneAg,feeP:project.feeP||0.10,clientBudget:project.clientBudget||0,repFeeEnabled:project.repFeeEnabled||false,repFeeP:project.repFeeP||0.10,createdAt:new Date().toISOString()};updateProject({budgets:[...altBudgets,b]});setActiveBudgetId(b.id)}} onDeleteBudget={(id)=>{if(!confirm("Delete this budget? This cannot be undone."))return;updateProject({budgets:altBudgets.filter(b=>b.id!==id)});if(activeBudgetId===id)setActiveBudgetId(null)}} onRenameBudget={(id,name)=>{updateProject({budgets:altBudgets.map(b=>b.id===id?{...b,name}:b)})}} onMakePrimary={(id)=>{
@@ -141,8 +141,8 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="reporting"&&<ReportingV project={project} updateProject={updateProject} canEdit={canEdit} comp={primaryComp}/>}
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={primaryComp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken} budgets={project.budgets||[]} requestCalendarAccess={requestCalendarAccess}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={primaryComp} accessToken={accessToken}/>}
-      {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project} onUpdateUser={onUpdateUser}/>}
-      {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user} accessToken={accessToken}/>}
+      {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project} onUpdateUser={onUpdateUser} orgId={currentOrgId}/>}
+      {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user} accessToken={accessToken} orgId={currentOrgId}/>}
     </div></main>
     {vendorDetailId&&<VendorDetailModal vendorId={vendorDetailId} project={project} onClose={()=>setVendorDetailId(null)} canEdit={canEdit} updateProject={updateProject}/>}
   </div>;

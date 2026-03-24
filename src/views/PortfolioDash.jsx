@@ -1,75 +1,143 @@
 import { useState, useMemo } from 'react';
 import T from '../theme/tokens.js';
-import { f$, f0 } from '../utils/format.js';
+import { f$, f0, fp } from '../utils/format.js';
 import { calcProject, isOverdue } from '../utils/calc.js';
 import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES } from '../constants/index.js';
 import { PlusI, LogOutI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
-import { Card, Metric } from '../components/primitives/index.js';
+import { Card, DonutChart } from '../components/primitives/index.js';
+import BarChart from '../components/primitives/BarChart.jsx';
 import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
+function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
+  const[open,setOpen]=useState(false);
+  const currentOrg=organizations.find(o=>o.id===currentOrgId)||organizations[0];
+  return<div style={{position:"relative"}}>
+    <button onClick={()=>setOpen(!open)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${open?T.borderGlow:T.border}`,background:open?T.surfEl:"transparent",color:T.cream,fontSize:11,fontWeight:500,fontFamily:T.sans,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
+      <span style={{width:16,height:16,borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:T.cream}}>{(currentOrg?.name||"?")[0]}</span>
+      {currentOrg?.name||"Org"}
+      <span style={{fontSize:8,opacity:.5}}>&#9662;</span>
+    </button>
+    {open&&<div style={{position:"absolute",top:"100%",left:0,marginTop:4,minWidth:200,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:100,padding:4}}>
+      {organizations.map(org=>{
+        const isActive=org.id===currentOrgId;
+        const orgProfile=profiles.find(p=>p.org_id===org.id);
+        return<button key={org.id} onClick={()=>{switchOrg(org.id);setOpen(false)}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",background:isActive?T.surfEl:"transparent",color:isActive?T.cream:T.dim,fontSize:11,fontFamily:T.sans,transition:"all .15s",width:"100%",textAlign:"left"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent";if(!isActive)e.currentTarget.style.color=T.dim}}>
+          <span style={{width:18,height:18,borderRadius:9,background:T.surfEl,border:`1px solid ${T.border}`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,color:T.cream,flexShrink:0}}>{(org.name||"?")[0]}</span>
+          <div style={{flex:1}}><div style={{fontWeight:isActive?500:400}}>{org.name}</div>{orgProfile&&<div style={{fontSize:9,color:T.dim,marginTop:1}}>{orgProfile.role}</div>}</div>
+          {isActive&&<span style={{fontSize:10,color:T.gold}}>&#10003;</span>}
+        </button>;
+      })}
+    </div>}
+  </div>;
+}
+
 const getGreeting=()=>{const h=new Date().getHours();if(h<4)return"Burning the midnight oil";if(h<9)return"You're up early";if(h<12)return"Good morning";if(h<17)return"Good afternoon";if(h<20)return"Good evening";return"Working hard"};
 
-function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken}){
-  const sorted=[...projects].sort((a,b)=>b.createdAt-a.createdAt);
+// Bento helpers
+const L=({children})=><div style={{fontSize:10,fontWeight:500,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".06em",color:T.dim,marginBottom:10}}>{children}</div>;
+const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,fontFamily:T.mono,letterSpacing:"-0.04em",color,lineHeight:1}}>{children}</div>;
+const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
+
+function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg}){
   const canCreate=user.role!=="viewer";
-  const[drivePickerOpen,setDrivePickerOpen]=useState(false);
-  const[availDrives,setAvailDrives]=useState([]);
-  const[dragProjectId,setDragProjectId]=useState(null);
-  const[dropStage,setDropStage]=useState(null);
-  const[tab,setTab]=useState("projects");
-  const[vendorSearch,setVendorSearch]=useState("");
-  const[vendorTypeFilter,setVendorTypeFilter]=useState("all");
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
+
+  // Calculations
   const allComps=projects.map(p=>({p,c:calcProject(p)}));
   const totalRevenue=allComps.reduce((a,{c})=>a+c.grandTotal,0);
   const totalCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
   const totalProfit=allComps.reduce((a,{c})=>a+c.netProfit,0);
+  const blendedMargin=totalRevenue>0?((totalProfit/totalRevenue)*100):0;
+  const totalProdCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost,0);
+  const totalAgencyFee=allComps.reduce((a,{c})=>a+c.agencyFee.clientPrice,0);
+  const totalProdMargin=allComps.reduce((a,{c})=>a+c.productionSubtotal.variance,0);
+  const totalAgencyMargin=allComps.reduce((a,{c})=>a+c.agencyCostsSubtotal.variance,0);
+  const totalOwed=allComps.reduce((a,{p})=>{const invoiced=(p.docs||[]).filter(d=>d.type==="invoice"&&d.status!=="paid").reduce((s,d)=>s+(d.amount||0),0);return a+invoiced},0);
+
+  // Overdue & upcoming
   const allOverdue=[];const allUpcoming=[];
   projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
   allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
 
+  // Tasks across all projects
+  const allTasks=useMemo(()=>{
+    const tasks=[];
+    projects.forEach(p=>(p.timeline||[]).forEach(t=>tasks.push({...t,projectName:p.name,projectId:p.id})));
+    return tasks;
+  },[projects]);
+  const tasksDone=allTasks.filter(t=>t.status==="done").length;
+  const tasksInProgress=allTasks.filter(t=>t.status==="in_progress"||t.status==="doing").length;
+  const tasksTodo=allTasks.filter(t=>!t.status||t.status==="todo"||t.status==="not_started").length;
+  const tasksBlocked=allTasks.filter(t=>t.status==="blocked").length;
+  const tasksTotal=allTasks.length;
+  const taskPct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
+  // Upcoming/overdue tasks
+  const upcomingTasks=allTasks.filter(t=>{if(t.status==="done"||!t.endDate)return false;const now=new Date();const d=new Date(t.endDate);const diff=(d-now)/(1000*60*60*24);return diff>=0&&diff<=14}).sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||"")).slice(0,6);
+  const overdueTasks=allTasks.filter(t=>{if(t.status==="done"||!t.endDate)return false;const d=new Date(t.endDate);return d<new Date()});
+
+  // Vendors
   const masterVendors=useMemo(()=>{
     const map=new Map();
-    projects.forEach(p=>{
-      (p.vendors||[]).forEach(v=>{
-        const key=(v.name||"").toLowerCase().trim()+(v.email||"").toLowerCase().trim();
-        if(!key)return;
-        const existing=map.get(key);
-        if(existing){existing.projects.push({id:p.id,name:p.name});existing.projectCount++}
-        else map.set(key,{...v,projects:[{id:p.id,name:p.name}],projectCount:1,_projectId:p.id});
-      });
-    });
+    projects.forEach(p=>{(p.vendors||[]).forEach(v=>{const key=(v.name||"").toLowerCase().trim()+(v.email||"").toLowerCase().trim();if(!key)return;const existing=map.get(key);if(existing){existing.projects.push({id:p.id,name:p.name});existing.projectCount++}else map.set(key,{...v,projects:[{id:p.id,name:p.name}],projectCount:1,_projectId:p.id})})});
     return[...map.values()];
   },[projects]);
 
-  const filteredVendors=masterVendors.filter(v=>{
-    if(vendorTypeFilter!=="all"&&v.vendorType!==vendorTypeFilter)return false;
-    if(vendorSearch){const s=vendorSearch.toLowerCase();return(v.name||"").toLowerCase().includes(s)||(v.email||"").toLowerCase().includes(s)||(v.contactName||"").toLowerCase().includes(s)}
-    return true;
-  });
+  // Vendor type breakdown
+  const vendorsByType=useMemo(()=>{
+    const map=new Map();
+    masterVendors.forEach(v=>{const t=v.vendorType||"other";map.set(t,(map.get(t)||0)+1)});
+    return[...map.entries()].map(([type,count])=>({name:VENDOR_TYPE_LABELS[type]||type,value:count,color:VENDOR_TYPE_COLORS[type]||T.dim})).sort((a,b)=>b.value-a.value);
+  },[masterVendors]);
+
+  // Stage breakdown
+  const stageData=PROJECT_STAGES.map(s=>{const ps=allComps.filter(({p})=>(p.stage||"pitching")===s);return{name:STAGE_LABELS[s],value:ps.reduce((a,{c})=>a+c.grandTotal,0),count:ps.length,color:STAGE_COLORS[s]}}).filter(d=>d.count>0);
+
+  // Bar chart — top projects by revenue
+  const barData=[...allComps].sort((a,b)=>b.c.grandTotal-a.c.grandTotal).slice(0,8).map(({p,c})=>({name:p.name?.length>12?p.name.slice(0,11)+"\u2026":p.name,actual:c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,client:c.grandTotal}));
+
+  // Spend by category
+  const spendData=useMemo(()=>{
+    const catMap=new Map();
+    projects.forEach(p=>(p.cats||[]).forEach(cat=>{const existing=catMap.get(cat.name)||0;const catCost=(cat.items||[]).reduce((a,it)=>a+(it.excluded?0:(it.actualCost||0)),0);catMap.set(cat.name,existing+catCost)}));
+    return[...catMap.entries()].map(([name,value])=>({name,value})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
+  },[projects]);
+
+  // Profit composition
+  const profitData=[
+    {name:"Production Margin",value:Math.max(0,totalProdMargin),color:T.gold},
+    {name:"Agency Margin",value:Math.max(0,totalAgencyMargin),color:T.cyan},
+    {name:"Agency Fee",value:Math.max(0,totalAgencyFee),color:T.pos},
+  ].filter(d=>d.value>0);
 
   const activeProjects=projects.filter(p=>(p.stage||"pitching")!=="archived").length;
   const firstName=(user.name||user.email||"").split(" ")[0]||"there";
-  const statusParts=[];
-  if(allOverdue.length>0)statusParts.push(`${allOverdue.length} invoice${allOverdue.length>1?"s":""} overdue`);
-  if(allUpcoming.length>0)statusParts.push(`${allUpcoming.length} deadline${allUpcoming.length>1?"s":""} coming up`);
-  if(activeProjects>0)statusParts.push(`${activeProjects} active project${activeProjects>1?"s":""}`);
-  if(totalRevenue>0)statusParts.push(`${f0(totalRevenue)} total revenue`);
-  const statusLine=statusParts.join(" · ");
+
+  // Project card colors
+  const cardColors=[
+    ["rgba(99,102,241,.14)","rgba(99,102,241,.25)","#6366F1"],
+    ["rgba(20,184,166,.14)","rgba(20,184,166,.25)","#14B8A6"],
+    ["rgba(244,114,100,.12)","rgba(244,114,100,.22)","#F47264"],
+    ["rgba(245,158,11,.12)","rgba(245,158,11,.22)","#F59E0B"],
+    ["rgba(16,185,129,.14)","rgba(16,185,129,.25)","#10B981"],
+    ["rgba(139,92,246,.14)","rgba(139,92,246,.25)","#8B5CF6"],
+    ["rgba(236,72,153,.12)","rgba(236,72,153,.22)","#EC4899"],
+    ["rgba(6,182,212,.14)","rgba(6,182,212,.25)","#06B6D4"],
+  ];
 
   return<div style={{height:"100vh",background:T.bg,fontFamily:T.sans,overflow:"auto"}}>
-    {/* ── Accent gradient line ── */}
     <div style={{height:2,background:`linear-gradient(90deg,${T.gold},${T.cyan},${T.magenta},${T.pos})`,opacity:.4}}/>
 
-    <div className="portfolio-container" style={{maxWidth:1100,margin:"0 auto",padding:"36px 32px"}}>
-
-      {/* ── Header ── */}
+    <div className="portfolio-container" style={{maxWidth:1200,margin:"0 auto",padding:"36px 32px"}}>
+      {/* Header */}
       <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:14,marginBottom:8}}>
-        <ESWordmark height={14} color={T.gold}/>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <ESWordmark height={14} color={T.gold}/>
+          {profiles.length>1&&<OrgSwitcher organizations={organizations} profiles={profiles} currentOrgId={currentOrgId} switchOrg={switchOrg}/>}
+        </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
           {canCreate&&<button onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={11} color={T.gold}/> New Project</button>}
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -80,192 +148,209 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         </div>
       </div>
 
-      {/* ── Welcome ── */}
+      {/* Welcome */}
       <div style={{marginBottom:28}}>
         <h1 style={{fontSize:"clamp(26px, 5vw, 36px)",fontWeight:700,color:T.cream,letterSpacing:"-0.03em"}}>{getGreeting()}, {firstName}{getGreeting()==="Working hard"?"?":"."}</h1>
-        {statusLine&&<p style={{fontSize:12,color:T.dim,marginTop:6}}>{statusLine}</p>}
       </div>
 
-      {/* ── Nav — full width ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:2,marginBottom:24,background:T.surface,borderRadius:T.rS,padding:3}}>
-        {[["projects","Projects"],["vendors","Vendors"],["dashboard","Dashboard"]].map(([id,label])=>
-          <button key={id} onClick={()=>setTab(id)} style={{padding:"9px 0",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===id?600:400,fontFamily:T.sans,background:tab===id?T.goldSoft:"transparent",color:tab===id?T.gold:T.dim,transition:"all .15s",textAlign:"center"}}>
-            {label}
-            {id==="dashboard"&&allOverdue.length>0?<span style={{marginLeft:6,fontSize:9,fontWeight:700,padding:"2px 5px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{allOverdue.length}</span>:""}
-          </button>
-        )}
-      </div>
+      {/* ── BENTO GRID ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
 
-      {/* ── Projects tab ── */}
-      {tab==="projects"&&<div className="fade-up">
-        {projects.length===0?<div style={{textAlign:"center",padding:"80px 20px"}}><div style={{fontSize:48,marginBottom:16,opacity:.15}}>&#9674;</div><h2 style={{fontSize:18,fontWeight:500,color:T.cream,marginBottom:8}}>No projects yet</h2><p style={{fontSize:13,color:T.dim,marginBottom:28}}>Create your first production budget to get started.</p>{canCreate&&<button onClick={onNew} style={{padding:"12px 28px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Create Project</button>}</div>
-        :<div>
-          {/* Overdue alert */}
-          {allOverdue.length>0&&<div style={{padding:"14px 18px",marginBottom:20,borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em"}}>Overdue Invoices</span><Pill color={T.neg} size="xs">{allOverdue.length}</Pill></div>
-            {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount)}</span>
-            </div>)}
-          </div>}
+        {/* Row 1: Key financial metrics */}
+        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+          <L>Total Revenue</L>
+          <Big color={T.gold}>{f0(totalRevenue)}</Big>
+          <Sub>{projects.length} project{projects.length!==1?"s":""} · {activeProjects} active</Sub>
+        </Card>
+        <Card style={{padding:24}} hoverable>
+          <L>Net Profit</L>
+          <Big color={totalProfit>=0?T.pos:T.neg} size={36}>{f0(totalProfit)}</Big>
+          <Sub>{blendedMargin.toFixed(1)}% margin</Sub>
+        </Card>
+        <Card style={{padding:24}} hoverable>
+          <L>Total Cost</L>
+          <Big color={T.cream} size={36}>{f0(totalCost)}</Big>
+          <Sub>Prod + agency</Sub>
+        </Card>
 
-          {/* Stage sections */}
-          {PROJECT_STAGES.map(stage=>{
-            const stageProjects=sorted.filter(p=>(p.stage||"pitching")===stage);
-            const isDropTarget=dragProjectId&&dropStage===stage;
-            const showEmpty=stageProjects.length===0;
-            if(showEmpty&&stage==="archived"&&!dragProjectId)return null;
-            return<div key={stage} style={{marginBottom:28}}
-              onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setDropStage(stage)}}
-              onDragLeave={()=>setDropStage(null)}
-              onDrop={e=>{e.preventDefault();if(dragProjectId&&onUpdateStage){onUpdateStage(dragProjectId,stage)}setDragProjectId(null);setDropStage(null)}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:STAGE_COLORS[stage],transition:"transform .2s",transform:isDropTarget?"scale(1.3)":"scale(1)"}}/>
-                <h2 style={{fontSize:16,fontWeight:600,color:isDropTarget?STAGE_COLORS[stage]:T.cream,letterSpacing:"-0.01em",transition:"color .2s"}}>{STAGE_LABELS[stage]}</h2>
-                <span style={{fontSize:11,color:T.dim}}>({stageProjects.length})</span>
-              </div>
-              {showEmpty?<div style={{padding:"24px 20px",border:`2px dashed ${isDropTarget?STAGE_COLORS[stage]:T.border}`,borderRadius:T.r,textAlign:"center",transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}08`:"transparent"}}>
-                <p style={{fontSize:12,color:isDropTarget?STAGE_COLORS[stage]:T.dim}}>{isDropTarget?"Drop here to move to "+STAGE_LABELS[stage]:"No "+STAGE_LABELS[stage].toLowerCase()+" projects"}</p>
-              </div>
-              :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))",gap:14,padding:isDropTarget?8:0,border:isDropTarget?`2px dashed ${STAGE_COLORS[stage]}`:"2px dashed transparent",borderRadius:T.r,transition:"all .2s",background:isDropTarget?`${STAGE_COLORS[stage]}06`:"transparent"}}>
-                {stageProjects.map((p,pi)=>{const comp=calcProject(p);const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;const tasksDone=(p.timeline||[]).filter(t=>t.status==="done").length;const tasksTotal=(p.timeline||[]).length;const taskPct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
-                  const cardColors=[
-                    ["rgba(99,102,241,.14)","rgba(99,102,241,.25)","#6366F1"],
-                    ["rgba(20,184,166,.14)","rgba(20,184,166,.25)","#14B8A6"],
-                    ["rgba(244,114,100,.12)","rgba(244,114,100,.22)","#F47264"],
-                    ["rgba(245,158,11,.12)","rgba(245,158,11,.22)","#F59E0B"],
-                    ["rgba(16,185,129,.14)","rgba(16,185,129,.25)","#10B981"],
-                    ["rgba(139,92,246,.14)","rgba(139,92,246,.25)","#8B5CF6"],
-                    ["rgba(236,72,153,.12)","rgba(236,72,153,.22)","#EC4899"],
-                    ["rgba(6,182,212,.14)","rgba(6,182,212,.25)","#06B6D4"],
-                  ];
-                  const[cardBg,cardBorder,cardAccent]=cardColors[pi%cardColors.length];
-                  return<div key={p.id} draggable onDragStart={e=>{setDragProjectId(p.id);e.dataTransfer.effectAllowed="move"}} onDragEnd={()=>{setDragProjectId(null);setDropStage(null)}}><Card hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:dragProjectId===p.id?.4:1,cursor:"grab",background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
-                    <div style={{padding:"22px 24px 18px"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:12}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
-                          {p.logo&&<img src={p.logo} alt={p.client||p.name||"Client logo"} style={{width:30,height:30,borderRadius:6,objectFit:"contain",flexShrink:0}}/>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <h3 style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</h3>
-                            <p style={{fontSize:12,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.client||"No client"}</p>
-                          </div>
-                        </div>
-                        <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
-                          {ov>0&&<Pill color={T.neg} size="xs">{ov} overdue</Pill>}
-                        </div>
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginTop:18}}>
-                        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Grand Total</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div>
-                        <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Net Profit</div><div className="num" style={{fontSize:20,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div>
-                      </div>
-                      {tasksTotal>0&&<div style={{marginTop:16}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:10,color:T.dim}}>{tasksDone}/{tasksTotal} tasks</span><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
-                        <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:`linear-gradient(90deg,${cardAccent},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
-                      </div>}
-                    </div>
-                    <div style={{padding:"10px 24px",background:"rgba(255,255,255,.02)",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-                      <span style={{fontSize:10,color:T.dim}}>{p.eventDate?`Event: ${p.eventDate}`:p.date||"No date"}</span>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        {onDuplicate&&<button onClick={e=>{e.stopPropagation();onDuplicate(p.id)}} style={{fontSize:10,color:T.dim,background:"none",border:"none",cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Duplicate</button>}
-                        {onDelete&&<button onClick={e=>{e.stopPropagation();if(confirm(`Delete "${p.name}"? This cannot be undone.`))onDelete(p.id)}} style={{fontSize:10,color:T.dim,background:"none",border:"none",cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.neg} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Delete</button>}
-                        <span style={{fontSize:10,color:T.gold,fontWeight:500}}>Open &rarr;</span>
-                      </div>
-                    </div>
-                  </Card></div>})}
-              </div>}
-            </div>})}
-          {canCreate&&<div onClick={onNew} style={{borderRadius:T.r,border:`2px dashed ${T.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:36,cursor:"pointer",transition:"all .2s",maxWidth:240}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}><div style={{width:32,height:32,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:8}}><PlusI size={14} color={T.gold}/></div><span style={{fontSize:12,fontWeight:500,color:T.dim}}>New Project</span></div>}
-        </div>}
-      </div>}
-
-      {/* ── Vendors tab ── */}
-      {tab==="vendors"&&<div className="fade-up">
-        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-          <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors..." style={{flex:1,minWidth:180,padding:"8px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-          <div style={{position:"relative"}}>
-            <select value={vendorTypeFilter} onChange={e=>setVendorTypeFilter(e.target.value)} style={{padding:"8px 28px 8px 10px",borderRadius:T.rS,background:vendorTypeFilter!=="all"?`${VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold}12`:T.surface,border:`1px solid ${vendorTypeFilter!=="all"?`${VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold}33`:T.border}`,color:vendorTypeFilter!=="all"?VENDOR_TYPE_COLORS[vendorTypeFilter]||T.gold:T.dim,fontSize:11,fontWeight:vendorTypeFilter!=="all"?600:400,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
-              <option value="all">All Types</option>
-              {VENDOR_TYPES.map(t=><option key={t} value={t}>{VENDOR_TYPE_LABELS[t]}</option>)}
-            </select>
-            <span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:8,color:T.dim,pointerEvents:"none"}}>&#9660;</span>
-          </div>
-          {vendorTypeFilter!=="all"&&<button onClick={()=>setVendorTypeFilter("all")} style={{padding:"5px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"rgba(248,113,113,.08)",color:T.neg}}>Clear</button>}
-          <span style={{fontSize:11,color:T.dim,marginLeft:"auto"}}>{filteredVendors.length} vendor{filteredVendors.length!==1?"s":""}</span>
-        </div>
-
-        {filteredVendors.length===0?<div style={{textAlign:"center",padding:40,color:T.dim,fontSize:13}}>No vendors{vendorSearch||vendorTypeFilter!=="all"?" match this search":""}</div>
-        :<Card style={{overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:"2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(80px,1fr)",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,alignItems:"center"}}>
-            {["Vendor","Type","Contact","Email","Projects"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===4?"right":"left"}}>{h}</span>)}
-          </div>
-          {filteredVendors.map(v=><div key={v.id+v._projectId} onClick={()=>{setVendorDetailId(v.id);setVendorProjectId(v._projectId)}} style={{display:"grid",gridTemplateColumns:"2fr minmax(70px,.8fr) minmax(80px,1fr) minmax(100px,1.2fr) minmax(80px,1fr)",padding:"14px 18px",borderBottom:`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.notes}</div>}</div>
-            <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],display:"inline-block",lineHeight:1.4,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span>
-            <div style={{fontSize:12,color:T.cream}}>{v.contactName||"\u2014"}</div>
-            <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.email||"\u2014"}</div>
-            <div style={{display:"flex",gap:4,justifyContent:"flex-end",flexWrap:"wrap"}}>{v.projects.map(p=><Pill key={p.id} color={T.dim} size="xs">{p.name}</Pill>)}</div>
-          </div>)}
-        </Card>}
-      </div>}
-
-      {/* ── Dashboard tab ── */}
-      {tab==="dashboard"&&<div className="fade-up">
-        {/* Google Drive location */}
-        {(()=>{
-          const driveLoc=(()=>{try{const s=localStorage.getItem("es_drive_location");return s?JSON.parse(s):null}catch(e){return null}})();
-          const saveDriveLoc=(loc)=>{try{localStorage.setItem("es_drive_location",JSON.stringify(loc))}catch(e){}};
-          return<Card style={{padding:"16px 20px",marginBottom:16}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:16}}>&#128193;</span>
-                <div>
-                  <div style={{fontSize:11,fontWeight:600,color:T.cream}}>Google Drive: {driveLoc?.driveName||"My Drive"}</div>
-                  <div style={{fontSize:10,color:T.dim}}>Project files are stored here for your team</div>
-                </div>
-              </div>
-              <button onClick={async()=>{
-                if(!accessToken){alert("Sign in with Google first");return}
-                setDrivePickerOpen(!drivePickerOpen);
-                if(!drivePickerOpen){
-                  try{const res=await fetch("https://www.googleapis.com/drive/v3/drives?pageSize=50",{headers:{Authorization:`Bearer ${accessToken}`}});if(res.ok){const data=await res.json();setAvailDrives(data.drives||[])}}catch(e){}
-                }
-              }} style={{padding:"6px 12px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Change</button>
-            </div>
-            {drivePickerOpen&&<div style={{marginTop:12,borderTop:`1px solid ${T.border}`,paddingTop:12,display:"flex",flexDirection:"column",gap:4}}>
-              <button onClick={()=>{saveDriveLoc({driveId:null,driveName:"My Drive"});setDrivePickerOpen(false)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:!driveLoc?.driveId?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${!driveLoc?.driveId?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>&#128193;</span><div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>My Drive</div><div style={{fontSize:10,color:T.dim}}>Personal Drive</div></div></div>
-                {!driveLoc?.driveId&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
-              </button>
-              {availDrives.map(d=><button key={d.id} onClick={()=>{saveDriveLoc({driveId:d.id,driveName:d.name});setDrivePickerOpen(false)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:driveLoc?.driveId===d.id?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${driveLoc?.driveId===d.id?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>&#128101;</span><div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{d.name}</div><div style={{fontSize:10,color:T.dim}}>Shared Drive — all members can access</div></div></div>
-                {driveLoc?.driveId===d.id&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
-              </button>)}
-              {availDrives.length===0&&<div style={{padding:10,fontSize:11,color:T.dim}}>No shared drives found. Available with Google Workspace.</div>}
-            </div>}
-          </Card>
-        })()}
-        {allOverdue.length>0&&<div style={{padding:"14px 18px",marginBottom:16,borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
+        {/* Row 2: Overdue alerts (full width, only if overdue) */}
+        {allOverdue.length>0&&<Card style={{padding:18,gridColumn:"span 4",background:"rgba(248,113,113,.03)",borderColor:"rgba(248,113,113,.12)"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em"}}>Overdue Invoices</span><Pill color={T.neg} size="xs">{allOverdue.length}</Pill></div>
-          {allOverdue.map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount)}</span>
           </div>)}
-        </div>}
-        {allUpcoming.length>0&&<div style={{padding:"14px 18px",marginBottom:16,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
+        </Card>}
+
+        {/* Row 3: Projects as cards */}
+        <Card style={{padding:24,gridColumn:"span 4"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <L>Projects</L>
+            {canCreate&&<button onClick={onNew} style={{fontSize:10,color:T.gold,background:"none",border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,padding:"4px 10px",cursor:"pointer",fontFamily:T.sans,fontWeight:600}}>+ New</button>}
+          </div>
+          {projects.length===0?<div style={{textAlign:"center",padding:"40px 20px",color:T.dim,fontSize:13}}>No projects yet. Create one to get started.</div>
+          :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+            {[...projects].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map((p,pi)=>{
+              const comp=calcProject(p);
+              const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;
+              const td=(p.timeline||[]).filter(t=>t.status==="done").length;
+              const tt=(p.timeline||[]).length;
+              const tp=tt>0?Math.round(td/tt*100):0;
+              const[cardBg,cardBorder,cardAccent]=cardColors[pi%cardColors.length];
+              const stage=p.stage||"pitching";
+              return<Card key={p.id} hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:1,background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
+                <div style={{padding:"18px 20px 14px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <h3 style={{fontSize:14,fontWeight:600,color:T.cream,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</h3>
+                      <p style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.client||"No client"}</p>
+                    </div>
+                    <div style={{display:"flex",gap:4,flexShrink:0}}>
+                      <Pill color={STAGE_COLORS[stage]} size="xs">{STAGE_LABELS[stage]}</Pill>
+                      {ov>0&&<Pill color={T.neg} size="xs">{ov} overdue</Pill>}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Revenue</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div>
+                    <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Profit</div><div className="num" style={{fontSize:18,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div>
+                  </div>
+                  {tt>0&&<div style={{marginTop:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{td}/{tt} tasks</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{tp}%</span></div>
+                    <div style={{height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${tp}%`,background:`linear-gradient(90deg,${cardAccent},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+                  </div>}
+                </div>
+              </Card>
+            })}
+          </div>}
+        </Card>
+
+        {/* Row 4: Tasks + Secondary metrics */}
+        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+          <L>Tasks Overview</L>
+          <div style={{display:"flex",alignItems:"baseline",gap:12,marginBottom:14}}>
+            <Big size={36} color={T.cream}>{tasksDone}<span style={{fontSize:16,color:T.dim,fontWeight:400}}>/{tasksTotal}</span></Big>
+            <span style={{fontSize:11,color:T.dim}}>completed</span>
+          </div>
+          <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+            {tasksInProgress>0&&<Pill color={T.gold} size="xs">{tasksInProgress} in progress</Pill>}
+            {tasksTodo>0&&<Pill color={T.dim} size="xs">{tasksTodo} to do</Pill>}
+            {tasksBlocked>0&&<Pill color={T.neg} size="xs">{tasksBlocked} blocked</Pill>}
+            {overdueTasks.length>0&&<Pill color={T.neg} size="xs">{overdueTasks.length} overdue</Pill>}
+          </div>
+          {tasksTotal>0&&<div style={{marginBottom:14}}>
+            <div style={{height:6,borderRadius:3,background:T.surface,overflow:"hidden"}}>
+              <div style={{height:"100%",borderRadius:3,background:`linear-gradient(90deg,${T.pos},${T.gold})`,width:`${taskPct}%`,transition:"width .4s ease"}}/>
+            </div>
+          </div>}
+          {upcomingTasks.length>0&&<div>
+            <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Upcoming</div>
+            {upcomingTasks.map(t=><div key={t.id||t.name} onClick={()=>onOpen(t.projectId)} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:11}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{color:T.cream,flex:1,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name||t.title||"Task"}</span>
+              <Pill color={T.dim} size="xs">{t.projectName}</Pill>
+              <span style={{fontSize:9,color:T.gold,fontFamily:T.mono,flexShrink:0}}>{t.endDate}</span>
+            </div>)}
+          </div>}
+        </Card>
+
+        <Card style={{padding:24}} hoverable>
+          <L>Production Cost</L>
+          <Big size={28} color={T.cream}>{f0(totalProdCost)}</Big>
+        </Card>
+        <Card style={{padding:24}} hoverable>
+          <L>Owed to Vendors</L>
+          <Big size={28} color={totalOwed>0?T.neg:T.dim}>{f0(totalOwed)}</Big>
+          {allOverdue.length>0&&<div style={{marginTop:6}}><Pill color={T.neg} size="xs">{allOverdue.length} overdue</Pill></div>}
+        </Card>
+
+        {/* Row 5: Charts */}
+        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+          <L>Revenue by Project</L>
+          {barData.length>0?<BarChart data={barData} height={180}/>
+          :<div style={{height:180,display:"flex",alignItems:"center",justifyContent:"center",color:T.dim,fontSize:12}}>No project data</div>}
+          <div style={{display:"flex",gap:14,marginTop:10,justifyContent:"center"}}>
+            <span style={{fontSize:10,color:T.dim,display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:2,background:T.dim,display:"inline-block"}}/> Cost</span>
+            <span style={{fontSize:10,color:T.dim,display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:2,background:T.gold,display:"inline-block"}}/> Client Total</span>
+          </div>
+        </Card>
+        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+          <L>Profit Composition</L>
+          <div style={{display:"flex",alignItems:"center",gap:20}}>
+            <DonutChart data={profitData} size={120} thickness={16}/>
+            <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
+              {profitData.map(d=><div key={d.name} style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{width:8,height:8,borderRadius:2,background:d.color,flexShrink:0}}/>
+                  <span style={{fontSize:11,color:T.dim}}>{d.name}</span>
+                </div>
+                <span className="num" style={{fontSize:12,fontWeight:600,fontFamily:T.mono,color:d.color}}>{f0(d.value)}</span>
+              </div>)}
+              <div style={{borderTop:`1px solid ${T.border}`,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontSize:11,fontWeight:600,color:T.cream}}>Net Profit</span>
+                <span className="num" style={{fontSize:12,fontWeight:700,fontFamily:T.mono,color:T.pos}}>{f0(totalProfit)}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Row 6: Vendors + Pipeline */}
+        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <L>Vendor Database</L>
+            <span style={{fontSize:10,color:T.dim}}>{masterVendors.length} vendor{masterVendors.length!==1?"s":""}</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:20,marginBottom:14}}>
+            <DonutChart data={vendorsByType} size={100} thickness={14}/>
+            <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+              {vendorsByType.slice(0,6).map(d=><div key={d.name} style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{width:8,height:8,borderRadius:2,background:d.color,flexShrink:0}}/>
+                  <span style={{fontSize:11,color:T.dim}}>{d.name}</span>
+                </div>
+                <span style={{fontSize:11,fontFamily:T.mono,color:T.cream}}>{d.value}</span>
+              </div>)}
+            </div>
+          </div>
+          {masterVendors.length>0&&<div style={{borderTop:`1px solid ${T.border}`,paddingTop:10}}>
+            <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Recent Vendors</div>
+            {masterVendors.slice(0,5).map(v=><div key={v.id+v._projectId} onClick={()=>{setVendorDetailId(v.id);setVendorProjectId(v._projectId)}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:11}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{color:T.cream,flex:1,fontWeight:500}}>{v.name}</span>
+              <Pill color={VENDOR_TYPE_COLORS[v.vendorType||"other"]||T.dim} size="xs">{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</Pill>
+              <span style={{fontSize:9,color:T.dim}}>{v.projectCount} proj{v.projectCount!==1?"s":""}</span>
+            </div>)}
+          </div>}
+        </Card>
+        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+          <L>Pipeline by Stage</L>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {stageData.map(d=>{const pct=totalRevenue>0?(d.value/totalRevenue)*100:0;return<div key={d.name}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                <span style={{fontSize:12,fontWeight:500,color:d.color}}>{d.name} <span style={{fontSize:10,color:T.dim,fontWeight:400}}>({d.count})</span></span>
+                <span className="num" style={{fontSize:12,fontFamily:T.mono,fontWeight:600,color:d.color}}>{f0(d.value)}</span>
+              </div>
+              <div style={{height:6,borderRadius:3,background:T.surface,overflow:"hidden"}}>
+                <div style={{height:"100%",borderRadius:3,background:d.color,width:`${Math.max(pct,1)}%`,transition:"width .4s ease"}}/>
+              </div>
+            </div>})}
+          </div>
+          {spendData.length>0&&<div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+            <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Top Spend Categories</div>
+            {spendData.slice(0,5).map((d,i)=><div key={d.name} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{width:8,height:8,borderRadius:2,background:T.colors?.[i%T.colors?.length]||T.gold,flexShrink:0}}/>
+                <span style={{fontSize:11,color:T.dim}}>{d.name}</span>
+              </div>
+              <span className="num" style={{fontSize:11,fontFamily:T.mono,color:T.cream}}>{f0(d.value)}</span>
+            </div>)}
+          </div>}
+        </Card>
+
+        {/* Upcoming due dates */}
+        {allUpcoming.length>0&&<Card style={{padding:18,gridColumn:"span 4"}}>
           <div style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Upcoming Due Dates</div>
-          {allUpcoming.slice(0,8).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          {allUpcoming.slice(0,6).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
           </div>)}
-        </div>}
-        <Card style={{overflow:"auto"}}>
-          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface,minWidth:500}}>{["Project","Grand Total","Net Profit","Margin","Docs"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i>0?"right":"left"}}>{h}</span>)}</div>
-          {allComps.map(({p,c})=>{const m=c.grandTotal>0?((c.netProfit/c.grandTotal)*100).toFixed(1):0;return<div key={p.id} onClick={()=>onOpen(p.id)} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr .5fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,cursor:"pointer",minWidth:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div style={{minWidth:0}}><span style={{fontSize:13,fontWeight:500,color:T.cream}}>{p.name}</span><span style={{fontSize:11,color:T.dim,marginLeft:8}}>{p.client}</span></div>
-            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f0(c.grandTotal)}</span>
-            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.pos,fontWeight:600}}>{f0(c.netProfit)}</span>
-            <span className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.cyan}}>{m}%</span>
-            <span style={{textAlign:"right",fontSize:12,color:T.dim}}>{(p.docs||[]).length}</span>
-          </div>})}
-        </Card>
-      </div>}
+        </Card>}
+      </div>
     </div>
 
     {vendorDetailId&&vendorProjectId&&(()=>{

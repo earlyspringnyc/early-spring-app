@@ -1,24 +1,39 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { ROLES, ROLE_LABELS, ROLE_COLORS, PERMISSION_LABELS } from '../constants/index.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
 import { getStoredUsers, saveUsers } from '../utils/storage.js';
+import { isSupabaseConfigured } from '../lib/supabase.js';
+import { getTeamMembers, inviteTeamMember as dbInvite, updateTeamMember as dbUpdateMember, removeTeamMember as dbRemoveMember, getPendingInvitations, revokeInvitation } from '../lib/db.js';
 
-function ProfileV({ user, updateProject, project, onUpdateUser }) {
+function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
   const isAdmin = user?.role === 'admin';
   const[org,setOrg]=useState(()=>{try{return JSON.parse(localStorage.getItem("es_org"))||{name:"",logo:"",address:"",website:""}}catch(e){return{name:"",logo:"",address:"",website:""}}});
   const updateOrg=(updates)=>{const next={...org,...updates};setOrg(next);try{localStorage.setItem("es_org",JSON.stringify(next))}catch(e){}};
   const orgLogoRef=useRef(null);
   const handleOrgLogo=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>updateOrg({logo:ev.target.result});reader.readAsDataURL(file)};
-  const [team, setTeam] = useState(getStoredUsers);
+  const usesSupa = isSupabaseConfigured();
+  const [team, setTeam] = useState(usesSupa ? [] : getStoredUsers);
+  const [pendingInvites, setPendingInvites] = useState([]);
+  const [inviteError, setInviteError] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
   const [invEmail, setInvEmail] = useState("");
   const [invName, setInvName] = useState("");
   const [invRole, setInvRole] = useState("producer");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarRef = useRef(null);
+
+  const loadTeam = useCallback(async () => {
+    if (!usesSupa || !orgId) return;
+    const members = await getTeamMembers(orgId);
+    setTeam(members);
+    const invites = await getPendingInvitations(orgId);
+    setPendingInvites(invites);
+  }, [usesSupa, orgId]);
+
+  useEffect(() => { loadTeam() }, [loadTeam]);
 
   const handleAvatarUpload = (e) => {
     const file = e.target.files[0];
@@ -27,9 +42,11 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
     const reader = new FileReader();
     reader.onload = ev => {
       const avatar = ev.target.result;
-      const updated = team.map(u => u.id === user?.id ? { ...u, avatar } : u);
-      setTeam(updated);
-      saveUsers(updated);
+      if (!usesSupa) {
+        const updated = team.map(u => u.id === user?.id ? { ...u, avatar } : u);
+        setTeam(updated);
+        saveUsers(updated);
+      }
       if (onUpdateUser) onUpdateUser({ ...user, avatar });
       try { const u = JSON.parse(localStorage.getItem("es_user") || "{}"); localStorage.setItem("es_user", JSON.stringify({ ...u, avatar })); } catch (e) {}
       setAvatarUploading(false);
@@ -37,45 +54,54 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
     reader.readAsDataURL(file);
   };
 
-  const addTeamMember = () => {
-    if (!invEmail.trim() || !invName.trim()) return;
-    const perms = invRole === "admin"
-      ? { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: true, ai: true, settings: true }
-      : invRole === "producer"
-      ? { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: false, ai: true, settings: false }
-      : { budget: false, timeline: false, vendors: false, pnl: false, docs: false, ros: false, client: true, ai: false, settings: false };
-    const u = { id: uid(), email: invEmail.trim(), name: invName.trim(), role: invRole, avatar: "", permissions: perms };
-    const updated = [...team, u];
-    setTeam(updated);
-    saveUsers(updated);
-    setInvEmail("");
-    setInvName("");
-    setInvRole("producer");
-    setShowInvite(false);
+  const addTeamMember = async () => {
+    if (!invEmail.trim()) return;
+    setInviteError(null);
+    if (usesSupa && orgId) {
+      const result = await dbInvite(orgId, invEmail.trim(), invRole, user?.id);
+      if (result?.error) { setInviteError(result.error); return; }
+      setInvEmail(""); setInvName(""); setInvRole("producer"); setShowInvite(false);
+      await loadTeam();
+    } else {
+      if (!invName.trim()) return;
+      const perms = invRole === "admin"
+        ? { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: true, ai: true, settings: true }
+        : invRole === "producer"
+        ? { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: false, ai: true, settings: false }
+        : { budget: false, timeline: false, vendors: false, pnl: false, docs: false, ros: false, client: true, ai: false, settings: false };
+      const u = { id: uid(), email: invEmail.trim(), name: invName.trim(), role: invRole, avatar: "", permissions: perms };
+      const updated = [...team, u];
+      setTeam(updated); saveUsers(updated);
+      setInvEmail(""); setInvName(""); setInvRole("producer"); setShowInvite(false);
+    }
   };
 
-  const removeTeamMember = (id) => {
+  const removeTeamMember = async (id) => {
     if (id === user?.id) return;
-    const updated = team.filter(u => u.id !== id);
-    setTeam(updated);
-    saveUsers(updated);
+    if (usesSupa) { await dbRemoveMember(id); await loadTeam(); }
+    else { const updated = team.filter(u => u.id !== id); setTeam(updated); saveUsers(updated); }
   };
 
-  const updateTeamRole = (id, role) => {
+  const updateTeamRole = async (id, role) => {
     const perms = role === "admin"
       ? { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: true, ai: true, settings: true }
       : role === "producer"
       ? { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: false, ai: true, settings: false }
       : { budget: false, timeline: false, vendors: false, pnl: false, docs: false, ros: false, client: true, ai: false, settings: false };
-    const updated = team.map(u => u.id === id ? { ...u, role, permissions: perms } : u);
-    setTeam(updated);
-    saveUsers(updated);
+    if (usesSupa) { await dbUpdateMember(id, { role, permissions: perms }); await loadTeam(); }
+    else { const updated = team.map(u => u.id === id ? { ...u, role, permissions: perms } : u); setTeam(updated); saveUsers(updated); }
   };
 
-  const togglePermission = (id, perm) => {
-    const updated = team.map(u => u.id === id ? { ...u, permissions: { ...u.permissions, [perm]: !u.permissions[perm] } } : u);
-    setTeam(updated);
-    saveUsers(updated);
+  const togglePermission = async (id, perm) => {
+    const member = team.find(u => u.id === id); if (!member) return;
+    const newPerms = { ...member.permissions, [perm]: !member.permissions?.[perm] };
+    if (usesSupa) { await dbUpdateMember(id, { permissions: newPerms }); await loadTeam(); }
+    else { const updated = team.map(u => u.id === id ? { ...u, permissions: newPerms } : u); setTeam(updated); saveUsers(updated); }
+  };
+
+  const handleRevokeInvitation = async (invId) => {
+    await revokeInvitation(invId);
+    await loadTeam();
   };
 
   const currentUser = team.find(u => u.id === user?.id) || user;
@@ -119,7 +145,10 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
           <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Email</label><input value={invEmail} onChange={e => setInvEmail(e.target.value)} placeholder="user@gmail.com" onKeyDown={e => e.key === "Enter" && addTeamMember()} style={{ width: "100%", padding: "8px 10px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none" }} /></div>
           <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Role</label><select value={invRole} onChange={e => setInvRole(e.target.value)} style={{ width: "100%", padding: "8px 8px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none", appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
         </div>
-        <button onClick={addTeamMember} disabled={!invEmail.trim() || !invName.trim()} style={{ padding: "7px 16px", background: invEmail.trim() && invName.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(255,255,255,.05)", color: invEmail.trim() && invName.trim() ? T.brown : "rgba(255,255,255,.2)", border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() && invName.trim() ? "pointer" : "default", fontFamily: T.sans }}>Invite Team Member</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={addTeamMember} disabled={!invEmail.trim() || (!(usesSupa && orgId) && !invName.trim())} style={{ padding: "7px 16px", background: invEmail.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(255,255,255,.05)", color: invEmail.trim() ? T.brown : "rgba(255,255,255,.2)", border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() ? "pointer" : "default", fontFamily: T.sans }}>{usesSupa ? "Send Invitation" : "Invite Team Member"}</button>
+          {inviteError && <span style={{ fontSize: 11, color: T.neg }}>{inviteError}</span>}
+        </div>
       </div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -139,6 +168,20 @@ function ProfileV({ user, updateProject, project, onUpdateUser }) {
           {isAdmin && u.id !== user?.id && <button onClick={() => { if (confirm(`Remove "${u.name}"?`)) removeTeamMember(u.id) }} style={{ background: "none", border: "none", cursor: "pointer", opacity: .2, padding: 2, flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = .2}><TrashI size={11} color={T.neg} /></button>}
         </div>)}
       </div>
+      {pendingInvites.length > 0 && <>
+        <div style={{ fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginTop: 16, marginBottom: 8 }}>Pending Invitations</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {pendingInvites.map(inv => <div key={inv.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: T.rS, background: T.surface, border: `1px dashed ${T.border}` }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(255,234,151,.06)", border: "1.5px dashed rgba(255,234,151,.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: T.gold, flexShrink: 0 }}>?</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: T.cream }}>{inv.email}</div>
+              <div style={{ fontSize: 10, color: T.dim }}>Invited as {ROLE_LABELS[inv.role] || inv.role}</div>
+            </div>
+            <span style={{ fontSize: 10, color: T.gold, fontWeight: 600, padding: "2px 8px", borderRadius: 8, background: "rgba(255,234,151,.08)" }}>Pending</span>
+            {isAdmin && <button onClick={() => handleRevokeInvitation(inv.id)} style={{ background: "none", border: "none", cursor: "pointer", opacity: .3, padding: 2, flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = .3}><TrashI size={11} color={T.neg} /></button>}
+          </div>)}
+        </div>
+      </>}
     </Card>
 
     {/* Organization */}

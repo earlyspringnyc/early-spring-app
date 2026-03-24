@@ -1,26 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import {
   signInWithGoogle,
   signOut,
   getSession,
   onAuthStateChange,
-  getOrCreateProfile,
+  getOrCreateProfiles,
+  getLastActiveOrg,
+  setLastActiveOrg,
   getGoogleAccessToken,
 } from '../lib/db.js';
 
 const MAX_PROFILE_RETRIES = 3;
 const PROFILE_RETRY_DELAY = 1000;
 
-async function getOrCreateProfileWithRetry(user) {
+async function getOrCreateProfilesWithRetry(user) {
   for (let attempt = 1; attempt <= MAX_PROFILE_RETRIES; attempt++) {
     try {
-      const p = await getOrCreateProfile(user);
-      if (p && p.org_id) {
-        console.log('[auth] Profile loaded on attempt', attempt, '- org:', p.org_id);
-        return p;
+      const profiles = await getOrCreateProfiles(user);
+      if (profiles?.length && profiles[0].org_id) {
+        console.log('[auth] Profiles loaded on attempt', attempt, '- orgs:', profiles.map(p => p.org_id));
+        return profiles;
       }
-      console.warn('[auth] Profile attempt', attempt, 'returned:', p);
+      console.warn('[auth] Profile attempt', attempt, 'returned:', profiles);
     } catch (e) {
       console.error('[auth] Profile attempt', attempt, 'error:', e);
     }
@@ -29,15 +31,43 @@ async function getOrCreateProfileWithRetry(user) {
     }
   }
   console.error('[auth] All profile creation attempts failed for user:', user.id);
-  return null;
+  return [];
 }
 
 export function useSupabaseAuth() {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
   const [accessToken, setAccessTokenRaw] = useState(()=>{try{return localStorage.getItem("es_google_token")||null}catch(e){return null}});
   const setAccessToken=(t)=>{setAccessTokenRaw(t);try{if(t)localStorage.setItem("es_google_token",t);else localStorage.removeItem("es_google_token")}catch(e){}};
   const [loading, setLoading] = useState(true);
+
+  // Derive current profile from profiles + currentOrgId
+  const currentProfile = useMemo(() => {
+    if (!profiles.length) return null;
+    return profiles.find(p => p.org_id === currentOrgId) || profiles[0];
+  }, [profiles, currentOrgId]);
+
+  // Derive organizations list
+  const organizations = useMemo(() => {
+    return profiles.map(p => p.organizations).filter(Boolean);
+  }, [profiles]);
+
+  // Initialize profiles and pick the active org
+  const initProfiles = useCallback(async (authUser) => {
+    const allProfiles = await getOrCreateProfilesWithRetry(authUser);
+    setProfiles(allProfiles);
+
+    if (allProfiles.length) {
+      // Try to restore last active org
+      const lastOrg = await getLastActiveOrg(authUser.id);
+      const validOrg = allProfiles.find(p => p.org_id === lastOrg);
+      const orgId = validOrg ? validOrg.org_id : allProfiles[0].org_id;
+      setCurrentOrgId(orgId);
+    }
+
+    return allProfiles;
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -64,11 +94,9 @@ export function useSupabaseAuth() {
         console.log('[auth] Existing session found for:', session.user.email);
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        const p = await getOrCreateProfileWithRetry(session.user);
-        if (p) {
-          setProfile(p);
-        } else {
-          console.error('[auth] Could not load/create profile for existing session');
+        const allProfiles = await initProfiles(session.user);
+        if (!allProfiles?.length) {
+          console.error('[auth] Could not load/create profiles for existing session');
         }
       } else {
         console.log('[auth] No existing session');
@@ -87,15 +115,14 @@ export function useSupabaseAuth() {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        const p = await getOrCreateProfileWithRetry(session.user);
-        if (p) {
-          setProfile(p);
-        } else {
-          console.error('[auth] Could not create profile after sign-in');
+        const allProfiles = await initProfiles(session.user);
+        if (!allProfiles?.length) {
+          console.error('[auth] Could not create profiles after sign-in');
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
-        setProfile(null);
+        setProfiles([]);
+        setCurrentOrgId(null);
         setAccessToken(null);
       } else if (event === 'TOKEN_REFRESHED' && session) {
         setAccessToken(session.provider_token || null);
@@ -103,7 +130,7 @@ export function useSupabaseAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [initProfiles]);
 
   const login = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
@@ -116,7 +143,8 @@ export function useSupabaseAuth() {
       await signOut();
     }
     setUser(null);
-    setProfile(null);
+    setProfiles([]);
+    setCurrentOrgId(null);
     setAccessToken(null);
     localStorage.removeItem("es_user");
   }, []);
@@ -124,21 +152,29 @@ export function useSupabaseAuth() {
   // For dev mode / localStorage fallback
   const setDevUser = useCallback((u) => {
     setUser(u);
-    setProfile({ ...u, org_id: 'local' });
+    setProfiles([{ ...u, org_id: 'local', organizations: { id: 'local', name: 'Local' } }]);
+    setCurrentOrgId('local');
     try { localStorage.setItem("es_user", JSON.stringify(u)); } catch (e) {}
   }, []);
+
+  // Switch active organization
+  const switchOrg = useCallback(async (orgId) => {
+    setCurrentOrgId(orgId);
+    if (user?.id) {
+      await setLastActiveOrg(user.id, orgId);
+    }
+  }, [user]);
 
   // Refresh Google token
   const refreshToken = useCallback(async () => {
     const token = await getGoogleAccessToken();
     if(token){setAccessToken(token);return token}
-    // Fallback to stored token
     try{const stored=localStorage.getItem("es_google_token");if(stored)return stored}catch(e){}
     return null;
   }, []);
 
   // Normalize user object so it always has name, email, role
-  const normalizedUser = profile ? profile : user ? {
+  const normalizedUser = currentProfile ? currentProfile : user ? {
     ...user,
     name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '',
     email: user.email || '',
@@ -150,7 +186,11 @@ export function useSupabaseAuth() {
   return {
     user: normalizedUser,
     rawUser: user,
-    profile,
+    profile: currentProfile,       // backward-compatible: active org's profile
+    profiles,                      // all org memberships
+    currentOrgId,                  // active org id
+    switchOrg,                     // function to switch orgs
+    organizations,                 // convenience: array of org objects
     accessToken,
     loading,
     login,

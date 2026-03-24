@@ -5,10 +5,20 @@ import { parseD, daysBetween } from '../../utils/date.js';
 import { isOverdue } from '../../utils/calc.js';
 import { MorganIsotype } from '../brand/MorganLogo.jsx';
 
-function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout,saving,lastSaved}){
+function OrgAvatar({org,size=20}){
+  const initial=(org?.name||"?")[0].toUpperCase();
+  if(org?.logo_url)return<img src={org.logo_url} alt="" style={{width:size,height:size,borderRadius:size/2,objectFit:"cover"}}/>;
+  return<div style={{width:size,height:size,borderRadius:size/2,background:T.surfEl,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.5,fontWeight:600,color:T.cream,flexShrink:0}}>{initial}</div>;
+}
+
+function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout,saving,lastSaved,profiles=[],organizations=[],currentOrgId,switchOrg}){
   const[expanded,setExpanded]=useState(false);
   const[toolsOpen,setToolsOpen]=useState(false);
+  const[orgDropdownOpen,setOrgDropdownOpen]=useState(false);
   const clientName=project.client||"Client";
+
+  const currentOrg=organizations.find(o=>o.id===currentOrgId)||organizations[0]||null;
+  const hasMultipleOrgs=profiles.length>1;
 
   const mainNav=[
     {id:"dashboard",label:"Dashboard",icon:"\u25D0"},
@@ -63,13 +73,14 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
     <div
       className="desktop-side"
       onMouseEnter={()=>setExpanded(true)}
-      onMouseLeave={()=>setExpanded(false)}
+      onMouseLeave={()=>{setExpanded(false);setOrgDropdownOpen(false)}}
       style={{
         width:expanded?220:64,
         transition:"width .2s cubic-bezier(.4,0,.2,1)",
         display:"flex",flexDirection:"column",
         background:T.bg,borderRight:`1px solid ${T.border}`,
-        overflow:"hidden",flexShrink:0,fontFamily:T.sans,
+        overflow:"visible",flexShrink:0,fontFamily:T.sans,
+        position:"relative",
       }}
     >
       {/* Logo */}
@@ -78,6 +89,62 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
           <MorganIsotype size={28} color={T.gold}/>
         </button>
       </div>
+
+      {/* Org Switcher — only shown when user belongs to 2+ orgs */}
+      {hasMultipleOrgs&&<div style={{padding:"0 8px 8px",position:"relative"}}>
+        <button
+          onClick={()=>setOrgDropdownOpen(!orgDropdownOpen)}
+          style={{
+            display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+            borderRadius:T.rS,border:`1px solid ${orgDropdownOpen?T.borderGlow:T.border}`,
+            cursor:"pointer",background:orgDropdownOpen?T.surfEl:"transparent",
+            color:T.cream,fontSize:12,fontWeight:500,fontFamily:T.sans,
+            transition:"all .15s",width:"100%",textAlign:"left",
+            overflow:"hidden",whiteSpace:"nowrap",
+          }}
+          onMouseEnter={e=>{if(!orgDropdownOpen)e.currentTarget.style.background=T.surfHov}}
+          onMouseLeave={e=>{if(!orgDropdownOpen)e.currentTarget.style.background="transparent"}}
+        >
+          <OrgAvatar org={currentOrg} size={18}/>
+          <span style={{opacity:expanded?1:0,transition:"opacity .15s",flex:1,overflow:"hidden",textOverflow:"ellipsis"}}>{currentOrg?.name||"Org"}</span>
+          {expanded&&<span style={{fontSize:10,opacity:.5,transition:"transform .15s",transform:orgDropdownOpen?"rotate(180deg)":"rotate(0)"}}>&#9662;</span>}
+        </button>
+
+        {/* Dropdown */}
+        {orgDropdownOpen&&expanded&&<div style={{
+          position:"absolute",left:8,right:8,top:"100%",marginTop:4,
+          background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,
+          boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:100,
+          padding:4,display:"flex",flexDirection:"column",gap:2,
+          maxHeight:240,overflowY:"auto",
+        }}>
+          {organizations.map(org=>{
+            const isActive=org.id===currentOrgId;
+            const orgProfile=profiles.find(p=>p.org_id===org.id);
+            return<button
+              key={org.id}
+              onClick={()=>{switchOrg(org.id);setOrgDropdownOpen(false)}}
+              style={{
+                display:"flex",alignItems:"center",gap:8,padding:"8px 10px",
+                borderRadius:T.rS,border:"none",cursor:"pointer",
+                background:isActive?T.surfEl:"transparent",
+                color:isActive?T.cream:T.dim,
+                fontSize:12,fontFamily:T.sans,transition:"all .15s",
+                width:"100%",textAlign:"left",
+              }}
+              onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}}
+              onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent";if(!isActive)e.currentTarget.style.color=T.dim}}
+            >
+              <OrgAvatar org={org} size={16}/>
+              <div style={{flex:1,overflow:"hidden"}}>
+                <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:isActive?500:400}}>{org.name}</div>
+                {orgProfile&&<div style={{fontSize:10,color:T.dim,marginTop:1}}>{orgProfile.role}</div>}
+              </div>
+              {isActive&&<span style={{fontSize:10,color:T.gold}}>&#10003;</span>}
+            </button>;
+          })}
+        </div>}
+      </div>}
 
       {/* Project name */}
       <div style={{padding:"0 16px 16px",overflow:"hidden",whiteSpace:"nowrap",opacity:expanded?1:0,transition:"opacity .15s",height:expanded?"auto":0}}>

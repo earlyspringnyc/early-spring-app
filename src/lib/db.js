@@ -36,105 +36,153 @@ export function onAuthStateChange(callback) {
 // Profile & Organization (on first sign-in)
 // ============================================================
 
+// Legacy single-profile wrapper (kept for backward compat)
 export async function getOrCreateProfile(user) {
-  if (!isSupabaseConfigured()) return null;
+  const profiles = await getOrCreateProfiles(user);
+  return profiles?.[0] || null;
+}
 
-  // Check if profile exists
-  const { data: profile, error: profileError } = await supabase
+// Returns ALL profiles for this user (one per org), creating any from pending invitations
+export async function getOrCreateProfiles(user) {
+  if (!isSupabaseConfigured()) return [];
+
+  // 1. Fetch all existing profiles for this user
+  const { data: existingProfiles, error: profileError } = await supabase
     .from('profiles')
     .select('*, organizations(*)')
     .eq('user_id', user.id)
-    .maybeSingle();
+    .order('created_at');
 
   if (profileError) {
     console.error('[db] Profile lookup failed:', profileError);
   }
 
-  if (profile) {
-    console.log('[db] Found existing profile:', profile.id, 'org:', profile.org_id);
-    return profile;
-  }
+  const profiles = existingProfiles || [];
+  const existingOrgIds = new Set(profiles.map(p => p.org_id));
 
-  // Check if there's an invitation for this email
-  const { data: invitation, error: invError } = await supabase
+  // 2. Check for ALL pending invitations for this email
+  const { data: invitations, error: invError } = await supabase
     .from('invitations')
     .select('*')
     .eq('email', user.email)
-    .eq('accepted', false)
-    .maybeSingle();
+    .eq('accepted', false);
 
   if (invError) {
     console.error('[db] Invitation lookup failed:', invError);
   }
 
-  if (invitation) {
-    console.log('[db] Found invitation for', user.email, 'to org:', invitation.org_id);
-    const { data: newProfile, error } = await supabase
+  // 3. Accept each invitation that doesn't duplicate an existing membership
+  if (invitations?.length) {
+    for (const invitation of invitations) {
+      if (existingOrgIds.has(invitation.org_id)) {
+        // Already a member — just mark accepted
+        await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
+        console.log('[db] Invitation to org', invitation.org_id, 'skipped (already member)');
+        continue;
+      }
+
+      console.log('[db] Accepting invitation for', user.email, 'to org:', invitation.org_id);
+      const { data: newProfile, error } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: user.id,
+          org_id: invitation.org_id,
+          name: user.user_metadata?.full_name || user.email.split('@')[0],
+          email: user.email,
+          avatar_url: user.user_metadata?.avatar_url || '',
+          role: invitation.role || 'producer',
+        })
+        .select('*, organizations(*)')
+        .maybeSingle();
+
+      if (error) {
+        console.error('[db] Profile creation via invitation failed:', error);
+        continue;
+      }
+
+      if (newProfile) {
+        await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
+        profiles.push(newProfile);
+        existingOrgIds.add(invitation.org_id);
+        console.log('[db] Created profile via invitation:', newProfile.id);
+      }
+    }
+  }
+
+  // 4. If user has no profiles at all, create a new org + admin profile
+  if (profiles.length === 0) {
+    const orgName = user.user_metadata?.full_name
+      ? `${user.user_metadata.full_name}'s Team`
+      : `${user.email.split('@')[0]}'s Team`;
+
+    console.log('[db] Creating new org:', orgName);
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .insert({ name: orgName })
+      .select()
+      .maybeSingle();
+
+    if (orgError || !org) {
+      console.error('[db] Org creation failed:', orgError);
+      return [];
+    }
+
+    const { data: newProfile, error: profError } = await supabase
       .from('profiles')
       .insert({
         user_id: user.id,
-        org_id: invitation.org_id,
+        org_id: org.id,
         name: user.user_metadata?.full_name || user.email.split('@')[0],
         email: user.email,
         avatar_url: user.user_metadata?.avatar_url || '',
-        role: invitation.role || 'producer',
+        role: 'admin',
       })
       .select('*, organizations(*)')
       .maybeSingle();
 
-    if (error) {
-      console.error('[db] Profile creation via invitation failed:', error);
-      return null;
+    if (profError) {
+      console.error('[db] Profile creation failed:', profError);
+      await supabase.from('organizations').delete().eq('id', org.id);
+      return [];
     }
 
-    if (newProfile) {
-      // Mark invitation as accepted
-      await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
-      console.log('[db] Created profile via invitation:', newProfile.id);
-    }
-    return newProfile;
+    if (newProfile) profiles.push(newProfile);
+    console.log('[db] Created profile:', newProfile?.id, 'org:', newProfile?.org_id);
   }
 
-  // Create new org first, then profile
-  const orgName = user.user_metadata?.full_name
-    ? `${user.user_metadata.full_name}'s Team`
-    : `${user.email.split('@')[0]}'s Team`;
+  return profiles;
+}
 
-  console.log('[db] Creating new org:', orgName);
-  const { data: org, error: orgError } = await supabase
-    .from('organizations')
-    .insert({ name: orgName })
-    .select()
-    .maybeSingle();
-
-  if (orgError || !org) {
-    console.error('[db] Org creation failed:', orgError);
-    return null;
-  }
-  console.log('[db] Created org:', org.id);
-
-  const { data: newProfile, error: profError } = await supabase
+// Fetch all profiles for a user (without creating anything)
+export async function getUserProfiles(userId) {
+  if (!isSupabaseConfigured()) return [];
+  const { data } = await supabase
     .from('profiles')
-    .insert({
-      user_id: user.id,
-      org_id: org.id,
-      name: user.user_metadata?.full_name || user.email.split('@')[0],
-      email: user.email,
-      avatar_url: user.user_metadata?.avatar_url || '',
-      role: 'admin',
-    })
     .select('*, organizations(*)')
+    .eq('user_id', userId)
+    .order('created_at');
+  return data || [];
+}
+
+// ============================================================
+// User Preferences (last active org)
+// ============================================================
+
+export async function getLastActiveOrg(userId) {
+  if (!isSupabaseConfigured()) return null;
+  const { data } = await supabase
+    .from('user_preferences')
+    .select('last_org_id')
+    .eq('user_id', userId)
     .maybeSingle();
+  return data?.last_org_id || null;
+}
 
-  if (profError) {
-    console.error('[db] Profile creation failed:', profError);
-    // Clean up the orphaned org
-    await supabase.from('organizations').delete().eq('id', org.id);
-    return null;
-  }
-
-  console.log('[db] Created profile:', newProfile?.id, 'org:', newProfile?.org_id);
-  return newProfile;
+export async function setLastActiveOrg(userId, orgId) {
+  if (!isSupabaseConfigured()) return;
+  await supabase
+    .from('user_preferences')
+    .upsert({ user_id: userId, last_org_id: orgId, updated_at: new Date().toISOString() });
 }
 
 // ============================================================
@@ -168,10 +216,47 @@ export async function removeTeamMember(profileId) {
 }
 
 export async function inviteTeamMember(orgId, email, role, invitedBy) {
-  if (!isSupabaseConfigured()) return;
-  await supabase
+  if (!isSupabaseConfigured()) return { error: 'Not configured' };
+
+  // Guard: check if already a member of this org
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('email', email)
+    .maybeSingle();
+  if (existing) return { error: 'Already a member of this organization' };
+
+  // Guard: check if there's already a pending invitation
+  const { data: pendingInv } = await supabase
+    .from('invitations')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('email', email)
+    .eq('accepted', false)
+    .maybeSingle();
+  if (pendingInv) return { error: 'Invitation already pending' };
+
+  const { error } = await supabase
     .from('invitations')
     .insert({ org_id: orgId, email, role, invited_by: invitedBy });
+  return { error: error?.message || null };
+}
+
+export async function getPendingInvitations(orgId) {
+  if (!isSupabaseConfigured()) return [];
+  const { data } = await supabase
+    .from('invitations')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('accepted', false)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function revokeInvitation(invitationId) {
+  if (!isSupabaseConfigured()) return;
+  await supabase.from('invitations').delete().eq('id', invitationId);
 }
 
 // ============================================================

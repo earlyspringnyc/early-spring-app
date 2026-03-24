@@ -1,13 +1,15 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import { fp } from '../utils/format.js';
 import { uid } from '../utils/uid.js';
 import { ROLES, ROLE_LABELS, ROLE_COLORS, PERMISSION_LABELS, PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS } from '../constants/index.js';
 import { getStoredUsers, saveUsers } from '../utils/storage.js';
+import { isSupabaseConfigured } from '../lib/supabase.js';
+import { getTeamMembers, inviteTeamMember as dbInvite, updateTeamMember as dbUpdateMember, removeTeamMember as dbRemoveMember, getPendingInvitations, revokeInvitation } from '../lib/db.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 
-function SetV({project,updateProject,onDelete,user,accessToken}){
+function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
   const isAdmin=user?.role==="admin";
   const[sharedDrives,setSharedDrives]=useState([]);
   const[loadingDrives,setLoadingDrives]=useState(false);
@@ -54,13 +56,59 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
     const driveLoc=(()=>{try{const s=localStorage.getItem("es_drive_location");return s?JSON.parse(s):null}catch(e){return null}})();
     await setDriveLocation(driveLoc?.driveId||null,driveLoc?.driveName||"My Drive");
   };
-  const[team,setTeam]=useState(getStoredUsers);
+  const usesSupa=isSupabaseConfigured();
+  const[team,setTeam]=useState(usesSupa?[]:getStoredUsers);
+  const[pendingInvites,setPendingInvites]=useState([]);
+  const[inviteError,setInviteError]=useState(null);
+
+  // Load team from Supabase when available
+  const loadTeam=useCallback(async()=>{
+    if(!usesSupa||!orgId)return;
+    const members=await getTeamMembers(orgId);
+    setTeam(members);
+    const invites=await getPendingInvitations(orgId);
+    setPendingInvites(invites);
+  },[usesSupa,orgId]);
+
+  useEffect(()=>{loadTeam()},[loadTeam]);
+
   const[showAddUser,setShowAddUser]=useState(false);
   const[nuEmail,setNuEmail]=useState("");const[nuName,setNuName]=useState("");const[nuRole,setNuRole]=useState("producer");
-  const addTeamMember=()=>{if(!nuEmail.trim()||!nuName.trim())return;const perms=nuRole==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:nuRole==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};const u={id:uid(),email:nuEmail.trim(),name:nuName.trim(),role:nuRole,avatar:"",permissions:perms};const updated=[...team,u];setTeam(updated);saveUsers(updated);setNuEmail("");setNuName("");setNuRole("producer");setShowAddUser(false)};
-  const removeTeamMember=id=>{if(id===user?.id)return;const updated=team.filter(u=>u.id!==id);setTeam(updated);saveUsers(updated)};
-  const updateTeamRole=(id,role)=>{const perms=role==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:role==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};const updated=team.map(u=>u.id===id?{...u,role,permissions:perms}:u);setTeam(updated);saveUsers(updated)};
-  const togglePermission=(id,perm)=>{const updated=team.map(u=>u.id===id?{...u,permissions:{...u.permissions,[perm]:!u.permissions[perm]}}:u);setTeam(updated);saveUsers(updated)};
+  const addTeamMember=async()=>{
+    if(!nuEmail.trim())return;
+    setInviteError(null);
+    if(usesSupa&&orgId){
+      const result=await dbInvite(orgId,nuEmail.trim(),nuRole,user?.id);
+      if(result?.error){setInviteError(result.error);return}
+      setNuEmail("");setNuName("");setNuRole("producer");setShowAddUser(false);
+      await loadTeam();
+    }else{
+      if(!nuName.trim())return;
+      const perms=nuRole==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:nuRole==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};
+      const u={id:uid(),email:nuEmail.trim(),name:nuName.trim(),role:nuRole,avatar:"",permissions:perms};
+      const updated=[...team,u];setTeam(updated);saveUsers(updated);setNuEmail("");setNuName("");setNuRole("producer");setShowAddUser(false);
+    }
+  };
+  const removeTeamMember=async(id)=>{
+    if(id===user?.id)return;
+    if(usesSupa){await dbRemoveMember(id);await loadTeam()}
+    else{const updated=team.filter(u=>u.id!==id);setTeam(updated);saveUsers(updated)}
+  };
+  const updateTeamRole=async(id,role)=>{
+    const perms=role==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:role==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};
+    if(usesSupa){await dbUpdateMember(id,{role,permissions:perms});await loadTeam()}
+    else{const updated=team.map(u=>u.id===id?{...u,role,permissions:perms}:u);setTeam(updated);saveUsers(updated)}
+  };
+  const togglePermission=async(id,perm)=>{
+    const member=team.find(u=>u.id===id);if(!member)return;
+    const newPerms={...member.permissions,[perm]:!member.permissions?.[perm]};
+    if(usesSupa){await dbUpdateMember(id,{permissions:newPerms});await loadTeam()}
+    else{const updated=team.map(u=>u.id===id?{...u,permissions:newPerms}:u);setTeam(updated);saveUsers(updated)}
+  };
+  const handleRevokeInvitation=async(invId)=>{
+    await revokeInvitation(invId);
+    await loadTeam();
+  };
   const F=({label,field})=><div style={{marginBottom:18}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>{label}</label>
     <input value={project[field]||""} onChange={e=>updateProject({[field]:e.target.value})} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>;
   const logoRef=useRef(null);
@@ -157,7 +205,10 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
           <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Google Email</label><input value={nuEmail} onChange={e=>setNuEmail(e.target.value)} placeholder="user@gmail.com" onKeyDown={e=>e.key==="Enter"&&addTeamMember()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
           <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Role</label><select value={nuRole} onChange={e=>setNuRole(e.target.value)} style={{width:"100%",padding:"8px 8px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>{ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
         </div>
-        <button onClick={addTeamMember} disabled={!nuEmail.trim()||!nuName.trim()} style={{padding:"7px 16px",background:nuEmail.trim()&&nuName.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:nuEmail.trim()&&nuName.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()&&nuName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Team Member</button>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={addTeamMember} disabled={!nuEmail.trim()||(!(usesSupa&&orgId)&&!nuName.trim())} style={{padding:"7px 16px",background:nuEmail.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:nuEmail.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
+          {inviteError&&<span style={{fontSize:11,color:T.neg}}>{inviteError}</span>}
+        </div>
       </div>}
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
         {team.map(u=><div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
@@ -173,6 +224,20 @@ function SetV({project,updateProject,onDelete,user,accessToken}){
           {u.id!==user?.id&&<button onClick={()=>removeTeamMember(u.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
         </div>)}
       </div>
+      {pendingInvites.length>0&&<>
+        <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginTop:16,marginBottom:8}}>Pending Invitations</div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {pendingInvites.map(inv=><div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px dashed ${T.border}`}}>
+            <div style={{width:30,height:30,borderRadius:"50%",background:"rgba(255,234,151,.06)",border:"1.5px dashed rgba(255,234,151,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:T.gold,flexShrink:0}}>?</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,color:T.cream}}>{inv.email}</div>
+              <div style={{fontSize:10,color:T.dim}}>Invited as {ROLE_LABELS[inv.role]||inv.role}</div>
+            </div>
+            <span style={{fontSize:10,color:T.gold,fontWeight:600,padding:"2px 8px",borderRadius:8,background:"rgba(255,234,151,.08)"}}>Pending</span>
+            <button onClick={()=>handleRevokeInvitation(inv.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={11} color={T.neg}/></button>
+          </div>)}
+        </div>
+      </>}
       <p style={{fontSize:10,color:T.dim,marginTop:12}}>Team members sign in with Google. Permissions control which sections they can access.</p>
     </Card>}
     <Card style={{padding:28}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.neg,marginBottom:12}}>Danger Zone</div>
