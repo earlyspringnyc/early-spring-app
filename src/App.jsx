@@ -15,49 +15,6 @@ import NewProjectModal from './components/modals/NewProjectModal.jsx';
 import SharedClientView from './views/SharedClientView.jsx';
 
 
-/* ── Drive Onboarding Modal — shown once for new users ── */
-function DriveOnboarding({accessToken,onComplete,onSkip}){
-  const[drives,setDrives]=useState([]);
-  const[loading,setLoading]=useState(false);
-  const[setting,setSetting]=useState(false);
-
-  useEffect(()=>{
-    if(!accessToken)return;
-    setLoading(true);
-    fetch("https://www.googleapis.com/drive/v3/drives?pageSize=50",{headers:{Authorization:`Bearer ${accessToken}`}})
-      .then(r=>r.ok?r.json():{drives:[]}).then(d=>setDrives(d.drives||[])).catch(()=>{}).finally(()=>setLoading(false));
-  },[accessToken]);
-
-  const selectDrive=async(driveId,driveName)=>{
-    setSetting(true);
-    try{localStorage.setItem("es_drive_location",JSON.stringify({driveId,driveName:driveName||"My Drive"}))}catch(e){}
-    onComplete(driveId,driveName);
-  };
-
-  return<div style={{position:"fixed",inset:0,zIndex:10000,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:T.sans}}>
-    <div style={{width:"100%",maxWidth:480,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(0,0,0,.5)",padding:32}}>
-      <div style={{fontSize:20,fontWeight:700,color:T.cream,marginBottom:8}}>Connect Google Drive</div>
-      <p style={{fontSize:13,color:T.dim,lineHeight:1.6,marginBottom:6}}>Morgan stores all your project files — budgets, creative assets, client documents — in Google Drive so nothing is lost when you switch devices or clear your browser.</p>
-      <p style={{fontSize:12,color:T.gold,lineHeight:1.6,marginBottom:24}}>We recommend setting this up now to keep your files safe.</p>
-
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
-        <button onClick={()=>selectDrive(null,"My Drive")} disabled={setting} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontWeight:500,cursor:setting?"wait":"pointer",fontFamily:T.sans,textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.borderColor=T.borderGlow} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-          <span style={{fontSize:18}}>&#128193;</span>
-          <div><div>My Drive</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>Personal Google Drive</div></div>
-        </button>
-        {loading&&<div style={{textAlign:"center",padding:12,color:T.dim,fontSize:12}}>Loading shared drives...</div>}
-        {drives.map(d=><button key={d.id} onClick={()=>selectDrive(d.id,d.name)} disabled={setting} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontWeight:500,cursor:setting?"wait":"pointer",fontFamily:T.sans,textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.borderColor=T.borderGlow} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-          <span style={{fontSize:18}}>&#128101;</span>
-          <div><div>{d.name}</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>Shared Drive</div></div>
-        </button>)}
-      </div>
-
-      {setting&&<div style={{textAlign:"center",padding:12,color:T.gold,fontSize:12}}>Setting up Drive...</div>}
-
-      <button onClick={onSkip} style={{width:"100%",padding:"10px 0",background:"none",border:"none",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Skip for now (files will only be saved locally)</button>
-    </div>
-  </div>;
-}
 
 /* ── Legal Pages ── */
 function LegalPage({title,children}){
@@ -196,7 +153,11 @@ function App(){
 
   // Theme
   const[themeMode,setThemeModeSt]=useState(()=>{
-    try{return localStorage.getItem('es_theme')||'dark'}catch(e){return'dark'}
+    try{
+      const stored=localStorage.getItem('es_theme');
+      if(stored)return stored;
+      return window.matchMedia?.('(prefers-color-scheme: light)').matches?'light':'dark';
+    }catch(e){return'dark'}
   });
   const toggleTheme=useCallback(()=>{
     setThemeModeSt(prev=>{
@@ -222,8 +183,6 @@ function App(){
   const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id)sessionStorage.setItem("es_activeProject",id);else sessionStorage.removeItem("es_activeProject")}catch(e){}},[]);
   const[showNew,setShowNew]=useState(false);
   const[toasts,setToasts]=useState([]);
-  const[showDriveOnboarding,setShowDriveOnboarding]=useState(false);
-  // Drive onboarding disabled — files are now stored in Supabase
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
 

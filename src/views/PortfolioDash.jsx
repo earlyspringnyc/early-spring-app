@@ -46,22 +46,24 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
 
-  // Calculations
-  const allComps=projects.map(p=>({p,c:calcProject(p)}));
-  const totalRevenue=allComps.reduce((a,{c})=>a+c.grandTotal,0);
-  const totalCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
-  const totalProfit=allComps.reduce((a,{c})=>a+c.netProfit,0);
-  const blendedMargin=totalRevenue>0?((totalProfit/totalRevenue)*100):0;
-  const totalProdCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost,0);
-  const totalAgencyFee=allComps.reduce((a,{c})=>a+c.agencyFee.clientPrice,0);
-  const totalProdMargin=allComps.reduce((a,{c})=>a+c.productionSubtotal.variance,0);
-  const totalAgencyMargin=allComps.reduce((a,{c})=>a+c.agencyCostsSubtotal.variance,0);
-  const totalOwed=allComps.reduce((a,{p})=>{const invoiced=(p.docs||[]).filter(d=>d.type==="invoice"&&d.status!=="paid").reduce((s,d)=>s+(d.amount||0),0);return a+invoiced},0);
-
-  // Overdue & upcoming
-  const allOverdue=[];const allUpcoming=[];
-  projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
-  allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
+  // Calculations — memoized so calcProject only reruns when projects change
+  const {allComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects:activeProjectCount}=useMemo(()=>{
+    const allComps=projects.map(p=>({p,c:calcProject(p)}));
+    const totalRevenue=allComps.reduce((a,{c})=>a+c.grandTotal,0);
+    const totalCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
+    const totalProfit=allComps.reduce((a,{c})=>a+c.netProfit,0);
+    const blendedMargin=totalRevenue>0?((totalProfit/totalRevenue)*100):0;
+    const totalProdCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost,0);
+    const totalAgencyFee=allComps.reduce((a,{c})=>a+c.agencyFee.clientPrice,0);
+    const totalProdMargin=allComps.reduce((a,{c})=>a+c.productionSubtotal.variance,0);
+    const totalAgencyMargin=allComps.reduce((a,{c})=>a+c.agencyCostsSubtotal.variance,0);
+    const totalOwed=allComps.reduce((a,{p})=>{const invoiced=(p.docs||[]).filter(d=>d.type==="invoice"&&d.status!=="paid").reduce((s,d)=>s+(d.amount||0),0);return a+invoiced},0);
+    const allOverdue=[];const allUpcoming=[];
+    projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
+    allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
+    const activeProjects=projects.filter(p=>(p.stage||"pitching")!=="archived").length;
+    return{allComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects};
+  },[projects]);
 
   // Tasks across all projects
   const allTasks=useMemo(()=>{
@@ -94,10 +96,10 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   },[masterVendors]);
 
   // Stage breakdown
-  const stageData=PROJECT_STAGES.map(s=>{const ps=allComps.filter(({p})=>(p.stage||"pitching")===s);return{name:STAGE_LABELS[s],value:ps.reduce((a,{c})=>a+c.grandTotal,0),count:ps.length,color:STAGE_COLORS[s]}}).filter(d=>d.count>0);
+  const stageData=useMemo(()=>PROJECT_STAGES.map(s=>{const ps=allComps.filter(({p})=>(p.stage||"pitching")===s);return{name:STAGE_LABELS[s],value:ps.reduce((a,{c})=>a+c.grandTotal,0),count:ps.length,color:STAGE_COLORS[s]}}).filter(d=>d.count>0),[allComps]);
 
   // Bar chart — top projects by revenue
-  const barData=[...allComps].sort((a,b)=>b.c.grandTotal-a.c.grandTotal).slice(0,8).map(({p,c})=>({name:p.name?.length>12?p.name.slice(0,11)+"\u2026":p.name,actual:c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,client:c.grandTotal}));
+  const barData=useMemo(()=>[...allComps].sort((a,b)=>b.c.grandTotal-a.c.grandTotal).slice(0,8).map(({p,c})=>({name:p.name?.length>12?p.name.slice(0,11)+"\u2026":p.name,actual:c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,client:c.grandTotal})),[allComps]);
 
   // Spend by category
   const spendData=useMemo(()=>{
@@ -107,13 +109,13 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   },[projects]);
 
   // Profit composition
-  const profitData=[
+  const profitData=useMemo(()=>[
     {name:"Production Margin",value:Math.max(0,totalProdMargin),color:T.gold},
     {name:"Agency Margin",value:Math.max(0,totalAgencyMargin),color:T.cyan},
     {name:"Agency Fee",value:Math.max(0,totalAgencyFee),color:T.pos},
-  ].filter(d=>d.value>0);
+  ].filter(d=>d.value>0),[totalProdMargin,totalAgencyMargin,totalAgencyFee]);
 
-  const activeProjects=projects.filter(p=>(p.stage||"pitching")!=="archived").length;
+  const activeProjects=activeProjectCount;
   const firstName=(user.name||user.email||"").split(" ")[0]||"there";
 
   // Project card colors
