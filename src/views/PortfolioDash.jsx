@@ -133,7 +133,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
 
     <div className="portfolio-container" style={{maxWidth:1200,margin:"0 auto",padding:"36px 32px"}}>
       {/* Header */}
-      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:14,marginBottom:8}}>
+      <div className="portfolio-header" style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:14,marginBottom:8}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <ESWordmark height={14} color={T.gold}/>
           {profiles.length>1&&<OrgSwitcher organizations={organizations} profiles={profiles} currentOrgId={currentOrgId} switchOrg={switchOrg}/>}
@@ -154,7 +154,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
       </div>
 
       {/* ── BENTO GRID ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+      <div className="portfolio-bento" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
 
         {/* Row 1: Key financial metrics */}
         <Card style={{padding:24,gridColumn:"span 2"}} hoverable>

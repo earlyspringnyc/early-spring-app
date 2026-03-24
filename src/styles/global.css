@@ -1,6 +1,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 html,body,#root{height:100%;overflow:hidden}
+body{overflow-x:hidden;-webkit-text-size-adjust:100%}
 body{font-family:'Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif}
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -54,26 +55,25 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   .budget-metrics{grid-template-columns:1fr!important}
   /* Budget category grids — horizontal scroll */
   .cat-grid{min-width:700px}
-  /* Bento grid collapses on mobile */
-  .bento-grid{grid-template-columns:1fr!important;grid-template-areas:
-    "budget"
-    "spend"
-    "owed"
-    "client"
-    "tasks"
-    "alerts"
-    "prod"
-    "margin"
-    "blended"
-    "profit"
-    "donut"
-    "comp"
-  !important}
+  /* Project dashboard bento — collapse to single column, reset inline spans */
+  .bento-grid{grid-template-columns:1fr!important;grid-template-areas:none!important}
+  .bento-grid>*{grid-column:auto!important;grid-row:auto!important}
+  /* Portfolio bento — collapse to single column */
+  .portfolio-bento{grid-template-columns:1fr!important}
+  .portfolio-bento>*{grid-column:1!important}
+  /* Portfolio container padding on mobile */
+  .portfolio-container{padding:20px 12px 32px!important}
+  /* Portfolio header — stack on very small screens */
+  .portfolio-header{flex-direction:column!important;align-items:flex-start!important;gap:10px!important}
   /* Prevent horizontal overflow on mobile */
   h1{font-size:18px!important}
   h2{font-size:16px!important}
   /* File thumbnails — 2 columns on mobile */
   .file-grid{grid-template-columns:1fr 1fr!important}
+  /* Prevent any fixed-width elements from overflowing */
+  .num{word-break:break-all}
+  /* Charts scroll horizontally on mobile */
+  .chart-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
 @media(min-width:769px){
   .mobile-nav{display:none!important}
