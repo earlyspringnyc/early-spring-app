@@ -62,7 +62,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   .portfolio-bento{grid-template-columns:1fr!important}
   .portfolio-bento>*{grid-column:1!important}
   /* Portfolio container padding on mobile */
-  .portfolio-container{padding:20px 12px 32px!important}
+  .portfolio-container{padding:20px 12px 88px!important}
+  /* Show mobile FAB, hide desktop new-project button in header */
+  .portfolio-fab{display:flex!important}
+  .portfolio-new-btn{display:none!important}
   /* Portfolio header — stack on very small screens */
   .portfolio-header{flex-direction:column!important;align-items:flex-start!important;gap:10px!important}
   /* Prevent horizontal overflow on mobile */

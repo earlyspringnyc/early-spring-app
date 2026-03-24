@@ -14,7 +14,6 @@ import ProjectView from './views/ProjectView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
 import SharedClientView from './views/SharedClientView.jsx';
 
-const MAX_UNDO=15;
 
 /* ── Drive Onboarding Modal — shown once for new users ── */
 function DriveOnboarding({accessToken,onComplete,onSkip}){
@@ -222,7 +221,6 @@ function App(){
   const[activeId,setActiveIdRaw]=useState(()=>{try{return sessionStorage.getItem("es_activeProject")||null}catch(e){return null}});
   const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id)sessionStorage.setItem("es_activeProject",id);else sessionStorage.removeItem("es_activeProject")}catch(e){}},[]);
   const[showNew,setShowNew]=useState(false);
-  const[undoStack,setUndoStack]=useState([]);
   const[toasts,setToasts]=useState([]);
   const[showDriveOnboarding,setShowDriveOnboarding]=useState(false);
   // Drive onboarding disabled — files are now stored in Supabase
@@ -256,7 +254,6 @@ function App(){
 
   const updateProject=useCallback(updates=>{
     if(!activeId)return;
-    setUndoStack(s=>[...s.slice(-MAX_UNDO),projects]);
     setSaving(true);
     updateProj(activeId,updates);
     setTimeout(()=>{setSaving(false);setLastSaved(new Date())},1200);
@@ -290,12 +287,9 @@ function App(){
     }
   },[projects,createProj,updateProj]);
 
-  const undo=useCallback(()=>{setUndoStack(s=>{if(!s.length)return s;/* undo not fully supported with Supabase yet */return s.slice(0,-1)})},[]);
-
   useEffect(()=>{const handler=e=>{
-    if((e.metaKey||e.ctrlKey)&&e.key==="z"&&!e.shiftKey){e.preventDefault();undo()}
     if(e.key==="Escape"){setShowNew(false)}
-  };window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[undo]);
+  };window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[]);
 
   // Loading state
   if(sbAuth.loading || !loaded)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:T.bgGrad,fontFamily:T.sans}}>

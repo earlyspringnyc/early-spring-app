@@ -31,7 +31,7 @@ const light={
   gold:"#5C4F3A",goldSoft:"rgba(92,79,58,.09)",goldGlow:"0 0 20px rgba(92,79,58,.08)",
   brown:"#2C1F0E",
   cyan:"#1D6FA4",magenta:"#6D3AB5",
-  cream:"#1C1917",dim:"rgba(28,25,23,.45)",dimH:"rgba(28,25,23,.65)",
+  cream:"#1C1917",dim:"rgba(28,25,23,.60)",dimH:"rgba(28,25,23,.78)",
   pos:"#1A6B3C",neg:"#C62828",blue:"#4A5568",
   colors:["#5C4F3A","#1A6B3C","#1D6FA4","#6D3AB5","#C62828","#B45309","#1D4ED8","#4D7C0F","#0E7490","#7C3AED"],
   r:"12px",rS:"8px",

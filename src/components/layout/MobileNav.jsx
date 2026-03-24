@@ -38,13 +38,13 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
 
   const NavBtn=({id,label,icon})=>(
     <button onClick={()=>setView(id)} style={{
-      display:"flex",alignItems:"center",gap:12,padding:"12px 16px",width:"100%",
-      borderRadius:T.rS,border:"none",cursor:"pointer",textAlign:"left",
+      display:"flex",alignItems:"center",gap:12,padding:"13px 16px",width:"100%",
+      minHeight:48,borderRadius:T.rS,border:"none",cursor:"pointer",textAlign:"left",
       background:view===id?T.surfEl:"transparent",
       color:view===id?T.cream:T.dim,
-      fontSize:14,fontWeight:view===id?500:400,fontFamily:T.sans,
+      fontSize:15,fontWeight:view===id?500:400,fontFamily:T.sans,
     }}>
-      <span style={{fontSize:16,width:22,textAlign:"center",opacity:view===id?1:.5}}>{icon}</span>
+      <span style={{fontSize:18,width:24,textAlign:"center",opacity:view===id?1:.5}}>{icon}</span>
       <span>{label}</span>
     </button>
   );
@@ -52,11 +52,11 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
   return<>
     {/* Top bar */}
     <div className="mobile-nav" style={{position:"fixed",top:0,left:0,right:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:T.bg,backdropFilter:"blur(20px)",borderBottom:`1px solid ${T.border}`}}>
-      <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",alignItems:"center"}}>
+      <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",width:44,height:44,flexShrink:0}}>
         <MorganIsotype size={24} color={T.gold}/>
       </button>
-      <div style={{fontSize:13,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"center",padding:"0 12px"}}>{project.name||"Morgan"}</div>
-      <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",cursor:"pointer",padding:6,display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center",width:32,height:32}}>
+      <div style={{fontSize:13,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"center",padding:"0 8px"}}>{project.name||"Morgan"}</div>
+      <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center",width:44,height:44,flexShrink:0}}>
         <span style={{display:"block",width:18,height:1.5,background:open?T.gold:T.cream,borderRadius:1,transition:"all .2s",transform:open?"rotate(45deg) translateY(2.75px)":"none"}}/>
         <span style={{display:"block",width:18,height:1.5,background:open?T.gold:T.cream,borderRadius:1,transition:"all .2s",opacity:open?0:1}}/>
         <span style={{display:"block",width:18,height:1.5,background:open?T.gold:T.cream,borderRadius:1,transition:"all .2s",transform:open?"rotate(-45deg) translateY(-2.75px)":"none"}}/>
@@ -68,10 +68,10 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
 
     {/* Slide-out drawer */}
     <div style={{
-      position:"fixed",top:0,right:0,bottom:0,zIndex:299,
-      width:260,maxWidth:"80vw",
-      background:T.bg,borderLeft:`1px solid ${T.border}`,boxShadow:"-8px 0 32px rgba(0,0,0,.2)",
-      transform:open?"translateX(0)":"translateX(100%)",
+      position:"fixed",top:0,left:0,bottom:0,zIndex:299,
+      width:280,maxWidth:"82vw",
+      background:T.bg,borderRight:`1px solid ${T.border}`,boxShadow:"8px 0 32px rgba(0,0,0,.2)",
+      transform:open?"translateX(0)":"translateX(-100%)",
       transition:"transform .25s cubic-bezier(.4,0,.2,1)",
       display:"flex",flexDirection:"column",
       paddingTop:56,overflow:"auto",
@@ -86,12 +86,12 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
       </nav>
       <div style={{borderTop:`1px solid ${T.border}`,padding:"8px 8px 20px",display:"flex",flexDirection:"column",gap:1}}>
         {bottomItems.map(n=><NavBtn key={n.id} {...n}/>)}
-        {toggleTheme&&<button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:14,fontFamily:T.sans,textAlign:"left"}}>
-          <span style={{fontSize:16,width:22,textAlign:"center"}}>{themeMode==="dark"?"\u2600":"\u263E"}</span>
+        {toggleTheme&&<button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:15,fontFamily:T.sans,textAlign:"left"}}>
+          <span style={{fontSize:18,width:24,textAlign:"center"}}>{themeMode==="dark"?"\u2600":"\u263E"}</span>
           <span>{themeMode==="dark"?"Light Mode":"Dark Mode"}</span>
         </button>}
-        {onLogout&&<button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:14,fontFamily:T.sans,textAlign:"left"}}>
-          <span style={{fontSize:16,width:22,textAlign:"center"}}>{"\u2192"}</span>
+        {onLogout&&<button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:15,fontFamily:T.sans,textAlign:"left"}}>
+          <span style={{fontSize:18,width:24,textAlign:"center"}}>{"\u2192"}</span>
           <span>Sign Out</span>
         </button>}
       </div>

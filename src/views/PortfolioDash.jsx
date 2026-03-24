@@ -139,7 +139,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           {profiles.length>1&&<OrgSwitcher organizations={organizations} profiles={profiles} currentOrgId={currentOrgId} switchOrg={switchOrg}/>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          {canCreate&&<button onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={11} color={T.gold}/> New Project</button>}
+          {canCreate&&<button className="portfolio-new-btn" onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={11} color={T.gold}/> New Project</button>}
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:26,height:26,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
             <span style={{fontSize:11,color:T.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:100}}>{user.name||user.email||""}</span>
@@ -358,6 +358,9 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
       if(!proj)return null;
       return<VendorDetailModal vendorId={vendorDetailId} project={proj} onClose={()=>{setVendorDetailId(null);setVendorProjectId(null)}} canEdit={user.role!=="viewer"} updateProject={()=>{}}/>;
     })()}
+
+    {/* Mobile FAB — New Project */}
+    {canCreate&&<button className="portfolio-fab" onClick={onNew} style={{position:"fixed",bottom:24,right:20,zIndex:200,width:52,height:52,borderRadius:26,background:T.gold,color:T.bg,border:"none",cursor:"pointer",display:"none",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:300,boxShadow:"0 4px 20px rgba(0,0,0,.3)",transition:"transform .15s"}} onMouseDown={e=>e.currentTarget.style.transform="scale(.93)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} aria-label="New Project">+</button>}
   </div>;
 }
 
