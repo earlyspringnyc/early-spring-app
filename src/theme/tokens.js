@@ -23,17 +23,20 @@ const dark={
 };
 
 const light={
-  bg:"#F8F8FA",bgGrad:"linear-gradient(180deg,#F8F8FA 0%,#F0F0F4 100%)",
-  surface:"rgba(0,0,0,.025)",surfEl:"#FFFFFF",surfHov:"rgba(0,0,0,.03)",
-  border:"rgba(0,0,0,.08)",borderGlow:"rgba(71,85,105,.2)",
-  gold:"#475569",goldSoft:"rgba(71,85,105,.07)",goldGlow:"0 0 20px rgba(71,85,105,.06)",
-  brown:"#1E293B",
-  cyan:"#0369A1",magenta:"#7C3AED",
-  cream:"#18181B",dim:"rgba(24,24,27,.5)",dimH:"rgba(24,24,27,.7)",
-  pos:"#15803D",neg:"#DC2626",blue:"#475569",
-  colors:["#475569","#15803D","#0369A1","#7C3AED","#DC2626","#C2410C","#1D4ED8","#4D7C0F","#0F766E","#9333EA"],
+  // Warm parchment base — not stark white, not cold gray
+  bg:"#F4F2EE",bgGrad:"linear-gradient(180deg,#F4F2EE 0%,#EDE9E3 100%)",
+  surface:"rgba(0,0,0,.04)",surfEl:"#FDFCFA",surfHov:"rgba(0,0,0,.05)",
+  border:"rgba(0,0,0,.10)",borderGlow:"rgba(100,80,50,.25)",
+  // Warm slate primary
+  gold:"#5C4F3A",goldSoft:"rgba(92,79,58,.09)",goldGlow:"0 0 20px rgba(92,79,58,.08)",
+  brown:"#2C1F0E",
+  cyan:"#1D6FA4",magenta:"#6D3AB5",
+  cream:"#1C1917",dim:"rgba(28,25,23,.45)",dimH:"rgba(28,25,23,.65)",
+  pos:"#1A6B3C",neg:"#C62828",blue:"#4A5568",
+  colors:["#5C4F3A","#1A6B3C","#1D6FA4","#6D3AB5","#C62828","#B45309","#1D4ED8","#4D7C0F","#0E7490","#7C3AED"],
   r:"12px",rS:"8px",
-  shadow:"0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.03)",
+  // Real depth — cards lift off the page
+  shadow:"0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06)",
   sans:"'Geist Sans','Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif",
   mono:"'Geist Mono','SF Mono','JetBrains Mono','Fira Code',monospace",
   serif:"'Newsreader','Century','Georgia',serif",
