@@ -53,8 +53,10 @@ export function filterRelevantMeetings(meetings, { clientEmails = [], projectNam
 
   return meetings.filter(m => {
     // Check if any attendee email matches a client contact
-    const attendeeEmails = (m.meeting_attendees || []).map(a => (a.email || '').toLowerCase()).filter(Boolean);
-    const participantEmails = (m.participants || []).map(e => (e || '').toLowerCase()).filter(Boolean);
+    const rawAttendees = Array.isArray(m.meeting_attendees) ? m.meeting_attendees : [];
+    const rawParticipants = Array.isArray(m.participants) ? m.participants : [];
+    const attendeeEmails = rawAttendees.map(a => (typeof a === 'string' ? a : a?.email || '').toLowerCase()).filter(Boolean);
+    const participantEmails = rawParticipants.map(e => (typeof e === 'string' ? e : '').toLowerCase()).filter(Boolean);
     const allEmails = [...new Set([...attendeeEmails, ...participantEmails])];
     const hasClientAttendee = allEmails.some(e => emailSet.has(e));
 
@@ -72,15 +74,24 @@ export function toMeetingFormat(ffMeeting) {
   const time = ffMeeting.date ? new Date(ffMeeting.date * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
   const durationMin = ffMeeting.duration ? Math.round(ffMeeting.duration / 60) : 0;
 
-  const attendees = (ffMeeting.meeting_attendees || [])
-    .map(a => a.email || a.displayName || a.name)
+  const rawAttendees = Array.isArray(ffMeeting.meeting_attendees) ? ffMeeting.meeting_attendees : [];
+  const attendees = rawAttendees
+    .map(a => (typeof a === 'string' ? a : a?.email || a?.displayName || a?.name || ''))
     .filter(Boolean);
 
-  const actionItems = (ffMeeting.summary?.action_items || []).map((text, i) => ({
+  const summary = ffMeeting.summary || {};
+  const rawActions = summary.action_items;
+  const actionList = Array.isArray(rawActions) ? rawActions
+    : typeof rawActions === 'string' ? rawActions.split('\n').map(s => s.trim()).filter(Boolean)
+    : [];
+  const actionItems = actionList.map((text, i) => ({
     id: `ff-${ffMeeting.id}-ai-${i}`,
-    text,
+    text: typeof text === 'string' ? text : String(text),
     done: false,
   }));
+
+  const overviewText = typeof summary === 'string' ? summary
+    : summary.overview || summary.shorthand_bullet || '';
 
   return {
     id: `ff-${ffMeeting.id}`,
@@ -90,7 +101,7 @@ export function toMeetingFormat(ffMeeting) {
     time,
     duration: durationMin ? `${durationMin}m` : '',
     attendees,
-    summary: ffMeeting.summary?.overview || ffMeeting.summary?.shorthand_bullet || '',
+    summary: overviewText,
     actionItems,
     isClientMeeting: true,
     source: 'fireflies',
