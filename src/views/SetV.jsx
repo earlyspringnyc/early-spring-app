@@ -74,7 +74,18 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
 
   const[showAddUser,setShowAddUser]=useState(false);
   const[nuEmail,setNuEmail]=useState("");const[nuName,setNuName]=useState("");const[nuRole,setNuRole]=useState("producer");
-  const defaultPerms=(role)=>role==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:role==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};
+  const defaultPerms=(role)=>{
+    const all={budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true};
+    const none={budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:false,ai:false,settings:false};
+    if(role==="admin")return all;
+    if(role==="producer")return{...all,client:false,settings:false};
+    if(role==="creative")return{...none,timeline:true,docs:true,ai:true};
+    if(role==="finance")return{...none,budget:true,pnl:true,vendors:true};
+    if(role==="accounts")return{...none,budget:true,pnl:true,docs:true};
+    if(role==="production")return{...none,timeline:true,vendors:true,ros:true,docs:true};
+    if(role==="client")return{...none,client:true};
+    return none;
+  };
   const[nuPerms,setNuPerms]=useState(()=>defaultPerms("producer"));
   const toggleNuPerm=(perm)=>setNuPerms(p=>({...p,[perm]:!p[perm]}));
   const handleNuRoleChange=(role)=>{setNuRole(role);setNuPerms(defaultPerms(role))};
@@ -97,7 +108,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
     else{const updated=team.filter(u=>u.id!==id);setTeam(updated);saveUsers(updated)}
   };
   const updateTeamRole=async(id,role)=>{
-    const perms=role==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:role==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};
+    const perms=defaultPerms(role);
     if(usesSupa){await dbUpdateMember(id,{role,permissions:perms});await loadTeam()}
     else{const updated=team.map(u=>u.id===id?{...u,role,permissions:perms}:u);setTeam(updated);saveUsers(updated)}
   };

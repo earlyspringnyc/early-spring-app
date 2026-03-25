@@ -42,7 +42,7 @@ const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontS
 const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
 
 function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg}){
-  const canCreate=user.role!=="viewer";
+  const canCreate=user.role!=="client";
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
 
@@ -358,7 +358,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
     {vendorDetailId&&vendorProjectId&&(()=>{
       const proj=projects.find(p=>p.id===vendorProjectId);
       if(!proj)return null;
-      return<VendorDetailModal vendorId={vendorDetailId} project={proj} onClose={()=>{setVendorDetailId(null);setVendorProjectId(null)}} canEdit={user.role!=="viewer"} updateProject={()=>{}}/>;
+      return<VendorDetailModal vendorId={vendorDetailId} project={proj} onClose={()=>{setVendorDetailId(null);setVendorProjectId(null)}} canEdit={user.role!=="client"} updateProject={()=>{}}/>;
     })()}
 
     {/* Mobile FAB — New Project */}

@@ -38,7 +38,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
   ];
 
   const bottomItems=[
-    ...(user.role!=="viewer"?[{id:"settings",label:"Settings",icon:"\u25CE"}]:[]),
+    ...(user.role!=="client"?[{id:"settings",label:"Settings",icon:"\u25CE"}]:[]),
     {id:"profile",label:"Profile",icon:"\uD83D\uDC64"},
   ];
 

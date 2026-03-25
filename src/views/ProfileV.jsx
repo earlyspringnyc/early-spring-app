@@ -212,7 +212,11 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
           <div style={{ fontSize: 10, color: T.dim, lineHeight: 1.5 }}>
             {r === "admin" && "Full access. Manage team, settings, budgets, and all project data."}
             {r === "producer" && "Edit budgets, timeline, vendors, and documents. No team or settings access."}
-            {r === "viewer" && "View-only access to client-facing content. Cannot edit project data."}
+            {r === "creative" && "Access to timeline, documents, and AI assistant."}
+            {r === "finance" && "Access to budgets, P&L, and vendor management."}
+            {r === "accounts" && "Access to budgets, P&L, and documents."}
+            {r === "production" && "Access to timeline, vendors, run of show, and documents."}
+            {r === "client" && "View-only access to client-facing content. Cannot edit project data."}
           </div>
         </div>)}
       </div>

@@ -31,7 +31,7 @@ export function defaultROS() {
 export const DEFAULT_USERS = [
   { id: uid(), email: "kamil@earlyspring.nyc", name: "Kamil", role: "admin", avatar: "", permissions: { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: true, ai: true, settings: true } },
   { id: uid(), email: "producer@earlyspring.nyc", name: "Producer", role: "producer", avatar: "", permissions: { budget: true, timeline: true, vendors: true, pnl: true, docs: true, ros: true, client: false, ai: true, settings: false } },
-  { id: uid(), email: "client@example.com", name: "Client Viewer", role: "viewer", avatar: "", permissions: { budget: false, timeline: false, vendors: false, pnl: false, docs: false, ros: false, client: true, ai: false, settings: false } }
+  { id: uid(), email: "client@example.com", name: "Client", role: "client", avatar: "", permissions: { budget: false, timeline: false, vendors: false, pnl: false, docs: false, ros: false, client: true, ai: false, settings: false } }
 ];
 
 export function mkProject(name, client, date, eventDate, logo, clientBudget, stage) {

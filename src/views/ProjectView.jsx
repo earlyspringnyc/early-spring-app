@@ -32,7 +32,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     return()=>window.removeEventListener("popstate",onPop);
   },[]);
   const[exp,setExp]=useState(new Set());
-  const canEdit=user.role!=="viewer";
+  const canEdit=user.role!=="client";
   const tog=useCallback(id=>setExp(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n}),[]);
 
   // ── Multi-budget support ──

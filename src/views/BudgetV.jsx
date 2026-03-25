@@ -15,7 +15,7 @@ const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="x
 const CAT_ACCENTS=["#6366F1","#14B8A6","#F59E0B","#EC4899","#06B6D4","#8B5CF6","#10B981","#F47264"];
 
 function BudgetV(p){
-  const canEdit=p.user.role!=="viewer";
+  const canEdit=p.user.role!=="client";
   const proj=p.project||{};
   const[globalMargin,setGlobalMargin]=useState(15);
   const[showHistory,setShowHistory]=useState(false);
