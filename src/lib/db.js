@@ -264,7 +264,31 @@ export async function inviteTeamMember(orgId, email, role, invitedBy) {
   const { error } = await supabase
     .from('invitations')
     .insert({ org_id: orgId, email, role, invited_by: invitedBy });
-  return { error: error?.message || null };
+  if (error) return { error: error.message };
+
+  // Fetch org name and inviter name for the email
+  let orgName = 'your team';
+  let inviterName = '';
+  try {
+    const { data: org } = await supabase.from('organizations').select('name').eq('id', orgId).maybeSingle();
+    if (org?.name) orgName = org.name;
+    if (invitedBy) {
+      const { data: inviter } = await supabase.from('profiles').select('name').eq('user_id', invitedBy).limit(1).maybeSingle();
+      if (inviter?.name) inviterName = inviter.name;
+    }
+  } catch (e) {}
+
+  // Send invite email via Edge Function
+  try {
+    await supabase.functions.invoke('send-invite-email', {
+      body: { email, orgName, inviterName, role },
+    });
+  } catch (e) {
+    console.error('[db] Invite email failed:', e);
+    // Invitation was still created — email failure is non-blocking
+  }
+
+  return { error: null };
 }
 
 export async function getPendingInvitations(orgId) {
