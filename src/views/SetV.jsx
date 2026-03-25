@@ -122,8 +122,14 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
     await revokeInvitation(invId);
     await loadTeam();
   };
-  const F=({label,field})=><div style={{marginBottom:18}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>{label}</label>
-    <input value={project[field]||""} onChange={e=>updateProject({[field]:e.target.value})} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>;
+  const F=({label,field})=>{
+    const[val,setVal]=useState(project[field]||"");
+    const timer=useRef(null);
+    useEffect(()=>{setVal(project[field]||"")},[project[field]]);
+    const onChange=e=>{const v=e.target.value;setVal(v);clearTimeout(timer.current);timer.current=setTimeout(()=>updateProject({[field]:v}),400)};
+    return<div style={{marginBottom:18}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>{label}</label>
+    <input value={val} onChange={onChange} onBlur={()=>{clearTimeout(timer.current);if(val!==(project[field]||""))updateProject({[field]:val})}} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>;
+  };
   const logoRef=useRef(null);
   const handleLogo=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>updateProject({logo:ev.target.result});reader.readAsDataURL(file)};
   return<div style={{maxWidth:isAdmin?700:500}}>
