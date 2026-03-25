@@ -145,10 +145,10 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
   const mapQuery=encodeURIComponent(fullAddress);
 
   return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.6)",backdropFilter:"blur(8px)"}} onClick={onClose}>
-    <div className="slide-in modal-inner" onClick={e=>e.stopPropagation()} style={{width:920,maxWidth:"95vw",maxHeight:"92vh",overflow:"auto",padding:0,borderRadius:T.r,background:"rgba(12,10,20,.96)",border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)"}}>
+    <div className="slide-in modal-inner" onClick={e=>e.stopPropagation()} style={{width:920,maxWidth:"95vw",maxHeight:"92vh",overflow:"auto",padding:0,borderRadius:T.r,background:T.bg,border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)"}}>
 
       {/* ── Header ── */}
-      <div style={{padding:"24px 32px 20px",borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,background:"rgba(12,10,20,.96)",zIndex:2,backdropFilter:"blur(12px)"}}>
+      <div style={{padding:"24px 32px 20px",borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,background:T.bg,zIndex:2,backdropFilter:"blur(12px)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
             <h2 style={{fontSize:20,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>{v.name}</h2>
@@ -356,7 +356,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
 
     {/* ── Document Viewer ── */}
     {viewingDoc&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)"}} onClick={()=>setViewingDoc(null)}>
-      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{width:"90vw",maxWidth:900,height:"85vh",borderRadius:T.r,background:"rgba(12,10,20,.95)",border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{width:"90vw",maxWidth:900,height:"85vh",borderRadius:T.r,background:T.bg,border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
           <div><div style={{fontSize:14,fontWeight:600,color:T.cream}}>{viewingDoc.name||viewingDoc.fileName||"Document"}</div>{viewingDoc.fileName&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{viewingDoc.fileName}</div>}</div>
           <div style={{display:"flex",gap:8}}>{viewingDoc.fileData&&<a href={viewingDoc.fileData} download={viewingDoc.fileName||viewingDoc.name||"document"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none"}}>Download</a>}<button onClick={()=>setViewingDoc(null)} aria-label="Close" style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4}}>×</button></div>

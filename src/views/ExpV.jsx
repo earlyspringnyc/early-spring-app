@@ -657,7 +657,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         {/* Export dropdown */}
         <div style={{position:"relative"}}>
           <button onClick={()=>{setShowExportMenu(!showExportMenu);setShowShareMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
-          {showExportMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:160,overflow:"hidden"}}>
+          {showExportMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:160,overflow:"hidden"}}>
             {[["PDF",()=>{window.print();setShowExportMenu(false)},"Print to PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"]].map(([label,fn,sub])=>
               <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>

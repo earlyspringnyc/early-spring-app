@@ -74,19 +74,21 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
 
   const[showAddUser,setShowAddUser]=useState(false);
   const[nuEmail,setNuEmail]=useState("");const[nuName,setNuName]=useState("");const[nuRole,setNuRole]=useState("producer");
+  const defaultPerms=(role)=>role==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:role==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};
+  const[nuPerms,setNuPerms]=useState(()=>defaultPerms("producer"));
+  const toggleNuPerm=(perm)=>setNuPerms(p=>({...p,[perm]:!p[perm]}));
+  const handleNuRoleChange=(role)=>{setNuRole(role);setNuPerms(defaultPerms(role))};
   const addTeamMember=async()=>{
-    if(!nuEmail.trim())return;
+    if(!nuEmail.trim()||!nuName.trim())return;
     setInviteError(null);
     if(usesSupa&&orgId){
       const result=await dbInvite(orgId,nuEmail.trim(),nuRole,user?.id);
       if(result?.error){setInviteError(result.error);return}
-      setNuEmail("");setNuName("");setNuRole("producer");setShowAddUser(false);
+      setNuEmail("");setNuName("");setNuRole("producer");setNuPerms(defaultPerms("producer"));setShowAddUser(false);
       await loadTeam();
     }else{
-      if(!nuName.trim())return;
-      const perms=nuRole==="admin"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true}:nuRole==="producer"?{budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:false,ai:true,settings:false}:{budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:true,ai:false,settings:false};
-      const u={id:uid(),email:nuEmail.trim(),name:nuName.trim(),role:nuRole,avatar:"",permissions:perms};
-      const updated=[...team,u];setTeam(updated);saveUsers(updated);setNuEmail("");setNuName("");setNuRole("producer");setShowAddUser(false);
+      const u={id:uid(),email:nuEmail.trim(),name:nuName.trim(),role:nuRole,avatar:"",permissions:nuPerms};
+      const updated=[...team,u];setTeam(updated);saveUsers(updated);setNuEmail("");setNuName("");setNuRole("producer");setNuPerms(defaultPerms("producer"));setShowAddUser(false);
     }
   };
   const removeTeamMember=async(id)=>{
@@ -200,13 +202,22 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
         <button onClick={()=>setShowAddUser(!showAddUser)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:showAddUser?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAddUser?T.dim:T.brown,border:showAddUser?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAddUser?"Cancel":"+ Invite"}</button>
       </div>
       {showAddUser&&<div style={{marginBottom:16,padding:16,borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Name</label><input autoFocus value={nuName} onChange={e=>setNuName(e.target.value)} placeholder="Name" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Google Email</label><input value={nuEmail} onChange={e=>setNuEmail(e.target.value)} placeholder="user@gmail.com" onKeyDown={e=>e.key==="Enter"&&addTeamMember()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Role</label><select value={nuRole} onChange={e=>setNuRole(e.target.value)} style={{width:"100%",padding:"8px 8px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer"}}>{ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Name</label><input autoFocus value={nuName} onChange={e=>setNuName(e.target.value)} placeholder="Full name" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}}/></div>
+          <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Email</label><input value={nuEmail} onChange={e=>setNuEmail(e.target.value)} placeholder="name@company.com" onKeyDown={e=>e.key==="Enter"&&addTeamMember()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}}/></div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Role</label>
+          <select value={nuRole} onChange={e=>handleNuRoleChange(e.target.value)} style={{width:"100%",padding:"8px 8px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",appearance:"none",WebkitAppearance:"none",cursor:"pointer",boxSizing:"border-box"}}>{ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Permissions</label>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {Object.entries(PERMISSION_LABELS).map(([k,label])=><button key={k} type="button" onClick={()=>toggleNuPerm(k)} style={{padding:"4px 10px",borderRadius:4,border:`1px solid ${nuPerms[k]?`${T.gold}44`:T.border}`,fontSize:10,fontWeight:nuPerms[k]?600:400,cursor:"pointer",background:nuPerms[k]?"rgba(255,234,151,.1)":"transparent",color:nuPerms[k]?T.gold:T.dim,transition:"all .15s",fontFamily:T.sans}}>{label}</button>)}
+          </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={addTeamMember} disabled={!nuEmail.trim()||(!(usesSupa&&orgId)&&!nuName.trim())} style={{padding:"7px 16px",background:nuEmail.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:nuEmail.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
+          <button onClick={addTeamMember} disabled={!nuEmail.trim()||!nuName.trim()} style={{padding:"7px 16px",background:nuEmail.trim()&&nuName.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:nuEmail.trim()&&nuName.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()&&nuName.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
           {inviteError&&<span style={{fontSize:11,color:T.neg}}>{inviteError}</span>}
         </div>
       </div>}

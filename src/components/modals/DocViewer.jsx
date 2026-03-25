@@ -6,7 +6,7 @@ function DocViewer({ doc, onClose }) {
   const isPdf = doc.fileData?.startsWith("data:application/pdf") || doc.fileName?.endsWith(".pdf");
 
   return <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.8)", backdropFilter: "blur(8px)" }} onClick={onClose}>
-    <div className="slide-in" onClick={e => e.stopPropagation()} style={{ width: "90vw", maxWidth: 900, height: "85vh", borderRadius: T.r, background: "rgba(12,10,20,.95)", border: `1px solid ${T.border}`, boxShadow: "0 24px 80px rgba(0,0,0,.5)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div className="slide-in" onClick={e => e.stopPropagation()} style={{ width: "90vw", maxWidth: 900, height: "85vh", borderRadius: T.r, background: T.bg, border: `1px solid ${T.border}`, boxShadow: "0 24px 80px rgba(0,0,0,.5)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
         <div>

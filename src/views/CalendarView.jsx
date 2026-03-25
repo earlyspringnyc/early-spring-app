@@ -253,7 +253,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
           </div>
           <div style={{position:"relative"}} ref={monthPickerRef}>
             <button onClick={()=>setShowMonthPicker(!showMonthPicker)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:600,color:T.cream,fontFamily:T.sans,padding:"2px 6px",borderRadius:T.rS,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{mNames[month.m]} {month.y} <span style={{fontSize:10,color:T.dim,marginLeft:2}}>&#9662;</span></button>
-            {showMonthPicker&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",zIndex:70,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",padding:16,width:240}}>
+            {showMonthPicker&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",zIndex:70,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:T.shadow,padding:16,width:240}}>
               {/* Year nav */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <button onClick={()=>setMonth(p=>({y:p.y-1,m:p.m}))} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"2px 8px"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>&larr;</button>
@@ -284,7 +284,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
       {tasks.length===0&&!addDate&&<div style={{padding:"16px 18px",textAlign:"center",color:T.dim,fontSize:11}}>Click a date to add your first task</div>}
 
       {/* ── Floating popover ── */}
-      {addDate&&canEdit&&popoverPos&&<div ref={popRef} className="pop-in" style={{position:"absolute",left:popoverPos.left,top:popoverPos.top,width:300,zIndex:60,background:"rgba(12,10,20,.97)",border:`1px solid ${T.borderGlow}`,borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",backdropFilter:"blur(12px)",overflow:"hidden"}} onMouseDown={e=>e.stopPropagation()}>
+      {addDate&&canEdit&&popoverPos&&<div ref={popRef} className="pop-in" style={{position:"absolute",left:popoverPos.left,top:popoverPos.top,width:300,zIndex:60,background:T.bg,border:`1px solid ${T.borderGlow}`,borderRadius:T.r,boxShadow:T.shadow,backdropFilter:"blur(12px)",overflow:"hidden"}} onMouseDown={e=>e.stopPropagation()}>
         {/* Popover header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:`1px solid ${T.border}`}}>
           <span style={{fontSize:11,fontWeight:600,color:T.cream,fontFamily:T.mono}}>{mNames[month.m]} {addDate}{qE?` — ${qE}`:""}</span>
@@ -298,7 +298,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
         <div style={{padding:"12px 14px"}}>
           <div style={{position:"relative",marginBottom:showMore?10:0}}>
             <input autoFocus value={qN} onChange={e=>{setQN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value));setSugIdx(-1)}} placeholder={isMeeting?"Meeting name...":"Task name..."} onKeyDown={e=>{if(e.key==="Enter"){if(sugIdx>=0&&taskSugs[sugIdx]){setQN(taskSugs[sugIdx]);setTaskSugs([]);setSugIdx(-1)}else quickAdd()}else if(e.key==="ArrowDown"){e.preventDefault();setSugIdx(i=>Math.min(i+1,taskSugs.length-1))}else if(e.key==="ArrowUp"){e.preventDefault();setSugIdx(i=>Math.max(i-1,-1))}else if(e.key==="Escape")closePopover()}} onBlur={()=>setTimeout(()=>{setTaskSugs([]);setSugIdx(-1)},200)} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${isMeeting?"rgba(196,181,253,.3)":T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-            {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:"rgba(12,10,20,.97)",border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:120,overflow:"auto"}}>
+            {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:T.shadow,maxHeight:120,overflow:"auto"}}>
               {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setQN(s);setTaskSugs([]);setSugIdx(-1)}} style={{width:"100%",display:"block",padding:"7px 12px",background:sugIdx===i?T.surfHov:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:sugIdx===i?T.cream:T.dim,fontFamily:T.sans}} onMouseEnter={()=>setSugIdx(i)}>{s}</button>)}
             </div>}
           </div>
@@ -340,7 +340,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
       </div>}
 
       {/* ── Google Calendar detail popover ── */}
-      {gcalDetail&&gcalPos&&<div ref={gcalRef} className="pop-in" style={{position:"absolute",left:gcalPos.left,top:gcalPos.top,width:260,zIndex:65,background:"rgba(12,10,20,.97)",border:"1px solid rgba(66,133,244,.3)",borderRadius:T.r,boxShadow:"0 12px 40px rgba(0,0,0,.5)",backdropFilter:"blur(12px)",overflow:"hidden"}} onMouseDown={e=>e.stopPropagation()}>
+      {gcalDetail&&gcalPos&&<div ref={gcalRef} className="pop-in" style={{position:"absolute",left:gcalPos.left,top:gcalPos.top,width:260,zIndex:65,background:T.bg,border:"1px solid rgba(66,133,244,.3)",borderRadius:T.r,boxShadow:T.shadow,backdropFilter:"blur(12px)",overflow:"hidden"}} onMouseDown={e=>e.stopPropagation()}>
         <div style={{padding:"12px 14px",borderBottom:`1px solid ${T.border}`}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
             <div style={{width:8,height:8,borderRadius:"50%",background:"#4285F4",flexShrink:0}}/>
