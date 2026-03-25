@@ -16,6 +16,30 @@ export async function signInWithGoogle() {
   return { data, error };
 }
 
+export async function signUpWithEmail(email, password, fullName) {
+  if (!isSupabaseConfigured()) return { error: 'Supabase not configured' };
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: window.location.origin,
+    },
+  });
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
+export async function signInWithEmail(email, password) {
+  if (!isSupabaseConfigured()) return { error: 'Supabase not configured' };
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
 export async function signOut() {
   if (!isSupabaseConfigured()) return;
   await supabase.auth.signOut();

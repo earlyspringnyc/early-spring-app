@@ -136,12 +136,35 @@ function ConstellationCanvas(){
   return<canvas ref={canvasRef} style={{position:'fixed',inset:0,zIndex:0}}/>;
 }
 
-function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
+function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSignUp, isSupabase}){
   const[err,setErr]=useState("");
   const[showDemo,setShowDemo]=useState(false);
   const[cardHov,setCardHov]=useState(false);
+  const[showEmail,setShowEmail]=useState(false);
+  const[isSignUp,setIsSignUp]=useState(false);
+  const[email,setEmail]=useState("");
+  const[password,setPassword]=useState("");
+  const[fullName,setFullName]=useState("");
+  const[emailLoading,setEmailLoading]=useState(false);
+  const[successMsg,setSuccessMsg]=useState("");
   const users=getStoredUsers();
   const hasClientId=!!googleClientId;
+
+  const handleEmailSubmit=async(e)=>{
+    e.preventDefault();
+    setErr("");setSuccessMsg("");setEmailLoading(true);
+    try{
+      if(isSignUp){
+        const{error}=await onEmailSignUp(email,password,fullName);
+        if(error){setErr(error)}
+        else{setSuccessMsg("Check your email to confirm your account.")}
+      }else{
+        const{error}=await onEmailLogin(email,password);
+        if(error){setErr(error)}
+      }
+    }catch(e){setErr("Something went wrong. Try again.")}
+    setEmailLoading(false);
+  };
 
   // Google sign-in initialization — preserved exactly
   useEffect(()=>{
@@ -243,6 +266,71 @@ function Login({onLogin, googleClientId, onGoogleLogin, isSupabase}){
       :<div style={{textAlign:'center',marginBottom:12}}>
         <p style={{fontSize:11,color:T.dim}}>Google sign-in not configured.</p>
       </div>}
+
+      {/* Divider */}
+      {isSupabase&&onEmailLogin&&<div style={{display:'flex',alignItems:'center',gap:12,margin:'20px 0'}}>
+        <div style={{flex:1,height:1,background:'rgba(255,255,255,.08)'}}/>
+        <span style={{fontSize:10,color:'rgba(255,255,255,.2)',textTransform:'uppercase',letterSpacing:'.08em'}}>or</span>
+        <div style={{flex:1,height:1,background:'rgba(255,255,255,.08)'}}/>
+      </div>}
+
+      {/* Email auth */}
+      {isSupabase&&onEmailLogin&&!showEmail&&<button onClick={()=>setShowEmail(true)} style={{
+        width:'100%',padding:'14px 20px',borderRadius:10,
+        border:'1px solid rgba(255,255,255,.08)',
+        background:'transparent',
+        color:T.dim,fontSize:14,fontWeight:500,
+        cursor:'pointer',fontFamily:T.sans,
+        transition:'all .25s',
+      }} onMouseEnter={e=>{
+        e.currentTarget.style.background='rgba(255,255,255,.04)';
+        e.currentTarget.style.borderColor='rgba(148,163,184,.15)';
+        e.currentTarget.style.color=T.cream;
+      }} onMouseLeave={e=>{
+        e.currentTarget.style.background='transparent';
+        e.currentTarget.style.borderColor='rgba(255,255,255,.08)';
+        e.currentTarget.style.color=T.dim;
+      }}>
+        Continue with email
+      </button>}
+
+      {isSupabase&&showEmail&&<form onSubmit={handleEmailSubmit} style={{display:'flex',flexDirection:'column',gap:10}}>
+        {isSignUp&&<input type="text" placeholder="Full name" value={fullName} onChange={e=>setFullName(e.target.value)} style={{
+          width:'100%',padding:'12px 14px',borderRadius:8,
+          border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.04)',
+          color:T.cream,fontSize:13,fontFamily:T.sans,outline:'none',
+          transition:'border-color .2s',boxSizing:'border-box',
+        }} onFocus={e=>e.currentTarget.style.borderColor='rgba(148,163,184,.25)'} onBlur={e=>e.currentTarget.style.borderColor='rgba(255,255,255,.08)'}/>}
+        <input type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} required style={{
+          width:'100%',padding:'12px 14px',borderRadius:8,
+          border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.04)',
+          color:T.cream,fontSize:13,fontFamily:T.sans,outline:'none',
+          transition:'border-color .2s',boxSizing:'border-box',
+        }} onFocus={e=>e.currentTarget.style.borderColor='rgba(148,163,184,.25)'} onBlur={e=>e.currentTarget.style.borderColor='rgba(255,255,255,.08)'}/>
+        <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6} style={{
+          width:'100%',padding:'12px 14px',borderRadius:8,
+          border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.04)',
+          color:T.cream,fontSize:13,fontFamily:T.sans,outline:'none',
+          transition:'border-color .2s',boxSizing:'border-box',
+        }} onFocus={e=>e.currentTarget.style.borderColor='rgba(148,163,184,.25)'} onBlur={e=>e.currentTarget.style.borderColor='rgba(255,255,255,.08)'}/>
+        {successMsg&&<p style={{fontSize:11,color:T.pos,padding:'8px 12px',borderRadius:T.rS,background:'rgba(52,211,153,.08)',border:'1px solid rgba(52,211,153,.15)',textAlign:'left',margin:0}}>{successMsg}</p>}
+        <button type="submit" disabled={emailLoading} style={{
+          width:'100%',padding:'14px 20px',borderRadius:10,
+          border:'none',background:T.cream,color:'#0A0A0D',
+          fontSize:14,fontWeight:600,cursor:emailLoading?'wait':'pointer',
+          fontFamily:T.sans,transition:'all .25s',
+          opacity:emailLoading?.6:1,
+        }} onMouseEnter={e=>{if(!emailLoading){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,.3)'}}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none'}}>
+          {emailLoading?'...':(isSignUp?'Create account':'Sign in')}
+        </button>
+        <button type="button" onClick={()=>{setIsSignUp(!isSignUp);setErr("");setSuccessMsg("")}} style={{
+          background:'none',border:'none',color:T.dim,fontSize:11,
+          cursor:'pointer',fontFamily:T.sans,padding:'4px 0',
+          transition:'color .2s',
+        }} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
+          {isSignUp?'Already have an account? Sign in':'Don\u2019t have an account? Sign up'}
+        </button>
+      </form>}
 
       <div style={{marginTop:16}}>
         <p style={{fontSize:10,color:'rgba(255,255,255,.2)'}}>{isSupabase?'Sign in to create or join a team':'Only authorized team members can access'}</p>

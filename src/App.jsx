@@ -259,7 +259,7 @@ function App(){
   </div>;
 
   if(!user){
-    if(showLogin)return<Login onLogin={setUser} googleClientId={GOOGLE_CLIENT_ID} onGoogleLogin={loginWithGoogle} isSupabase={usesSupa}/>;
+    if(showLogin)return<Login onLogin={setUser} googleClientId={GOOGLE_CLIENT_ID} onGoogleLogin={loginWithGoogle} onEmailLogin={usesSupa?sbAuth.loginWithEmail:null} onEmailSignUp={usesSupa?sbAuth.signUp:null} isSupabase={usesSupa}/>;
     return<LandingPage onGetStarted={()=>setShowLogin(true)}/>;
   }
 

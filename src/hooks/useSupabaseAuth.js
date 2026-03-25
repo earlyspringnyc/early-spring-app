@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import {
   signInWithGoogle,
+  signInWithEmail,
+  signUpWithEmail,
   signOut,
   getSession,
   onAuthStateChange,
@@ -138,6 +140,18 @@ export function useSupabaseAuth() {
     await signInWithGoogle();
   }, []);
 
+  const loginWithEmail = useCallback(async (email, password) => {
+    if (!isSupabaseConfigured()) return { error: 'Not configured' };
+    const result = await signInWithEmail(email, password);
+    return result;
+  }, []);
+
+  const signUp = useCallback(async (email, password, fullName) => {
+    if (!isSupabaseConfigured()) return { error: 'Not configured' };
+    const result = await signUpWithEmail(email, password, fullName);
+    return result;
+  }, []);
+
   const logout = useCallback(async () => {
     if (isSupabaseConfigured()) {
       await signOut();
@@ -194,6 +208,8 @@ export function useSupabaseAuth() {
     accessToken,
     loading,
     login,
+    loginWithEmail,
+    signUp,
     logout,
     setDevUser,
     refreshToken,
