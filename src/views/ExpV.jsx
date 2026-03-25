@@ -10,6 +10,7 @@ import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
 import CalendarView from './CalendarView.jsx';
 import GanttChart from './GanttChart.jsx';
+import { syncFirefliesMeetings } from '../utils/fireflies.js';
 
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
@@ -199,6 +200,28 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const[dragClientSection,setDragClientSection]=useState(null);
   const[dropClientSection,setDropClientSection]=useState(null);
   const[contactSugs,setContactSugs]=useState([]);
+  const[ffKeyInput,setFfKeyInput]=useState("");const[showFfSetup,setShowFfSetup]=useState(false);
+  const[ffSyncing,setFfSyncing]=useState(false);const[ffStatus,setFfStatus]=useState("");
+  const ffApiKey=project.firefliesApiKey||"";
+  const connectFireflies=async(key)=>{
+    const apiKey=key||ffApiKey;if(!apiKey)return;
+    setFfSyncing(true);setFfStatus("Syncing...");
+    try{
+      const clientEmails=(project.clientContacts||[]).map(c=>c.email).filter(Boolean);
+      const meetings=await syncFirefliesMeetings(apiKey,{clientEmails,projectName:project.name||"",clientName:project.client||""});
+      const existing=new Set((project.meetings||[]).map(m=>m.firefliesId).filter(Boolean));
+      const newMeetings=meetings.filter(m=>!existing.has(m.firefliesId));
+      if(newMeetings.length>0){
+        updateProject({meetings:[...(project.meetings||[]),...newMeetings],firefliesApiKey:apiKey});
+        setFfStatus(`Imported ${newMeetings.length} meeting${newMeetings.length!==1?"s":""}`);
+      }else{
+        updateProject({firefliesApiKey:apiKey});
+        setFfStatus("No new meetings found");
+      }
+      setShowFfSetup(false);
+    }catch(e){console.error("[fireflies]",e);setFfStatus(e.message||"Sync failed")}
+    setFfSyncing(false);setTimeout(()=>setFfStatus(""),5000);
+  };
   const[showContactSugs,setShowContactSugs]=useState(false);
   const[linkCopied,setLinkCopied]=useState(false);
   const[fileDragging,setFileDragging]=useState(false);
@@ -892,11 +915,23 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       </Card>}
       {/* Fireflies */}
       <Card style={{padding:"14px 18px",marginBottom:16,borderLeft:"3px solid #06B6D4"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".06em"}}>Fireflies Integration</span>
-          <span style={{fontSize:11,color:T.dim}}>Auto-import call recordings, transcripts, and summaries</span>
-          <button onClick={()=>{}} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:T.rS,border:`1px solid rgba(6,182,212,.2)`,background:"rgba(6,182,212,.06)",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Connect Fireflies</button>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".06em"}}>Fireflies</span>
+          {ffApiKey&&!showFfSetup?<>
+            <span style={{fontSize:11,color:T.dim}}>Connected</span>
+            <button onClick={()=>connectFireflies()} disabled={ffSyncing} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:T.rS,border:`1px solid rgba(6,182,212,.2)`,background:"rgba(6,182,212,.06)",color:T.cyan,fontSize:10,fontWeight:600,cursor:ffSyncing?"wait":"pointer",fontFamily:T.sans,opacity:ffSyncing?.5:1}}>{ffSyncing?"Syncing...":"Sync Meetings"}</button>
+            <button onClick={()=>setShowFfSetup(true)} style={{padding:"6px 8px",borderRadius:T.rS,border:"none",background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Change Key</button>
+          </>:<>
+            <span style={{fontSize:11,color:T.dim}}>Auto-import call recordings, transcripts, and summaries</span>
+            <button onClick={()=>setShowFfSetup(true)} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:T.rS,border:`1px solid rgba(6,182,212,.2)`,background:"rgba(6,182,212,.06)",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Connect Fireflies</button>
+          </>}
+          {ffStatus&&<span style={{fontSize:10,color:ffStatus.includes("fail")||ffStatus.includes("error")?T.neg:T.pos,fontFamily:T.sans,width:"100%"}}>{ffStatus}</span>}
         </div>
+        {showFfSetup&&<div style={{marginTop:10,display:"flex",gap:8,alignItems:"center"}}>
+          <input value={ffKeyInput} onChange={e=>setFfKeyInput(e.target.value)} placeholder="Fireflies API key" type="password" style={{flex:1,padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}} onKeyDown={e=>e.key==="Enter"&&ffKeyInput.trim()&&connectFireflies(ffKeyInput.trim())}/>
+          <button onClick={()=>{if(ffKeyInput.trim())connectFireflies(ffKeyInput.trim())}} disabled={!ffKeyInput.trim()||ffSyncing} style={{padding:"8px 14px",borderRadius:T.rS,border:"none",background:ffKeyInput.trim()?T.cyan:"rgba(255,255,255,.05)",color:ffKeyInput.trim()?"#000":"rgba(255,255,255,.2)",fontSize:11,fontWeight:600,cursor:ffKeyInput.trim()?"pointer":"default",fontFamily:T.sans}}>Connect & Sync</button>
+          <button onClick={()=>setShowFfSetup(false)} style={{padding:"8px",borderRadius:T.rS,border:"none",background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+        </div>}
       </Card>
       {/* Untagged meetings — offer to mark as client */}
       {(()=>{const untagged=allMeetings.filter(m=>!isClientMeeting(m));if(!untagged.length)return null;return<Card style={{padding:"14px 18px",marginBottom:16}}>
