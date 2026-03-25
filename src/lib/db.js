@@ -16,13 +16,13 @@ export async function signInWithGoogle() {
   return { data, error };
 }
 
-export async function signUpWithEmail(email, password, fullName) {
+export async function signUpWithEmail(email, password, fullName, orgName) {
   if (!isSupabaseConfigured()) return { error: 'Supabase not configured' };
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: { full_name: fullName },
+      data: { full_name: fullName, org_name: orgName },
       emailRedirectTo: window.location.origin,
     },
   });
@@ -135,9 +135,9 @@ export async function getOrCreateProfiles(user) {
 
   // 4. If user has no profiles at all, create a new org + admin profile
   if (profiles.length === 0) {
-    const orgName = user.user_metadata?.full_name
-      ? `${user.user_metadata.full_name}'s Team`
-      : `${user.email.split('@')[0]}'s Team`;
+    const orgName = user.user_metadata?.org_name
+      || (user.user_metadata?.full_name ? `${user.user_metadata.full_name}'s Team`
+      : `${user.email.split('@')[0]}'s Team`);
 
     console.log('[db] Creating new org:', orgName);
     const { data: org, error: orgError } = await supabase

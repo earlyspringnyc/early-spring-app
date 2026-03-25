@@ -145,6 +145,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSig
   const[email,setEmail]=useState("");
   const[password,setPassword]=useState("");
   const[fullName,setFullName]=useState("");
+  const[orgName,setOrgName]=useState("");
   const[emailLoading,setEmailLoading]=useState(false);
   const[successMsg,setSuccessMsg]=useState("");
   const users=getStoredUsers();
@@ -155,7 +156,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSig
     setErr("");setSuccessMsg("");setEmailLoading(true);
     try{
       if(isSignUp){
-        const{error}=await onEmailSignUp(email,password,fullName);
+        const{error}=await onEmailSignUp(email,password,fullName,orgName);
         if(error){setErr(error)}
         else{setSuccessMsg("Check your email to confirm your account.")}
       }else{
@@ -295,6 +296,12 @@ function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSig
       </button>}
 
       {isSupabase&&showEmail&&<form onSubmit={handleEmailSubmit} style={{display:'flex',flexDirection:'column',gap:10}}>
+        {isSignUp&&<input type="text" placeholder="Organization name" value={orgName} onChange={e=>setOrgName(e.target.value)} style={{
+          width:'100%',padding:'12px 14px',borderRadius:8,
+          border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.04)',
+          color:T.cream,fontSize:13,fontFamily:T.sans,outline:'none',
+          transition:'border-color .2s',boxSizing:'border-box',
+        }} onFocus={e=>e.currentTarget.style.borderColor='rgba(148,163,184,.25)'} onBlur={e=>e.currentTarget.style.borderColor='rgba(255,255,255,.08)'}/>}
         {isSignUp&&<input type="text" placeholder="Full name" value={fullName} onChange={e=>setFullName(e.target.value)} style={{
           width:'100%',padding:'12px 14px',borderRadius:8,
           border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.04)',

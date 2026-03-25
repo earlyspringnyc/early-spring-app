@@ -146,9 +146,9 @@ export function useSupabaseAuth() {
     return result;
   }, []);
 
-  const signUp = useCallback(async (email, password, fullName) => {
+  const signUp = useCallback(async (email, password, fullName, orgName) => {
     if (!isSupabaseConfigured()) return { error: 'Not configured' };
-    const result = await signUpWithEmail(email, password, fullName);
+    const result = await signUpWithEmail(email, password, fullName, orgName);
     return result;
   }, []);
 
