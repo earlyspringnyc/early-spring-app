@@ -6,6 +6,8 @@ import { uid } from '../utils/uid.js';
 import { PlusI } from '../components/icons/index.js';
 import { Card, NI, Metric, SB } from '../components/primitives/index.js';
 import { exportBudgetToSheets } from '../utils/drive.js';
+import SheetImportModal from '../components/modals/SheetImportModal.jsx';
+import SheetSyncModal from '../components/modals/SheetSyncModal.jsx';
 import AddSectionModal from '../components/modals/AddSectionModal.jsx';
 import Cat from './Cat.jsx';
 
@@ -72,6 +74,8 @@ function BudgetV(p){
   const[showMarginSlider,setShowMarginSlider]=useState(false);
   const[showExportMenu,setShowExportMenu]=useState(false);
   const[sheetsExporting,setSheetsExporting]=useState(false);
+  const[showSheetImport,setShowSheetImport]=useState(false);
+  const[showSheetSync,setShowSheetSync]=useState(false);
   const[sheetsUrl,setSheetsUrl]=useState(null);
   const exportToSheets=async()=>{
     const token=p.accessToken;if(!token){alert("Sign in with Google to export to Sheets");return}
@@ -257,6 +261,8 @@ function BudgetV(p){
     {/* ── Bottom tools: Margins + Export ── */}
     <div style={{display:"flex",gap:10,alignItems:"center",marginTop:24,flexWrap:"wrap"}}>
       {canEdit&&<button onClick={()=>setShowMarginSlider(!showMarginSlider)} style={{padding:"8px 14px",background:"transparent",color:showMarginSlider?T.gold:T.dim,border:`1px solid ${showMarginSlider?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Margins</button>}
+      {canEdit&&<button onClick={()=>setShowSheetImport(true)} style={{padding:"8px 14px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Import from Sheet</button>}
+      {canEdit&&project.sheetImport&&<button onClick={()=>setShowSheetSync(true)} style={{padding:"8px 14px",background:"rgba(255,234,151,.06)",color:T.gold,border:`1px solid rgba(255,234,151,.2)`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Sync from Sheet</button>}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowExportMenu(!showExportMenu)} style={{padding:"8px 14px",background:"transparent",color:showExportMenu?T.cream:T.dim,border:`1px solid ${showExportMenu?T.borderGlow:T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
         {showExportMenu&&<div style={{position:"absolute",bottom:"100%",left:0,marginBottom:4,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",overflow:"hidden",zIndex:20,minWidth:140}}>
@@ -300,6 +306,8 @@ function BudgetV(p){
       </div>}
     </div>}
     {showAddSection&&<AddSectionModal onClose={()=>setShowAddSection(false)} onAdd={p.addSection}/>}
+    {showSheetImport&&<SheetImportModal onClose={()=>setShowSheetImport(false)} onImport={updates=>p.updateProject(updates)} accessToken={p.accessToken} project={project}/>}
+    {showSheetSync&&<SheetSyncModal onClose={()=>setShowSheetSync(false)} onSync={updates=>p.updateProject(updates)} accessToken={p.accessToken} project={project}/>}
   </div>;
 }
 

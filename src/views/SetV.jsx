@@ -77,6 +77,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
   const defaultPerms=(role)=>{
     const all={budget:true,timeline:true,vendors:true,pnl:true,docs:true,ros:true,client:true,ai:true,settings:true};
     const none={budget:false,timeline:false,vendors:false,pnl:false,docs:false,ros:false,client:false,ai:false,settings:false};
+    if(role==="ep")return all;
     if(role==="admin")return all;
     if(role==="producer")return{...all,client:false,settings:false};
     if(role==="creative")return{...none,timeline:true,docs:true,ai:true};
@@ -268,6 +269,24 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
       </>}
       <p style={{fontSize:10,color:T.dim,marginTop:12}}>Team members sign in with Google. Permissions control which sections they can access.</p>
     </Card>}
+    {/* Project Staffing */}
+    <Card style={{padding:28}}>
+      <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:"#F59E0B",marginBottom:12}}>Project Staffing</div>
+      <p style={{fontSize:12,color:T.dim,marginBottom:16}}>Assign team members to this project for EP dashboard visibility.</p>
+      {(project.staffing||[]).map((s,i)=><div key={s.userId||i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<(project.staffing||[]).length-1?`1px solid ${T.border}22`:"none"}}>
+        <div style={{width:28,height:28,borderRadius:14,background:T.surfEl,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:T.dim}}>{(s.name||"?")[0]}</div>
+        <span style={{flex:1,fontSize:12,color:T.cream}}>{s.name}</span>
+        <span style={{fontSize:10,color:T.dim}}>{ROLE_LABELS[s.role]||s.role}</span>
+        <button onClick={()=>{const updated=(project.staffing||[]).filter((_,j)=>j!==i);updateProject({staffing:updated})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={11} color={T.neg}/></button>
+      </div>)}
+      <div style={{marginTop:12}}>
+        <select onChange={e=>{const m=team.find(t=>t.id===e.target.value);if(!m)return;const already=(project.staffing||[]).some(s=>s.userId===m.id);if(already)return;updateProject({staffing:[...(project.staffing||[]),{userId:m.id,name:m.name,role:m.role,avatar:m.avatar||m.avatar_url||""}]});e.target.value=""}} defaultValue="" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>
+          <option value="" disabled>Add team member...</option>
+          {team.filter(m=>!(project.staffing||[]).some(s=>s.userId===m.id)).map(m=><option key={m.id} value={m.id}>{m.name} ({ROLE_LABELS[m.role]||m.role})</option>)}
+        </select>
+      </div>
+    </Card>
+
     <Card style={{padding:28}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.neg,marginBottom:12}}>Danger Zone</div>
       <p style={{fontSize:12,color:T.dim,marginBottom:16}}>Permanently delete this project and all its data.</p>
       <button onClick={onDelete} style={{padding:"10px 20px",borderRadius:T.rS,border:`1px solid ${T.neg}`,background:"transparent",color:T.neg,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.1)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>Delete Project</button>

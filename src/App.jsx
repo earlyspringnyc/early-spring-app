@@ -10,6 +10,7 @@ import { isSupabaseConfigured } from './lib/supabase.js';
 import Login from './views/Login.jsx';
 import LandingPage from './views/LandingPage.jsx';
 import PortfolioDash from './views/PortfolioDash.jsx';
+import EPDashboard from './views/EPDashboard.jsx';
 import ProjectView from './views/ProjectView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
 import SharedClientView from './views/SharedClientView.jsx';
@@ -268,7 +269,8 @@ function App(){
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
-  return<><PortfolioDash projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={sbAuth.switchOrg}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
+  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={sbAuth.switchOrg} orgId={orgId}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>

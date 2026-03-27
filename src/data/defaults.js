@@ -35,7 +35,7 @@ export const DEFAULT_USERS = [
 ];
 
 export function mkProject(name, client, date, eventDate, logo, clientBudget, stage) {
-  return { id: uid(), name, client, date: date || new Date().toLocaleDateString(), eventDate: eventDate || "", logo: logo || "", clientBudget: clientBudget || 0, stage: stage || "pitching", cats: defaultCats(), ag: defaultAg(), feeP: .20, timeline: defaultTimeline(), ros: defaultROS(), docs: [], txns: [], vendors: [], clientFiles: [], meetings: [], createdAt: Date.now() };
+  return { id: uid(), name, client, date: date || new Date().toLocaleDateString(), eventDate: eventDate || "", logo: logo || "", clientBudget: clientBudget || 0, stage: stage || "pitching", cats: defaultCats(), ag: defaultAg(), feeP: .20, timeline: defaultTimeline(), ros: defaultROS(), docs: [], txns: [], vendors: [], clientFiles: [], meetings: [], staffing: [], createdAt: Date.now() };
 }
 
 export function mkSampleProject() {

@@ -210,6 +210,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
         {ROLES.map(r => <div key={r} style={{ padding: "12px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: ROLE_COLORS[r], marginBottom: 6 }}>{ROLE_LABELS[r]}</div>
           <div style={{ fontSize: 10, color: T.dim, lineHeight: 1.5 }}>
+            {r === "ep" && "Cross-project dashboard with budget health, staffing overview, and event timelines."}
             {r === "admin" && "Full access. Manage team, settings, budgets, and all project data."}
             {r === "producer" && "Edit budgets, timeline, vendors, and documents. No team or settings access."}
             {r === "creative" && "Access to timeline, documents, and AI assistant."}
