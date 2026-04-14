@@ -64,7 +64,11 @@ function BudgetV(p){
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
     const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(p.project?.name||"budget")+"-production-budget.csv";a.click();URL.revokeObjectURL(url);setShowExportMenu(false);
   };
-  const exportPDF=()=>{window.print();setShowExportMenu(false)};
+  const exportPDF=async()=>{
+    const{exportBudgetPDF}=await import('../utils/pdfExport.js');
+    exportBudgetPDF(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,vendors:p.vendors||[]},{filename:(p.project?.name||"budget")+"-production-budget.pdf"});
+    setShowExportMenu(false);
+  };
   const[dragSection,setDragSection]=useState(null);
   const[overSection,setOverSection]=useState(null);
   const[showAddSection,setShowAddSection]=useState(false);

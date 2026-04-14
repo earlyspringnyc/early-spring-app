@@ -439,7 +439,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderTop:`1px solid ${T.border}`,flexShrink:0}}>
               <button onClick={()=>{onSend();setShareModal(null)}} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 24px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending...":"Send"}</button>
               <button onClick={copyLink} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
-              <button onClick={()=>window.print()} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
+              <button onClick={()=>{if(isBudget)exportEstimatePDF();else window.print()}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
               <div style={{flex:1}}/>
               {emailSent&&<span style={{fontSize:11,color:T.pos,fontWeight:600}}>Sent to {emailSent}</span>}
             </div>
@@ -634,6 +634,12 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   </div>;
 
   /* Export helpers for estimate — use selected budget */
+  const exportEstimatePDF=async()=>{
+    const bd=getSelectedBudgetData();
+    const{exportEstimatePDF:gen}=await import('../utils/pdfExport.js');
+    const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
+    gen(project,bd,{title:label?`Production Estimate — ${label}`:"Production Estimate",filename:(project.name||"estimate")+(label?`-${label}`:"")+"-production-estimate.pdf"});
+  };
   const exportEstimateXLSX=async()=>{
     const bd=getSelectedBudgetData();
     const XLSX=await import('xlsx');
@@ -681,7 +687,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <div style={{position:"relative"}}>
           <button onClick={()=>{setShowExportMenu(!showExportMenu);setShowShareMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
           {showExportMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:160,overflow:"hidden"}}>
-            {[["PDF",()=>{window.print();setShowExportMenu(false)},"Print to PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"]].map(([label,fn,sub])=>
+            {[["PDF",()=>{exportEstimatePDF();setShowExportMenu(false)},"Download PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"]].map(([label,fn,sub])=>
               <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>
                 <span style={{fontSize:10,color:T.dim,marginTop:1}}>{sub}</span>
