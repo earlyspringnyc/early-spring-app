@@ -36,13 +36,22 @@ export function exportEstimatePDF(project, bd, opts = {}) {
     body.push([
       { content: c.name.toUpperCase(), colSpan: 3, styles: { fillColor: [245, 244, 241], textColor: [60, 60, 60], fontStyle: 'bold', fontSize: 9 } },
     ]);
+    let catTotal = 0;
     items.forEach(it => {
+      const price = ci(it).clientPrice;
+      catTotal += price;
       body.push([
         it.name || '',
         it.details || '',
-        { content: f$(ci(it).clientPrice), styles: { halign: 'right' } },
+        { content: f$(price), styles: { halign: 'right' } },
       ]);
     });
+    if (items.length > 1) {
+      body.push([
+        { content: `${c.name} Subtotal`, colSpan: 2, styles: { fontStyle: 'bold', fontSize: 8, textColor: [100, 100, 100] } },
+        { content: f$(catTotal), styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [100, 100, 100] } },
+      ]);
+    }
   });
 
   // Production subtotal
