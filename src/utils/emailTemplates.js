@@ -1,4 +1,4 @@
-import { f$, fp } from './format.js';
+import { f$ } from './format.js';
 import { ci, ct } from './calc.js';
 
 // Convert message to email-safe HTML
@@ -91,7 +91,7 @@ export function budgetEmailHtml(project, cats, ag, comp, feeP, message) {
       <tbody>
         ${agRows}
         <tr style="border-top:1px solid #DDD"><td style="padding:10px 0;font-weight:600;color:#555;font-size:13px">Agency Costs Subtotal</td><td style="padding:10px 0;text-align:right;font-weight:600;font-family:monospace;color:#555;font-size:13px">${f$(comp.agencyCostsSubtotal.clientPrice)}</td></tr>
-        <tr><td style="padding:10px 0;color:#777;font-size:13px">Agency Fee (${fp(feeP)})</td><td style="padding:10px 0;text-align:right;font-family:monospace;color:#777;font-size:13px">${f$(comp.agencyFee.clientPrice)}</td></tr>
+        <tr><td style="padding:10px 0;color:#777;font-size:13px">Agency Fee</td><td style="padding:10px 0;text-align:right;font-family:monospace;color:#777;font-size:13px">${f$(comp.agencyFee.clientPrice)}</td></tr>
       </tbody>
     </table>
 

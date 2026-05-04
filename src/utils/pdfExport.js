@@ -81,7 +81,7 @@ export function exportEstimatePDF(project, bd, opts = {}) {
 
   if (bd.comp.agencyFee?.clientPrice) {
     body.push([
-      { content: `AGENCY FEE (${fp(bd.feeP)})`, colSpan: 2, styles: { fontStyle: 'bold' } },
+      { content: `AGENCY FEE`, colSpan: 2, styles: { fontStyle: 'bold' } },
       { content: f$(bd.comp.agencyFee.clientPrice), styles: { halign: 'right', fontStyle: 'bold' } },
     ]);
   }
