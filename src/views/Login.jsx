@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import T from '../theme/tokens.js';
+import { getTheme } from '../theme/tokens.js';
+const T = getTheme('dark');
 import { ROLE_COLORS, ROLE_LABELS } from '../constants/index.js';
 import { getStoredUsers } from '../utils/storage.js';
 import { ESWordmark } from '../components/brand/index.js';
@@ -234,7 +235,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSig
       <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:'-0.03em',marginBottom:8,lineHeight:1.3}}>
         Brief to build. One tool.
       </h1>
-      <p style={{fontSize:13,color:T.dim,marginBottom:36,lineHeight:1.6}}>
+      <p style={{fontSize:13,color:T.dimH,marginBottom:36,lineHeight:1.6}}>
         Total project management for<br/>people who build experiences.
       </p>
 
@@ -280,7 +281,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSig
         width:'100%',padding:'14px 20px',borderRadius:10,
         border:'1px solid rgba(255,255,255,.08)',
         background:'transparent',
-        color:T.dim,fontSize:14,fontWeight:500,
+        color:T.dimH,fontSize:14,fontWeight:500,
         cursor:'pointer',fontFamily:T.sans,
         transition:'all .25s',
       }} onMouseEnter={e=>{
@@ -290,7 +291,7 @@ function Login({onLogin, googleClientId, onGoogleLogin, onEmailLogin, onEmailSig
       }} onMouseLeave={e=>{
         e.currentTarget.style.background='transparent';
         e.currentTarget.style.borderColor='rgba(255,255,255,.08)';
-        e.currentTarget.style.color=T.dim;
+        e.currentTarget.style.color=T.dimH;
       }}>
         Continue with email
       </button>}
