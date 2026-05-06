@@ -45,30 +45,33 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   const canCreate=user.role!=="client";
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
+  const[showArchived,setShowArchived]=useState(false);
 
   // Calculations — memoized so calcProject only reruns when projects change
-  const {allComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects:activeProjectCount}=useMemo(()=>{
+  // Financial totals exclude archived projects so the dashboard reflects active business
+  const {allComps,activeComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects:activeProjectCount}=useMemo(()=>{
     const allComps=projects.map(p=>({p,c:calcProject(p)}));
-    const totalRevenue=allComps.reduce((a,{c})=>a+c.grandTotal,0);
-    const totalCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
-    const totalProfit=allComps.reduce((a,{c})=>a+c.netProfit,0);
+    const activeComps=allComps.filter(({p})=>(p.stage||"pitching")!=="archived");
+    const totalRevenue=activeComps.reduce((a,{c})=>a+c.grandTotal,0);
+    const totalCost=activeComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
+    const totalProfit=activeComps.reduce((a,{c})=>a+c.netProfit,0);
     const blendedMargin=totalRevenue>0?((totalProfit/totalRevenue)*100):0;
-    const totalProdCost=allComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost,0);
-    const totalAgencyFee=allComps.reduce((a,{c})=>a+c.agencyFee.clientPrice,0);
-    const totalProdMargin=allComps.reduce((a,{c})=>a+c.productionSubtotal.variance,0);
-    const totalAgencyMargin=allComps.reduce((a,{c})=>a+c.agencyCostsSubtotal.variance,0);
-    const totalOwed=allComps.reduce((a,{p})=>{const invoiced=(p.docs||[]).filter(d=>d.type==="invoice"&&d.status!=="paid").reduce((s,d)=>s+(d.amount||0),0);return a+invoiced},0);
+    const totalProdCost=activeComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost,0);
+    const totalAgencyFee=activeComps.reduce((a,{c})=>a+c.agencyFee.clientPrice,0);
+    const totalProdMargin=activeComps.reduce((a,{c})=>a+c.productionSubtotal.variance,0);
+    const totalAgencyMargin=activeComps.reduce((a,{c})=>a+c.agencyCostsSubtotal.variance,0);
+    const totalOwed=activeComps.reduce((a,{p})=>{const invoiced=(p.docs||[]).filter(d=>d.type==="invoice"&&d.status!=="paid").reduce((s,d)=>s+(d.amount||0),0);return a+invoiced},0);
     const allOverdue=[];const allUpcoming=[];
-    projects.forEach(p=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
+    activeComps.forEach(({p})=>{(p.docs||[]).forEach(d=>{if(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))allOverdue.push({...d,projectName:p.name,projectId:p.id});else if(d.status==="pending"&&d.dueDate&&!isOverdue(d))allUpcoming.push({...d,projectName:p.name,projectId:p.id})})});
     allUpcoming.sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
-    const activeProjects=projects.filter(p=>(p.stage||"pitching")!=="archived").length;
-    return{allComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects};
+    const activeProjects=activeComps.length;
+    return{allComps,activeComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects};
   },[projects]);
 
-  // Tasks across all projects
+  // Tasks across active projects (archived excluded so rollups reflect current work)
   const allTasks=useMemo(()=>{
     const tasks=[];
-    projects.forEach(p=>(p.timeline||[]).forEach(t=>tasks.push({...t,projectName:p.name,projectId:p.id})));
+    projects.forEach(p=>{if((p.stage||"pitching")==="archived")return;(p.timeline||[]).forEach(t=>tasks.push({...t,projectName:p.name,projectId:p.id}))});
     return tasks;
   },[projects]);
   const tasksDone=allTasks.filter(t=>t.status==="done").length;
@@ -99,12 +102,12 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   const stageData=useMemo(()=>PROJECT_STAGES.map(s=>{const ps=allComps.filter(({p})=>(p.stage||"pitching")===s);return{name:STAGE_LABELS[s],value:ps.reduce((a,{c})=>a+c.grandTotal,0),count:ps.length,color:STAGE_COLORS[s]}}).filter(d=>d.count>0),[allComps]);
 
   // Bar chart — top projects by revenue
-  const barData=useMemo(()=>[...allComps].sort((a,b)=>b.c.grandTotal-a.c.grandTotal).slice(0,8).map(({p,c})=>({name:p.name?.length>12?p.name.slice(0,11)+"\u2026":p.name,actual:c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,client:c.grandTotal})),[allComps]);
+  const barData=useMemo(()=>[...activeComps].sort((a,b)=>b.c.grandTotal-a.c.grandTotal).slice(0,8).map(({p,c})=>({name:p.name?.length>12?p.name.slice(0,11)+"\u2026":p.name,actual:c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,client:c.grandTotal})),[activeComps]);
 
-  // Spend by category
+  // Spend by category — active projects only
   const spendData=useMemo(()=>{
     const catMap=new Map();
-    projects.forEach(p=>(p.cats||[]).forEach(cat=>{const existing=catMap.get(cat.name)||0;const catCost=(cat.items||[]).reduce((a,it)=>a+(it.excluded?0:(it.actualCost||0)),0);catMap.set(cat.name,existing+catCost)}));
+    projects.forEach(p=>{if((p.stage||"pitching")==="archived")return;(p.cats||[]).forEach(cat=>{const existing=catMap.get(cat.name)||0;const catCost=(cat.items||[]).reduce((a,it)=>a+(it.excluded?0:(it.actualCost||0)),0);catMap.set(cat.name,existing+catCost)})});
     return[...catMap.entries()].map(([name,value])=>({name,value})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
   },[projects]);
 
@@ -190,8 +193,11 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
             {canCreate&&<button onClick={onNew} style={{fontSize:10,color:T.gold,background:"none",border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,padding:"4px 10px",cursor:"pointer",fontFamily:T.sans,fontWeight:600}}>+ New</button>}
           </div>
           {projects.length===0?<div style={{textAlign:"center",padding:"40px 20px",color:T.dim,fontSize:13}}>No projects yet. Create one to get started.</div>
-          :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
-            {[...projects].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map((p,pi)=>{
+          :(()=>{
+            const sorted=[...projects].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+            const active=sorted.filter(p=>(p.stage||"pitching")!=="archived");
+            const archived=sorted.filter(p=>(p.stage||"pitching")==="archived");
+            const renderCard=(p,pi)=>{
               const comp=calcProject(p);
               const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;
               const td=(p.timeline||[]).filter(t=>t.status==="done").length;
@@ -220,9 +226,24 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                     <div style={{height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${tp}%`,background:`linear-gradient(90deg,${cardAccent},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
                   </div>}
                 </div>
-              </Card>
-            })}
-          </div>}
+              </Card>;
+            };
+            return<>
+              {active.length===0?<div style={{textAlign:"center",padding:"24px 20px",color:T.dim,fontSize:12}}>No active projects.</div>
+              :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+                {active.map((p,pi)=>renderCard(p,pi))}
+              </div>}
+              {archived.length>0&&<div style={{marginTop:active.length>0?16:0,paddingTop:active.length>0?14:0,borderTop:active.length>0?`1px solid ${T.border}`:"none"}}>
+                <button onClick={()=>setShowArchived(!showArchived)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:T.sans,color:T.dim,fontSize:10,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",marginBottom:showArchived?12:0,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
+                  <span style={{display:"inline-block",transform:showArchived?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",fontSize:9}}>&#9656;</span>
+                  {archived.length} archived
+                </button>
+                {showArchived&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+                  {archived.map((p,pi)=>renderCard(p,active.length+pi))}
+                </div>}
+              </div>}
+            </>;
+          })()}
         </Card>
 
         {/* Row 4: Tasks + Secondary metrics */}
