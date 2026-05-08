@@ -1,29 +1,32 @@
 import { f$ } from './format.js';
 import { ci, ct } from './calc.js';
 
-// Convert message to email-safe HTML
-// Handles both rich HTML (from contentEditable paste) and plain text with bullet markers
+/* ── Early Spring email tokens ──
+   Per Lab guidelines: paper #FFFFFF, sapphire #0F52BA, faint rule .18, faded ink .42.
+   Email clients have inconsistent CSS support, so use inline styles + safe HTML only.
+*/
+const INK = '#0F52BA';
+const FADED = '#7791C5';
+const RULE = '#CDD7EB';
+const PAPER = '#FFFFFF';
+const PAGE = '#FFFFFF';
+
+// Convert message to email-safe HTML (rich-paste safe + plain-text bullet handling)
 function formatMessage(msg) {
   if (!msg) return '';
-  // If it already contains HTML tags (from rich paste), sanitize with whitelist
   if (msg.includes('<') && (msg.includes('<br') || msg.includes('<div') || msg.includes('<li') || msg.includes('<ul') || msg.includes('<p') || msg.includes('<b'))) {
     return msg
-      // Strip dangerous elements entirely
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
       .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
       .replace(/<embed[^>]*>/gi, '')
       .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
-      // Strip all event handlers
       .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '')
-      // Strip javascript: URLs
       .replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"')
       .replace(/src\s*=\s*["']javascript:[^"']*["']/gi, '')
-      // Strip data: URLs in src (potential XSS)
       .replace(/src\s*=\s*["']data:text\/html[^"']*["']/gi, '');
   }
-  // Plain text — convert bullet patterns and newlines
   const escaped = msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const lines = escaped.split('\n');
   let html = '';
@@ -31,8 +34,8 @@ function formatMessage(msg) {
   for (const line of lines) {
     const bulletMatch = line.match(/^\s*[-•*]\s+(.*)/);
     if (bulletMatch) {
-      if (!inList) { html += '<ul style="margin:8px 0;padding-left:20px">'; inList = true; }
-      html += `<li style="margin:4px 0;color:#333">${bulletMatch[1]}</li>`;
+      if (!inList) { html += `<ul style="margin:8px 0;padding-left:20px">`; inList = true; }
+      html += `<li style="margin:4px 0;color:${INK}">${bulletMatch[1]}</li>`;
     } else {
       if (inList) { html += '</ul>'; inList = false; }
       html += (line.trim() === '' ? '<br>' : `<div>${line}</div>`);
@@ -42,122 +45,148 @@ function formatMessage(msg) {
   return html;
 }
 
-export function budgetEmailHtml(project, cats, ag, comp, feeP, message) {
-  let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
-  try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
-  const catRows = cats.map(c => {
-    const t = ct(c.items).totals;
-    const catHeader = `<tr style="border-bottom:1px solid #F0F0F0;background:#FAFAF9"><td colspan="2" style="padding:12px 0;color:#333;font-size:14px;font-weight:600">${c.name}</td><td style="padding:12px 0;text-align:right;font-family:monospace;color:#333;font-size:14px;font-weight:600">${f$(t.clientPrice)}</td></tr>`;
-    const itemRows = c.items.filter(it => ci(it).clientPrice > 0).map(it =>
-      `<tr style="border-bottom:1px solid #F8F8F8"><td style="padding:8px 0 8px 20px;color:#555;font-size:13px">${it.name}</td><td style="padding:8px 0 8px 8px;color:#999;font-size:12px;font-style:italic">${it.details || ''}</td><td style="padding:8px 0;text-align:right;font-family:monospace;color:#555;font-size:13px">${f$(ci(it).clientPrice)}</td></tr>`
-    ).join('');
-    return catHeader + itemRows;
-  }).join('');
+const FONT = "-apple-system,'Inter','Helvetica Neue',Arial,sans-serif";
 
-  const agRows = ag.map(it => {
-    const c = ci(it);
-    return `<tr style="border-bottom:1px solid #F0F0F0"><td style="padding:10px 0;color:#333;font-size:13px">${it.name}</td><td style="padding:10px 0;text-align:right;font-family:monospace;color:#333;font-size:13px">${f$(c.clientPrice)}</td></tr>`;
-  }).join('');
+// Shared shell — Lab-style header with sapphire wordmark + thin rule, paper card.
+function shell({ kicker, title, project, message, body }) {
+  let orgAddr = "385 Van Brunt St, Floor 2, Brooklyn, NY 11231", orgWeb = "earlyspring.nyc";
+  try { const o = JSON.parse(localStorage.getItem("es_org") || "{}"); if (o.address) orgAddr = o.address; if (o.website) orgWeb = o.website; } catch (e) {}
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#F5F4F1;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif">
-<div style="max-width:640px;margin:0 auto;padding:40px 20px">
-  <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
-    <table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr>
-      <td style="vertical-align:top">
-        <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">${orgName.toUpperCase()}</div>
-        <div style="font-size:24px;font-weight:700;color:#432D1C">Production Estimate</div>
-        <div style="font-size:12px;color:#999;margin-top:4px">Prepared by ${orgName}</div>
-      </td>
-      <td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top">
-        <div><strong style="color:#555">Project:</strong> ${project.name || '\u2014'}</div>
-        <div><strong style="color:#555">Client:</strong> ${project.client || '\u2014'}</div>
-        <div><strong style="color:#555">Date:</strong> ${project.date || new Date().toLocaleDateString()}</div>
-        ${project.eventDate ? `<div><strong style="color:#555">Event:</strong> ${project.eventDate}</div>` : ''}
-      </td>
-    </tr></table>
+  const meta = [
+    project.name && { label: 'Project', value: project.name },
+    project.client && { label: 'Client', value: project.client },
+    { label: 'Date', value: project.date || new Date().toLocaleDateString() },
+    project.eventDate && { label: 'Event', value: project.eventDate },
+  ].filter(Boolean);
 
-    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6">${formatMessage(message)}</div></div>`:''}
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:${PAGE};color:${INK};font-family:${FONT}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAGE}"><tr><td align="center">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;margin:0 auto;padding:40px 24px">
+  <tr><td style="background:${PAPER};padding:40px">
 
-    <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
-      <thead><tr style="border-bottom:2px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Item</th><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Description</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Cost</th></tr></thead>
-      <tbody>
-        ${catRows}
-        <tr style="border-top:2px solid #432D1C"><td colspan="2" style="padding:14px 0;font-weight:700;color:#432D1C;font-size:14px">PRODUCTION SUBTOTAL</td><td style="padding:14px 0;text-align:right;font-weight:700;font-family:monospace;color:#432D1C;font-size:14px">${f$(comp.productionSubtotal.clientPrice)}</td></tr>
-      </tbody>
+    <!-- Brand row -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid ${RULE};padding-bottom:18px;margin-bottom:28px">
+      <tr>
+        <td style="vertical-align:top">
+          <div style="font-size:11px;font-weight:700;color:${INK};letter-spacing:.18em;text-transform:uppercase">EARLY&nbsp;SPRING</div>
+        </td>
+        <td style="text-align:right;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Lab&nbsp;·&nbsp;${project.client || 'Client'}</div>
+        </td>
+      </tr>
     </table>
 
-    <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
-      <thead><tr style="border-bottom:1px solid #E5E5E5"><th style="text-align:left;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Agency Services</th><th style="text-align:right;padding:8px 0;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Cost</th></tr></thead>
-      <tbody>
-        ${agRows}
-        <tr style="border-top:1px solid #DDD"><td style="padding:10px 0;font-weight:600;color:#555;font-size:13px">Agency Costs Subtotal</td><td style="padding:10px 0;text-align:right;font-weight:600;font-family:monospace;color:#555;font-size:13px">${f$(comp.agencyCostsSubtotal.clientPrice)}</td></tr>
-        <tr><td style="padding:10px 0;color:#777;font-size:13px">Agency Fee</td><td style="padding:10px 0;text-align:right;font-family:monospace;color:#777;font-size:13px">${f$(comp.agencyFee.clientPrice)}</td></tr>
-      </tbody>
-    </table>
-
-    <table style="width:100%;background:#432D1C;border-radius:10px" cellpadding="0" cellspacing="0"><tr>
-      <td width="60%" style="padding:20px 28px;font-size:14px;font-weight:700;color:#fff;letter-spacing:.06em">GRAND TOTAL</td>
-      <td width="40%" style="padding:20px 28px;text-align:right;font-size:24px;font-weight:700;color:#fff;font-family:monospace">${f$(comp.grandTotal)}</td>
-    </tr></table>
-
-    <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #EEE">
-      <div style="font-size:10px;color:#BBB">Sent from <a href="https://early-spring-app.vercel.app" style="color:#999;text-decoration:none">Morgan</a> @ <a href="https://${orgWeb.replace(/^https?:\/\//,'')}" style="color:#999;text-decoration:none">${orgName}</a></div>
-      ${orgAddr?`<div style="font-size:9px;color:#CCC;margin-top:4px">${orgAddr}</div>`:''}
+    <!-- Title block -->
+    <div style="margin-bottom:32px">
+      <div style="font-size:11px;font-weight:700;color:${INK};letter-spacing:.10em;text-transform:uppercase;margin-bottom:14px">${kicker}</div>
+      <div style="font-size:32px;font-weight:800;color:${INK};letter-spacing:-0.022em;line-height:1.04;margin-bottom:14px">${title}</div>
+      <div style="font-size:13px;color:${FADED};line-height:1.6">${meta.map(m => `<span style="margin-right:18px;display:inline-block"><strong style="color:${INK};font-weight:700">${m.label}</strong> · ${m.value}</span>`).join('')}</div>
     </div>
-  </div>
-</div></body></html>`;
+
+    ${message ? `<div style="margin-bottom:28px;padding:18px 20px;border-left:2px solid ${INK};background:transparent;color:${INK};font-size:14px;line-height:1.6">${formatMessage(message)}</div>` : ''}
+
+    ${body}
+
+    <!-- Footer -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${RULE};margin-top:36px;padding-top:18px">
+      <tr>
+        <td style="vertical-align:top">
+          <div style="font-size:11px;font-weight:700;color:${INK};letter-spacing:.18em;text-transform:uppercase">EARLY&nbsp;SPRING</div>
+          <div style="font-size:11px;color:${FADED};margin-top:8px;line-height:1.6">${orgAddr}</div>
+        </td>
+        <td style="text-align:right;vertical-align:top">
+          <a href="https://${orgWeb.replace(/^https?:\/\//,'')}" style="font-size:11px;color:${FADED};text-decoration:none">${orgWeb.replace(/^https?:\/\//,'')}</a>
+          <div style="font-size:10px;color:${FADED};margin-top:8px;letter-spacing:.06em;text-transform:uppercase">Prepared in Morgan</div>
+        </td>
+      </tr>
+    </table>
+
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 }
 
-export function timelineEmailHtml(project, tasks, message) {
-  let orgName="Early Spring LLC",orgAddr="385 Van Brunt St, Floor 2, Brooklyn, NY 11231",orgWeb="earlyspring.nyc";
-  try{const o=JSON.parse(localStorage.getItem("es_org")||"{}");if(o.name)orgName=o.name;if(o.address)orgAddr=o.address;if(o.website)orgWeb=o.website}catch(e){}
-  const dated = tasks.filter(t => t.startDate).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+// ─────────────────────────────────────────────────────────────────────
+// Production Estimate email
+// ─────────────────────────────────────────────────────────────────────
+export function budgetEmailHtml(project, cats, ag, comp, feeP, message) {
+  const catRows = cats.map(c => {
+    const t = ct(c.items).totals;
+    const items = c.items.filter(it => ci(it).clientPrice > 0);
+    if (!items.length) return '';
+    const head = `<tr><td colspan="3" style="border-top:1px solid ${INK};padding:18px 0 8px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.01em">${c.name}</td>
+          <td style="text-align:right;font-size:14px;font-weight:700;color:${INK};font-family:${FONT}">${f$(t.clientPrice)}</td>
+        </tr>
+      </table>
+    </td></tr>`;
+    const itemRows = items.map((it, i) =>
+      `<tr><td style="padding:8px 0;color:${INK};font-size:13px;border-bottom:${i === items.length - 1 ? 'none' : `1px solid ${RULE}`}">${it.name}${it.details ? `<span style="color:${FADED};font-style:italic;margin-left:8px">${it.details}</span>` : ''}</td>
+      <td style="padding:8px 0;text-align:right;font-family:${FONT};color:${FADED};font-size:13px;border-bottom:${i === items.length - 1 ? 'none' : `1px solid ${RULE}`}">${f$(ci(it).clientPrice)}</td></tr>`
+    ).join('');
+    return head + itemRows;
+  }).join('');
 
-  const taskRows = dated.map(t =>
-    `<tr style="border-bottom:1px solid #F0F0F0">
-      <td style="padding:10px 4px;color:#333;font-size:13px">${t.name}</td>
-      <td style="padding:10px 4px;color:#777;font-size:12px">${t.category || ''}</td>
-      <td style="padding:10px 4px;color:#555;text-align:center;font-family:monospace;font-size:12px">${t.startDate || '\u2014'}</td>
-      <td style="padding:10px 4px;color:#555;text-align:center;font-family:monospace;font-size:12px">${t.endDate || '\u2014'}</td>
-      <td style="padding:10px 4px;text-align:center"><span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:8px;background:${t.status === 'done' ? '#E8F5E9' : t.status === 'progress' ? '#E0F7FA' : '#FFF8E1'};color:${t.status === 'done' ? '#2E7D32' : t.status === 'progress' ? '#00838F' : '#F57F17'};text-transform:uppercase">${t.status === 'done' ? 'Done' : t.status === 'progress' ? 'In Progress' : 'To Do'}</span></td>
-    </tr>`
-  ).join('');
+  const agItems = (ag || []).filter(it => ci(it).clientPrice > 0);
+  const agSection = agItems.length ? `
+    <tr><td colspan="2" style="border-top:1px solid ${INK};padding:18px 0 8px">
+      <div style="font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.01em">Agency</div>
+    </td></tr>
+    ${agItems.map((it, i) => `<tr>
+      <td style="padding:8px 0;color:${INK};font-size:13px;border-bottom:${i === agItems.length - 1 ? 'none' : `1px solid ${RULE}`}">${it.name}</td>
+      <td style="padding:8px 0;text-align:right;font-family:${FONT};color:${FADED};font-size:13px;border-bottom:${i === agItems.length - 1 ? 'none' : `1px solid ${RULE}`}">${f$(ci(it).clientPrice)}</td>
+    </tr>`).join('')}
+    ${comp.agencyFee?.clientPrice ? `<tr>
+      <td style="padding:10px 0 0;color:${INK};font-size:13px;font-weight:700;text-align:right">Agency Fee</td>
+      <td style="padding:10px 0 0;text-align:right;font-family:${FONT};color:${INK};font-size:13px;font-weight:700">${f$(comp.agencyFee.clientPrice)}</td>
+    </tr>` : ''}
+  ` : '';
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#F5F4F1;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif">
-<div style="max-width:700px;margin:0 auto;padding:40px 20px">
-  <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
-    <table style="width:100%;padding-bottom:20px;margin-bottom:28px;border-bottom:2px solid #432D1C"><tr>
-      <td style="vertical-align:top">
-        <div style="font-size:10px;font-weight:700;color:#432D1C;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">${orgName.toUpperCase()}</div>
-        <div style="font-size:24px;font-weight:700;color:#432D1C">Project Timeline</div>
-        <div style="font-size:12px;color:#999;margin-top:4px">Prepared by ${orgName}</div>
-      </td>
-      <td style="text-align:right;font-size:13px;color:#777;line-height:1.8;vertical-align:top">
-        <div><strong style="color:#555">Project:</strong> ${project.name || '\u2014'}</div>
-        <div><strong style="color:#555">Client:</strong> ${project.client || '\u2014'}</div>
-        ${project.eventDate ? `<div><strong style="color:#555">Event:</strong> ${project.eventDate}</div>` : ''}
-      </td>
-    </tr></table>
-
-    ${message?`<div style="margin-bottom:28px;padding:16px 20px;background:#FAFAF9;border-radius:8px;border-left:3px solid #432D1C"><div style="font-size:13px;color:#333;line-height:1.6">${formatMessage(message)}</div></div>`:''}
-
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="border-bottom:2px solid #E5E5E5">
-        <th style="text-align:left;padding:8px 4px;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Task</th>
-        <th style="text-align:left;padding:8px 4px;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Category</th>
-        <th style="text-align:center;padding:8px 4px;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Start</th>
-        <th style="text-align:center;padding:8px 4px;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">End</th>
-        <th style="text-align:center;padding:8px 4px;font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em">Status</th>
-      </tr></thead>
-      <tbody>${taskRows}</tbody>
+  const body = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+      <tbody>${catRows}${agSection}</tbody>
     </table>
 
-    ${dated.length === 0 ? '<p style="text-align:center;padding:20px;color:#999;font-size:13px">No dated tasks in the timeline.</p>' : ''}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid ${INK};margin-top:8px">
+      <tr>
+        <td style="padding:18px 0;font-size:14px;font-weight:700;color:${INK};letter-spacing:.10em;text-transform:uppercase">Grand Total</td>
+        <td style="padding:18px 0;text-align:right;font-size:24px;font-weight:800;color:${INK};font-family:${FONT}">${f$(comp.grandTotal)}</td>
+      </tr>
+    </table>
+  `;
 
-    <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #EEE">
-      <div style="font-size:10px;color:#BBB">Sent from <a href="https://early-spring-app.vercel.app" style="color:#999;text-decoration:none">Morgan</a> @ <a href="https://${orgWeb.replace(/^https?:\/\//,'')}" style="color:#999;text-decoration:none">${orgName}</a></div>
-      ${orgAddr?`<div style="font-size:9px;color:#CCC;margin-top:4px">${orgAddr}</div>`:''}
-    </div>
-  </div>
-</div></body></html>`;
+  return shell({ kicker: 'Production Estimate', title: project.name || 'Estimate', project, message, body });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Project Timeline email
+// ─────────────────────────────────────────────────────────────────────
+const STATUS = {
+  done: { label: 'Done' },
+  progress: { label: 'In progress' },
+  todo: { label: 'To do' },
+  roadblocked: { label: 'Blocked' },
+};
+
+export function timelineEmailHtml(project, tasks, message) {
+  const dated = tasks.filter(t => t.startDate).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+
+  const taskRows = dated.map((t, i) => {
+    const status = STATUS[t.status] || { label: t.status || 'To do' };
+    return `<tr>
+      <td style="padding:14px 0;color:${INK};font-size:13px;font-weight:500;border-bottom:${i === dated.length - 1 ? 'none' : `1px solid ${RULE}`}">${t.name}${t.category ? `<span style="color:${FADED};font-style:italic;margin-left:8px">${t.category}</span>` : ''}</td>
+      <td style="padding:14px 0;text-align:right;color:${FADED};font-family:${FONT};font-size:12px;white-space:nowrap;border-bottom:${i === dated.length - 1 ? 'none' : `1px solid ${RULE}`}">${t.startDate || ''}${t.endDate ? ` — ${t.endDate}` : ''}</td>
+      <td style="padding:14px 0;padding-left:18px;text-align:right;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${t.status === 'done' ? INK : t.status === 'roadblocked' ? '#7A1F1F' : FADED};white-space:nowrap;border-bottom:${i === dated.length - 1 ? 'none' : `1px solid ${RULE}`}">${status.label}</td>
+    </tr>`;
+  }).join('');
+
+  const body = dated.length === 0
+    ? `<p style="padding:24px 0;color:${FADED};font-size:13px;border-top:1px solid ${INK}">No dated tasks in the timeline yet.</p>`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${INK};margin-bottom:28px"><tbody>${taskRows}</tbody></table>`;
+
+  return shell({ kicker: 'Project Timeline', title: project.name || 'Timeline', project, message, body });
 }
