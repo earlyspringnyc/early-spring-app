@@ -54,16 +54,16 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
       style={{
         display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
         borderRadius:T.rS,border:"none",cursor:"pointer",
-        background:active?T.surfEl:"transparent",
-        color:active?T.cream:T.dim,
-        fontSize:13,fontWeight:active?500:400,fontFamily:T.sans,
-        transition:"all .15s",width:"100%",textAlign:"left",
+        background:active?T.inkSoft:"transparent",
+        color:active?T.ink:T.ink70,
+        fontSize:13,fontWeight:active?700:500,fontFamily:T.sans,
+        transition:"background .18s ease, color .18s ease",width:"100%",textAlign:"left",
         overflow:"hidden",whiteSpace:"nowrap",position:"relative",...extraStyle,
       }}
-      onMouseEnter={e=>{if(!active)e.currentTarget.style.background=T.surfHov}}
-      onMouseLeave={e=>{if(!active)e.currentTarget.style.background=extraStyle.background||"transparent"}}
+      onMouseEnter={e=>{if(!active){e.currentTarget.style.background=T.inkSoft2;e.currentTarget.style.color=T.ink}}}
+      onMouseLeave={e=>{if(!active){e.currentTarget.style.background=extraStyle.background||"transparent";e.currentTarget.style.color=T.ink70}}}
     >
-      <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,opacity:active?1:.5}}>{icon}</span>
+      <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,color:"inherit"}}>{icon}</span>
       <span style={{opacity:expanded?1:0,transition:"opacity .15s",flex:1,overflow:"hidden",textOverflow:"ellipsis"}}>{label}</span>
       {badge>0&&expanded&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:999,background:T.alertSoft,color:T.alert}}>{badge}</span>}
     </button>
@@ -146,8 +146,8 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
 
       {/* Project name */}
       <div style={{padding:"0 16px 16px",overflow:"hidden",whiteSpace:"nowrap",opacity:expanded?1:0,transition:"opacity .15s",height:expanded?"auto":0}}>
-        <div style={{fontSize:13,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis"}}>{project.name}</div>
-        <div style={{fontSize:11,color:T.dim,marginTop:2}}>{project.client||""}</div>
+        <div style={{fontSize:13,fontWeight:700,color:T.ink,overflow:"hidden",textOverflow:"ellipsis"}}>{project.name}</div>
+        <div style={{fontSize:11,color:T.fadedInk,marginTop:2}}>{project.client||""}</div>
       </div>
 
       {/* Main nav */}
@@ -167,16 +167,16 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
           style={{
             display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
             borderRadius:T.rS,border:"none",cursor:"pointer",
-            background:isToolView&&!toolsOpen?T.surfEl:"transparent",
-            color:toolsOpen||isToolView?T.cream:T.dim,
-            fontSize:13,fontWeight:isToolView?500:400,fontFamily:T.sans,
-            transition:"all .15s",width:"100%",textAlign:"left",
+            background:isToolView&&!toolsOpen?T.inkSoft:"transparent",
+            color:toolsOpen||isToolView?T.ink:T.ink70,
+            fontSize:13,fontWeight:toolsOpen||isToolView?700:500,fontFamily:T.sans,
+            transition:"background .18s ease, color .18s ease",width:"100%",textAlign:"left",
             overflow:"hidden",whiteSpace:"nowrap",
           }}
-          onMouseEnter={e=>e.currentTarget.style.background=T.surfHov}
-          onMouseLeave={e=>e.currentTarget.style.background=isToolView&&!toolsOpen?T.surfEl:"transparent"}
+          onMouseEnter={e=>{e.currentTarget.style.background=T.inkSoft2;e.currentTarget.style.color=T.ink}}
+          onMouseLeave={e=>{e.currentTarget.style.background=isToolView&&!toolsOpen?T.inkSoft:"transparent";e.currentTarget.style.color=toolsOpen||isToolView?T.ink:T.ink70}}
         >
-          <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,opacity:.5,transition:"transform .2s",transform:toolsOpen?"rotate(90deg)":"rotate(0)"}}>&#9656;</span>
+          <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,color:"inherit",transition:"transform .2s ease",transform:toolsOpen?"rotate(90deg)":"rotate(0)"}}>&#9656;</span>
           <span style={{opacity:expanded?1:0,transition:"opacity .15s",flex:1}}>Tools</span>
         </button>
         {(toolsOpen||!expanded)&&<div style={{display:"flex",flexDirection:"column",gap:1,paddingLeft:expanded?12:0}}>
@@ -201,12 +201,12 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
           style={{
             display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
             borderRadius:T.rS,border:"none",cursor:"pointer",
-            background:"transparent",color:T.dim,
-            fontSize:13,fontFamily:T.sans,transition:"all .15s",
+            background:"transparent",color:T.ink70,
+            fontSize:13,fontWeight:500,fontFamily:T.sans,transition:"color .18s ease",
             width:"100%",textAlign:"left",
           }}
-          onMouseEnter={e=>e.currentTarget.style.color=T.neg}
-          onMouseLeave={e=>e.currentTarget.style.color=T.dim}
+          onMouseEnter={e=>e.currentTarget.style.color=T.alert}
+          onMouseLeave={e=>e.currentTarget.style.color=T.ink70}
         >
           <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0}}>{"\u2192"}</span>
           <span style={{opacity:expanded?1:0,transition:"opacity .15s"}}>Sign Out</span>

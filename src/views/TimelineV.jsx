@@ -14,26 +14,22 @@ import { createCalendarEvent, searchContacts } from '../utils/google.js';
 import { addTaskToHistory, searchTaskHistory } from '../utils/taskHistory.js';
 
 /* ── helpers ── */
-const Pill=({children,color=T.gold,bg,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
+const Pill=({children,color=T.ink,bg,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 8px":"3px 10px",borderRadius:999,background:"transparent",color,border:`1px solid ${color}`,textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap"}}>{children}</span>;
 
-/* category → color map — two color families + meetings + general */
+/* Per Lab guidelines: two colors only. We separate categories with sapphire opacity. */
 const CAT_COLORS={
-  /* Production family — teal/cyan shades */
-  "Production":"#14B8A6","Catering":"#0D9488","Venue":"#2DD4BF","AV":"#5EEAD4",
-  "Fabrication":"#0D9488","Staffing":"#99F6E4","Print":"#5EEAD4","Logistics":"#2DD4BF",
-  "Freight":"#14B8A6","Rental":"#0D9488","Talent":"#2DD4BF",
-  /* Creative family — purple/violet shades */
-  "Design":"#8B5CF6","Creative":"#A78BFA","Content":"#7C3AED","Photo":"#A78BFA",
-  "Video":"#7C3AED","Marketing":"#8B5CF6","Freelance":"#A78BFA",
-  /* Meetings — soft lavender */
-  "Meeting":"#C4B5FD","Meeting Action":"#C4B5FD",
-  /* General — steel blue */
-  "General":T.gold,"Budget":T.gold,"Other":T.dim,
+  "Production":T.ink,"Catering":T.ink70,"Venue":T.ink70,"AV":T.ink60,
+  "Fabrication":T.ink70,"Staffing":T.ink60,"Print":T.ink60,"Logistics":T.ink70,
+  "Freight":T.ink,"Rental":T.ink70,"Talent":T.ink70,
+  "Design":T.ink,"Creative":T.ink70,"Content":T.ink,"Photo":T.ink70,
+  "Video":T.ink,"Marketing":T.ink,"Freelance":T.ink70,
+  "Meeting":T.fadedInk,"Meeting Action":T.fadedInk,
+  "General":T.ink,"Budget":T.ink,"Other":T.fadedInk,
 };
 const catColor=(cat)=>{
-  if(!cat)return T.gold;
+  if(!cat)return T.ink;
   const key=Object.keys(CAT_COLORS).find(k=>cat.toLowerCase().includes(k.toLowerCase()));
-  return key?CAT_COLORS[key]:T.gold;
+  return key?CAT_COLORS[key]:T.ink;
 };
 
 function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAccess}){
@@ -176,16 +172,16 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     const totalDays=Math.max(daysBetween(minD,maxD),7);
     const weeks=[];let cur=new Date(minD);while(cur<=maxD){weeks.push(new Date(cur));cur.setDate(cur.getDate()+7)}
     return<div>
-      <div style={{display:"flex",borderBottom:"1px solid #E5E5E5",padding:"6px 0"}}><div style={{width:160,flexShrink:0,padding:"0 0 0 4px",fontSize:10,fontWeight:600,color:"#999",textTransform:"uppercase"}}>Task</div><div style={{flex:1,position:"relative",height:18}}>{weeks.map((w,i)=>{const left=(daysBetween(minD,w)/totalDays)*100;return<span key={i} style={{position:"absolute",left:`${left}%`,fontSize:10,color:"#999",fontFamily:"monospace"}}>{fmtShort(w)}</span>})}</div></div>
-      {dated.map(t=>{const start=parseD(t.startDate);const end=parseD(t.endDate)||start;const left=(daysBetween(minD,start)/totalDays)*100;const width=Math.max((daysBetween(start,end)+1)/totalDays*100,1.5);const barColor=t.status==="done"?"#34D399":t.status==="progress"?"#22D3EE":"#432D1C";
-        return<div key={t.id} style={{display:"flex",alignItems:"center",padding:"4px 0",borderBottom:"1px solid #F5F5F5"}}><div style={{width:160,flexShrink:0,padding:"0 0 0 4px",overflow:"hidden"}}><span style={{fontSize:11,color:"#333",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{t.name}</span></div><div style={{flex:1,position:"relative",height:18}}><div style={{position:"absolute",left:`${left}%`,width:`${width}%`,top:3,height:12,borderRadius:3,background:barColor,opacity:.8}}><span style={{position:"absolute",left:4,top:0,fontSize:10,color:"#fff",fontWeight:600,whiteSpace:"nowrap"}}>{fmtShort(start)}{end>start?` — ${fmtShort(end)}`:""}</span></div></div></div>})}
+      <div style={{display:"flex",borderBottom:"1px solid rgba(15,82,186,.18)",padding:"6px 0"}}><div style={{width:160,flexShrink:0,padding:"0 0 0 4px",fontSize:10,fontWeight:700,color:"rgba(15,82,186,.42)",textTransform:"uppercase",letterSpacing:".10em"}}>Task</div><div style={{flex:1,position:"relative",height:18}}>{weeks.map((w,i)=>{const left=(daysBetween(minD,w)/totalDays)*100;return<span key={i} style={{position:"absolute",left:`${left}%`,fontSize:10,color:"rgba(15,82,186,.42)",fontFamily:"monospace"}}>{fmtShort(w)}</span>})}</div></div>
+      {dated.map(t=>{const start=parseD(t.startDate);const end=parseD(t.endDate)||start;const left=(daysBetween(minD,start)/totalDays)*100;const width=Math.max((daysBetween(start,end)+1)/totalDays*100,1.5);const barColor=t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.40)";
+        return<div key={t.id} style={{display:"flex",alignItems:"center",padding:"4px 0",borderBottom:"1px solid rgba(15,82,186,.18)"}}><div style={{width:160,flexShrink:0,padding:"0 0 0 4px",overflow:"hidden"}}><span style={{fontSize:11,color:"#0F52BA",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{t.name}</span></div><div style={{flex:1,position:"relative",height:18}}><div style={{position:"absolute",left:`${left}%`,width:`${width}%`,top:3,height:12,borderRadius:3,background:barColor}}><span style={{position:"absolute",left:6,top:0,fontSize:10,color:"#FFFFFF",fontWeight:700,whiteSpace:"nowrap"}}>{fmtShort(start)}{end>start?` — ${fmtShort(end)}`:""}</span></div></div></div>})}
     </div>
   };
   const ClientCalendarPrint=()=>{
     const dated=clientTasks.filter(t=>parseD(t.startDate)).sort((a,b)=>(a.startDate||"").localeCompare(b.startDate||""));
     if(!dated.length)return<div style={{padding:20,textAlign:"center",color:"#999",fontSize:13}}>No dated tasks selected.</div>;
-    return<table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{borderBottom:"2px solid #E5E5E5"}}>{["Task","Category","Start","End","Status"].map((h,i)=><th key={i} style={{textAlign:i>1?"center":"left",padding:"8px 4px",fontWeight:600,color:"#555",fontSize:10,textTransform:"uppercase",letterSpacing:".06em"}}>{h}</th>)}</tr></thead>
-      <tbody>{dated.map(t=><tr key={t.id} style={{borderBottom:"1px solid #F0F0F0"}}><td style={{padding:"10px 4px",color:"#333"}}>{t.name}</td><td style={{padding:"10px 4px",color:"#777",fontSize:12}}>{t.category}</td><td style={{padding:"10px 4px",color:"#555",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.startDate}</td><td style={{padding:"10px 4px",color:"#555",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.endDate||"\u2014"}</td><td style={{padding:"10px 4px",textAlign:"center"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:t.status==="done"?"#E8F5E9":t.status==="progress"?"#E0F7FA":"#FFF8E1",color:t.status==="done"?"#2E7D32":t.status==="progress"?"#00838F":"#F57F17",textTransform:"uppercase"}}>{STATUS_LABELS[t.status]}</span></td></tr>)}</tbody></table>
+    return<table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{borderBottom:"1px solid #0F52BA"}}>{["Task","Category","Start","End","Status"].map((h,i)=><th key={i} style={{textAlign:i>1?"center":"left",padding:"10px 4px",fontWeight:700,color:"rgba(15,82,186,.42)",fontSize:10,textTransform:"uppercase",letterSpacing:".10em"}}>{h}</th>)}</tr></thead>
+      <tbody>{dated.map(t=><tr key={t.id} style={{borderBottom:"1px solid rgba(15,82,186,.18)"}}><td style={{padding:"12px 4px",color:"#0F52BA",fontWeight:500}}>{t.name}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.42)",fontSize:12,fontStyle:"italic"}}>{t.category}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.70)",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.startDate}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.70)",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.endDate||"\u2014"}</td><td style={{padding:"12px 4px",textAlign:"center"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"transparent",color:t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.42)",border:`1px solid ${t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.42)"}`,letterSpacing:".06em",textTransform:"uppercase"}}>{STATUS_LABELS[t.status]}</span></td></tr>)}</tbody></table>
   };
 
   /* ── Card / Block / Table task renderers ── */
@@ -239,7 +235,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           {t.category&&<Pill color={cc} size="xs">{t.category}</Pill>}
           {t.assignee&&<Pill color={T.cyan} size="xs">{t.assignee}</Pill>}
         </div>
-        <span onClick={e=>{e.stopPropagation();canEdit&&setEditDateId(isEditingDate?null:t.id)}} style={{fontSize:10,color:t.startDate?T.dim:"rgba(255,255,255,.2)",fontFamily:T.mono,flexShrink:0,cursor:canEdit?"pointer":"default",padding:"2px 6px",borderRadius:4}} onMouseEnter={e=>{if(canEdit)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>e.currentTarget.style.color=t.startDate?T.dim:"rgba(255,255,255,.2)"}>{dateStr||"No date"}</span>
+        <span onClick={e=>{e.stopPropagation();canEdit&&setEditDateId(isEditingDate?null:t.id)}} style={{fontSize:10,color:t.startDate?T.dim:T.fadedInk,fontFamily:T.mono,flexShrink:0,cursor:canEdit?"pointer":"default",padding:"2px 6px",borderRadius:4}} onMouseEnter={e=>{if(canEdit)e.currentTarget.style.color=T.cream}} onMouseLeave={e=>e.currentTarget.style.color=t.startDate?T.dim:T.fadedInk}>{dateStr||"No date"}</span>
         {canEdit?<select onClick={e=>e.stopPropagation()} value={t.status} onChange={e=>setTaskStatus(ri,e.target.value)} style={{padding:"3px 4px",borderRadius:T.rS,background:`${STATUS_COLORS[t.status]}18`,border:`1px solid ${STATUS_COLORS[t.status]}33`,color:STATUS_COLORS[t.status],fontSize:10,fontWeight:600,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none",textTransform:"uppercase",letterSpacing:".04em",flexShrink:0}}>{["todo","progress","roadblocked","done"].map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select>
         :<span style={{fontSize:10,fontWeight:600,color:STATUS_COLORS[t.status],textTransform:"uppercase",letterSpacing:".06em",flexShrink:0,width:70,textAlign:"right"}}>{STATUS_LABELS[t.status]}</span>}
         {canEdit&&<button onClick={e=>{e.stopPropagation();removeTask(ri)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.15,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.15}><TrashI size={11} color={T.neg}/></button>}
@@ -255,13 +251,13 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   /* ── Inline meeting block for block view ── */
   const renderMeetingBlock=(m)=>{
     return<div key={`meeting-${m.id}`}>
-      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,borderLeft:"3px solid #C4B5FD",border:`1px solid ${T.border}`,borderLeftWidth:3,borderLeftColor:"#C4B5FD",transition:"all .15s",cursor:"pointer"}} onClick={()=>{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
-        <div style={{width:8,height:8,borderRadius:"50%",background:"#C4B5FD",flexShrink:0}}/>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.paper,borderRadius:T.rS,border:`1px solid ${T.faintRule}`,borderLeft:`2px solid ${T.fadedInk}`,transition:"background .18s ease",cursor:"pointer"}} onClick={()=>{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}} onMouseEnter={e=>e.currentTarget.style.background=T.inkSoft3} onMouseLeave={e=>e.currentTarget.style.background=T.paper}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:T.fadedInk,flexShrink:0}}/>
         <div style={{flex:1,minWidth:0}}>
           <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</span>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          <Pill color="#C4B5FD" size="xs">Meeting</Pill>
+          <Pill color={T.fadedInk} size="xs">Meeting</Pill>
           {m.time&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{m.time}</span>}
           {m.duration&&<span style={{fontSize:10,color:T.dim}}>{m.duration}</span>}
         </div>
@@ -295,10 +291,10 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   /* ── Status filter pill colors ── */
   const filterPillStyle=(f)=>{
     const active=filter===f;
-    const colorMap={all:T.gold,todo:"rgba(250,250,249,.6)",progress:"#22D3EE",roadblocked:"#F87171",done:"#34D399"};
-    const bgMap={all:T.goldSoft,todo:"rgba(250,250,249,.08)",progress:"rgba(34,211,238,.1)",roadblocked:"rgba(248,113,113,.1)",done:"rgba(52,211,153,.1)"};
-    const activeBgMap={all:`${T.gold}28`,todo:"rgba(250,250,249,.15)",progress:"rgba(34,211,238,.2)",roadblocked:"rgba(248,113,113,.2)",done:"rgba(52,211,153,.2)"};
-    return{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:active?700:500,fontFamily:T.sans,background:active?activeBgMap[f]:bgMap[f],color:active?colorMap[f]:T.dim,transition:"all .15s"};
+    const colorMap={all:T.ink,todo:T.fadedInk,progress:T.ink70,roadblocked:T.alert,done:T.ink};
+    const bgMap={all:"transparent",todo:"transparent",progress:"transparent",roadblocked:"transparent",done:"transparent"};
+    const activeBgMap={all:T.ink,todo:T.fadedInk,progress:T.ink70,roadblocked:T.alert,done:T.ink};
+    return{padding:"5px 14px",borderRadius:999,border:`1px solid ${active?colorMap[f]:T.faintRule}`,cursor:"pointer",fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",fontFamily:T.sans,background:active?activeBgMap[f]:"transparent",color:active?T.paper:T.fadedInk,transition:"all .18s ease"};
   };
 
   /* ── Build merged list for block view (tasks + inline meetings) ── */
@@ -368,7 +364,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         <div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
           {[["calendar","Calendar"],["gantt","Gantt"],["list","List"]].map(([k,l])=><button key={k} onClick={()=>setViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:viewMode===k?600:400,fontFamily:T.sans,background:viewMode===k?T.goldSoft:"transparent",color:viewMode===k?T.gold:T.dim,transition:"all .15s"}}>{l}</button>)}
         </div>
-        {gcalEvents.length>0&&<span style={{fontSize:9,fontWeight:600,padding:"3px 8px",borderRadius:10,background:"rgba(66,133,244,.12)",color:"#4285F4"}}>Google Calendar ({gcalEvents.length})</span>}
+        {gcalEvents.length>0&&<span style={{fontSize:9,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"transparent",color:T.fadedInk,border:`1px solid ${T.fadedInk}`,letterSpacing:".06em",textTransform:"uppercase"}}>Google Calendar · {gcalEvents.length}</span>}
         {gcalLoading&&<span style={{fontSize:9,color:T.dim}}>Syncing calendar...</span>}
         {/* Card/Block/Table sub-toggle when List is active */}
         {isListView&&<div style={{display:"flex",background:T.surface,borderRadius:20,padding:2}}>
@@ -379,7 +375,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         {/* "..." menu */}
         <div ref={menuRef} style={{position:"relative"}}>
           <button onClick={()=>setShowMenu(!showMenu)} style={{width:32,height:32,borderRadius:20,border:`1px solid ${T.border}`,background:showMenu?T.surfHov:"transparent",color:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,letterSpacing:2,lineHeight:1}}>...</button>
-          {showMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:180,overflow:"hidden"}}>
+          {showMenu&&<div className="fc-panel" style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:60,minWidth:220,padding:4,borderRadius:12,overflow:"hidden"}}>
             <button onClick={()=>{setShowClientTL(!showClientTL);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:showClientTL?T.cyan:T.cream,fontFamily:T.sans,fontWeight:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showClientTL?"Close Client Timeline":"Create Client Timeline"}</button>
             <button onClick={()=>{setShowSuggestions(!showSuggestions);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",fontSize:11,color:showSuggestions?T.gold:T.cream,fontFamily:T.sans,fontWeight:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showSuggestions?"Hide Budget Items":"Budget Items"}</button>
           </div>}
@@ -404,22 +400,22 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         </div>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:14}}>
-        {tasks.map(t=><button key={t.id} onClick={()=>toggleClientTask(t.id)} style={{padding:"4px 10px",borderRadius:T.rS,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:clientIncluded.has(t.id)?"rgba(34,211,238,.12)":"rgba(255,255,255,.03)",color:clientIncluded.has(t.id)?T.cyan:T.dim,fontWeight:clientIncluded.has(t.id)?500:400}}>{t.name}</button>)}
+        {tasks.map(t=><button key={t.id} onClick={()=>toggleClientTask(t.id)} style={{padding:"5px 12px",borderRadius:999,border:`1px solid ${clientIncluded.has(t.id)?T.ink:T.faintRule}`,cursor:"pointer",fontSize:10,fontWeight:600,letterSpacing:".04em",fontFamily:T.sans,background:clientIncluded.has(t.id)?T.ink:"transparent",color:clientIncluded.has(t.id)?T.paper:T.fadedInk,transition:"all .18s ease"}}>{t.name}</button>)}
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",paddingTop:12,borderTop:`1px solid ${T.border}`}}>
         <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@example.com" onKeyDown={e=>e.key==="Enter"&&sendClientTL()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
-        <button onClick={sendClientTL} disabled={!clientEmail.trim()||clientSending} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:clientEmail.trim()&&!clientSending?"rgba(34,211,238,.15)":"rgba(255,255,255,.05)",color:clientEmail.trim()&&!clientSending?T.cyan:"rgba(255,255,255,.2)",fontSize:11,fontWeight:700,cursor:clientEmail.trim()&&!clientSending?"pointer":"default",fontFamily:T.sans}}>{clientSending?"Sending...":"Send Email"}</button>
+        <button onClick={sendClientTL} disabled={!clientEmail.trim()||clientSending} className="btn-pill" style={{padding:"7px 18px",fontSize:11,opacity:clientEmail.trim()&&!clientSending?1:.4,cursor:clientEmail.trim()&&!clientSending?"pointer":"default",...(clientEmail.trim()&&!clientSending?{background:T.ink,color:T.paper}:{})}}>{clientSending?"Sending…":"Send Email"}</button>
         <button onClick={()=>window.print()} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}><span style={{display:"flex",alignItems:"center",gap:4}}><DlI size={12}/>PDF</span></button>
       </div>
       {clientSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {clientSent}</div>}
       {/* Preview */}
-      <div style={{marginTop:14,background:"#fff",borderRadius:T.rS,padding:28,color:"#111",boxShadow:"0 2px 12px rgba(0,0,0,.2)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",paddingBottom:16,marginBottom:20,borderBottom:"2px solid #432D1C"}}>
-          <div><div style={{marginBottom:8}}><ESWordmark height={12} color="#432D1C"/></div><div style={{fontSize:18,fontWeight:700,color:"#432D1C"}}>Project Timeline</div></div>
+      <div style={{marginTop:14,background:"#FFFFFF",borderRadius:T.rS,padding:28,color:"#0F52BA",boxShadow:"0 8px 24px rgba(15,82,186,.10)",border:`1px solid ${T.faintRule}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",paddingBottom:16,marginBottom:20,borderBottom:"2px solid #0F52BA"}}>
+          <div><div style={{marginBottom:8}}><ESWordmark height={12} color="#0F52BA"/></div><div style={{fontSize:18,fontWeight:700,color:"#0F52BA"}}>Project Timeline</div></div>
           <div style={{textAlign:"right",fontSize:11,color:"#777"}}><div>{project.name}</div><div>{project.client||""}</div>{project.eventDate&&<div>Event: {project.eventDate}</div>}</div>
         </div>
-        {(clientFormat==="gantt"||clientFormat==="both")&&<div style={{marginBottom:clientFormat==="both"?20:0}}>{clientFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#432D1C",marginBottom:10,textTransform:"uppercase",letterSpacing:".06em"}}>Gantt View</div>}<ClientGanttPrint/></div>}
-        {(clientFormat==="calendar"||clientFormat==="both")&&<div>{clientFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#432D1C",marginBottom:10,marginTop:8,textTransform:"uppercase",letterSpacing:".06em"}}>Calendar View</div>}<ClientCalendarPrint/></div>}
+        {(clientFormat==="gantt"||clientFormat==="both")&&<div style={{marginBottom:clientFormat==="both"?20:0}}>{clientFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#0F52BA",marginBottom:10,textTransform:"uppercase",letterSpacing:".06em"}}>Gantt View</div>}<ClientGanttPrint/></div>}
+        {(clientFormat==="calendar"||clientFormat==="both")&&<div>{clientFormat==="both"&&<div style={{fontSize:11,fontWeight:600,color:"#0F52BA",marginBottom:10,marginTop:8,textTransform:"uppercase",letterSpacing:".06em"}}>Calendar View</div>}<ClientCalendarPrint/></div>}
         {clientTasks.length===0&&<div style={{padding:20,textAlign:"center",color:"#999",fontSize:13}}>No tasks selected.</div>}
       </div>
     </Card>}
@@ -443,7 +439,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       </div>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginBottom:12}}>
         <div style={{position:"relative"}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{isMeeting?"Meeting":"Task"}</label><input autoFocus value={nN} onChange={e=>{setNN(e.target.value);setTaskSugs(searchTaskHistory(e.target.value));setSugIdx2(-1)}} placeholder={isMeeting?"Meeting name":"Task name"} onKeyDown={e=>{if(e.key==="Enter"){if(sugIdx2>=0&&taskSugs[sugIdx2]){setNN(taskSugs[sugIdx2]);setTaskSugs([]);setSugIdx2(-1)}else if(isMeeting){addMeeting(nN)}else{addTask()}}else if(e.key==="ArrowDown"){e.preventDefault();setSugIdx2(i=>Math.min(i+1,taskSugs.length-1))}else if(e.key==="ArrowUp"){e.preventDefault();setSugIdx2(i=>Math.max(i-1,-1))}else if(e.key==="Escape"){setTaskSugs([]);setSugIdx2(-1)}}} onBlur={()=>setTimeout(()=>{setTaskSugs([]);setSugIdx2(-1)},200)} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${isMeeting?"rgba(196,181,253,.3)":T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/>
-          {taskSugs.length>0&&<div style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxHeight:160,overflow:"auto"}}>
+          {taskSugs.length>0&&<div className="fc-panel" style={{position:"absolute",left:0,right:0,top:"100%",zIndex:50,marginTop:6,maxHeight:200,overflow:"auto",borderRadius:12,padding:4}}>
             {taskSugs.map((s,i)=><button key={i} onMouseDown={e=>{e.preventDefault();setNN(s);setTaskSugs([]);setSugIdx2(-1)}} style={{width:"100%",display:"block",padding:"8px 12px",background:sugIdx2===i?T.surfHov:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:sugIdx2===i?T.cream:T.dim,fontFamily:T.sans,fontWeight:sugIdx2===i?500:400}} onMouseEnter={()=>setSugIdx2(i)}>{s}</button>)}
           </div>}
         </div>
@@ -471,7 +467,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           </div>})()}</div>
         <div><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Agenda</label><textarea value={meetingAgenda} onChange={e=>setMeetingAgenda(e.target.value)} placeholder="Topics to discuss..." rows={2} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
         <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
-          <button onClick={()=>setIsClientMeetingFlag(!isClientMeetingFlag)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:isClientMeetingFlag?600:400,background:isClientMeetingFlag?"rgba(6,182,212,.12)":"rgba(255,255,255,.04)",color:isClientMeetingFlag?T.cyan:T.dim,fontFamily:T.sans}}>{isClientMeetingFlag?"Client Meeting":"Mark as Client Meeting"}</button>
+          <button onClick={()=>setIsClientMeetingFlag(!isClientMeetingFlag)} style={{padding:"5px 12px",borderRadius:999,border:`1px solid ${isClientMeetingFlag?T.ink:T.faintRule}`,cursor:"pointer",fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",background:isClientMeetingFlag?T.ink:"transparent",color:isClientMeetingFlag?T.paper:T.fadedInk,fontFamily:T.sans,transition:"all .18s ease"}}>{isClientMeetingFlag?"Client Meeting":"Mark as Client Meeting"}</button>
           {isClientMeetingFlag&&<span style={{fontSize:10,color:T.cyan}}>Will appear in Client section</span>}
         </div>
       </div>}

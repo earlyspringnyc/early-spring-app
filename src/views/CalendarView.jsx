@@ -4,27 +4,18 @@ import { parseD } from '../utils/date.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 import { searchTaskHistory } from '../utils/taskHistory.js';
 
+// Sapphire-only event chips. Per Lab guidelines: two colors, opacity for separation.
+// Production = sapphire 100, Creative = sapphire 70, Meetings = sapphire 42 (italic),
+// Logistics/admin = sapphire 60, Done = sapphire 20 muted.
 export function taskColor(t){
-  if(t._gcal)return{bg:"rgba(66,133,244,.15)",fg:"#4285F4"};
-  if(t.status==="done")return{bg:"rgba(110,231,183,.12)",fg:"#6EE7B7"};
-  if(t.status==="progress")return{bg:"rgba(103,232,249,.12)",fg:"#67E8F9"};
+  if(t._gcal)return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk};
+  if(t.status==="done")return{bg:"rgba(15,82,186,.05)",fg:T.fadedInk};
+  if(t.status==="progress")return{bg:"rgba(15,82,186,.10)",fg:T.ink};
   const cat=((t.category||"General")+" "+(t.name||"")).toLowerCase();
-  /* Meetings — lavender */
-  if(cat.includes("meeting")||cat.includes("call")||cat.includes("sync"))return{bg:"rgba(196,181,253,.12)",fg:"#C4B5FD"};
-  /* Creative family — purple/violet */
-  if(cat.includes("design")||cat.includes("creative")||cat.includes("brand")||cat.includes("art")||cat.includes("concept")||cat.includes("strategy")||cat.includes("ideation"))return{bg:"rgba(139,92,246,.12)",fg:"#A78BFA"};
-  if(cat.includes("content")||cat.includes("photo")||cat.includes("video")||cat.includes("capture")||cat.includes("edit")||cat.includes("marketing"))return{bg:"rgba(124,58,237,.12)",fg:"#8B5CF6"};
-  /* Production family — teal/cyan */
-  if(cat.includes("production")||cat.includes("build")||cat.includes("fabrication")||cat.includes("install")||cat.includes("av")||cat.includes("staging"))return{bg:"rgba(20,184,166,.12)",fg:"#2DD4BF"};
-  if(cat.includes("venue")||cat.includes("location")||cat.includes("site"))return{bg:"rgba(45,212,191,.12)",fg:"#2DD4BF"};
-  if(cat.includes("catering")||cat.includes("food")||cat.includes("bev"))return{bg:"rgba(13,148,136,.12)",fg:"#14B8A6"};
-  if(cat.includes("print")||cat.includes("collateral")||cat.includes("signage"))return{bg:"rgba(94,234,212,.12)",fg:"#5EEAD4"};
-  if(cat.includes("staff")||cat.includes("team")||cat.includes("crew")||cat.includes("talent"))return{bg:"rgba(153,246,228,.12)",fg:"#5EEAD4"};
-  if(cat.includes("travel")||cat.includes("logistics")||cat.includes("shipping")||cat.includes("freight")||cat.includes("rental"))return{bg:"rgba(20,184,166,.12)",fg:"#14B8A6"};
-  /* General — steel blue */
-  if(cat.includes("permit")||cat.includes("legal")||cat.includes("insurance")||cat.includes("finance")||cat.includes("budget"))return{bg:"rgba(148,163,184,.1)",fg:"#94A3B8"};
-  if(cat.includes("deliverable")||cat.includes("client")||cat.includes("feedback")||cat.includes("review"))return{bg:"rgba(148,163,184,.1)",fg:"#94A3B8"};
-  return{bg:"rgba(148,163,184,.1)",fg:"#94A3B8"};
+  if(cat.includes("meeting")||cat.includes("call")||cat.includes("sync"))return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk};
+  if(cat.includes("design")||cat.includes("creative")||cat.includes("brand")||cat.includes("art")||cat.includes("concept")||cat.includes("strategy")||cat.includes("ideation")||cat.includes("content")||cat.includes("photo")||cat.includes("video")||cat.includes("capture")||cat.includes("edit")||cat.includes("marketing"))return{bg:"rgba(15,82,186,.08)",fg:T.ink70};
+  if(cat.includes("production")||cat.includes("build")||cat.includes("fabrication")||cat.includes("install")||cat.includes("av")||cat.includes("staging")||cat.includes("venue")||cat.includes("location")||cat.includes("site")||cat.includes("catering")||cat.includes("food")||cat.includes("bev")||cat.includes("print")||cat.includes("collateral")||cat.includes("signage")||cat.includes("staff")||cat.includes("team")||cat.includes("crew")||cat.includes("talent")||cat.includes("travel")||cat.includes("logistics")||cat.includes("shipping")||cat.includes("freight")||cat.includes("rental"))return{bg:"rgba(15,82,186,.10)",fg:T.ink};
+  return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk};
 }
 
 function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canEdit}){

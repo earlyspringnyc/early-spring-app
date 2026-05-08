@@ -40,11 +40,11 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
     <button onClick={()=>setView(id)} style={{
       display:"flex",alignItems:"center",gap:12,padding:"13px 16px",width:"100%",
       minHeight:48,borderRadius:T.rS,border:"none",cursor:"pointer",textAlign:"left",
-      background:view===id?T.surfEl:"transparent",
-      color:view===id?T.cream:T.dim,
-      fontSize:15,fontWeight:view===id?500:400,fontFamily:T.sans,
+      background:view===id?T.inkSoft:"transparent",
+      color:view===id?T.ink:T.ink70,
+      fontSize:15,fontWeight:view===id?700:500,fontFamily:T.sans,
     }}>
-      <span style={{fontSize:18,width:24,textAlign:"center",opacity:view===id?1:.5}}>{icon}</span>
+      <span style={{fontSize:18,width:24,textAlign:"center",color:"inherit"}}>{icon}</span>
       <span>{label}</span>
     </button>
   );
