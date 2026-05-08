@@ -65,7 +65,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
     >
       <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,opacity:active?1:.5}}>{icon}</span>
       <span style={{opacity:expanded?1:0,transition:"opacity .15s",flex:1,overflow:"hidden",textOverflow:"ellipsis"}}>{label}</span>
-      {badge>0&&expanded&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(248,113,113,.15)",color:T.neg}}>{badge}</span>}
+      {badge>0&&expanded&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:999,background:T.alertSoft,color:T.alert}}>{badge}</span>}
     </button>
   );
 
@@ -111,12 +111,10 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
         </button>
 
         {/* Dropdown */}
-        {orgDropdownOpen&&expanded&&<div style={{
-          position:"absolute",left:8,right:8,top:"100%",marginTop:4,
-          background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,
-          boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:100,
+        {orgDropdownOpen&&expanded&&<div className="fc-panel" style={{
+          position:"absolute",left:8,right:8,top:"100%",marginTop:6,zIndex:100,
           padding:4,display:"flex",flexDirection:"column",gap:2,
-          maxHeight:240,overflowY:"auto",
+          maxHeight:240,overflowY:"auto",borderRadius:12,
         }}>
           {organizations.map(org=>{
             const isActive=org.id===currentOrgId;
@@ -196,23 +194,6 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
         {bottomItems.map(n=>(
           <NavBtn key={n.id} {...n} active={view===n.id}/>
         ))}
-
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          style={{
-            display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
-            borderRadius:T.rS,border:"none",cursor:"pointer",
-            background:"transparent",color:T.dim,
-            fontSize:13,fontFamily:T.sans,transition:"all .15s",
-            width:"100%",textAlign:"left",
-          }}
-          onMouseEnter={e=>e.currentTarget.style.color=T.cream}
-          onMouseLeave={e=>e.currentTarget.style.color=T.dim}
-        >
-          <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0}}>{themeMode==="dark"?"\u2600":"\u263E"}</span>
-          <span style={{opacity:expanded?1:0,transition:"opacity .15s"}}>{themeMode==="dark"?"Light":"Dark"}</span>
-        </button>
 
         {/* Sign out */}
         {onLogout&&<button

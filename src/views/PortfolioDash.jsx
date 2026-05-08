@@ -9,7 +9,7 @@ import { Card, DonutChart } from '../components/primitives/index.js';
 import BarChart from '../components/primitives/BarChart.jsx';
 import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
 
-const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
+const Pill=({children,color=T.ink,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 8px":"3px 10px",borderRadius:999,background:"transparent",color,border:`1px solid ${color}`,textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap"}}>{children}</span>;
 
 function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
   const[open,setOpen]=useState(false);
@@ -20,7 +20,7 @@ function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
       {currentOrg?.name||"Org"}
       <span style={{fontSize:8,opacity:.5}}>&#9662;</span>
     </button>
-    {open&&<div style={{position:"absolute",top:"100%",left:0,marginTop:4,minWidth:200,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 32px rgba(0,0,0,.4)",zIndex:100,padding:4}}>
+    {open&&<div className="fc-panel" style={{position:"absolute",top:"100%",left:0,marginTop:6,minWidth:220,zIndex:100,padding:4,borderRadius:12}}>
       {organizations.map(org=>{
         const isActive=org.id===currentOrgId;
         const orgProfile=profiles.find(p=>p.org_id===org.id);
@@ -121,20 +121,14 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
   const activeProjects=activeProjectCount;
   const firstName=(user.name||user.email||"").split(" ")[0]||"there";
 
-  // Project card colors
+  // Project card variants — sapphire only, varied by opacity
   const cardColors=[
-    ["rgba(99,102,241,.14)","rgba(99,102,241,.25)","#6366F1"],
-    ["rgba(20,184,166,.14)","rgba(20,184,166,.25)","#14B8A6"],
-    ["rgba(244,114,100,.12)","rgba(244,114,100,.22)","#F47264"],
-    ["rgba(245,158,11,.12)","rgba(245,158,11,.22)","#F59E0B"],
-    ["rgba(16,185,129,.14)","rgba(16,185,129,.25)","#10B981"],
-    ["rgba(139,92,246,.14)","rgba(139,92,246,.25)","#8B5CF6"],
-    ["rgba(236,72,153,.12)","rgba(236,72,153,.22)","#EC4899"],
-    ["rgba(6,182,212,.14)","rgba(6,182,212,.25)","#06B6D4"],
+    [T.inkSoft3,T.faintRule,T.ink],
+    [T.inkSoft2,T.faintRule,T.ink70],
   ];
 
   return<div style={{height:"100vh",background:T.bg,fontFamily:T.sans,overflow:"auto"}}>
-    <div style={{height:2,background:`linear-gradient(90deg,${T.gold},${T.cyan},${T.magenta},${T.pos})`,opacity:.4}}/>
+    <div style={{height:1,background:T.faintRule}}/>
 
     <div className="portfolio-container" style={{maxWidth:1200,margin:"0 auto",padding:"36px 32px"}}>
       {/* Header */}
@@ -144,18 +138,19 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           {profiles.length>1&&<OrgSwitcher organizations={organizations} profiles={profiles} currentOrgId={currentOrgId} switchOrg={switchOrg}/>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          {canCreate&&<button className="portfolio-new-btn" onClick={onNew} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}><PlusI size={11} color={T.gold}/> New Project</button>}
+          {canCreate&&<button className="portfolio-new-btn btn-pill" onClick={onNew} style={{padding:"7px 14px",fontSize:12}}><PlusI size={11} color="currentColor"/> New Project</button>}
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:26,height:26,borderRadius:"50%",background:T.goldSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:T.gold,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
-            <span style={{fontSize:11,color:T.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:100}}>{user.name||user.email||""}</span>
-            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:`1px solid ${T.border}`,borderRadius:T.rS,cursor:"pointer",padding:"5px 10px",flexShrink:0,fontSize:10,color:T.dim,fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.neg;e.currentTarget.style.color=T.neg}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}><LogOutI size={11} color="currentColor"/>Sign Out</button>
+            <div style={{width:26,height:26,borderRadius:"50%",background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:T.ink,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
+            <span style={{fontSize:11,color:T.fadedInk,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{user.name||user.email||""}</span>
+            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:4,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,cursor:"pointer",padding:"5px 12px",flexShrink:0,fontSize:10,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:T.fadedInk,fontFamily:T.sans,transition:"all .18s ease"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.alert;e.currentTarget.style.color=T.alert}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}><LogOutI size={11} color="currentColor"/>Sign Out</button>
           </div>
         </div>
       </div>
 
       {/* Welcome */}
-      <div style={{marginBottom:28}}>
-        <h1 style={{fontSize:"clamp(26px, 5vw, 36px)",fontWeight:700,color:T.cream,letterSpacing:"-0.03em"}}>{getGreeting()}, {firstName}{getGreeting()==="Working hard"?"?":"."}</h1>
+      <div style={{marginBottom:32,marginTop:12}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:".10em",textTransform:"uppercase",color:T.ink,marginBottom:14}}>Portfolio</div>
+        <h1 style={{fontSize:"clamp(34px,5.4vw,64px)",fontWeight:800,color:T.ink,letterSpacing:"-0.028em",lineHeight:0.98,margin:0}}>{getGreeting()}, {firstName}{getGreeting()==="Working hard"?"?":"."}</h1>
       </div>
 
       {/* ── BENTO GRID ── */}
@@ -179,10 +174,10 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         </Card>
 
         {/* Row 2: Overdue alerts (full width, only if overdue) */}
-        {allOverdue.length>0&&<Card style={{padding:18,gridColumn:"span 4",background:"rgba(248,113,113,.03)",borderColor:"rgba(248,113,113,.12)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em"}}>Overdue Invoices</span><Pill color={T.neg} size="xs">{allOverdue.length}</Pill></div>
-          {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount)}</span>
+        {allOverdue.length>0&&<Card style={{padding:18,gridColumn:"span 4",background:T.alertSoft,borderColor:T.alert,borderLeft:`2px solid ${T.alert}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.alert,textTransform:"uppercase",letterSpacing:".10em"}}>Overdue Invoices</span><Pill color={T.alert} size="xs">{allOverdue.length}</Pill></div>
+          {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(122,31,31,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.fadedInk} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.fadedInk,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.alert}}>{f$(d.amount)}</span>
           </div>)}
         </Card>}
 
@@ -190,7 +185,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         <Card style={{padding:24,gridColumn:"span 4"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <L>Projects</L>
-            {canCreate&&<button onClick={onNew} style={{fontSize:10,color:T.gold,background:"none",border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,padding:"4px 10px",cursor:"pointer",fontFamily:T.sans,fontWeight:600}}>+ New</button>}
+            {canCreate&&<button onClick={onNew} className="btn-pill" style={{padding:"5px 12px",fontSize:11}}>+ New</button>}
           </div>
           {projects.length===0?<div style={{textAlign:"center",padding:"40px 20px",color:T.dim,fontSize:13}}>No projects yet. Create one to get started.</div>
           :(()=>{
@@ -223,7 +218,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                   </div>
                   {tt>0&&<div style={{marginTop:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{td}/{tt} tasks</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{tp}%</span></div>
-                    <div style={{height:3,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${tp}%`,background:`linear-gradient(90deg,${cardAccent},${T.pos})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+                    <div style={{height:3,background:T.faintRule,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${tp}%`,background:cardAccent,borderRadius:2,transition:"width .4s cubic-bezier(.2,.8,.2,1)"}}/></div>
                   </div>}
                 </div>
               </Card>;
@@ -260,8 +255,8 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
             {overdueTasks.length>0&&<Pill color={T.neg} size="xs">{overdueTasks.length} overdue</Pill>}
           </div>
           {tasksTotal>0&&<div style={{marginBottom:14}}>
-            <div style={{height:6,borderRadius:3,background:T.surface,overflow:"hidden"}}>
-              <div style={{height:"100%",borderRadius:3,background:`linear-gradient(90deg,${T.pos},${T.gold})`,width:`${taskPct}%`,transition:"width .4s ease"}}/>
+            <div style={{height:6,borderRadius:3,background:T.faintRule,overflow:"hidden"}}>
+              <div style={{height:"100%",borderRadius:3,background:T.ink,width:`${taskPct}%`,transition:"width .4s cubic-bezier(.2,.8,.2,1)"}}/>
             </div>
           </div>}
           {upcomingTasks.length>0&&<div>
@@ -383,7 +378,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
     })()}
 
     {/* Mobile FAB — New Project */}
-    {canCreate&&<button className="portfolio-fab" onClick={onNew} style={{position:"fixed",bottom:24,right:20,zIndex:200,width:52,height:52,borderRadius:26,background:T.gold,color:T.bg,border:"none",cursor:"pointer",display:"none",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:300,boxShadow:"0 4px 20px rgba(0,0,0,.3)",transition:"transform .15s"}} onMouseDown={e=>e.currentTarget.style.transform="scale(.93)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} aria-label="New Project">+</button>}
+    {canCreate&&<button className="portfolio-fab" onClick={onNew} style={{position:"fixed",bottom:24,right:20,zIndex:200,width:52,height:52,borderRadius:26,background:T.ink,color:T.paper,border:"none",cursor:"pointer",display:"none",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:300,boxShadow:"0 8px 24px rgba(15,82,186,.20)",transition:"transform .15s ease"}} onMouseDown={e=>e.currentTarget.style.transform="scale(.96)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} aria-label="New Project">+</button>}
   </div>;
 }
 

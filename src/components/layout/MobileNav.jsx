@@ -63,16 +63,16 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
       </button>
     </div>
 
-    {/* Overlay backdrop */}
-    {open&&<div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:298,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)"}}/>}
+    {/* Overlay backdrop — sapphire wash */}
+    {open&&<div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:298,background:"rgba(15,82,186,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}/>}
 
     {/* Slide-out drawer */}
     <div style={{
       position:"fixed",top:0,left:0,bottom:0,zIndex:299,
       width:280,maxWidth:"82vw",
-      background:T.bg,borderRight:`1px solid ${T.border}`,boxShadow:"8px 0 32px rgba(0,0,0,.2)",
+      background:T.paper,borderRight:`1px solid ${T.faintRule}`,boxShadow:"8px 0 32px rgba(15,82,186,.10)",
       transform:open?"translateX(0)":"translateX(-100%)",
-      transition:"transform .25s cubic-bezier(.4,0,.2,1)",
+      transition:"transform .35s cubic-bezier(.2,.8,.2,1)",
       display:"flex",flexDirection:"column",
       paddingTop:56,overflow:"auto",
     }}>
@@ -86,10 +86,6 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
       </nav>
       <div style={{borderTop:`1px solid ${T.border}`,padding:"8px 8px 20px",display:"flex",flexDirection:"column",gap:1}}>
         {bottomItems.map(n=><NavBtn key={n.id} {...n}/>)}
-        {toggleTheme&&<button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:15,fontFamily:T.sans,textAlign:"left"}}>
-          <span style={{fontSize:18,width:24,textAlign:"center"}}>{themeMode==="dark"?"\u2600":"\u263E"}</span>
-          <span>{themeMode==="dark"?"Light Mode":"Dark Mode"}</span>
-        </button>}
         {onLogout&&<button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:15,fontFamily:T.sans,textAlign:"left"}}>
           <span style={{fontSize:18,width:24,textAlign:"center"}}>{"\u2192"}</span>
           <span>Sign Out</span>
