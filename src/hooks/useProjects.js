@@ -3,208 +3,182 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 import * as db from '../lib/db.js';
 import { mkProject, mkSampleProject } from '../data/defaults.js';
 
+/* ── Save reliability ──
+   - Every project always has a write-through copy in localStorage.
+   - On load we MERGE Supabase + localStorage. Anything cached locally that
+     Supabase doesn't have is treated as an unsynced local-only project
+     and re-uploaded with its existing id (upsert).
+   - createProject sets `_unsynced:true` if the insert fails, persists
+     immediately, and the next merge pass tries to push it.
+   - updateProject debounces 500ms; pending saves are flushed synchronously
+     on pagehide / visibilitychange to keep the last edit safe. */
+
+const cacheKey = (orgId) => `es_projects_${orgId || 'local'}`;
+
+function readCache(orgId) {
+  try {
+    const raw = localStorage.getItem(cacheKey(orgId));
+    if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; }
+    // Legacy key fallback (single bucket pre-orgId migration)
+    const legacy = localStorage.getItem('es_projects');
+    if (legacy) { const parsed = JSON.parse(legacy); if (Array.isArray(parsed)) return parsed; }
+  } catch (e) {}
+  return [];
+}
+
+function writeCache(orgId, projects) {
+  try { localStorage.setItem(cacheKey(orgId), JSON.stringify(projects)); } catch (e) {}
+  // Mirror to legacy key so an older tab can still read.
+  try { localStorage.setItem('es_projects', JSON.stringify(projects)); } catch (e) {}
+}
+
 export function useProjects(orgId) {
   const [projects, setProjects] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
+  const pendingSaves = useRef(new Map()); // projectId → latest stripped data
   const prevOrgId = useRef(null);
   const usesDb = isSupabaseConfigured() && orgId && orgId !== 'local';
 
-  // Load projects - reload when orgId changes (e.g. from 'local' to a real UUID)
+  // Load + merge — Supabase is treated as authoritative for content, but
+  // any local-only project (cached but missing in Supabase) is preserved
+  // and re-uploaded.
   useEffect(() => {
-    // Skip if orgId hasn't actually changed
     if (prevOrgId.current === orgId) return;
     prevOrgId.current = orgId;
 
-    // Only show sample project for brand new users who have never had projects
-    const hasHadProjects = () => { try { return localStorage.getItem("es_has_projects") === "1" } catch(e) { return false } };
-    const markHasProjects = () => { try { localStorage.setItem("es_has_projects", "1") } catch(e) {} };
+    const hasHadProjects = () => { try { return localStorage.getItem('es_has_projects') === '1' } catch(e) { return false } };
+    const markHasProjects = () => { try { localStorage.setItem('es_has_projects', '1') } catch(e) {} };
 
-    if (usesDb) {
-      console.log('[projects] Loading from Supabase for org:', orgId);
-      setLoaded(false);
-      db.getProjects(orgId).then(async p => {
-        console.log('[projects] Loaded', p.length, 'projects from Supabase');
-        if (p.length > 0) {
-          markHasProjects();
-          setProjects(p.map(restoreFileData));
-        } else {
-          // No projects in Supabase — check localStorage for projects to migrate
-          let localProjects = [];
-          try {
-            const saved = localStorage.getItem("es_projects");
-            if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) localProjects = parsed; }
-          } catch (e2) {}
+    if (!usesDb) {
+      const cached = readCache(orgId);
+      if (cached.length) { markHasProjects(); setProjects(cached); setLoaded(true); return; }
+      if (!hasHadProjects()) { markHasProjects(); setProjects([mkSampleProject()]); }
+      else setProjects([]);
+      setLoaded(true);
+      return;
+    }
 
-          if (localProjects.length > 0) {
-            // Migrate localStorage projects to Supabase
-            console.log('[projects] Migrating', localProjects.length, 'projects from localStorage to Supabase');
-            const migrated = [];
-            for (const lp of localProjects) {
-              try {
-                // Strip large file data before saving to DB
-                const toSave = { ...lp };
-                ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
-                  if (toSave[k]) toSave[k] = toSave[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
-                });
-                const saved = await db.createProject(orgId, toSave);
-                if (saved) { migrated.push(saved); console.log('[projects] Migrated:', lp.name); }
-                else { migrated.push(lp); }
-              } catch (e2) { console.error('[projects] Migration failed for:', lp.name, e2); migrated.push(lp); }
-            }
-            markHasProjects();
-            setProjects(migrated.map(restoreFileData));
-          } else if (!hasHadProjects()) {
-            // First time ever — create sample
-            console.log('[projects] First-time user — creating sample project');
-            markHasProjects();
-            const sample = mkSampleProject();
-            try {
-              const saved = await db.createProject(orgId, sample);
-              if (saved) { setProjects([saved]); setLoaded(true); return; }
-            } catch (e2) { console.error('[projects] Sample create failed:', e2); }
-            setProjects([sample]);
-          } else {
-            setProjects([]);
-          }
-        }
-        setLoaded(true);
-      }).catch(e => {
-        console.error('[projects] Failed to load from Supabase:', e);
-        // Fallback to localStorage cache
+    console.log('[projects] Loading from Supabase for org:', orgId);
+    setLoaded(false);
+    db.getProjects(orgId).then(async serverProjects => {
+      console.log('[projects] Loaded', serverProjects.length, 'projects from Supabase');
+      const cached = readCache(orgId);
+      const serverIds = new Set(serverProjects.map(p => p.id));
+      const localOnly = cached.filter(p => p && p.id && !serverIds.has(p.id));
+
+      // Re-upload any local-only projects (failed creates from a previous
+      // session, or projects from a pre-orgId cache).
+      const recovered = [];
+      for (const lp of localOnly) {
         try {
-          const saved = localStorage.getItem("es_projects");
-          if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) { setProjects(parsed); } }
-        } catch (e2) {}
-        setLoaded(true);
-      });
-    } else {
-      try {
-        const saved = localStorage.getItem("es_projects");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            markHasProjects();
-            setProjects(parsed);
-            setLoaded(true);
-            return;
+          const toSave = stripLargeFiles(lp);
+          const saved = await db.upsertProject(orgId, toSave);
+          if (saved) {
+            console.log('[projects] Recovered local-only project →', saved.name);
+            recovered.push(saved);
+          } else {
+            recovered.push({ ...lp, _unsynced: true });
           }
+        } catch (e) {
+          console.error('[projects] Recovery upsert failed for', lp.name, e);
+          recovered.push({ ...lp, _unsynced: true });
         }
-      } catch (e) {}
-      if (!hasHadProjects()) {
+      }
+
+      // First-time-ever sample
+      let final = [...serverProjects, ...recovered];
+      if (final.length === 0 && !hasHadProjects()) {
         markHasProjects();
         const sample = mkSampleProject();
-        setProjects([sample]);
-      } else {
-        setProjects([]);
+        try {
+          const saved = await db.createProject(orgId, sample);
+          if (saved) final = [saved];
+          else final = [sample];
+        } catch (e) {
+          console.error('[projects] Sample create failed:', e);
+          final = [sample];
+        }
+      } else if (final.length > 0) {
+        markHasProjects();
       }
+
+      setProjects(final.map(restoreFileData));
       setLoaded(true);
-    }
+    }).catch(e => {
+      console.error('[projects] Failed to load from Supabase:', e);
+      // Hard fallback — show the cache so we don't lose user work.
+      const cached = readCache(orgId);
+      setProjects(cached.map(restoreFileData));
+      setLoaded(true);
+    });
   }, [orgId, usesDb]);
 
-  // Always save to localStorage as write-through cache
+  // Write-through cache.
   useEffect(() => {
     if (!loaded) return;
-    try { localStorage.setItem("es_projects", JSON.stringify(projects)); } catch (e) {}
-  }, [projects, loaded]);
+    writeCache(orgId, projects);
+  }, [projects, loaded, orgId]);
 
-  // One-time migration: upload ALL files to Supabase Storage
-  // Checks: in-memory fileData, es_file_* localStorage, es_projects cache
+  // ── File migration (unchanged structure) ───────────────────────────
   const migrated = useRef(false);
   const canStorage = isSupabaseConfigured();
   useEffect(() => {
     if (!loaded || !canStorage || migrated.current || !projects.length) return;
     migrated.current = true;
     const effectiveOrgId = orgId && orgId !== 'local' ? orgId : 'default';
-
-    // Also load the full es_projects cache which may have unstripped file data
-    let cachedProjects = [];
-    try { cachedProjects = JSON.parse(localStorage.getItem("es_projects") || "[]"); } catch (e) {}
+    let cachedProjects = []; try { cachedProjects = readCache(orgId); } catch (e) {}
 
     const migrateFiles = async () => {
       let totalUploaded = 0;
       const updatedProjects = [...projects];
-
       for (let pi = 0; pi < updatedProjects.length; pi++) {
         const p = updatedProjects[pi];
         let projectChanged = false;
-
         for (const key of ['creativeAssets', 'clientFiles', 'docs']) {
           const items = p[key] || [];
           for (let ii = 0; ii < items.length; ii++) {
             const item = items[ii];
-            // Skip if already in Supabase Storage
             if (item.storagePath) continue;
-
-            // Try every source for file data
             let data = item.fileData || null;
             if (!data) { try { data = localStorage.getItem(`es_file_${item.id}`); } catch (e) {} }
             if (!data) {
-              // Try the cached es_projects blob
               const cachedP = cachedProjects.find(cp => cp.id === p.id);
-              if (cachedP) {
-                const cachedItem = (cachedP[key] || []).find(ci => ci.id === item.id);
-                if (cachedItem?.fileData) data = cachedItem.fileData;
-              }
+              if (cachedP) { const cachedItem = (cachedP[key] || []).find(ci => ci.id === item.id); if (cachedItem?.fileData) data = cachedItem.fileData; }
             }
-
-            if (!data || data.length <= 100) continue; // skip empty/tiny
-
+            if (!data || data.length <= 100) continue;
             console.log('[migrate] Uploading:', item.name || item.fileName, `(${Math.round(data.length/1024)}KB)`);
             const result = await db.uploadFileData(effectiveOrgId, p.id, item.id, item.fileName || item.name || 'file', data);
             if (result) {
               items[ii] = { ...item, storagePath: result.storagePath, _hasLocalFile: false, fileData: null };
-              projectChanged = true;
-              totalUploaded++;
-              // Clean up localStorage copy
+              projectChanged = true; totalUploaded++;
               try { localStorage.removeItem(`es_file_${item.id}`); } catch (e) {}
             }
           }
         }
-
         if (projectChanged) {
-          try {
-            // Strip any remaining large fileData before saving to DB
-            const toSave = { ...p };
-            ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
-              if (toSave[k]) toSave[k] = toSave[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
-            });
-            await db.updateProject(p.id, toSave);
-          } catch (e) { console.error('[migrate] Save failed:', e); }
+          try { await db.updateProject(p.id, stripLargeFiles(p)); } catch (e) { console.error('[migrate] Save failed:', e); }
         }
       }
-
-      if (totalUploaded > 0) {
-        console.log(`[migrate] ✓ ${totalUploaded} file(s) backed up to Supabase Storage`);
-        setProjects([...updatedProjects]);
-      } else {
-        console.log('[migrate] No files needed migration');
-      }
+      if (totalUploaded > 0) { console.log(`[migrate] ✓ ${totalUploaded} file(s) backed up to Supabase Storage`); setProjects([...updatedProjects]); }
+      else console.log('[migrate] No files needed migration');
     };
     migrateFiles().catch(e => console.error('[migrate] Migration failed:', e));
   }, [loaded, canStorage, projects, orgId]);
 
-  // Upload file data to Supabase Storage, return item with storagePath
+  // ── File handling helpers ─────────────────────────────────────────
   const uploadFileToStorage = async (item, projectId) => {
     if (!item.fileData || item.fileData.length <= 50000) return item;
-    // Already in Supabase Storage
     if (item.storagePath) return { ...item, fileData: null };
-    // Already on Google Drive
     if (item.driveId) return { ...item, fileData: null };
-    // Upload to Supabase Storage
     if (usesDb) {
       const result = await db.uploadFileData(orgId, projectId, item.id, item.fileName || item.name || 'file', item.fileData);
-      if (result) {
-        console.log('[storage] Stored:', item.name, '→', result.storagePath);
-        return { ...item, fileData: null, storagePath: result.storagePath };
-      }
+      if (result) return { ...item, fileData: null, storagePath: result.storagePath };
     }
-    // Fallback to localStorage if Supabase Storage fails
     try { localStorage.setItem(`es_file_${item.id}`, item.fileData); } catch (e) {}
     return { ...item, fileData: null, _hasLocalFile: true };
   };
 
-  // Strip file data before saving to Supabase DB — uploads large files to Storage first
   const stripFileData = async (data, projectId) => {
     const stripped = { ...data };
     const upload = (item) => uploadFileToStorage(item, projectId);
@@ -214,17 +188,12 @@ export function useProjects(orgId) {
     return stripped;
   };
 
-  // Restore file data — from Supabase Storage, Google Drive, or localStorage
-  // Note: Supabase Storage files are fetched on-demand by components via downloadFileData()
   const restoreFileItem = (item) => {
     if (item.fileData) return item;
-    if (item.storagePath) return item; // will be fetched on-demand
+    if (item.storagePath) return item;
     if (item.driveId) return item;
     if (!item._hasLocalFile) return item;
-    try {
-      const f = localStorage.getItem(`es_file_${item.id}`);
-      if (f) return { ...item, fileData: f };
-    } catch (e) {}
+    try { const f = localStorage.getItem(`es_file_${item.id}`); if (f) return { ...item, fileData: f }; } catch (e) {}
     return item;
   };
 
@@ -235,82 +204,114 @@ export function useProjects(orgId) {
     return data;
   };
 
-  // Clean up orphaned localStorage file entries when files are removed
   const cleanupFileCache = (oldProject, newProject) => {
-    const oldIds = new Set();
-    const newIds = new Set();
+    const oldIds = new Set(); const newIds = new Set();
     ['creativeAssets', 'docs', 'clientFiles'].forEach(key => {
       (oldProject[key] || []).forEach(f => oldIds.add(f.id));
       (newProject[key] || []).forEach(f => newIds.add(f.id));
     });
-    oldIds.forEach(id => {
-      if (!newIds.has(id)) {
-        try { localStorage.removeItem(`es_file_${id}`); } catch (e) {}
-      }
-    });
+    oldIds.forEach(id => { if (!newIds.has(id)) { try { localStorage.removeItem(`es_file_${id}`); } catch (e) {} } });
   };
 
-  // Immediate save to Supabase (with debounce for rapid updates)
+  // ── Saves ──────────────────────────────────────────────────────────
+  const flushPending = useCallback(async () => {
+    if (!usesDb) return;
+    const entries = Array.from(pendingSaves.current.entries());
+    pendingSaves.current.clear();
+    for (const [projectId, data] of entries) {
+      try { await db.updateProject(projectId, await stripFileData(data, projectId)); }
+      catch (e) { console.error('[projects] Flush failed for', projectId, e); }
+    }
+  }, [usesDb]);
+
   const saveToSupabase = useCallback((projectId, projectData) => {
     if (!usesDb) return;
+    pendingSaves.current.set(projectId, projectData);
     const timerKey = `_saveTimer_${projectId}`;
     if (saveTimer.current?.[timerKey]) clearTimeout(saveTimer.current[timerKey]);
     if (!saveTimer.current) saveTimer.current = {};
     saveTimer.current[timerKey] = setTimeout(async () => {
+      const data = pendingSaves.current.get(projectId);
+      if (!data) return;
+      pendingSaves.current.delete(projectId);
       console.log('[projects] Saving project to Supabase:', projectId);
-      try {
-        const stripped = await stripFileData(projectData, projectId);
-        await db.updateProject(projectId, stripped);
-      } catch (e) { console.error('[projects] Save failed:', e); }
+      try { await db.updateProject(projectId, await stripFileData(data, projectId)); }
+      catch (e) {
+        console.error('[projects] Save failed:', e);
+        pendingSaves.current.set(projectId, data); // re-queue for next attempt
+      }
     }, 500);
   }, [usesDb, orgId]);
 
+  // Flush pending saves before the page unloads.
+  useEffect(() => {
+    const onHide = () => {
+      // Best-effort synchronous flush. Each pending save fires a fetch
+      // with `keepalive` semantics via supabase-js (which uses fetch).
+      const entries = Array.from(pendingSaves.current.entries());
+      for (const [projectId, data] of entries) {
+        try { db.updateProject(projectId, data); } catch (e) {}
+      }
+    };
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') onHide(); });
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+    };
+  }, []);
+
+  // ── CRUD ───────────────────────────────────────────────────────────
   const createProject = useCallback(async (name, client, date, eventDate, logo, clientBudget, stage) => {
-    try { localStorage.setItem("es_has_projects", "1") } catch(e) {}
-    const p = mkProject(name, client, date, eventDate, logo, clientBudget, stage);
+    try { localStorage.setItem('es_has_projects', '1'); } catch(e) {}
+    const local = mkProject(name, client, date, eventDate, logo, clientBudget, stage);
+
     if (usesDb) {
       try {
-        const saved = await db.createProject(orgId, p);
+        const saved = await db.createProject(orgId, local);
         if (saved) {
           console.log('[projects] Created project in Supabase:', saved.id);
           setProjects(prev => [...prev, saved]);
           return saved.id;
         }
       } catch (e) {
-        console.error('[projects] Supabase create failed, saving locally:', e);
+        console.error('[projects] Supabase create failed; keeping locally and will retry:', e);
+        // Persist with `_unsynced` flag — recovery pass on next load will
+        // re-upload via upsert (preserving the local id).
+        const flagged = { ...local, _unsynced: true };
+        setProjects(prev => [...prev, flagged]);
+        // Also try a one-shot upsert in case it's a transient error.
+        db.upsertProject(orgId, local)
+          .then(saved => {
+            if (saved) setProjects(prev => prev.map(p => p.id === local.id ? { ...saved, _unsynced: false } : p));
+          })
+          .catch(() => {});
+        return local.id;
       }
     }
-    // Local fallback
-    setProjects(prev => [...prev, p]);
-    return p.id;
+    setProjects(prev => [...prev, local]);
+    return local.id;
   }, [orgId, usesDb]);
 
   const updateProject = useCallback((projectId, updates) => {
-    setProjects(prev => {
-      const next = prev.map(p => {
-        if (p.id !== projectId) return p;
-        const updated = { ...p, ...updates };
-        cleanupFileCache(p, updated);
-        saveToSupabase(projectId, updated);
-        return updated;
-      });
-      return next;
-    });
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      const updated = { ...p, ...updates };
+      cleanupFileCache(p, updated);
+      saveToSupabase(projectId, updated);
+      return updated;
+    }));
   }, [saveToSupabase]);
 
   const deleteProjectById = useCallback(async (projectId) => {
-    // Clean up all file cache entries for this project
     const proj = projects.find(p => p.id === projectId);
     if (proj) {
       ['creativeAssets', 'docs', 'clientFiles'].forEach(key => {
-        (proj[key] || []).forEach(f => {
-          try { localStorage.removeItem(`es_file_${f.id}`); } catch (e) {}
-        });
+        (proj[key] || []).forEach(f => { try { localStorage.removeItem(`es_file_${f.id}`); } catch (e) {} });
       });
     }
-    if (usesDb) {
-      try { await db.deleteProject(projectId); } catch (e) { console.error('[projects] Delete failed:', e); }
-    }
+    if (usesDb) { try { await db.deleteProject(projectId); } catch (e) { console.error('[projects] Delete failed:', e); } }
     setProjects(prev => prev.filter(p => p.id !== projectId));
   }, [usesDb, projects]);
 
@@ -321,5 +322,15 @@ export function useProjects(orgId) {
     createProject,
     updateProject,
     deleteProject: deleteProjectById,
+    flushPending,
   };
+}
+
+// Strip large fileData blobs before any DB write to avoid 1MB row limits.
+function stripLargeFiles(p) {
+  const out = { ...p };
+  ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
+    if (out[k]) out[k] = out[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
+  });
+  return out;
 }

@@ -326,7 +326,7 @@ export async function getProjects(orgId) {
 }
 
 export async function createProject(orgId, projectData) {
-  if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   const { data, error } = await supabase
     .from('projects')
     .insert({
@@ -339,14 +339,37 @@ export async function createProject(orgId, projectData) {
     .single();
   if (error) {
     console.error('[db] Create project failed:', error);
-    return null;
+    throw error;
   }
-  if (data) return { ...data.data, id: data.id, _dbId: data.id };
-  return null;
+  if (!data) throw new Error('Insert returned no data');
+  return { ...data.data, id: data.id, _dbId: data.id };
+}
+
+// Upsert a project that already has an id (used to recover unsynced
+// local-only projects on next load).
+export async function upsertProject(orgId, projectData) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  const { data, error } = await supabase
+    .from('projects')
+    .upsert({
+      id: projectData.id,
+      org_id: orgId,
+      name: projectData.name || '',
+      client: projectData.client || '',
+      data: projectData,
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error('[db] Upsert project failed:', error);
+    throw error;
+  }
+  if (!data) throw new Error('Upsert returned no data');
+  return { ...data.data, id: data.id, _dbId: data.id };
 }
 
 export async function updateProject(projectId, projectData) {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   const { error } = await supabase
     .from('projects')
     .update({
@@ -357,10 +380,10 @@ export async function updateProject(projectId, projectData) {
     .eq('id', projectId);
   if (error) {
     console.error('[db] Update project failed:', error);
-    // Surface the error so the user knows
     if (error.message?.includes('too large') || error.code === '54000') {
       console.error('[db] Project data may be too large. Consider moving files to Google Drive.');
     }
+    throw error;
   }
 }
 
