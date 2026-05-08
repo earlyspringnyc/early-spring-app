@@ -210,6 +210,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
                     </div>
                     <div style={{display:"flex",gap:4,flexShrink:0}}>
                       <Pill color={STAGE_COLORS[stage]} size="xs">{STAGE_LABELS[stage]}</Pill>
+                      {p._unsynced&&<Pill color={T.alert} size="xs" title="This project hasn’t synced to the server. Will retry automatically.">Not synced</Pill>}
                       {ov>0&&<Pill color={T.neg} size="xs">{ov} overdue</Pill>}
                     </div>
                   </div>

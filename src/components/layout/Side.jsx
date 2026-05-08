@@ -230,7 +230,14 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
           <span style={{opacity:expanded?1:0,transition:"opacity .15s"}}>Sign Out</span>
         </button>}
 
-        {saving&&<div style={{textAlign:"center",padding:4}}><div style={{width:6,height:6,borderRadius:"50%",background:T.gold,margin:"0 auto",animation:"pulse 1s ease-in-out infinite"}}/></div>}
+        {project?._unsynced
+          ?<div title="This project hasn’t synced to the server. Will retry automatically." style={{display:"flex",alignItems:"center",gap:8,padding:expanded?"6px 12px":"6px 0",justifyContent:expanded?"flex-start":"center"}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:T.alert,flexShrink:0,animation:"pulse 1.6s ease-in-out infinite"}}/>
+            <span style={{fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:T.alert,opacity:expanded?1:0,transition:"opacity .15s",whiteSpace:"nowrap"}}>Not synced</span>
+          </div>
+          :saving
+            ?<div style={{textAlign:"center",padding:4}}><div style={{width:6,height:6,borderRadius:"50%",background:T.ink,margin:"0 auto",animation:"pulse 1s ease-in-out infinite"}}/></div>
+            :null}
       </div>
     </div>
   );
