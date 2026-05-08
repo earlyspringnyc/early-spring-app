@@ -18,11 +18,11 @@ export function MorganWordmark({ height = 18, color = "#0F52BA", weight = 800, t
   }}>Morgan</span>;
 }
 
-// Isotype — abstract "M" stage mark.
-export function MorganIsotype({ size = 28, color = "#0F52BA", strokeWidth = 1.5 }) {
-  return <svg width={size} height={size} viewBox="0 0 40 40" fill="none" style={{ display: "inline-block" }}>
-    <rect x="2" y="2" width="36" height="36" rx="6" stroke={color} strokeWidth={strokeWidth} />
-    <path d="M10 28V12l10 10 10-10v16" stroke={color} strokeWidth={strokeWidth + 0.3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+// Isotype — Morgan filled "M" letterform.
+// strokeWidth is accepted for backward compatibility but ignored (filled glyph).
+export function MorganIsotype({ size = 28, color = "#0F52BA" }) {
+  return <svg width={size} height={size * (46 / 51)} viewBox="0 0 51 46" fill="none" style={{ display: "inline-block" }}>
+    <path d="M0 45.696V0H16.448L25.856 31.36H25.92L34.688 0H51.008V45.696H40.064V15.424H39.936L31.04 45.696H20.032L11.072 15.424H11.008V45.696H0Z" fill={color}/>
   </svg>;
 }
 
