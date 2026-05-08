@@ -1,57 +1,65 @@
-const dark={
-  // Dark charcoal — warm gray, not pure black
-  bg:"#141417",bgGrad:"linear-gradient(180deg,#141417 0%,#15151A 100%)",
-  surface:"rgba(255,255,255,.025)",surfEl:"rgba(255,255,255,.04)",surfHov:"rgba(255,255,255,.065)",
-  border:"rgba(255,255,255,.06)",borderGlow:"rgba(148,163,184,.2)",
-  // Steel blue as primary accent
-  gold:"#94A3B8",goldSoft:"rgba(148,163,184,.08)",goldGlow:"0 0 20px rgba(148,163,184,.06)",
-  brown:"#1E293B",
-  // Cool accent palette
-  cyan:"#7DD3FC",magenta:"#C4B5FD",
-  cream:"#E8E8EC",dim:"rgba(232,232,236,.35)",dimH:"rgba(232,232,236,.6)",
-  pos:"#4ADE80",neg:"#F87171",blue:"#7C8DB5",
-  colors:["#94A3B8","#4ADE80","#7DD3FC","#C4B5FD","#F87171","#FDBA74","#7C8DB5","#BEF264","#94A3B8","#D8B4FE"],
-  r:"12px",rS:"8px",
-  shadow:"0 1px 2px rgba(0,0,0,.2),0 2px 8px rgba(0,0,0,.12)",
-  // Fonts
-  sans:"'Geist Sans','Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif",
-  mono:"'Geist Mono','SF Mono','JetBrains Mono','Fira Code',monospace",
-  serif:"'Newsreader','Century','Georgia',serif",
+/* ── Early Spring brand tokens ──
+   Two colors. One typeface. Opacity variations only.
+   Paper #FFFFFF · Sapphire #0F52BA · faint rule rgba(15,82,186,.18) · faded ink rgba(15,82,186,.42)
+   Per Lab guidelines (earlyspring.nyc/lab/guidelines).
+
+   Legacy keys (gold, cream, dim, cyan, magenta, pos, neg, etc.) are kept as
+   aliases onto the paper/sapphire palette so existing views inherit the new
+   look without requiring a one-shot rewrite. Each view will be re-skinned in
+   turn. */
+
+const paper="#FFFFFF";
+const ink="#0F52BA";
+const inkSoft="rgba(15,82,186,.08)";
+const inkSoft2="rgba(15,82,186,.05)";
+const inkSoft3="rgba(15,82,186,.03)";
+const faintRule="rgba(15,82,186,.18)";
+const fadedInk="rgba(15,82,186,.42)";
+const ink70="rgba(15,82,186,.70)";
+const ink60="rgba(15,82,186,.60)";
+const ink25="rgba(15,82,186,.25)";
+const alert="#7A1F1F"; // single off-system tone, sapphire-adjacent saturation, used sparingly for destructive/error only
+const alertSoft="rgba(122,31,31,.08)";
+
+const earlySpring={
+  // Surfaces
+  bg:paper,bgGrad:paper,
+  surface:inkSoft3,surfEl:inkSoft2,surfHov:inkSoft,
+  border:faintRule,borderGlow:"rgba(15,82,186,.32)",
+  // Primary accent → ink (replaces "gold" from prior theme)
+  gold:ink,goldSoft:inkSoft,goldGlow:"0 0 24px rgba(15,82,186,.10)",
+  brown:ink,
+  // Collapsed accent palette → all variants of ink
+  cyan:ink,magenta:ink,
+  // Text
+  cream:ink,dim:fadedInk,dimH:ink70,
+  // State
+  pos:ink,neg:alert,negSoft:alertSoft,blue:ink,
+  // Chart series — sapphire opacity ramp + a single off-tone for negative
+  colors:[ink,ink70,ink60,fadedInk,ink25,alert,fadedInk,ink60,ink70,ink],
+  // Geometry
+  r:"14px",rS:"8px",
+  shadow:"0 1px 2px rgba(15,82,186,.04),0 8px 32px rgba(15,82,186,.10)",
+  // Typeface — TWK Lausanne, one family across roles
+  sans:"'TWK Lausanne',-apple-system,'Inter',system-ui,sans-serif",
+  mono:"'TWK Lausanne',-apple-system,'Inter',system-ui,sans-serif",
+  serif:"'TWK Lausanne',-apple-system,'Inter',system-ui,sans-serif",
+  // Spacing scale
   sp4:4,sp8:8,sp12:12,sp16:16,sp20:20,sp24:24,sp28:28,sp32:32,sp40:40,
   fsXs:10,fsSm:12,fsMd:13,fsLg:16,fsXl:24,fs2xl:32,
-  fwNormal:400,fwMedium:500,fwSemibold:600,fwBold:700,
+  fwNormal:400,fwMedium:600,fwSemibold:600,fwBold:800,
+  // Brand primitives — exposed for components that want the raw values
+  paper,ink,inkSoft,inkSoft2,inkSoft3,faintRule,fadedInk,ink70,ink60,ink25,alert,alertSoft,
 };
 
-const light={
-  // Warm parchment base — not stark white, not cold gray
-  bg:"#F4F2EE",bgGrad:"linear-gradient(180deg,#F4F2EE 0%,#EDE9E3 100%)",
-  surface:"rgba(0,0,0,.04)",surfEl:"#FDFCFA",surfHov:"rgba(0,0,0,.05)",
-  border:"rgba(0,0,0,.10)",borderGlow:"rgba(100,80,50,.25)",
-  // Warm slate primary
-  gold:"#5C4F3A",goldSoft:"rgba(92,79,58,.09)",goldGlow:"0 0 20px rgba(92,79,58,.08)",
-  brown:"#2C1F0E",
-  cyan:"#1D6FA4",magenta:"#6D3AB5",
-  cream:"#1C1917",dim:"rgba(28,25,23,.60)",dimH:"rgba(28,25,23,.78)",
-  pos:"#1A6B3C",neg:"#C62828",blue:"#4A5568",
-  colors:["#5C4F3A","#1A6B3C","#1D6FA4","#6D3AB5","#C62828","#B45309","#1D4ED8","#4D7C0F","#0E7490","#7C3AED"],
-  r:"12px",rS:"8px",
-  // Real depth — cards lift off the page
-  shadow:"0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06)",
-  sans:"'Geist Sans','Lausanne',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif",
-  mono:"'Geist Mono','SF Mono','JetBrains Mono','Fira Code',monospace",
-  serif:"'Newsreader','Century','Georgia',serif",
-  sp4:4,sp8:8,sp12:12,sp16:16,sp20:20,sp24:24,sp28:28,sp32:32,sp40:40,
-  fsXs:10,fsSm:12,fsMd:13,fsLg:16,fsXl:24,fs2xl:32,
-  fwNormal:400,fwMedium:500,fwSemibold:600,fwBold:700,
-};
+const T={...earlySpring};
 
-const T={...dark};
-
-export function setThemeMode(mode){
-  const source=mode==='light'?light:dark;
-  Object.assign(T,source);
+// Theme toggle is a no-op now — Early Spring is one system. Kept for backward
+// compatibility with code that calls setThemeMode/getTheme.
+export function setThemeMode(/*mode*/){
+  Object.assign(T,earlySpring);
 }
 
-export function getTheme(mode){return mode==='light'?light:dark;}
+export function getTheme(/*mode*/){return earlySpring;}
 
 export default T;
