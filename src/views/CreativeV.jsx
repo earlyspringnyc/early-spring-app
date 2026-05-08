@@ -326,7 +326,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
             {canEdit&&<select value={a.status||"draft"} onChange={e=>{e.stopPropagation();updateAsset(a.id,{status:e.target.value})}} onClick={e=>e.stopPropagation()} style={{padding:"3px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
               {Object.entries(STATUS_META).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
             </select>}
-            {canEdit&&<button onClick={e=>{e.stopPropagation();removeAsset(a.id)}} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.15)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(248,113,113,.06)"}><TrashI size={11} color={T.neg}/></button>}
+            {canEdit&&<button onClick={e=>{e.stopPropagation();removeAsset(a.id)}} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.10)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.background="rgba(122,31,31,.18)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(122,31,31,.06)"}><TrashI size={11} color={T.neg}/></button>}
           </div>
         })}
       </Card>

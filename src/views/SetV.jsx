@@ -289,7 +289,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
 
     <Card style={{padding:28}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.neg,marginBottom:12}}>Danger Zone</div>
       <p style={{fontSize:12,color:T.dim,marginBottom:16}}>Permanently delete this project and all its data.</p>
-      <button onClick={onDelete} style={{padding:"10px 20px",borderRadius:T.rS,border:`1px solid ${T.neg}`,background:"transparent",color:T.neg,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,.1)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>Delete Project</button>
+      <button onClick={onDelete} style={{padding:"10px 20px",borderRadius:T.rS,border:`1px solid ${T.neg}`,background:"transparent",color:T.neg,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background="rgba(122,31,31,.10)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>Delete Project</button>
     </Card>
   </div>;
 }

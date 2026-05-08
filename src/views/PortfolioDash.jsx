@@ -111,11 +111,11 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
     return[...catMap.entries()].map(([name,value])=>({name,value})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
   },[projects]);
 
-  // Profit composition
+  // Profit composition — sapphire opacity ramp for separation (100 / 60 / 25)
   const profitData=useMemo(()=>[
-    {name:"Production Margin",value:Math.max(0,totalProdMargin),color:T.gold},
-    {name:"Agency Margin",value:Math.max(0,totalAgencyMargin),color:T.cyan},
-    {name:"Agency Fee",value:Math.max(0,totalAgencyFee),color:T.pos},
+    {name:"Production Margin",value:Math.max(0,totalProdMargin),color:T.ink},
+    {name:"Agency Margin",value:Math.max(0,totalAgencyMargin),color:T.ink60},
+    {name:"Agency Fee",value:Math.max(0,totalAgencyFee),color:T.ink25},
   ].filter(d=>d.value>0),[totalProdMargin,totalAgencyMargin,totalAgencyFee]);
 
   const activeProjects=activeProjectCount;
