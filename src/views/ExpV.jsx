@@ -12,7 +12,7 @@ import CalendarView from './CalendarView.jsx';
 import GanttChart from './GanttChart.jsx';
 import { syncFirefliesMeetings } from '../utils/fireflies.js';
 
-const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
+const Pill=({children,color=T.ink,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 8px":"3px 10px",borderRadius:999,background:"transparent",color,border:`1px solid ${color}`,textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap"}}>{children}</span>;
 
 /* ── Inline file viewer modal (PDF via pdf.js, images native) ── */
 import * as pdfjsLib from 'pdfjs-dist';
@@ -46,7 +46,7 @@ function PdfThumbnail({fileData}){
     <canvas ref={canvasRef} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",opacity:loaded?1:0,transition:"opacity .2s"}}/>
     {!loaded&&<div style={{position:"absolute",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
       <span style={{fontSize:32,opacity:.3}}>&#128196;</span>
-      <span style={{fontSize:9,fontWeight:600,color:T.neg,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",padding:"2px 6px",borderRadius:4,background:"rgba(248,113,113,.1)"}}>PDF</span>
+      <span style={{fontSize:9,fontWeight:700,color:T.ink,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".10em",padding:"2px 8px",borderRadius:4,background:T.inkSoft}}>PDF</span>
     </div>}
   </div>;
 }
@@ -140,18 +140,18 @@ function FileViewerModal({file,onClose}){
 
   return<div onClick={onClose} onWheel={onWheel} style={{position:"fixed",inset:0,zIndex:9999,background:"#000",display:"flex",flexDirection:"column",height:"100vh",width:"100vw"}}>
     {/* Header — compact */}
-    <div onClick={e=>e.stopPropagation()} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",flexShrink:0,height:40,background:"rgba(255,255,255,.05)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",flexShrink:0,height:40,background:T.inkSoft2}}>
       <div style={{fontSize:13,fontWeight:600,color:T.cream}}>{file.name}</div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} style={{padding:"4px 12px",borderRadius:T.rS,border:`1px solid rgba(255,255,255,.15)`,background:"transparent",color:"#fff",fontSize:11,fontWeight:600,textDecoration:"none",fontFamily:T.sans,cursor:"pointer"}}>Download</a>}
-        <button onClick={onClose} style={{padding:"4px 12px",borderRadius:T.rS,border:`1px solid rgba(255,255,255,.15)`,background:"transparent",color:"rgba(255,255,255,.5)",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Close (Esc)</button>
+        {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} className="btn-pill" style={{padding:"4px 14px",fontSize:11,textDecoration:"none"}}>Download</a>}
+        <button onClick={onClose} className="btn-pill" style={{padding:"4px 14px",fontSize:11}}>Close (Esc)</button>
       </div>
     </div>
     {/* Content — full remaining space */}
     <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto"}}>
       {!resolvedData?<div style={{padding:48,textAlign:"center",color:T.dim,fontSize:13}}>File data not available — it may have been cleared from storage</div>
       :isPdf?<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-        {loading&&<div style={{color:"rgba(255,255,255,.4)",fontSize:13,padding:48}}>Loading PDF...</div>}
+        {loading&&<div style={{color:T.fadedInk,fontSize:13,padding:48}}>Loading PDF…</div>}
         {error&&<div style={{color:T.neg,fontSize:13,padding:48}}>{error}</div>}
         {pdf&&<canvas ref={canvasRef} style={{display:"block"}}/>}
       </div>
@@ -162,10 +162,10 @@ function FileViewerModal({file,onClose}){
       </div>}
     </div>
     {/* Page nav — fixed at bottom */}
-    {isPdf&&pdf&&total>1&&<div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"10px 0",flexShrink:0,height:50,background:"rgba(255,255,255,.05)"}}>
-      <button onClick={()=>setPage(Math.max(0,page-1))} disabled={page===0} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page===0?"transparent":"rgba(255,255,255,.15)"}`,color:page===0?"rgba(255,255,255,.2)":"#fff",fontSize:12,cursor:page===0?"default":"pointer",fontFamily:T.sans}}>&larr; Prev</button>
+    {isPdf&&pdf&&total>1&&<div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"10px 0",flexShrink:0,height:50,background:T.inkSoft2}}>
+      <button onClick={()=>setPage(Math.max(0,page-1))} disabled={page===0} className="btn-pill" style={{padding:"4px 14px",fontSize:12,opacity:page===0?.4:1,cursor:page===0?"default":"pointer"}}>&larr; Prev</button>
       <span style={{fontSize:12,fontFamily:T.mono,color:"#fff",fontWeight:600}}>Page {page+1} of {total}</span>
-      <button onClick={()=>setPage(Math.min(total-1,page+1))} disabled={page>=total-1} style={{padding:"6px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${page>=total-1?"transparent":"rgba(255,255,255,.15)"}`,color:page>=total-1?"rgba(255,255,255,.2)":"#fff",fontSize:12,cursor:page>=total-1?"default":"pointer",fontFamily:T.sans}}>Next &rarr;</button>
+      <button onClick={()=>setPage(Math.min(total-1,page+1))} disabled={page>=total-1} className="btn-pill" style={{padding:"4px 14px",fontSize:12,opacity:page>=total-1?.4:1,cursor:page>=total-1?"default":"pointer"}}>Next &rarr;</button>
     </div>}
   </div>;
 }
@@ -389,8 +389,8 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     const onSend=isBudget?sendBudget:sendTimeline;
     const title=isBudget?"Share Production Estimate":"Share Production Schedule";
     const FmtBtn=({cmd,icon,title:t,val})=><button onClick={()=>execCmd(cmd,val)} title={t} style={{padding:"4px 8px",background:"none",border:"none",color:T.dim,fontSize:14,cursor:"pointer",borderRadius:4,lineHeight:1}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfHov;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.dim}}>{icon}</button>;
-    return<div onClick={()=>setShareModal(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:1100,height:"90vh",background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    return<div onClick={()=>setShareModal(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(15,82,186,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:1100,height:"90vh",background:T.paper,border:`1px solid ${T.faintRule}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(15,82,186,.20)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -437,9 +437,9 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <style>{`[data-placeholder]:empty:before{content:attr(data-placeholder);color:${T.dim};pointer-events:none} [contenteditable] ul,[contenteditable] ol{padding-left:24px;margin:8px 0} [contenteditable] li{margin:4px 0} [contenteditable] h3{font-size:16px;font-weight:600;margin:12px 0 6px} [contenteditable] a{color:${T.cyan};text-decoration:underline}`}</style>
             {/* Bottom bar */}
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderTop:`1px solid ${T.border}`,flexShrink:0}}>
-              <button onClick={()=>{onSend();setShareModal(null)}} disabled={!emailTo.trim()||emailSending} style={{padding:"8px 24px",borderRadius:T.rS,border:"none",background:emailTo.trim()&&!emailSending?T.goldSoft:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${emailTo.trim()?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans}}>{emailSending?"Sending...":"Send"}</button>
-              <button onClick={copyLink} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
-              <button onClick={()=>{if(isBudget)exportEstimatePDF();else window.print()}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
+              <button onClick={()=>{onSend();setShareModal(null)}} disabled={!emailTo.trim()||emailSending} className="btn-pill" style={{padding:"7px 22px",fontSize:12,opacity:emailTo.trim()&&!emailSending?1:.4,cursor:emailTo.trim()&&!emailSending?"pointer":"default",...(emailTo.trim()&&!emailSending?{background:T.ink,color:T.paper}:{})}}>{emailSending?"Sending…":"Send"}</button>
+              <button onClick={copyLink} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}>{linkCopied?"Copied":"Copy Link"}</button>
+              <button onClick={()=>{if(isBudget)exportEstimatePDF();else window.print()}} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}>PDF</button>
               <div style={{flex:1}}/>
               {emailSent&&<span style={{fontSize:11,color:T.pos,fontWeight:600}}>Sent to {emailSent}</span>}
             </div>
@@ -552,10 +552,10 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#0A0A0C"}}>
               <img src={firstImage.fileData} style={{width:"100%",height:"100%",objectFit:"cover",opacity:.6}} alt=""/>
             </div>
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 40%,rgba(0,0,0,.85) 100%)"}}/>
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 40%,rgba(15,82,186,.85) 100%)"}}/>
             <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"20px 26px"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                <div style={{fontSize:10,fontWeight:600,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".08em"}}>Creative & Design</div>
+                <div style={{fontSize:10,fontWeight:700,color:T.paper,textTransform:"uppercase",letterSpacing:".10em"}}>Creative & Design</div>
                 {inReview.length>0&&<span style={{fontSize:8,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(245,158,11,.2)",color:"#F59E0B",textTransform:"uppercase"}}>&#9679; {inReview.length} awaiting review</span>}
               </div>
               <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{approved.length} approved asset{approved.length!==1?"s":""}</div>
@@ -686,7 +686,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         {/* Export dropdown */}
         <div style={{position:"relative"}}>
           <button onClick={()=>{setShowExportMenu(!showExportMenu);setShowShareMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
-          {showExportMenu&&<div style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,boxShadow:"0 8px 24px rgba(0,0,0,.4)",minWidth:160,overflow:"hidden"}}>
+          {showExportMenu&&<div className="fc-panel" style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:60,minWidth:200,padding:4,borderRadius:12,overflow:"hidden"}}>
             {[["PDF",()=>{exportEstimatePDF();setShowExportMenu(false)},"Download PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"]].map(([label,fn,sub])=>
               <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>
@@ -875,7 +875,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <div style={{fontSize:9,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:8}}>{f.fileName} · {f.dateAdded}</div>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
               <select value={f.category} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();updateFileCategory(f.id,e.target.value)}} style={{flex:1,padding:"3px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>{CLIENT_FILE_CATS.map(c=><option key={c} value={c}>{CLIENT_FILE_LABELS[c]}</option>)}</select>
-              <button onClick={e=>{e.stopPropagation();removeFile(f.id)}} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:4,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)"}}><TrashI size={10} color={T.neg}/></button>
+              <button onClick={e=>{e.stopPropagation();removeFile(f.id)}} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.18)",borderRadius:4,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={10} color={T.neg}/></button>
             </div>
           </div>
         </div>})}
@@ -935,7 +935,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         </div>
         {showFfSetup&&<div style={{marginTop:10,display:"flex",gap:8,alignItems:"center"}}>
           <input value={ffKeyInput} onChange={e=>setFfKeyInput(e.target.value)} placeholder="Fireflies API key" type="password" style={{flex:1,padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}} onKeyDown={e=>e.key==="Enter"&&ffKeyInput.trim()&&connectFireflies(ffKeyInput.trim())}/>
-          <button onClick={()=>{if(ffKeyInput.trim())connectFireflies(ffKeyInput.trim())}} disabled={!ffKeyInput.trim()||ffSyncing} style={{padding:"8px 14px",borderRadius:T.rS,border:"none",background:ffKeyInput.trim()?T.cyan:"rgba(255,255,255,.05)",color:ffKeyInput.trim()?"#000":"rgba(255,255,255,.2)",fontSize:11,fontWeight:600,cursor:ffKeyInput.trim()?"pointer":"default",fontFamily:T.sans}}>Connect & Sync</button>
+          <button onClick={()=>{if(ffKeyInput.trim())connectFireflies(ffKeyInput.trim())}} disabled={!ffKeyInput.trim()||ffSyncing} className="btn-pill" style={{padding:"6px 14px",fontSize:11,opacity:ffKeyInput.trim()&&!ffSyncing?1:.4,cursor:ffKeyInput.trim()&&!ffSyncing?"pointer":"default",...(ffKeyInput.trim()&&!ffSyncing?{background:T.ink,color:T.paper}:{})}}>Connect & Sync</button>
           <button onClick={()=>setShowFfSetup(false)} style={{padding:"8px",borderRadius:T.rS,border:"none",background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
         </div>}
       </Card>
@@ -943,7 +943,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       {(()=>{const untagged=allMeetings.filter(m=>!isClientMeeting(m));if(!untagged.length)return null;return<Card style={{padding:"14px 18px",marginBottom:16}}>
         <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Other Meetings — mark as client-facing?</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-          {untagged.map(m=><button key={m.id} onClick={()=>toggleClientFlag(m.id)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"rgba(255,255,255,.04)",color:T.dim,fontWeight:400}} onMouseEnter={e=>{e.currentTarget.style.background=T.goldSoft;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.04)";e.currentTarget.style.color=T.dim}}>{m.title}{m.date?` · ${m.date}`:""}</button>)}
+          {untagged.map(m=><button key={m.id} onClick={()=>toggleClientFlag(m.id)} style={{padding:"5px 12px",borderRadius:999,border:`1px solid ${T.faintRule}`,cursor:"pointer",fontSize:10,fontFamily:T.sans,background:"transparent",color:T.fadedInk,fontWeight:600,letterSpacing:".04em",transition:"all .18s ease"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.color=T.ink}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}>{m.title}{m.date?` · ${m.date}`:""}</button>)}
         </div>
       </Card>})()}
       {sorted.length>0?<div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -1000,7 +1000,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Email</div><input value={newContactEmail} onChange={e=>setNewContactEmail(e.target.value)} placeholder="jane@client.com" onKeyDown={e=>e.key==="Enter"&&addContact()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
         <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Phone</div><input value={newContactPhone} onChange={e=>setNewContactPhone(e.target.value)} placeholder="(555) 000-0000" onKeyDown={e=>e.key==="Enter"&&addContact()} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
       </div>
-      <button onClick={addContact} disabled={!newContactName.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:newContactName.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:newContactName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${newContactName.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:newContactName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Contact</button>
+      <button onClick={addContact} disabled={!newContactName.trim()} className="btn-pill" style={{padding:"6px 14px",fontSize:11,opacity:newContactName.trim()?1:.4,cursor:newContactName.trim()?"pointer":"default"}}>Add Contact</button>
     </Card>}
     {clientContacts.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:12}}>
       {clientContacts.map(c=><Card key={c.id} style={{padding:"20px 22px",borderLeft:"3px solid #06B6D4"}}>
@@ -1009,7 +1009,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <div style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:4}}>{c.name}</div>
             {c.role&&<Pill color={T.cyan} size="xs">{c.role}</Pill>}
           </div>
-          <button onClick={()=>removeContact(c.id)} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)"}}><TrashI size={11} color={T.neg}/></button>
+          <button onClick={()=>removeContact(c.id)} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.18)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={11} color={T.neg}/></button>
         </div>
         <div style={{marginTop:12}}>
           {c.email&&<div style={{fontSize:12,color:T.cyan,marginBottom:4}}>{c.email}</div>}
@@ -1042,7 +1042,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <div style={{fontSize:10,fontWeight:700,color:"#F59E0B",textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Awaiting Review</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))",gap:10}}>
           {inReview.map(a=><div key={a.id} style={{borderRadius:T.rS,border:`1px solid rgba(245,158,11,.2)`,background:"rgba(245,158,11,.03)",overflow:"hidden"}}>
-            <div style={{height:100,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+            <div style={{height:100,background:"rgba(15,82,186,.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
               {a.isImage&&a.fileData?<img src={a.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:<div style={{fontSize:20,color:T.dim,opacity:.2}}>&#9634;</div>}
             </div>
             <div style={{padding:"8px 10px"}}>
@@ -1058,7 +1058,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <div style={{fontSize:10,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Approved Assets ({approved.length})</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))",gap:10}}>
           {approved.map(a=>{const sm=STATUS_META[a.status||"approved"];return<div key={a.id} style={{borderRadius:T.rS,border:`1px solid ${T.border}`,overflow:"hidden",background:T.surfEl}}>
-            <div style={{height:120,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
+            <div style={{height:120,background:"rgba(15,82,186,.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
               {a.isImage&&a.fileData?<img src={a.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
               :a.isVideo?<div style={{fontSize:28,color:T.dim,opacity:.3}}>&#9654;</div>
               :<div style={{fontSize:20,color:T.dim,opacity:.2}}>&#9634;</div>}
