@@ -41,7 +41,7 @@ const L=({children})=><div style={{fontSize:10,fontWeight:500,fontFamily:T.mono,
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,fontFamily:T.mono,letterSpacing:"-0.04em",color,lineHeight:1}}>{children}</div>;
 const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
 
-function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg}){
+function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
   const canCreate=user.role!=="client";
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
@@ -142,6 +142,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:26,height:26,borderRadius:"50%",background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:T.ink,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
             <span style={{fontSize:11,color:T.fadedInk,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{user.name||user.email||""}</span>
+            {toggleTheme&&<button onClick={toggleTheme} title={themeMode==="dark"?"Switch to light":"Switch to dark"} style={{display:"flex",alignItems:"center",justifyContent:"center",background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,cursor:"pointer",padding:"5px 10px",flexShrink:0,fontSize:13,color:T.fadedInk,fontFamily:T.sans,transition:"all .18s ease",lineHeight:1}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.color=T.ink}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}>{themeMode==="dark"?"☼":"☾"}</button>}
             <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:4,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,cursor:"pointer",padding:"5px 12px",flexShrink:0,fontSize:10,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:T.fadedInk,fontFamily:T.sans,transition:"all .18s ease"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.alert;e.currentTarget.style.color=T.alert}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}><LogOutI size={11} color="currentColor"/>Sign Out</button>
           </div>
         </div>

@@ -3,6 +3,8 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 html,body,#root{height:100%;overflow:hidden}
+
+/* Default (light): paper canvas, sapphire ink. */
 body{
   overflow-x:hidden;-webkit-text-size-adjust:100%;
   background:#FFFFFF;color:#0F52BA;
@@ -13,8 +15,12 @@ body{
   font-feature-settings:"ss01","cv02","cv03","cv04","tnum" 1;
 }
 
+/* Dark: sapphire canvas, paper ink. */
+body.theme-dark{background:#0F52BA;color:#FFFFFF}
+
 /* True italics only for foreign words/titles. <em> is soft emphasis at faded ink. */
 em{font-style:normal;color:rgba(15,82,186,.42)}
+.theme-dark em{color:rgba(255,255,255,.55)}
 i,cite,.ital{font-style:italic}
 
 /* Quiet, cubic motion. Per Lab guidelines: never bouncy. */
@@ -35,10 +41,15 @@ i,cite,.ital{font-style:italic}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(15,82,186,.12);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(15,82,186,.28)}
+.theme-dark ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.20)}
+.theme-dark ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.40)}
 
 input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer;accent-color:#0F52BA}
 input[type=range]::-webkit-slider-track{height:4px;border-radius:2px;background:rgba(15,82,186,.18)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#0F52BA;margin-top:-7px}
+.theme-dark input[type=range]{accent-color:#FFFFFF}
+.theme-dark input[type=range]::-webkit-slider-track{background:rgba(255,255,255,.22)}
+.theme-dark input[type=range]::-webkit-slider-thumb{background:#FFFFFF}
 @media(max-width:768px){
   input[type=range]::-webkit-slider-thumb{width:22px;height:22px;margin-top:-9px}
 }
@@ -52,8 +63,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   border-radius:18px;
   box-shadow:0 32px 80px rgba(15,82,186,.22);
 }
+.theme-dark .fc-panel{
+  background:rgba(15,82,186,.62);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 32px 80px rgba(0,0,0,.36);
+}
 
-/* Pill button (nav/inline) — paper bg, ink border, ink text. Hover: ink fill, paper text. */
+/* Pill button (nav/inline) — paper canvas, ink border + text; hover inverts. */
 .btn-pill{
   display:inline-flex;align-items:center;gap:8px;
   padding:8px 16px;border-radius:999px;
@@ -64,6 +80,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   transition:background .18s ease, color .18s ease;
 }
 .btn-pill:hover{background:#0F52BA;color:#FFFFFF}
+.theme-dark .btn-pill{background:transparent;color:#FFFFFF;border-color:#FFFFFF}
+.theme-dark .btn-pill:hover{background:#FFFFFF;color:#0F52BA}
 
 /* Rectangle button (form) — same logic, square corners. */
 .btn-rect{
@@ -78,6 +96,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 .btn-rect:hover{background:#0F52BA;color:#FFFFFF}
 .btn-rect-solid{background:#0F52BA;color:#FFFFFF}
 .btn-rect-solid:hover{background:#FFFFFF;color:#0F52BA}
+.theme-dark .btn-rect{background:transparent;color:#FFFFFF;border-color:#FFFFFF}
+.theme-dark .btn-rect:hover{background:#FFFFFF;color:#0F52BA}
+.theme-dark .btn-rect-solid{background:#FFFFFF;color:#0F52BA}
+.theme-dark .btn-rect-solid:hover{background:transparent;color:#FFFFFF}
 
 @media print{
   .no-print{display:none!important}
@@ -120,9 +142,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   .desktop-side{display:flex!important}
 }
 
-/* Focus states — sapphire ring */
+/* Focus states — sapphire ring (paper ring in dark mode) */
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
   outline:2px solid rgba(15,82,186,.35);outline-offset:2px;border-radius:6px;
+}
+.theme-dark button:focus-visible,.theme-dark input:focus-visible,.theme-dark select:focus-visible,.theme-dark textarea:focus-visible{
+  outline:2px solid rgba(255,255,255,.55);
 }
 
 /* Quiet transitions globally */

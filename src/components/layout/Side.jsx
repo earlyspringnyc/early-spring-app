@@ -195,6 +195,24 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
           <NavBtn key={n.id} {...n} active={view===n.id}/>
         ))}
 
+        {/* Theme toggle — flips paper ↔ sapphire canvas */}
+        {toggleTheme&&<button
+          onClick={toggleTheme}
+          title={themeMode==="dark"?"Switch to light":"Switch to dark"}
+          style={{
+            display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
+            borderRadius:T.rS,border:"none",cursor:"pointer",
+            background:"transparent",color:T.ink70,
+            fontSize:13,fontWeight:500,fontFamily:T.sans,transition:"color .18s ease",
+            width:"100%",textAlign:"left",
+          }}
+          onMouseEnter={e=>e.currentTarget.style.color=T.ink}
+          onMouseLeave={e=>e.currentTarget.style.color=T.ink70}
+        >
+          <span style={{fontSize:14,width:20,textAlign:"center",flexShrink:0,color:"inherit"}}>{themeMode==="dark"?"☼":"☾"}</span>
+          <span style={{opacity:expanded?1:0,transition:"opacity .15s"}}>{themeMode==="dark"?"Light":"Dark"}</span>
+        </button>}
+
         {/* Sign out */}
         {onLogout&&<button
           onClick={onLogout}

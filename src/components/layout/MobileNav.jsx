@@ -86,6 +86,10 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
       </nav>
       <div style={{borderTop:`1px solid ${T.border}`,padding:"8px 8px 20px",display:"flex",flexDirection:"column",gap:1}}>
         {bottomItems.map(n=><NavBtn key={n.id} {...n}/>)}
+        {toggleTheme&&<button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.ink70,fontSize:15,fontWeight:500,fontFamily:T.sans,textAlign:"left"}}>
+          <span style={{fontSize:18,width:24,textAlign:"center",color:"inherit"}}>{themeMode==="dark"?"☼":"☾"}</span>
+          <span>{themeMode==="dark"?"Light Mode":"Dark Mode"}</span>
+        </button>}
         {onLogout&&<button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.dim,fontSize:15,fontFamily:T.sans,textAlign:"left"}}>
           <span style={{fontSize:18,width:24,textAlign:"center"}}>{"\u2192"}</span>
           <span>Sign Out</span>

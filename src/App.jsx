@@ -152,24 +152,15 @@ function App(){
   useEffect(()=>{if(!usesSupa && GOOGLE_CLIENT_ID)gAuth.initTokenClient(GOOGLE_CLIENT_ID)},[usesSupa,GOOGLE_CLIENT_ID]);
   const requestCalendarAccess = usesSupa ? sbAuth.refreshToken : gAuth.requestCalendarAccess;
 
-  // Theme
-  const[themeMode,setThemeModeSt]=useState(()=>{
-    try{
-      const stored=localStorage.getItem('es_theme');
-      if(stored)return stored;
-      return window.matchMedia?.('(prefers-color-scheme: light)').matches?'light':'dark';
-    }catch(e){return'dark'}
-  });
-  const toggleTheme=useCallback(()=>{
-    setThemeModeSt(prev=>{
-      const next=prev==='dark'?'light':'dark';
-      setThemeMode(next);
-      try{localStorage.setItem('es_theme',next)}catch(e){}
-      return next;
-    });
-  },[]);
-  useEffect(()=>{setThemeMode(themeMode)},[]);
-  useEffect(()=>{document.documentElement.className=themeMode==='light'?'theme-light':''},[themeMode]);
+  // Theme — light (paper canvas) or dark (sapphire canvas).
+  // We persist the choice and reload so all useMemo'd palettes pick up
+  // the new tokens cleanly.
+  const themeMode = T.mode || 'light';
+  const toggleTheme = useCallback(() => {
+    const next = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeMode(next);
+    if (typeof window !== 'undefined') window.location.reload();
+  }, [themeMode]);
 
   // Projects & Shared Vendors
   const orgId = usesSupa ? (sbAuth.currentOrgId || sbAuth.profile?.org_id || 'local') : 'local';
@@ -270,7 +261,7 @@ function App(){
     </div>
   </>;
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
-  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={sbAuth.switchOrg} orgId={orgId}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={sbAuth.switchOrg} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
