@@ -4,25 +4,74 @@ import { ci } from './calc.js';
 import { f$ } from './format.js';
 
 // Early Spring brand tokens (RGB triplets — jsPDF colors)
-const INK   = [15, 82, 186];        // Sapphire
+const INK   = [15, 82, 186];        // Sapphire #0F52BA
 const FADED = [133, 159, 215];      // ~ rgba(15,82,186,.42) on paper
 const RULE  = [205, 215, 235];      // ~ rgba(15,82,186,.18) on paper
 const ALERT = [122, 31, 31];
 
-// Brand header — sapphire wordmark + thin rule, used on every export.
+// Early Spring horizontal lockup — raw SVG markup, rendered to PNG at export time.
+// Aspect 972.68 : 217.95 (~4.46:1). Sourced from src/components/brand/ESWordmark.jsx.
+const ES_LOCKUP_VIEWBOX = { w: 972.68, h: 217.95 };
+const ES_LOCKUP_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 972.68 217.95" fill="#0F52BA"><path d="M553.79,147.36c-1.47-13.43-8.86-19.06-22.41-19.06a31.27,31.27,0,0,0-16,3.89c-4.43,2.55-6.58,6.71-6.58,12.48,0,24.83,61.34,5.91,61.34,44.69a23.55,23.55,0,0,1-6,16.38c-7.92,9-19.33,12.21-31.81,12.21-11.68,0-21.21-2.68-28.72-8s-11.28-13.69-11.28-24.56h12.75c0,7.51,2.55,13,7.65,16.64s11.68,5.23,19.6,5.23a36.76,36.76,0,0,0,17.71-4c5-2.69,7.39-7.12,7.39-13.42,0-29.13-61.34-9-61.34-44.16,0-9,3.49-16,10.33-20.8s15.3-7.25,25-7.25c20.8,0,34.49,9.53,35.16,29.8Z"/><path d="M626,119.84c18.92,0,29.39,10.2,29.39,28.32S644.92,176.61,626,176.48H597.81v39.19H585.06V119.84Zm-4.3,45.9c14,.14,20.94-5.77,20.94-17.58s-7-17.58-20.94-17.58H597.81v35.16Z"/><path d="M740.62,205.74a32.1,32.1,0,0,0,5.1,8.59v1.34H731.89a27.88,27.88,0,0,1-3.89-7,66,66,0,0,1-2.55-9.13c-.67-3.62-1.21-5.9-1.47-6.84-3.09-10.87-8.33-17.18-18.39-17.18H680.22v40.13H667.47V119.84h40.8c20.54,0,31.68,10.34,31.68,25.9q0,20.53-18.93,25.77c4.7,1.08,8.06,3.36,10.2,7,2.42,3.63,4.43,8.73,5.91,15.3A98.73,98.73,0,0,0,740.62,205.74Zm-60.4-40.94h27.52c12.88,0,19.32-6.31,19.32-19.06,0-10.06-6.31-15.16-18.79-15.16h-28Z"/><path d="M757.93,119.84h12.75v95.83H757.93Z"/><path d="M856.85,119.84h12.08v95.83H855l-52.21-76.9h-.27v76.9H790.41V119.84H804l52.61,77.71h.27Z"/><path d="M932.68,166.55h40l-1.21,49.12h-7.79l-2.14-18c-3.09,8.73-8.19,14.63-14.5,17.18-6,2.55-10.33,3.09-16.64,3.09-14.1,0-25.23-4.7-33.69-14.23s-12.48-20.8-12.48-34.09c0-14.76,4-27.11,11.94-37s19.2-15,33.69-15c22,0,37.31,10.2,39.86,31.81H957C955.23,135,945,128.3,929.86,128.3c-10.87,0-19.06,4-24.56,11.94S897,157.69,897,169c0,10.61,2.95,19.73,8.72,27.11s14.09,11.14,24.7,11.14c9.8,0,17.31-2.68,22.68-8.18s7.92-12.75,7.52-21.75H932.68Z"/><path d="M378.14,116.62c-22.6-10.85-45-13.11-64.71-15.12-25.57-2.59-45.77-4.64-60-22.81-7.9-10.06-9.54-22.85-4.29-33.38,7-13.93,24.92-21.63,49.29-21.11,25.29.54,38.73,10.08,51.72,19.31,9.63,6.83,19.52,13.85,33.2,16.09a61.23,61.23,0,0,1-6.18-16.33c-6.5-2.58-12.26-6.66-18.81-11.31-14.05-10-30-21.29-59.63-21.92-15.64-.33-29.09,2.22-40,7.58C248.63,22.58,240.93,30,236.42,39c-7.72,15.48-5.49,34,5.83,48.46,18,22.91,43.13,25.46,69.75,28.16,19.49,2,39.65,4,60,13.8,14.38,6.9,22,17.53,21.39,29.93-.7,14.72-12.84,29.28-29.52,35.41-20.81,7.65-56.13,10.86-87.19-5.29-24.22-12.59-40.53-34.13-48.47-64-7.58-28.53-15.66-55.9-31.13-77.16a92,92,0,0,0-29.52-26.61C155,14.54,140.48,10.07,123.17,8,99,5.12,77.89,7,60.36,13.64,45,19.42,33.05,28.9,26.61,40.33c-7.41,13.13-6.85,27.9,1.46,38.56,5.58,7.15,14.18,12,24.88,14,11.25,2.15,24.44,1.19,39.2-2.86,37.17-10.2,63.69-4.51,73.49,5.64,3.77,3.91,4.94,8.28,3.46,13-3.77,12-25,9.35-56.87,3.9-28.57-4.88-58.12-9.93-79.16.72-13.31,6.74-22.81,15.77-28.23,26.83A47.11,47.11,0,0,0,1.31,172C6.53,194.3,26,210.58,47.69,210.75c30.3.25,50.77-13.51,67.23-24.57,7.53-5.05,14-9.42,20.17-11.65,17.85-6.48,40.67-9.4,51.17,1.82,3.78,4,4.83,9.17,2.83,13.74-2.93,6.66-11.44,10.58-22.78,10.46l-7.09-.07-.13,14.17,7.08.07h.59c16.91,0,30.08-7.05,35.3-18.93,4.3-9.78,2.21-20.94-5.45-29.13-6.07-6.48-15-10.53-25.82-11.72-11.82-1.31-25.46.8-40.53,6.27C122.49,164,115,169.08,107,174.42c-15.48,10.4-33,22.17-58.56,22.17H47.8c-15.2-.12-28.95-11.8-32.7-27.77a33.2,33.2,0,0,1,2.46-22.41c4-8.24,11.41-15.11,21.91-20.42,16.87-8.54,45.29-3.69,70.37.6,15.92,2.72,31,5.29,43.31,4.76,15.95-.69,25.86-6.88,29.47-18.39,3-9.61.54-19.47-6.78-27.07-12.34-12.79-41.79-22-87.44-9.47-22.84,6.27-41.22,3.94-49.15-6.24-4.8-6.15-4.91-14.7-.3-22.88,4.82-8.54,14.2-15.78,26.41-20.4,15.16-5.72,34.57-7.39,56.13-4.82C150.64,25.56,171,36.53,185.63,56.6c14,19.29,21.67,45.28,28.9,72.47,8.88,33.42,28.11,58.65,55.63,73A121.68,121.68,0,0,0,322,215.14c1.44,0,2.88.07,4.33.07A125.5,125.5,0,0,0,368.77,208c22.22-8.17,37.8-27.47,38.78-48C408.41,141.82,397.7,126,378.14,116.62Z"/><path d="M425.86,108.47a23,23,0,0,1-11.14-3,38.8,38.8,0,0,1-9.94-8.18c-7.43,4.47-20.18,11.31-31.29,7.82-3.88-1.22-9.21-4.27-12.52-11.9h0c-3.64-8.34-2.5-16.56,3.29-23.76,4.08-5.08,9.66-8.67,13.88-11.31-8.75-14-7.88-31-1.82-41.81C381.9,6.39,391.39,1.5,401.7,3.26c9.21,1.57,15.39,7.49,17.4,16.68a36.5,36.5,0,0,1,.76,8.3c6.32-4,14.25-7.77,22.53-6.24,5.67,1.06,10.46,4.4,14.21,10,5.34,7.91,4.84,14.62,3.49,18.86-2.7,8.43-10.92,14.1-18.12,17.7a27.9,27.9,0,0,1,7.14,14c1.31,7.84-1.72,15.11-8.51,20.48A23.68,23.68,0,0,1,425.86,108.47Zm-19.6-27.33h.44c3.31.17,5,2.29,6.38,4,8.77,10.92,13.83,10.57,18.73,6.7,3.52-2.78,3.63-5.22,3.32-7-.56-3.39-7.95-11.21-12-15.28a5.65,5.65,0,0,1,1-8.82,9.84,9.84,0,0,1,1.34-.66c.41-.17,1-.4,1.77-.68,11.46-4.27,18-8.6,19.33-12.87.22-.68.88-2.74-1.73-6.6-2.33-3.45-4.38-3.83-5.06-4-5.06-.94-12.7,4.4-17.27,7.59-5.11,3.57-9.14,6.39-13.9,3.94s-4.2-7.59-3.65-11.67c1.95-14.47-.48-17.69-5.66-18.57-5.47-.94-8.81,2.76-10.64,6-4.34,7.73-4.35,21.23,4.18,31a7.86,7.86,0,0,1,1.87,6.31c-.64,4.28-4.15,6.49-8.61,9.28-11.81,7.41-14.77,11.71-12.16,17.7,1.28,3,2.77,3.71,3.78,4,6.14,1.93,17.53-5.08,21.82-7.72C402.46,82.09,404,81.14,406.26,81.14Z"/><path d="M509.67,85.09h53.82V95.83H496.92V0h66.17V10.74H509.67V41.2h50.6V51.94h-50.6Z"/><path d="M648.82,95.83l-11.28-30.6h-39l-11.41,30.6H573.66L611.37,0h14.09l37.72,95.83ZM618.08,10.47,602.11,55h32.08L618.35,10.47Z"/><path d="M748.28,85.9a32.37,32.37,0,0,0,5.1,8.59v1.34H739.56a27.57,27.57,0,0,1-3.89-7,64.64,64.64,0,0,1-2.55-9.13c-.67-3.62-1.21-5.9-1.48-6.84C728.55,62,723.32,55.7,713.25,55.7H687.89V95.83H675.14V0h40.8c20.53,0,31.67,10.33,31.67,25.9q0,20.54-18.92,25.77c4.69,1.08,8,3.36,10.2,7,2.41,3.63,4.43,8.73,5.9,15.3A100.6,100.6,0,0,0,748.28,85.9ZM687.89,45H715.4c12.88,0,19.33-6.31,19.33-19.06,0-10.06-6.31-15.16-18.79-15.16H687.89Z"/><path d="M780.74,85.09h50.73V95.83H768V0h12.75Z"/><path d="M905.78,0,869.14,56.64V95.83H856.39V56.64L819.35,0h15.17l28.72,45.63L891.29,0Z"/></svg>`;
+
+// Rasterize an SVG markup string to a PNG data URL via canvas.
+// widthPt is the rendered width in PDF points; the canvas is drawn at 3× DPR for crispness.
+function svgToPngDataUrl(svgString, widthPt) {
+  return new Promise((resolve, reject) => {
+    const ratio = ES_LOCKUP_VIEWBOX.w / ES_LOCKUP_VIEWBOX.h;
+    const heightPt = widthPt / ratio;
+    const dpr = 3;
+    const w = Math.round(widthPt * dpr);
+    const h = Math.round(heightPt * dpr);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve({ dataUrl: canvas.toDataURL('image/png'), widthPt, heightPt });
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+// Resolve the lockup PNG once per export and cache for the session.
+let _esLockupCache = null;
+async function getEsLockupPng(widthPt = 90) {
+  if (_esLockupCache && _esLockupCache.widthPt === widthPt) return _esLockupCache;
+  try {
+    _esLockupCache = await svgToPngDataUrl(ES_LOCKUP_SVG, widthPt);
+    return _esLockupCache;
+  } catch (e) {
+    console.warn('[pdfExport] Lockup rasterization failed; using text fallback', e);
+    return null;
+  }
+}
+
+// Brand header — ES horizontal lockup top-left + Lab tag + date top-right + thin rule.
 function drawBrandHeader(doc, opts) {
   const pageW = doc.internal.pageSize.getWidth();
   const margin = opts.margin;
+  const lockup = opts.lockup; // { dataUrl, widthPt, heightPt } or null
 
-  // Early Spring wordmark (text rendition since we're not embedding the SVG/font)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...INK);
-  doc.setCharSpace(2);
-  doc.text('EARLY SPRING', margin, 44);
-  doc.setCharSpace(0);
+  if (lockup) {
+    doc.addImage(lockup.dataUrl, 'PNG', margin, 36, lockup.widthPt, lockup.heightPt);
+  } else {
+    // Fallback — typeset wordmark
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.setCharSpace(2);
+    doc.text('EARLY SPRING', margin, 48);
+    doc.setCharSpace(0);
+  }
 
-  // Right-aligned: Lab tag + date
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...FADED);
@@ -33,10 +82,9 @@ function drawBrandHeader(doc, opts) {
   doc.setTextColor(...FADED);
   doc.text(new Date().toLocaleDateString(), pageW - margin, 56, { align: 'right' });
 
-  // Faint rule
   doc.setDrawColor(...RULE);
   doc.setLineWidth(0.5);
-  doc.line(margin, 64, pageW - margin, 64);
+  doc.line(margin, 70, pageW - margin, 70);
 }
 
 function drawTitle(doc, { kicker, title, sub, margin }) {
@@ -44,19 +92,19 @@ function drawTitle(doc, { kicker, title, sub, margin }) {
   doc.setFontSize(8);
   doc.setTextColor(...INK);
   doc.setCharSpace(1.5);
-  doc.text((kicker || '').toUpperCase(), margin, 96);
+  doc.text((kicker || '').toUpperCase(), margin, 102);
   doc.setCharSpace(0);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(28);
   doc.setTextColor(...INK);
-  doc.text(title || '', margin, 128);
+  doc.text(title || '', margin, 134);
 
   if (sub) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(...FADED);
-    doc.text(sub, margin, 148);
+    doc.text(sub, margin, 154);
   }
 }
 
@@ -92,12 +140,12 @@ const baseTable = (margin, opts = {}) => ({
 // bd: { cats, ag, comp, feeP }
 // opts: { title, filename }
 // ─────────────────────────────────────────────────────────────────────
-export function exportEstimatePDF(project, bd, opts = {}) {
+export async function exportEstimatePDF(project, bd, opts = {}) {
   const filename = opts.filename || `${project?.name || 'estimate'}-production-estimate.pdf`;
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const margin = 48;
+  const lockup = await getEsLockupPng(110);
 
-  drawBrandHeader(doc, { margin, labTag: `Lab · ${project?.client || 'Client'}` });
   drawTitle(doc, {
     margin,
     kicker: 'Production Estimate',
@@ -131,13 +179,11 @@ export function exportEstimatePDF(project, bd, opts = {}) {
     }
   });
 
-  // Production subtotal
   body.push([
     { content: 'PRODUCTION SUBTOTAL', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', textColor: INK, fontSize: 9, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 8, left: 8 } } },
     { content: f$(bd.comp.productionSubtotal.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: INK, fontSize: 9, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 8, left: 8 } } },
   ]);
 
-  // Agency section
   const agItems = (bd.ag || []).filter(it => ci(it).clientPrice > 0);
   if (agItems.length) {
     body.push([
@@ -163,7 +209,6 @@ export function exportEstimatePDF(project, bd, opts = {}) {
     ]);
   }
 
-  // Grand total — no inverse fill, just a thick top rule and large display number
   body.push([
     { content: 'GRAND TOTAL', colSpan: 2, styles: { fontStyle: 'bold', fontSize: 11, halign: 'right', textColor: INK, lineWidth: { top: 2 }, lineColor: INK, cellPadding: { top: 18, right: 8, bottom: 12, left: 8 } } },
     { content: f$(bd.comp.grandTotal), styles: { halign: 'right', fontStyle: 'bold', fontSize: 16, textColor: INK, lineWidth: { top: 2 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 10, left: 8 } } },
@@ -171,7 +216,7 @@ export function exportEstimatePDF(project, bd, opts = {}) {
 
   autoTable(doc, {
     ...baseTable(margin),
-    startY: 168,
+    startY: 174,
     head: [[
       { content: 'Item', styles: { halign: 'left' } },
       { content: 'Description', styles: { halign: 'left' } },
@@ -179,7 +224,10 @@ export function exportEstimatePDF(project, bd, opts = {}) {
     ]],
     body,
     columnStyles: { 0: { cellWidth: 170 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 100, halign: 'right' } },
-    didDrawPage: () => drawFooter(doc, { margin }),
+    didDrawPage: () => {
+      drawBrandHeader(doc, { margin, labTag: `Lab · ${project?.client || 'Client'}`, lockup });
+      drawFooter(doc, { margin });
+    },
   });
 
   doc.save(filename);
@@ -188,13 +236,13 @@ export function exportEstimatePDF(project, bd, opts = {}) {
 // ─────────────────────────────────────────────────────────────────────
 // Internal Production Budget PDF (includes cost + margin + client price)
 // ─────────────────────────────────────────────────────────────────────
-export function exportBudgetPDF(project, data, opts = {}) {
+export async function exportBudgetPDF(project, data, opts = {}) {
   const { cats, ag, comp, feeP, vendors = [] } = data;
   const filename = opts.filename || `${project?.name || 'budget'}-production-budget.pdf`;
   const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
   const margin = 40;
+  const lockup = await getEsLockupPng(100);
 
-  drawBrandHeader(doc, { margin, labTag: `Internal · ${project?.client || 'Client'}` });
   drawTitle(doc, {
     margin,
     kicker: 'Production Budget',
@@ -266,7 +314,7 @@ export function exportBudgetPDF(project, data, opts = {}) {
 
   autoTable(doc, {
     ...baseTable(margin),
-    startY: 168,
+    startY: 174,
     head: [[
       'Item', 'Description', 'Vendor',
       { content: 'Actual Cost', styles: { halign: 'right' } },
@@ -275,7 +323,10 @@ export function exportBudgetPDF(project, data, opts = {}) {
     ]],
     body,
     columnStyles: { 0: { cellWidth: 160 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 110 }, 3: { cellWidth: 90 }, 4: { cellWidth: 60 }, 5: { cellWidth: 100 } },
-    didDrawPage: () => drawFooter(doc, { margin }),
+    didDrawPage: () => {
+      drawBrandHeader(doc, { margin, labTag: `Internal · ${project?.client || 'Client'}`, lockup });
+      drawFooter(doc, { margin });
+    },
   });
 
   doc.save(filename);

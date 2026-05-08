@@ -638,7 +638,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     const bd=getSelectedBudgetData();
     const{exportEstimatePDF:gen}=await import('../utils/pdfExport.js');
     const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
-    gen(project,bd,{title:label?`Production Estimate — ${label}`:"Production Estimate",filename:(project.name||"estimate")+(label?`-${label}`:"")+"-production-estimate.pdf"});
+    await gen(project,bd,{title:label?`Production Estimate — ${label}`:"Production Estimate",filename:(project.name||"estimate")+(label?`-${label}`:"")+"-production-estimate.pdf"});
   };
   const exportEstimateXLSX=async()=>{
     const bd=getSelectedBudgetData();

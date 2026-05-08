@@ -66,7 +66,7 @@ function BudgetV(p){
   };
   const exportPDF=async()=>{
     const{exportBudgetPDF}=await import('../utils/pdfExport.js');
-    exportBudgetPDF(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,vendors:p.vendors||[]},{filename:(p.project?.name||"budget")+"-production-budget.pdf"});
+    await exportBudgetPDF(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,vendors:p.vendors||[]},{filename:(p.project?.name||"budget")+"-production-budget.pdf"});
     setShowExportMenu(false);
   };
   const[dragSection,setDragSection]=useState(null);

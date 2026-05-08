@@ -15,9 +15,12 @@ const inkSoft2="rgba(15,82,186,.05)";
 const inkSoft3="rgba(15,82,186,.03)";
 const faintRule="rgba(15,82,186,.18)";
 const fadedInk="rgba(15,82,186,.42)";
+const ink80="rgba(15,82,186,.80)";
 const ink70="rgba(15,82,186,.70)";
 const ink60="rgba(15,82,186,.60)";
+const ink40="rgba(15,82,186,.40)";
 const ink25="rgba(15,82,186,.25)";
+const ink20="rgba(15,82,186,.20)";
 const alert="#7A1F1F"; // single off-system tone, sapphire-adjacent saturation, used sparingly for destructive/error only
 const alertSoft="rgba(122,31,31,.08)";
 
@@ -35,8 +38,9 @@ const earlySpring={
   cream:ink,dim:fadedInk,dimH:ink70,
   // State
   pos:ink,neg:alert,negSoft:alertSoft,blue:ink,
-  // Chart series — sapphire opacity ramp + a single off-tone for negative
-  colors:[ink,ink70,ink60,fadedInk,ink25,alert,fadedInk,ink60,ink70,ink],
+  // Chart series — sapphire 100/80/60/40/20 ramp (per Lab guidelines), then loop.
+  // alert (#7A1F1F) is the only off-system tone, used sparingly for negatives.
+  colors:[ink,ink80,ink60,ink40,ink20,ink70,fadedInk,ink25,ink,ink80],
   // Geometry
   r:"14px",rS:"8px",
   shadow:"0 1px 2px rgba(15,82,186,.04),0 8px 32px rgba(15,82,186,.10)",
@@ -49,7 +53,7 @@ const earlySpring={
   fsXs:10,fsSm:12,fsMd:13,fsLg:16,fsXl:24,fs2xl:32,
   fwNormal:400,fwMedium:600,fwSemibold:600,fwBold:800,
   // Brand primitives — exposed for components that want the raw values
-  paper,ink,inkSoft,inkSoft2,inkSoft3,faintRule,fadedInk,ink70,ink60,ink25,alert,alertSoft,
+  paper,ink,inkSoft,inkSoft2,inkSoft3,faintRule,fadedInk,ink80,ink70,ink60,ink40,ink25,ink20,alert,alertSoft,
 };
 
 const T={...earlySpring};
