@@ -11,8 +11,8 @@ function NewProjectModal({ onClose, onCreate }) {
   const submit = () => { if (!name.trim()) return; onCreate(name.trim(), client.trim(), date, eventDate, logo, parseFloat(budget) || 0, stage); onClose(); };
   const fStyle = { width: "100%", padding: "11px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 13, fontFamily: T.sans, outline: "none" };
   const lStyle = { display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 };
-  return <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.6)", backdropFilter: "blur(8px)" }}>
-    <div className="slide-in modal-inner" style={{ width: 440, padding: 36, borderRadius: T.r, background: T.bg, border: `1px solid ${T.border}`, boxShadow: "0 24px 80px rgba(0,0,0,.5)", maxHeight: "90vh", overflow: "auto" }}>
+  return <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,82,186,.18)", backdropFilter: "blur(8px)" }}>
+    <div className="slide-in modal-inner" style={{ width: 440, padding: 36, borderRadius: T.r, background: T.bg, border: `1px solid ${T.border}`, boxShadow: "0 24px 80px rgba(15,82,186,.14)", maxHeight: "90vh", overflow: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}><h2 style={{ fontSize: 20, fontWeight: 600, color: T.cream }}>New Project</h2><button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer", padding: 4, lineHeight: 1 }}>×</button></div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Project Name</label><input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="SeedAI House SXSW 2026" onKeyDown={e => e.key === "Enter" && submit()} style={fStyle} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 16 }}>
@@ -37,8 +37,8 @@ function NewProjectModal({ onClose, onCreate }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}><DatePick label="Start Date" value={date} onChange={setDate} /><DatePick label="Event Date" value={eventDate} onChange={setEventDate} /></div>
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-        <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: T.rS, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.sans }}>Cancel</button>
-        <button onClick={submit} style={{ flex: 1, padding: 12, borderRadius: T.rS, border: "none", background: name.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(255,255,255,.05)", color: name.trim() ? T.brown : "rgba(255,255,255,.2)", fontSize: 13, fontWeight: 700, cursor: name.trim() ? "pointer" : "default", fontFamily: T.sans }}>Create Project</button>
+        <button onClick={onClose} className="btn-rect" style={{ flex: 1 }}>Cancel</button>
+        <button onClick={submit} disabled={!name.trim()} className="btn-rect btn-rect-solid" style={{ flex: 1, opacity: name.trim() ? 1 : 0.4, cursor: name.trim() ? "pointer" : "default" }}>Create Project</button>
       </div>
     </div>
   </div>;

@@ -126,7 +126,7 @@ function SheetImportModal({ onClose, onImport, accessToken, project }) {
   const reverseMap = {};
   Object.entries(colMap).forEach(([field, idx]) => { reverseMap[idx] = field; });
 
-  return <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)' }} onClick={onClose}>
+  return <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)' }} onClick={onClose}>
     <div className="slide-in" onClick={e => e.stopPropagation()} style={{ width: step.toString().startsWith('3b') ? 'min(900px,92vw)' : 'min(520px,90vw)', maxHeight: '85vh', borderRadius: T.r, background: T.bg, border: `1px solid ${T.border}`, boxShadow: T.shadow, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* Header */}
@@ -143,7 +143,7 @@ function SheetImportModal({ onClose, onImport, accessToken, project }) {
           <p style={{ fontSize: 12, color: T.dim, marginBottom: 16 }}>Paste the URL of a Google Sheet you have access to.</p>
           <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." onKeyDown={e => e.key === 'Enter' && handleUrlSubmit()} style={{ width: '100%', padding: '10px 12px', borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 13, fontFamily: T.sans, outline: 'none', boxSizing: 'border-box' }} />
           {error && <p style={{ fontSize: 11, color: T.neg, marginTop: 8 }}>{error}</p>}
-          <button onClick={handleUrlSubmit} disabled={!url.trim() || loading} style={{ marginTop: 12, padding: '10px 20px', borderRadius: T.rS, border: 'none', background: url.trim() ? T.cream : 'rgba(255,255,255,.05)', color: url.trim() ? '#0A0A0D' : 'rgba(255,255,255,.2)', fontSize: 12, fontWeight: 600, cursor: url.trim() ? 'pointer' : 'default', fontFamily: T.sans }}>{loading ? 'Connecting...' : 'Connect'}</button>
+          <button onClick={handleUrlSubmit} disabled={!url.trim() || loading} style={{ marginTop: 12, padding: '10px 20px', borderRadius: T.rS, border: 'none', background: url.trim() ? T.cream : 'rgba(15,82,186,.05)', color: url.trim() ? '#0A0A0D' : 'rgba(15,82,186,.42)', fontSize: 12, fontWeight: 600, cursor: url.trim() ? 'pointer' : 'default', fontFamily: T.sans }}>{loading ? 'Connecting...' : 'Connect'}</button>
         </div>}
 
         {/* Step 2: Choose path */}
@@ -166,7 +166,7 @@ function SheetImportModal({ onClose, onImport, accessToken, project }) {
             </Card>
           </div>
           {error && <p style={{ fontSize: 11, color: T.neg, marginTop: 8 }}>{error}</p>}
-          <button onClick={() => { if (importPath === 'quick') setStep('3a'); else if (importPath === 'full') handleFullRead(); }} disabled={!importPath || loading} style={{ marginTop: 16, padding: '10px 20px', borderRadius: T.rS, border: 'none', background: importPath ? T.cream : 'rgba(255,255,255,.05)', color: importPath ? '#0A0A0D' : 'rgba(255,255,255,.2)', fontSize: 12, fontWeight: 600, cursor: importPath ? 'pointer' : 'default', fontFamily: T.sans }}>{loading ? 'Reading sheet...' : 'Continue'}</button>
+          <button onClick={() => { if (importPath === 'quick') setStep('3a'); else if (importPath === 'full') handleFullRead(); }} disabled={!importPath || loading} style={{ marginTop: 16, padding: '10px 20px', borderRadius: T.rS, border: 'none', background: importPath ? T.cream : 'rgba(15,82,186,.05)', color: importPath ? '#0A0A0D' : 'rgba(15,82,186,.42)', fontSize: 12, fontWeight: 600, cursor: importPath ? 'pointer' : 'default', fontFamily: T.sans }}>{loading ? 'Reading sheet...' : 'Continue'}</button>
         </div>}
 
         {/* Step 3a: Quick import - cell ref */}
@@ -174,7 +174,7 @@ function SheetImportModal({ onClose, onImport, accessToken, project }) {
           <p style={{ fontSize: 12, color: T.dim, marginBottom: 12 }}>Enter the cell reference for your total sold budget.</p>
           <input value={cellRef} onChange={e => setCellRef(e.target.value)} placeholder="e.g. B42" onKeyDown={e => e.key === 'Enter' && handleQuickRead()} style={{ width: 120, padding: '10px 12px', borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 14, fontFamily: T.mono, outline: 'none', textTransform: 'uppercase' }} />
           {error && <p style={{ fontSize: 11, color: T.neg, marginTop: 8 }}>{error}</p>}
-          <button onClick={handleQuickRead} disabled={!cellRef.trim() || loading} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: T.rS, border: 'none', background: cellRef.trim() ? T.cream : 'rgba(255,255,255,.05)', color: cellRef.trim() ? '#0A0A0D' : 'rgba(255,255,255,.2)', fontSize: 12, fontWeight: 600, cursor: cellRef.trim() ? 'pointer' : 'default', fontFamily: T.sans }}>{loading ? 'Reading...' : 'Read Cell'}</button>
+          <button onClick={handleQuickRead} disabled={!cellRef.trim() || loading} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: T.rS, border: 'none', background: cellRef.trim() ? T.cream : 'rgba(15,82,186,.05)', color: cellRef.trim() ? '#0A0A0D' : 'rgba(15,82,186,.42)', fontSize: 12, fontWeight: 600, cursor: cellRef.trim() ? 'pointer' : 'default', fontFamily: T.sans }}>{loading ? 'Reading...' : 'Read Cell'}</button>
         </div>}
 
         {/* Step 3a preview: show value */}
@@ -242,7 +242,7 @@ function SheetImportModal({ onClose, onImport, accessToken, project }) {
           </div>
           {previewCats.length === 0 && <p style={{ fontSize: 12, color: T.neg }}>No items detected. Try adjusting the column mapping.</p>}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleFullConfirm} disabled={previewCats.length === 0} style={{ padding: '10px 20px', borderRadius: T.rS, border: 'none', background: previewCats.length ? T.cream : 'rgba(255,255,255,.05)', color: previewCats.length ? '#0A0A0D' : 'rgba(255,255,255,.2)', fontSize: 12, fontWeight: 600, cursor: previewCats.length ? 'pointer' : 'default', fontFamily: T.sans }}>Import Budget</button>
+            <button onClick={handleFullConfirm} disabled={previewCats.length === 0} style={{ padding: '10px 20px', borderRadius: T.rS, border: 'none', background: previewCats.length ? T.cream : 'rgba(15,82,186,.05)', color: previewCats.length ? '#0A0A0D' : 'rgba(15,82,186,.42)', fontSize: 12, fontWeight: 600, cursor: previewCats.length ? 'pointer' : 'default', fontFamily: T.sans }}>Import Budget</button>
             <button onClick={() => setStep('3b')} style={{ padding: '10px 16px', borderRadius: T.rS, border: `1px solid ${T.border}`, background: 'transparent', color: T.cream, fontSize: 12, cursor: 'pointer', fontFamily: T.sans }}>Adjust Mapping</button>
           </div>
         </div>}

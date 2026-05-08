@@ -10,9 +10,9 @@ import { Card, DatePick } from '../primitives/index.js';
 
 const VENDOR_DOC_TYPES = ["invoice","contract","estimate","coi","w9","license","permit","other"];
 const VENDOR_DOC_LABELS = {invoice:"Invoice",contract:"Contract",estimate:"Estimate",coi:"Certificate of Insurance",w9:"W-9",license:"License",permit:"Permit",other:"Other"};
-const VENDOR_DOC_COLORS = {invoice:"#FBBF24",contract:"#60A5FA",estimate:"#4ADE80",coi:"#22D3EE",w9:"#C4B5FD",license:"#FB923C",permit:"#FDBA74",other:"rgba(250,250,249,.5)"};
+const VENDOR_DOC_COLORS = {invoice:T.ink,contract:T.ink70,estimate:T.ink80,coi:T.ink60,w9:T.ink40,license:T.ink25,permit:T.ink70,other:T.fadedInk};
 
-const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
+const Pill=({children,color=T.ink,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 8px":"3px 10px",borderRadius:999,background:"transparent",color,border:`1px solid ${color}`,textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap"}}>{children}</span>;
 const Label=({children})=><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{children}</div>;
 const Section=({title,children,right})=><div style={{marginBottom:20}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><div style={{fontSize:11,fontWeight:600,color:T.cream}}>{title}</div>{right}</div>{children}</div>;
 const Field=({label,value,onChange,placeholder,style={}})=><div style={style}><Label>{label}</Label><input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>;
@@ -144,8 +144,8 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
   const fullAddress=[v.address,v.city,v.state,v.zip].filter(Boolean).join(", ");
   const mapQuery=encodeURIComponent(fullAddress);
 
-  return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.6)",backdropFilter:"blur(8px)"}} onClick={onClose}>
-    <div className="slide-in modal-inner" onClick={e=>e.stopPropagation()} style={{width:920,maxWidth:"95vw",maxHeight:"92vh",overflow:"auto",padding:0,borderRadius:T.r,background:T.bg,border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)"}}>
+  return<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,82,186,.18)",backdropFilter:"blur(8px)"}} onClick={onClose}>
+    <div className="slide-in modal-inner" onClick={e=>e.stopPropagation()} style={{width:920,maxWidth:"95vw",maxHeight:"92vh",overflow:"auto",padding:0,borderRadius:T.r,background:T.bg,border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(15,82,186,.14)"}}>
 
       {/* ── Header ── */}
       <div style={{padding:"24px 32px 20px",borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,background:T.bg,zIndex:2,backdropFilter:"blur(12px)"}}>
@@ -211,13 +211,13 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
           <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Contracted</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.cream,fontFamily:T.mono}}>{f0(totalContracted)}</div></div>
           <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Invoiced</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(totalInvoiced)}</div></div>
           <div style={{padding:"14px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Paid</div><div className="num" style={{fontSize:20,fontWeight:700,color:T.pos,fontFamily:T.mono}}>{f0(totalPaid)}</div></div>
-          <div style={{padding:"14px 16px",borderRadius:T.rS,background:outstanding>0?"rgba(248,113,113,.04)":T.surfEl,border:`1px solid ${outstanding>0?"rgba(248,113,113,.15)":T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Outstanding</div><div className="num" style={{fontSize:20,fontWeight:700,color:outstanding>0?T.neg:T.dim,fontFamily:T.mono}}>{f0(outstanding)}</div></div>
+          <div style={{padding:"14px 16px",borderRadius:T.rS,background:outstanding>0?"rgba(122,31,31,.06)":T.surfEl,border:`1px solid ${outstanding>0?"rgba(122,31,31,.18)":T.border}`}}><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Outstanding</div><div className="num" style={{fontSize:20,fontWeight:700,color:outstanding>0?T.neg:T.dim,fontFamily:T.mono}}>{f0(outstanding)}</div></div>
         </div>
 
         {/* Overdue alert */}
-        {overdueInvoices.length>0&&<div style={{marginBottom:20,padding:"12px 16px",borderRadius:T.rS,background:"rgba(248,113,113,.04)",border:"1px solid rgba(248,113,113,.12)"}}>
+        {overdueInvoices.length>0&&<div style={{marginBottom:20,padding:"12px 16px",borderRadius:T.rS,background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.10)"}}>
           <div style={{fontSize:10,fontWeight:700,color:T.neg,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Overdue ({overdueInvoices.length})</div>
-          {overdueInvoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid rgba(248,113,113,.06)`}}>
+          {overdueInvoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid rgba(122,31,31,.06)`}}>
             <span style={{fontSize:12,color:T.cream}}>{d.name}</span>
             <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontSize:12,fontFamily:T.mono,fontWeight:600,color:T.neg}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
           </div>)}
@@ -316,7 +316,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 <button onClick={()=>fileRef.current?.click()} style={{padding:"6px 12px",borderRadius:T.rS,border:`1px dashed ${docFile?T.pos:T.border}`,background:docFile?"rgba(52,211,153,.06)":"transparent",color:docFile?T.pos:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>{docFile?"Replace":"Choose file…"}</button>
                 {docFileName&&<span style={{fontSize:10,color:T.pos,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{docFileName}</span>}
-                <button onClick={addVendorDoc} disabled={!docName.trim()} style={{padding:"6px 14px",marginLeft:"auto",background:docName.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:docName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${docName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:10,fontWeight:700,cursor:docName.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+                <button onClick={addVendorDoc} disabled={!docName.trim()} style={{padding:"6px 14px",marginLeft:"auto",background:docName.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:docName.trim()?T.gold:"rgba(15,82,186,.42)",border:`1px solid ${docName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:10,fontWeight:700,cursor:docName.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
               </div>
             </div>}
 
@@ -337,7 +337,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               {vendorDocs.map(d=><div key={d.id} onClick={()=>setViewingDoc(d)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
                 <Pill color={VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other} size="xs">{VENDOR_DOC_LABELS[d.type]||d.type}</Pill>
                 <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div><div style={{fontSize:9,color:T.dim,marginTop:1}}>{d.dateAdded}</div></div>
-                {canEdit&&<button onClick={e=>{e.stopPropagation();removeVendorDoc(d.id)}} style={{background:"rgba(248,113,113,.06)",border:"1px solid rgba(248,113,113,.12)",borderRadius:T.rS,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,.15)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,.06)"}}><TrashI size={10} color={T.neg}/></button>}
+                {canEdit&&<button onClick={e=>{e.stopPropagation();removeVendorDoc(d.id)}} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.10)",borderRadius:T.rS,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={10} color={T.neg}/></button>}
               </div>)}
               {projectDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
                 <Pill color={DOC_TYPE_COLORS[d.type]||T.dim} size="xs">{d.type==="w9"?"W-9":d.type}</Pill>
@@ -355,8 +355,8 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
     </div>
 
     {/* ── Document Viewer ── */}
-    {viewingDoc&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.85)",backdropFilter:"blur(8px)"}} onClick={()=>setViewingDoc(null)}>
-      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{width:"90vw",maxWidth:900,height:"85vh",borderRadius:T.r,background:T.bg,border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    {viewingDoc&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,82,186,.20)",backdropFilter:"blur(8px)"}} onClick={()=>setViewingDoc(null)}>
+      <div className="slide-in" onClick={e=>e.stopPropagation()} style={{width:"90vw",maxWidth:900,height:"85vh",borderRadius:T.r,background:T.bg,border:`1px solid ${T.border}`,boxShadow:"0 24px 80px rgba(15,82,186,.14)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
           <div><div style={{fontSize:14,fontWeight:600,color:T.cream}}>{viewingDoc.name||viewingDoc.fileName||"Document"}</div>{viewingDoc.fileName&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{viewingDoc.fileName}</div>}</div>
           <div style={{display:"flex",gap:8}}>{viewingDoc.fileData&&<a href={viewingDoc.fileData} download={viewingDoc.fileName||viewingDoc.name||"document"} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:11,fontWeight:600,textDecoration:"none"}}>Download</a>}<button onClick={()=>setViewingDoc(null)} aria-label="Close" style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4}}>×</button></div>

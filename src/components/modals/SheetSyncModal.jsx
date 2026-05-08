@@ -43,7 +43,7 @@ function SheetSyncModal({ onClose, onSync, accessToken, project }) {
 
   const lastSyncDate = config?.lastSync ? new Date(config.lastSync).toLocaleDateString() : 'never';
 
-  return <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)' }} onClick={onClose}>
+  return <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)' }} onClick={onClose}>
     <div className="slide-in" onClick={e => e.stopPropagation()} style={{ width: 'min(560px,90vw)', maxHeight: '80vh', borderRadius: T.r, background: T.bg, border: `1px solid ${T.border}`, boxShadow: T.shadow, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
