@@ -56,7 +56,7 @@ function SharedClientView({token}){
     {/* Sticky lockup nav */}
     <nav style={{
       position:"sticky",top:0,zIndex:50,
-      background:"rgba(255,255,255,.86)",backdropFilter:"blur(24px) saturate(140%)",WebkitBackdropFilter:"blur(24px) saturate(140%)",
+      background:T.mode==='dark'?'rgba(15,82,186,.86)':'rgba(255,255,255,.86)',backdropFilter:"blur(24px) saturate(140%)",WebkitBackdropFilter:"blur(24px) saturate(140%)",
       borderBottom:`1px solid ${RULE}`,
       display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:24,
       padding:"14px clamp(20px,3vw,56px)",

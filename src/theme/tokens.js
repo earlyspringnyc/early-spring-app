@@ -62,7 +62,8 @@ const buildDark = () => {
   const inkSoft2 = "rgba(255,255,255,.07)";
   const inkSoft3 = "rgba(255,255,255,.04)";
   const faintRule = "rgba(255,255,255,.22)";
-  const fadedInk = "rgba(255,255,255,.55)";
+  // Bumped from .55 — 55% paper on sapphire is below WCAG AA at body sizes.
+  const fadedInk = "rgba(255,255,255,.70)";
   const ink80 = "rgba(255,255,255,.80)";
   const ink70 = "rgba(255,255,255,.70)";
   const ink60 = "rgba(255,255,255,.60)";

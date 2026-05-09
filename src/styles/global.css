@@ -18,9 +18,11 @@ body{
 /* Dark: sapphire canvas, paper ink. */
 body.theme-dark{background:#0F52BA;color:#FFFFFF}
 
-/* True italics only for foreign words/titles. <em> is soft emphasis at faded ink. */
+/* True italics only for foreign words/titles. <em> is soft emphasis at faded ink.
+   On the sapphire canvas we need a higher paper opacity (70%) to maintain
+   readable contrast — 55% paper on sapphire is below WCAG AA. */
 em{font-style:normal;color:rgba(15,82,186,.42)}
-.theme-dark em{color:rgba(255,255,255,.55)}
+.theme-dark em{color:rgba(255,255,255,.70)}
 i,cite,.ital{font-style:italic}
 
 /* Quiet, cubic motion. Per Lab guidelines: never bouncy. */
