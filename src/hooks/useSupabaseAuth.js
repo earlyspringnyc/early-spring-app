@@ -72,6 +72,21 @@ export function useSupabaseAuth() {
     return allProfiles;
   }, []);
 
+  // Nuke all Supabase auth state and bounce to login. Used when a stale
+  // session token causes the profile fetch to hang indefinitely.
+  const forceSignOutAndReload = useCallback((reason) => {
+    console.warn('[auth] Forcing sign-out:', reason);
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+      Object.keys(sessionStorage).filter(k => k.startsWith('sb-')).forEach(k => sessionStorage.removeItem(k));
+      document.cookie.split(';').forEach(c => {
+        const name = c.split('=')[0].trim();
+        if (name.startsWith('sb-')) document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      });
+    } catch (e) {}
+    if (typeof window !== 'undefined') window.location.href = '/';
+  }, []);
+
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       // Fallback to localStorage
@@ -228,6 +243,7 @@ export function useSupabaseAuth() {
     logout,
     setDevUser,
     refreshToken,
+    forceSignOutAndReload,         // self-heal hook for stuck auth states
     isSupabase: isSupabaseConfigured(),
   };
 }

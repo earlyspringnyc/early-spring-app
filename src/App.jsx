@@ -248,14 +248,27 @@ function App(){
     if(e.key==="Escape"){setShowNew(false)}
   };window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[]);
 
+  // Watchdog: if profile loading is stuck for >30s, the session token is
+  // almost certainly stale. Auto-clear auth state and bounce to login
+  // instead of leaving the user trapped on the loading screen.
+  useEffect(()=>{
+    if(!profilePending)return;
+    const t=setTimeout(()=>{
+      if(sbAuth.forceSignOutAndReload){
+        sbAuth.forceSignOutAndReload('profile load stuck >30s');
+      }
+    },30000);
+    return()=>clearTimeout(t);
+  },[profilePending,sbAuth]);
+
   // Loading state — also catches "signed in but profile still loading" so
   // we never let the user write data while orgId is unresolved.
   if(sbAuth.loading || !loaded || profilePending)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,fontFamily:T.sans}}>
     <div style={{textAlign:"center",color:T.fadedInk,maxWidth:360,padding:"0 24px"}}>
       <div style={{fontSize:24,marginBottom:14,animation:"pulse 1.5s ease-in-out infinite",color:T.ink}}>◐</div>
       <div style={{fontSize:13,color:T.ink,fontWeight:600,marginBottom:6}}>{profilePending?"Loading your workspace…":"Loading…"}</div>
-      {profilePending&&<div style={{fontSize:11,color:T.fadedInk,lineHeight:1.6,marginBottom:14}}>Reconnecting to the server. This usually takes a few seconds — if it doesn't clear, try signing out and back in.</div>}
-      {profilePending&&<button onClick={()=>sbAuth.logout?.().then(()=>window.location.reload())} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}>Sign out</button>}
+      {profilePending&&<div style={{fontSize:11,color:T.fadedInk,lineHeight:1.6,marginBottom:14}}>Reconnecting to the server. This usually takes a few seconds — if it doesn't clear within 30 seconds we'll auto-recover.</div>}
+      {profilePending&&<button onClick={()=>sbAuth.forceSignOutAndReload?.('user clicked sign out from loading screen')} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}>Sign out</button>}
     </div>
   </div>;
 

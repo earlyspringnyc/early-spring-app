@@ -14,6 +14,8 @@ import { mkProject, mkSampleProject } from '../data/defaults.js';
      on pagehide / visibilitychange to keep the last edit safe. */
 
 const cacheKey = (orgId) => `es_projects_${orgId || 'local'}`;
+const tombstoneKey = (orgId) => `es_deleted_${orgId || 'local'}`;
+const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function readCache(orgId) {
   try {
@@ -30,6 +32,34 @@ function writeCache(orgId, projects) {
   try { localStorage.setItem(cacheKey(orgId), JSON.stringify(projects)); } catch (e) {}
   // Mirror to legacy key so an older tab can still read.
   try { localStorage.setItem('es_projects', JSON.stringify(projects)); } catch (e) {}
+}
+
+// Tombstones: a project id stays in this list for 30 days after delete so
+// the merge-on-load recovery doesn't resurrect it from a stale local cache.
+function readTombstones(orgId) {
+  try {
+    const raw = localStorage.getItem(tombstoneKey(orgId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || !parsed) return {};
+    // Garbage-collect expired entries
+    const now = Date.now();
+    let dirty = false;
+    for (const id of Object.keys(parsed)) {
+      if (!parsed[id] || (now - parsed[id]) > TOMBSTONE_TTL_MS) {
+        delete parsed[id]; dirty = true;
+      }
+    }
+    if (dirty) { try { localStorage.setItem(tombstoneKey(orgId), JSON.stringify(parsed)); } catch (e) {} }
+    return parsed;
+  } catch (e) { return {}; }
+}
+
+function addTombstone(orgId, id) {
+  if (!id) return;
+  const t = readTombstones(orgId);
+  t[id] = Date.now();
+  try { localStorage.setItem(tombstoneKey(orgId), JSON.stringify(t)); } catch (e) {}
 }
 
 export function useProjects(orgId) {
@@ -64,8 +94,16 @@ export function useProjects(orgId) {
     db.getProjects(orgId).then(async serverProjects => {
       console.log('[projects] Loaded', serverProjects.length, 'projects from Supabase');
       const cached = readCache(orgId);
+      const tombstones = readTombstones(orgId);
       const serverIds = new Set(serverProjects.map(p => p.id));
-      const localOnly = cached.filter(p => p && p.id && !serverIds.has(p.id));
+      // A "local-only" project is one cached but not on the server AND not
+      // intentionally deleted (tombstones survive 30 days so a stale cache
+      // can't resurrect a deleted project).
+      const localOnly = cached.filter(p => p && p.id && !serverIds.has(p.id) && !tombstones[p.id]);
+      const skippedDeleted = cached.filter(p => p && p.id && !serverIds.has(p.id) && tombstones[p.id]);
+      if (skippedDeleted.length) {
+        console.log('[projects] Skipped', skippedDeleted.length, 'tombstoned project(s) from cache');
+      }
 
       // Re-upload any local-only projects (failed creates from a previous
       // session, or projects from a pre-orgId cache).
@@ -311,9 +349,12 @@ export function useProjects(orgId) {
         (proj[key] || []).forEach(f => { try { localStorage.removeItem(`es_file_${f.id}`); } catch (e) {} });
       });
     }
+    // Tombstone the id so the merge-on-load recovery pass doesn't resurrect
+    // it from a stale cache in this browser.
+    addTombstone(orgId, projectId);
     if (usesDb) { try { await db.deleteProject(projectId); } catch (e) { console.error('[projects] Delete failed:', e); } }
     setProjects(prev => prev.filter(p => p.id !== projectId));
-  }, [usesDb, projects]);
+  }, [usesDb, projects, orgId]);
 
   return {
     projects,
