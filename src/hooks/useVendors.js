@@ -68,14 +68,48 @@ export function useVendors(orgId) {
     return v;
   }, [orgId, usesDb]);
 
+  // Debounced vendor save — collapses rapid keystrokes into one DB write.
+  const saveTimers = useRef(new Map());
+  const pendingVendor = useRef(new Map());
+
+  const flushVendor = useCallback(async (vendorId) => {
+    const updates = pendingVendor.current.get(vendorId);
+    if (!updates) return;
+    pendingVendor.current.delete(vendorId);
+    try { await db.updateVendorDb(vendorId, updates); }
+    catch (e) {
+      console.error('[vendors] Vendor update failed:', e);
+      // Re-queue on failure
+      pendingVendor.current.set(vendorId, updates);
+    }
+  }, []);
+
   const updateVendor = useCallback(async (vendorId, updates) => {
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, ...updates } : v));
-    if (usesDb) {
-      try {
-        await db.updateVendorDb(vendorId, updates);
-      } catch (e) { console.error('[vendors] Vendor update failed:', e); }
-    }
-  }, [usesDb]);
+    if (!usesDb) return;
+    // Merge into the pending queue and reset the debounce timer.
+    const merged = { ...(pendingVendor.current.get(vendorId) || {}), ...updates };
+    pendingVendor.current.set(vendorId, merged);
+    const tmap = saveTimers.current;
+    if (tmap.has(vendorId)) clearTimeout(tmap.get(vendorId));
+    tmap.set(vendorId, setTimeout(() => flushVendor(vendorId), 500));
+  }, [usesDb, flushVendor]);
+
+  // Flush pending vendor saves before unload so the last keystroke isn't lost.
+  useEffect(() => {
+    const onHide = () => {
+      const entries = Array.from(pendingVendor.current.entries());
+      for (const [id, updates] of entries) {
+        try { db.updateVendorDb(id, updates); } catch (e) {}
+      }
+    };
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+    };
+  }, []);
 
   const removeVendor = useCallback(async (vendorId) => {
     setVendors(prev => prev.filter(v => v.id !== vendorId));

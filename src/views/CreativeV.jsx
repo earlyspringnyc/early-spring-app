@@ -70,14 +70,14 @@ function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
 
 /* ── Categories ── */
 const SECTIONS=[
-  {id:"decks",label:"Decks & Presentations",color:"#A259FF",icon:"\uD83D\uDCCA",desc:"Pitch decks, mood boards, client presentations"},
-  {id:"graphic",label:"Graphic Design",color:"#F59E0B",icon:"\uD83C\uDFA8",desc:"Signage, branding, collateral, print files"},
-  {id:"3d",label:"3D & Environmental",color:"#14B8A6",icon:"\uD83D\uDDBC\uFE0F",desc:"Renderings, floor plans, CAD, scenic design"},
-  {id:"photo-video",label:"Photo & Video",color:"#F47264",icon:"\uD83C\uDFA5",desc:"Photography, videography, edits, social content"},
+  {id:"decks",label:"Decks & Presentations",color:T.ink,icon:"\uD83D\uDCCA",desc:"Pitch decks, mood boards, client presentations"},
+  {id:"graphic",label:"Graphic Design",color:T.ink70,icon:"\uD83C\uDFA8",desc:"Signage, branding, collateral, print files"},
+  {id:"3d",label:"3D & Environmental",color:T.ink60,icon:"\uD83D\uDDBC\uFE0F",desc:"Renderings, floor plans, CAD, scenic design"},
+  {id:"photo-video",label:"Photo & Video",color:T.ink40,icon:"\uD83C\uDFA5",desc:"Photography, videography, edits, social content"},
   {id:"other",label:"Other Files",color:T.dim,icon:"\uD83D\uDCC1",desc:"Anything else"},
 ];
 
-const STATUS_META={draft:{label:"Draft",color:T.dim},review:{label:"In Review",color:"#F59E0B"},approved:{label:"Approved",color:T.pos},sent:{label:"Sent to Client",color:T.cyan}};
+const STATUS_META={draft:{label:"Draft",color:T.fadedInk},review:{label:"In Review",color:T.ink70},approved:{label:"Approved",color:T.ink},sent:{label:"Sent to Client",color:T.ink40}};
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
 const autoSection=(fileName)=>{
@@ -315,7 +315,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
             {/* Thumbnail */}
             <div style={{width:48,height:48,borderRadius:T.rS,background:"rgba(0,0,0,.2)",overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
               {a.isImage&&a.fileData?<img src={a.fileData} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-              :a.isFigma?<span style={{fontSize:10,fontWeight:800,color:"#A259FF",fontFamily:T.mono}}>FIG</span>
+              :a.isFigma?<span style={{fontSize:10,fontWeight:800,color:T.ink,fontFamily:T.mono}}>FIG</span>
               :<span style={{fontSize:10,fontWeight:700,color:T.dim,fontFamily:T.mono}}>{(a.fileExt||"?").toUpperCase()}</span>}
             </div>
             <div style={{flex:1,minWidth:0}}>

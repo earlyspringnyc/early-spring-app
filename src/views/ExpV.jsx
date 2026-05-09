@@ -262,11 +262,23 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     }else{setShowContactSugs(false)}
   };
   const pickContact=(email)=>{const parts=emailTo.split(",");parts[parts.length-1]=email;setEmailTo(parts.join(", ")+", ");setShowContactSugs(false)};
-  const copyLink=()=>{
-    let token=project.shareToken;
-    if(!token){token=Math.random().toString(36).slice(2)+Date.now().toString(36);if(updateProject)updateProject({shareToken:token})}
-    const url=`${window.location.origin}?share=${token}`;
-    navigator.clipboard?.writeText(url);setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000);
+  const copyLink=async()=>{
+    try{
+      // Get the current Supabase access token to authenticate the request.
+      const sbKey=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
+      const token=sbKey?JSON.parse(localStorage.getItem(sbKey))?.access_token:null;
+      if(!token)return alert('Sign in to create a share link');
+      const res=await fetch('/api/share-create',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+        body:JSON.stringify({projectId:project.id||project._dbId}),
+      });
+      if(!res.ok){const e=await res.json().catch(()=>({}));return alert(e.error||'Could not create share link')}
+      const{token:shareToken}=await res.json();
+      const url=`${window.location.origin}?share=${shareToken}`;
+      navigator.clipboard?.writeText(url);
+      setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000);
+    }catch(e){console.error('[share]',e);alert('Could not create share link')}
   };
   const toggleTask=id=>setIncluded(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setIncluded(new Set(tasks.map(t=>t.id)));

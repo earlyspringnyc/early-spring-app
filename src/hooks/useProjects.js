@@ -29,9 +29,35 @@ function readCache(orgId) {
 }
 
 function writeCache(orgId, projects) {
-  try { localStorage.setItem(cacheKey(orgId), JSON.stringify(projects)); } catch (e) {}
-  // Mirror to legacy key so an older tab can still read.
-  try { localStorage.setItem('es_projects', JSON.stringify(projects)); } catch (e) {}
+  // Strip large fileData first — those should live in Supabase Storage or
+  // es_file_* entries, not in the cache. Without this, a single big upload
+  // can blow the 5–10MB localStorage quota and silently lose all writes.
+  const slim = projects.map(p => stripLargeFiles(p));
+  let payload = JSON.stringify(slim);
+  try {
+    localStorage.setItem(cacheKey(orgId), payload);
+  } catch (e) {
+    // QuotaExceededError — drop file blobs entirely on a second pass and
+    // GC stale es_file_* entries so the next save has room.
+    console.warn('[projects] localStorage quota hit; pruning fileData and retrying', e);
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith('es_file_')).forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+      const stripped = slim.map(p => {
+        const out = { ...p };
+        ['creativeAssets','clientFiles','docs'].forEach(key => {
+          if (out[key]) out[key] = out[key].map(it => ({ ...it, fileData: null }));
+        });
+        return out;
+      });
+      localStorage.setItem(cacheKey(orgId), JSON.stringify(stripped));
+    } catch (e2) {
+      console.error('[projects] localStorage write failed even after prune:', e2);
+    }
+  }
+  // Mirror to legacy key — best-effort, ignore quota.
+  try { localStorage.setItem('es_projects', payload); } catch (e) {}
 }
 
 // Tombstones: a project id stays in this list for 30 days after delete so
@@ -144,6 +170,9 @@ export function useProjects(orgId) {
         markHasProjects();
       }
 
+      // Seed optimistic-lock map so the first save after load can guard
+      // against teammates' edits.
+      final.forEach(p => { if (p?.id && p._serverUpdatedAt) lastSyncedAt.current.set(p.id, p._serverUpdatedAt); });
       setProjects(final.map(restoreFileData));
       setLoaded(true);
     }).catch(e => {
@@ -267,6 +296,11 @@ export function useProjects(orgId) {
 
   // Per-project failure counter for backoff. Persists across the session.
   const saveFailCount = useRef(new Map());
+  // Optimistic-lock token: the updated_at we last saw from the server.
+  // Sent as a precondition on the next write; if a teammate has saved since,
+  // db.updateProject throws ProjectConflictError and we refetch.
+  const lastSyncedAt = useRef(new Map());
+  const [conflicts, setConflicts] = useState([]); // [{projectId, name, at}]
 
   const scheduleRetry = useCallback((projectId, delayMs) => {
     const timerKey = `_saveTimer_${projectId}`;
@@ -277,10 +311,35 @@ export function useProjects(orgId) {
       if (!data) return;
       console.log('[projects] Saving project to Supabase:', projectId);
       try {
-        await db.updateProject(projectId, await stripFileData(data, projectId));
+        const expected = lastSyncedAt.current.get(projectId);
+        const newAt = await db.updateProject(
+          projectId,
+          await stripFileData(data, projectId),
+          expected ? { expectedUpdatedAt: expected } : {}
+        );
+        if (newAt) lastSyncedAt.current.set(projectId, newAt);
         pendingSaves.current.delete(projectId);
         saveFailCount.current.delete(projectId);
       } catch (e) {
+        if (e?.code === 'CONFLICT') {
+          // Teammate saved in the meantime. Refetch + replace local state
+          // with server's. The local edit is preserved in pendingSaves until
+          // the user resolves; for now we surface a conflict banner.
+          console.warn('[projects] Conflict — another user saved this project. Refreshing.');
+          try {
+            const fresh = await db.getProjects(orgId);
+            const incoming = fresh.find(p => p.id === projectId);
+            if (incoming) {
+              lastSyncedAt.current.set(projectId, incoming._serverUpdatedAt);
+              setProjects(prev => prev.map(p => p.id === projectId ? restoreFileData(incoming) : p));
+              setConflicts(c => [...c.filter(x => x.projectId !== projectId), { projectId, name: incoming.name, at: Date.now() }]);
+            }
+          } catch (refetchErr) { console.error('[projects] Conflict refetch failed:', refetchErr); }
+          // Drop the stale pending save; user can re-edit on top of the new state.
+          pendingSaves.current.delete(projectId);
+          saveFailCount.current.delete(projectId);
+          return;
+        }
         const failures = (saveFailCount.current.get(projectId) || 0) + 1;
         saveFailCount.current.set(projectId, failures);
         // Bounded exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s cap.
@@ -289,7 +348,7 @@ export function useProjects(orgId) {
         scheduleRetry(projectId, next);
       }
     }, delayMs);
-  }, []);
+  }, [orgId]);
 
   const saveToSupabase = useCallback((projectId, projectData) => {
     if (!usesDb) return;
@@ -384,6 +443,10 @@ export function useProjects(orgId) {
     setProjects(prev => prev.filter(p => p.id !== projectId));
   }, [usesDb, projects, orgId]);
 
+  const dismissConflict = useCallback((projectId) => {
+    setConflicts(c => c.filter(x => x.projectId !== projectId));
+  }, []);
+
   return {
     projects,
     setProjects,
@@ -392,6 +455,8 @@ export function useProjects(orgId) {
     updateProject,
     deleteProject: deleteProjectById,
     flushPending,
+    conflicts,
+    dismissConflict,
   };
 }
 

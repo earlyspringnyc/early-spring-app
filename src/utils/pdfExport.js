@@ -5,7 +5,7 @@ import { f$ } from './format.js';
 
 // Early Spring brand tokens (RGB triplets — jsPDF colors)
 const INK   = [15, 82, 186];        // Sapphire #0F52BA
-const FADED = [133, 159, 215];      // ~ rgba(15,82,186,.42) on paper
+const FADED = [80, 116, 180];       // bumped from [133,159,215] for WCAG AA on paper at 9–10pt
 const RULE  = [205, 215, 235];      // ~ rgba(15,82,186,.18) on paper
 const ALERT = [122, 31, 31];
 

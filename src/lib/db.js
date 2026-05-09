@@ -310,17 +310,21 @@ export async function inviteTeamMember(orgId, email, role, invitedBy) {
     }
   } catch (e) {}
 
-  // Send invite email via Edge Function
+  // Send invite email via Edge Function. Failure is non-blocking (the
+  // invitation row exists; another sign-in will pick it up), but we
+  // surface it so the inviter knows to share the link manually.
+  let emailFailed = false;
   try {
-    await supabase.functions.invoke('send-invite-email', {
+    const { error: invokeErr } = await supabase.functions.invoke('send-invite-email', {
       body: { email, orgName, inviterName, role },
     });
+    if (invokeErr) { emailFailed = true; console.error('[db] Invite email failed:', invokeErr); }
   } catch (e) {
+    emailFailed = true;
     console.error('[db] Invite email failed:', e);
-    // Invitation was still created — email failure is non-blocking
   }
 
-  return { error: null };
+  return { error: null, emailFailed };
 }
 
 export async function getPendingInvitations(orgId) {
@@ -354,7 +358,9 @@ export async function getProjects(orgId) {
     console.error('[db] Get projects failed:', error);
     return [];
   }
-  return (data || []).map(p => ({ ...(p.data || {}), id: p.id, _dbId: p.id, name: p.name, client: p.client }));
+  // Stamp _serverUpdatedAt so the client can use it as an optimistic-lock
+  // precondition on the next write (concurrent-edit detection).
+  return (data || []).map(p => ({ ...(p.data || {}), id: p.id, _dbId: p.id, name: p.name, client: p.client, _serverUpdatedAt: p.updated_at }));
 }
 
 export async function createProject(orgId, projectData) {
@@ -400,9 +406,23 @@ export async function upsertProject(orgId, projectData) {
   return { ...data.data, id: data.id, _dbId: data.id };
 }
 
-export async function updateProject(projectId, projectData) {
+// Optimistic concurrency control via the projects.updated_at trigger.
+// If `expectedUpdatedAt` is provided, the UPDATE is gated on the row still
+// having that timestamp; if a teammate saved in the meantime, count=0 and
+// we throw a CONFLICT error so the caller can refetch and merge instead
+// of overwriting their work.
+export class ProjectConflictError extends Error {
+  constructor(projectId, serverUpdatedAt) {
+    super('Project was modified by another user');
+    this.code = 'CONFLICT';
+    this.projectId = projectId;
+    this.serverUpdatedAt = serverUpdatedAt;
+  }
+}
+
+export async function updateProject(projectId, projectData, opts = {}) {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
-  const { error } = await supabase
+  let q = supabase
     .from('projects')
     .update({
       name: projectData.name || '',
@@ -410,6 +430,9 @@ export async function updateProject(projectId, projectData) {
       data: projectData,
     })
     .eq('id', projectId);
+  if (opts.expectedUpdatedAt) q = q.eq('updated_at', opts.expectedUpdatedAt);
+  // Return the new updated_at so callers can stash it for the next write.
+  const { data, error } = await q.select('updated_at').maybeSingle();
   if (error) {
     console.error('[db] Update project failed:', error);
     if (error.message?.includes('too large') || error.code === '54000') {
@@ -417,6 +440,14 @@ export async function updateProject(projectId, projectData) {
     }
     throw error;
   }
+  // No row matched — either project deleted or precondition failed.
+  if (!data && opts.expectedUpdatedAt) {
+    // Look up current updated_at so the caller can show a sensible conflict.
+    const { data: cur } = await supabase
+      .from('projects').select('updated_at').eq('id', projectId).maybeSingle();
+    throw new ProjectConflictError(projectId, cur?.updated_at);
+  }
+  return data?.updated_at;
 }
 
 export async function deleteProject(projectId, orgId) {

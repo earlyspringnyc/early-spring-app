@@ -1,5 +1,6 @@
 import { f$ } from './format.js';
 import { ci, ct } from './calc.js';
+import DOMPurify from 'isomorphic-dompurify';
 
 /* ── Early Spring email tokens ──
    Per Lab guidelines: paper #FFFFFF, sapphire #0F52BA, faint rule .18, faded ink .42.
@@ -11,22 +12,23 @@ const RULE = '#CDD7EB';
 const PAPER = '#FFFFFF';
 const PAGE = '#FFFFFF';
 
-// Convert message to email-safe HTML (rich-paste safe + plain-text bullet handling)
+// Convert message to email-safe HTML. Uses DOMPurify with a strict
+// whitelist for rich-paste; falls back to plain-text bullet rendering.
+const PURIFY_CONFIG = {
+  ALLOWED_TAGS: ['p','br','div','span','ul','ol','li','b','strong','i','em','u','a','blockquote','h1','h2','h3','h4'],
+  ALLOWED_ATTR: ['href','style','class','target','rel'],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|#)/i,
+  FORBID_TAGS: ['script','style','iframe','object','embed','form','svg','math','link','meta','base'],
+  FORBID_ATTR: ['onerror','onload','onclick','onmouseover','onfocus','onmouseenter','onbeforeunload','ontoggle','formaction'],
+  ADD_ATTR: ['target'],
+};
+
 function formatMessage(msg) {
   if (!msg) return '';
   if (msg.includes('<') && (msg.includes('<br') || msg.includes('<div') || msg.includes('<li') || msg.includes('<ul') || msg.includes('<p') || msg.includes('<b'))) {
-    return msg
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-      .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
-      .replace(/<embed[^>]*>/gi, '')
-      .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
-      .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '')
-      .replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"')
-      .replace(/src\s*=\s*["']javascript:[^"']*["']/gi, '')
-      .replace(/src\s*=\s*["']data:text\/html[^"']*["']/gi, '');
+    return DOMPurify.sanitize(msg, PURIFY_CONFIG);
   }
+  // Plain-text path — escape, then parse bullet patterns into a UL.
   const escaped = msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const lines = escaped.split('\n');
   let html = '';
@@ -42,7 +44,7 @@ function formatMessage(msg) {
     }
   }
   if (inList) html += '</ul>';
-  return html;
+  return DOMPurify.sanitize(html, PURIFY_CONFIG);
 }
 
 const FONT = "-apple-system,'Inter','Helvetica Neue',Arial,sans-serif";

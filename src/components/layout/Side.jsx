@@ -60,7 +60,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
         transition:"background .18s ease, color .18s ease",width:"100%",textAlign:"left",
         overflow:"hidden",whiteSpace:"nowrap",position:"relative",...extraStyle,
       }}
-      onMouseEnter={e=>{if(!active){e.currentTarget.style.background=T.inkSoft2;e.currentTarget.style.color=T.ink}}}
+      onMouseEnter={e=>{if(!active){e.currentTarget.style.background=T.inkSoft;e.currentTarget.style.color=T.ink}}}
       onMouseLeave={e=>{if(!active){e.currentTarget.style.background=extraStyle.background||"transparent";e.currentTarget.style.color=T.ink70}}}
     >
       <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,color:"inherit"}}>{icon}</span>

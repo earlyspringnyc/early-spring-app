@@ -171,7 +171,7 @@ function App(){
     : 'local';
   const profilePending = usesSupa && !!user && !orgId;
   console.log('[app] Auth state:', { usesSupa, user: !!user, profile: sbAuth.profile?.id, orgId, orgCount: sbAuth.profiles?.length, profilePending });
-  const { projects, loaded, createProject: createProj, updateProject: updateProj, deleteProject: deleteProj, flushPending } = useProjects(orgId);
+  const { projects, loaded, createProject: createProj, updateProject: updateProj, deleteProject: deleteProj, flushPending, conflicts, dismissConflict } = useProjects(orgId);
 
   // Wrap switchOrg so we flush in-flight saves before changing orgId,
   // otherwise pending updates fire against the new org's RLS context.
@@ -294,6 +294,11 @@ function App(){
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
   return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {(conflicts||[]).map(c=><div key={c.projectId} className="slide-in" style={{padding:"12px 18px",borderRadius:T.rS,background:T.alertSoft,border:`1px solid ${T.alert}`,color:T.alert,fontSize:12,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>
+        <div style={{fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:4}}>Refreshed from server</div>
+        <div style={{fontWeight:400,lineHeight:1.5}}>“{c.name}” was edited by another team member while you were working. We've loaded the latest version — review and re-apply your changes.</div>
+        <button onClick={()=>dismissConflict?.(c.projectId)} style={{marginTop:8,padding:"4px 12px",borderRadius:999,border:`1px solid ${T.alert}`,background:"transparent",color:T.alert,fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Dismiss</button>
+      </div>)}
       {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
     </div>
   </>;
