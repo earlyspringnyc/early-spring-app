@@ -177,10 +177,14 @@ export function useProjects(orgId) {
       setLoaded(true);
     }).catch(e => {
       console.error('[projects] Failed to load from Supabase:', e);
-      // Hard fallback — show the cache so we don't lose user work.
+      // Hard fallback — show the cache so we don't lose user work. We
+      // intentionally do NOT auto-create a sample project here even if
+      // the cache is empty: a Supabase outage shouldn't cause a duplicate
+      // sample project to be inserted into the org once it recovers.
       const cached = readCache(orgId);
       setProjects(cached.map(restoreFileData));
       setLoaded(true);
+      import('../lib/toast.js').then(({ toast }) => toast.error('Could not load projects from server — showing cached copy. Edits will sync when you reconnect.'));
     });
   }, [orgId, usesDb]);
 
@@ -189,6 +193,30 @@ export function useProjects(orgId) {
     if (!loaded) return;
     writeCache(orgId, projects);
   }, [projects, loaded, orgId]);
+
+  // Boot-time GC: drop es_file_* entries whose parent project/file is no
+  // longer in any cache. Without this they pile up forever and eventually
+  // blow the localStorage quota.
+  const gcRun = useRef(false);
+  useEffect(() => {
+    if (!loaded || gcRun.current) return;
+    gcRun.current = true;
+    try {
+      const validIds = new Set();
+      projects.forEach(p => {
+        ['creativeAssets', 'docs', 'clientFiles'].forEach(key => {
+          (p[key] || []).forEach(f => f?.id && validIds.add(f.id));
+        });
+      });
+      const orphans = Object.keys(localStorage).filter(k => k.startsWith('es_file_'))
+        .map(k => ({ key: k, id: k.slice('es_file_'.length) }))
+        .filter(({ id }) => !validIds.has(id) && !inFlightUploads.current.has(id));
+      if (orphans.length) {
+        orphans.forEach(({ key }) => { try { localStorage.removeItem(key); } catch (e) {} });
+        console.log('[projects] GC removed', orphans.length, 'orphan es_file_* entries');
+      }
+    } catch (e) { console.warn('[projects] GC failed:', e); }
+  }, [loaded, projects]);
 
   // ── File migration (unchanged structure) ───────────────────────────
   const migrated = useRef(false);
@@ -237,16 +265,36 @@ export function useProjects(orgId) {
   }, [loaded, canStorage, projects, orgId]);
 
   // ── File handling helpers ─────────────────────────────────────────
+  // Track in-flight uploads so cleanupFileCache doesn't yank a localStorage
+  // entry that's still being uploaded. Lifecycle: add when upload starts,
+  // remove when it finishes (success or fail).
+  const inFlightUploads = useRef(new Set());
+
   const uploadFileToStorage = async (item, projectId) => {
     if (!item.fileData || item.fileData.length <= 50000) return item;
     if (item.storagePath) return { ...item, fileData: null };
     if (item.driveId) return { ...item, fileData: null };
-    if (usesDb) {
-      const result = await db.uploadFileData(orgId, projectId, item.id, item.fileName || item.name || 'file', item.fileData);
-      if (result) return { ...item, fileData: null, storagePath: result.storagePath };
+    inFlightUploads.current.add(item.id);
+    try {
+      if (usesDb) {
+        const result = await db.uploadFileData(orgId, projectId, item.id, item.fileName || item.name || 'file', item.fileData);
+        if (result) return { ...item, fileData: null, storagePath: result.storagePath };
+      }
+      // Storage upload failed (or local-only mode) — try localStorage,
+      // but don't claim _hasLocalFile if the write itself fails.
+      try {
+        localStorage.setItem(`es_file_${item.id}`, item.fileData);
+        return { ...item, fileData: null, _hasLocalFile: true };
+      } catch (e) {
+        console.error('[storage] localStorage fallback failed (likely quota):', e);
+        import('../lib/toast.js').then(({ toast }) => toast.error('Storage is full — could not save the uploaded file. Remove old files first.'));
+        // Keep fileData inline so the user can retry. Better than silently
+        // dropping it.
+        return item;
+      }
+    } finally {
+      inFlightUploads.current.delete(item.id);
     }
-    try { localStorage.setItem(`es_file_${item.id}`, item.fileData); } catch (e) {}
-    return { ...item, fileData: null, _hasLocalFile: true };
   };
 
   const stripFileData = async (data, projectId) => {
@@ -267,11 +315,14 @@ export function useProjects(orgId) {
     return item;
   };
 
+  // Immutable — never mutate the input. The caller's reference may be
+  // memoized elsewhere, and mutating it can cause stale-render bugs.
   const restoreFileData = (data) => {
-    if (data.creativeAssets) data.creativeAssets = data.creativeAssets.map(restoreFileItem);
-    if (data.docs) data.docs = data.docs.map(restoreFileItem);
-    if (data.clientFiles) data.clientFiles = data.clientFiles.map(restoreFileItem);
-    return data;
+    const out = { ...data };
+    if (data.creativeAssets) out.creativeAssets = data.creativeAssets.map(restoreFileItem);
+    if (data.docs) out.docs = data.docs.map(restoreFileItem);
+    if (data.clientFiles) out.clientFiles = data.clientFiles.map(restoreFileItem);
+    return out;
   };
 
   const cleanupFileCache = (oldProject, newProject) => {
@@ -280,7 +331,13 @@ export function useProjects(orgId) {
       (oldProject[key] || []).forEach(f => oldIds.add(f.id));
       (newProject[key] || []).forEach(f => newIds.add(f.id));
     });
-    oldIds.forEach(id => { if (!newIds.has(id)) { try { localStorage.removeItem(`es_file_${id}`); } catch (e) {} } });
+    oldIds.forEach(id => {
+      if (newIds.has(id)) return;
+      // Skip if upload is still in flight — the localStorage entry might be
+      // the only copy of the user's file until Storage finishes accepting it.
+      if (inFlightUploads.current.has(id)) return;
+      try { localStorage.removeItem(`es_file_${id}`); } catch (e) {}
+    });
   };
 
   // ── Saves ──────────────────────────────────────────────────────────

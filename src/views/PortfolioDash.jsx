@@ -41,7 +41,10 @@ const L=({children})=><div style={{fontSize:10,fontWeight:600,fontFamily:T.mono,
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,fontFamily:T.mono,letterSpacing:"-0.04em",color,lineHeight:1}}>{children}</div>;
 const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
 
-function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete,onUpdateStage,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
+function PortfolioDash({projects,onOpen,onNew,user,onLogout,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
+  // Note: onDelete/onDuplicate/onUpdateStage are reachable from the open
+  // ProjectView, not from this dashboard. Kept off the API surface here
+  // so we don't accumulate prop drift.
   const canCreate=user.role!=="client";
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);

@@ -191,7 +191,32 @@ function App(){
   const[showNew,setShowNew]=useState(false);
   const[toasts,setToasts]=useState([]);
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
+  // Subscribe to the global toast bus so any module can surface errors.
+  useEffect(()=>{
+    let unsubscribe=null;
+    let mounted=true;
+    import('./lib/toast.js').then(({subscribe})=>{
+      if(!mounted)return;
+      unsubscribe=subscribe(t=>{
+        setToasts(p=>[...p,t]);
+        if(t.ttl>0)setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==t.id)),t.ttl);
+      });
+    });
+    return()=>{mounted=false;if(unsubscribe)unsubscribe()};
+  },[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
+  // After projects load: if activeId references a project that's not in
+  // the current org's list (org switch, deleted by teammate, stale
+  // sessionStorage), clear it instead of silently dropping to dashboard
+  // with no feedback.
+  useEffect(()=>{
+    if(!loaded||!activeId)return;
+    if(!projects.find(p=>p.id===activeId)){
+      console.warn('[app] active project not found in current list — clearing');
+      setActiveIdRaw(null);
+      try{sessionStorage.removeItem('es_activeProject')}catch(e){}
+    }
+  },[loaded,activeId,projects]);
 
   // Org-level Drive location setting
   const getDriveLocation=()=>{try{const s=localStorage.getItem("es_drive_location");return s?JSON.parse(s):null}catch(e){return null}};
@@ -288,18 +313,26 @@ function App(){
 
   if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
-      {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
+      {toasts.map(t=>{
+        const isErr=t.type==='error';
+        const isSucc=t.type==='success';
+        return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}{t.action&&<button onClick={t.action.onClick} style={{marginLeft:10,background:'none',border:'none',color:'inherit',fontSize:11,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer',fontFamily:T.sans,textDecoration:'underline'}}>{t.action.label}</button>}</div>;
+      })}
     </div>
   </>;
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
-  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} onDuplicate={duplicateProject} onDelete={deleteProject} onUpdateStage={updateStage} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {(conflicts||[]).map(c=><div key={c.projectId} className="slide-in" style={{padding:"12px 18px",borderRadius:T.rS,background:T.alertSoft,border:`1px solid ${T.alert}`,color:T.alert,fontSize:12,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>
         <div style={{fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:4}}>Refreshed from server</div>
         <div style={{fontWeight:400,lineHeight:1.5}}>“{c.name}” was edited by another team member while you were working. We've loaded the latest version — review and re-apply your changes.</div>
         <button onClick={()=>dismissConflict?.(c.projectId)} style={{marginTop:8,padding:"4px 12px",borderRadius:999,border:`1px solid ${T.alert}`,background:"transparent",color:T.alert,fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Dismiss</button>
       </div>)}
-      {toasts.map(t=><div key={t.id} className="slide-in" style={{padding:"10px 18px",borderRadius:T.rS,background:t.type==="success"?"rgba(52,211,153,.15)":"rgba(248,113,113,.15)",border:`1px solid ${t.type==="success"?"rgba(52,211,153,.3)":"rgba(248,113,113,.3)"}`,color:t.type==="success"?T.pos:T.neg,fontSize:12,fontFamily:T.sans,backdropFilter:"blur(12px)",boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>{t.msg}</div>)}
+      {toasts.map(t=>{
+        const isErr=t.type==='error';
+        const isSucc=t.type==='success';
+        return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}{t.action&&<button onClick={t.action.onClick} style={{marginLeft:10,background:'none',border:'none',color:'inherit',fontSize:11,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer',fontFamily:T.sans,textDecoration:'underline'}}>{t.action.label}</button>}</div>;
+      })}
     </div>
   </>;
 }

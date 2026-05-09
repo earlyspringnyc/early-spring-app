@@ -61,7 +61,9 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
   const upcomingTasks=tasks.filter(t=>{if(t.status==="done"||!t.endDate)return false;const d=parseD(t.endDate);if(!d)return false;const diff=daysBetween(new Date(),d);return diff>=0&&diff<=7}).sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||""));
   const overdueTasks=tasks.filter(t=>{if(t.status==="done"||!t.endDate)return false;const d=parseD(t.endDate);if(!d)return false;return daysBetween(new Date(),d)<0});
   const pieData=cats.map((c,i)=>({name:c.name,value:ct(c.items).totals.actualCost,color:T.colors[i%T.colors.length]})).filter(d=>d.value>0);
-  const profitParts=[{name:"Production Margin",value:comp.productionSubtotal.variance,color:T.gold},{name:"Agency Margin",value:comp.agencyCostsSubtotal.variance,color:T.cyan},{name:"Agency Fee",value:comp.agencyFee.clientPrice,color:T.pos}].filter(d=>d.value>0);
+  // Sapphire opacity ramp so the three segments are visually distinct
+  // (T.gold/T.cyan/T.pos all flatten to T.ink in the brand collapse).
+  const profitParts=[{name:"Production Margin",value:comp.productionSubtotal.variance,color:T.ink},{name:"Agency Margin",value:comp.agencyCostsSubtotal.variance,color:T.ink60},{name:"Agency Fee",value:comp.agencyFee.clientPrice,color:T.ink25}].filter(d=>d.value>0);
   const blended=(comp.productionSubtotal.actualCost+comp.agencyCostsSubtotal.actualCost)>0?((comp.grandTotal-comp.productionSubtotal.actualCost-comp.agencyCostsSubtotal.actualCost)/(comp.productionSubtotal.actualCost+comp.agencyCostsSubtotal.actualCost)*100):0;
   const txns=project?.txns||[];
   const totalIncome=txns.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);

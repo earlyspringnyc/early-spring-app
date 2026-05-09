@@ -452,11 +452,24 @@ export async function updateProject(projectId, projectData, opts = {}) {
 
 export async function deleteProject(projectId, orgId) {
   if (!isSupabaseConfigured()) return;
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from('projects')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('id', projectId);
-  if (error) console.error('[db] Delete project failed:', error);
+  if (error) {
+    console.error('[db] Delete project failed:', error);
+    const msg = error.code === '42501' || /policy|permission/i.test(error.message || '')
+      ? 'You don’t have permission to delete this project.'
+      : 'Could not delete project. Try again.';
+    import('./toast.js').then(({ toast }) => toast.error(msg));
+    throw error;
+  }
+  if (count === 0) {
+    // RLS allowed the call but no row was affected — likely policy denied
+    // the row. Surface so the producer knows it didn't take effect.
+    import('./toast.js').then(({ toast }) => toast.error('You don’t have permission to delete this project.'));
+    return;
+  }
   // Server-side tombstone — prevents another browser's stale cache from
   // resurrecting this project via the merge-on-load recovery pass.
   if (orgId && orgId !== 'local') {
@@ -533,13 +546,21 @@ export async function updateVendorDb(vendorId, updates) {
   if (updates.vendorType !== undefined) dbUpdates.vendor_type = updates.vendorType;
   if (updates.w9Status !== undefined) dbUpdates.w9_status = updates.w9Status;
   const { error } = await supabase.from('vendors').update(dbUpdates).eq('id', vendorId);
-  if (error) console.error('[db] Update vendor failed:', error);
+  if (error) {
+    console.error('[db] Update vendor failed:', error);
+    import('./toast.js').then(({ toast }) => toast.error('Could not save vendor. Will retry.'));
+    throw error;
+  }
 }
 
 export async function deleteVendorDb(vendorId) {
   if (!isSupabaseConfigured()) return;
   const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
-  if (error) console.error('[db] Delete vendor failed:', error);
+  if (error) {
+    console.error('[db] Delete vendor failed:', error);
+    import('./toast.js').then(({ toast }) => toast.error('Could not delete vendor.'));
+    throw error;
+  }
 }
 
 // ============================================================

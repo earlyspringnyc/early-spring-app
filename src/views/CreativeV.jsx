@@ -252,7 +252,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:10,fontWeight:600,color:T.cyan}}>{c.author}</span>
-                  {a.isPdf&&c.page!=null&&commentFilter==="all"&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:6,background:`${T.dim}18`,color:T.dim,fontWeight:600}}>p.{c.page+1}</span>}
+                  {a.isPdf&&c.page!=null&&commentFilter==="all"&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:999,border:`1px solid ${T.faintRule}`,color:T.ink70,fontWeight:700,letterSpacing:".04em"}}>p.{c.page+1}</span>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:9,color:T.dim}}>{c.date}</span>
