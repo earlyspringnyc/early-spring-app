@@ -606,7 +606,7 @@ export default function ReportingV({project,updateProject,canEdit,comp}){
           {/* Collection status */}
           {(()=>{const txns=project.txns||[];const collected=txns.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);const pct=comp.grandTotal>0?Math.round((collected/comp.grandTotal)*100):0;return<div style={{padding:"12px 16px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:10,color:T.dim}}>Client Collection</span><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{f$(collected)} / {f$(comp.grandTotal)} ({pct}%)</span></div>
-            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:`linear-gradient(90deg,${T.gold},${T.pos})`,borderRadius:2}}/></div>
+            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:T.ink,borderRadius:2}}/></div>
           </div>})()}
         </div>:<div style={{padding:20,textAlign:"center",color:T.dim,fontSize:12}}>Budget data not available</div>}
       </Section>

@@ -195,7 +195,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
               </div></div>
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={submitInvoice} disabled={!invName.trim()} style={{padding:"8px 18px",background:invName.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:invName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${invName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:invName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Document</button>
+            <button onClick={submitInvoice} disabled={!invName.trim()} style={{padding:"8px 18px",background:invName.trim()?T.goldSoft:T.inkSoft2,color:invName.trim()?T.gold:T.fadedInk,border:`1px solid ${invName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:invName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Document</button>
             <button onClick={()=>setUploadVendorId(null)} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
           </div>
         </div>}

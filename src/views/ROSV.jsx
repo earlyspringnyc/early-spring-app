@@ -142,7 +142,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Run of Show</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>{entries.length} cues{project.eventDate?` · Event: ${project.eventDate}`:""}</p></div>
       <div style={{display:"flex",gap:8}}>
         <button onClick={()=>setShowShare(!showShare)} style={{padding:"10px 18px",background:"transparent",color:showShare?T.cyan:T.dim,border:`1px solid ${showShare?`${T.cyan}40`:T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showShare?"Cancel":"Share"}</button>
-        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Cue"}</button>}
+        {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":T.ink,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Cue"}</button>}
       </div>
     </div>
 
@@ -153,7 +153,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{...inputStyle,resize:"vertical",marginBottom:10}}/>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" onKeyDown={e=>e.key==="Enter"&&sendROS()} style={{flex:1,...inputStyle}}/>
-        <button onClick={sendROS} disabled={!emailTo.trim()||emailSending||!accessToken} style={{padding:"10px 20px",borderRadius:T.rS,background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(15,82,186,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",border:"none",fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>{emailSending?"Sending...":"Send"}</button>
+        <button onClick={sendROS} disabled={!emailTo.trim()||emailSending||!accessToken} style={{padding:"10px 20px",borderRadius:T.rS,background:emailTo.trim()&&!emailSending?T.ink:T.inkSoft2,color:emailTo.trim()&&!emailSending?T.brown:T.fadedInk,border:"none",fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>{emailSending?"Sending...":"Send"}</button>
       </div>
       {emailSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Run of Show sent successfully</div>}
       {!accessToken&&<div style={{marginTop:8,fontSize:11,color:T.neg}}>Sign in with Google to send emails</div>}
@@ -181,7 +181,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
         {[["Start",nT,setNT,"14:00"],["End",nET,setNET,"14:30"],["Cue",nI,setNI,"Doors open"],["Location",nL,setNL,"Main Stage"],["Lead",nLd,setNLd,"Event Mgr"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addEntry()} style={inputStyle}/></div>)}
       </div>
       <div style={{marginBottom:12}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Notes</label><input value={nNo} onChange={e=>setNNo(e.target.value)} placeholder="Additional details" onKeyDown={e=>e.key==="Enter"&&addEntry()} style={inputStyle}/></div>
-      <button onClick={addEntry} style={{padding:"9px 20px",background:`linear-gradient(135deg,${T.gold},#E8D080)`,color:T.brown,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Cue</button>
+      <button onClick={addEntry} style={{padding:"9px 20px",background:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Add Cue</button>
     </Card>}
 
     {/* ROS table — inline editable */}

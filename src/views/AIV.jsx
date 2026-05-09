@@ -338,7 +338,7 @@ function AIV({project,updateProject,comp,accessToken}){
       <div style={{flex:1,overflow:"auto",padding:20}}>
         {messages.map((m,i)=><div key={i}>
           <div style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:pendingActions[i]?6:14}}>
-            <div style={{maxWidth:"80%",padding:"12px 16px",borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",background:m.role==="user"?`linear-gradient(135deg,rgba(148,163,184,.12),rgba(148,163,184,.06))`:"rgba(15,82,186,.04)",border:`1px solid ${m.role==="user"?"rgba(148,163,184,.15)":T.border}`,fontSize:13,lineHeight:1.6,color:m.role==="user"?T.cream:T.dimH,fontFamily:T.sans}}>
+            <div style={{maxWidth:"80%",padding:"12px 16px",borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",background:m.role==="user"?T.inkSoft:T.inkSoft2,border:`1px solid ${T.faintRule}`,fontSize:13,lineHeight:1.6,color:m.role==="user"?T.cream:T.dimH,fontFamily:T.sans}}>
               {m.role==="assistant"&&<div style={{fontSize:10,fontWeight:600,color:T.cyan,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>Morgan</div>}
               <div>{renderMarkdown(m.content)}</div>
             </div>
@@ -378,7 +378,7 @@ function AIV({project,updateProject,comp,accessToken}){
       </div>
       <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`,display:"flex",gap:10,alignItems:"center"}}>
         <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Ask about budget, timeline, risks, or tell me to add something..." disabled={loading} style={{flex:1,padding:"12px 16px",borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/>
-        <button onClick={send} disabled={loading||!input.trim()} style={{padding:"10px 20px",borderRadius:T.rS,border:"none",background:input.trim()&&!loading?T.goldSoft:"rgba(15,82,186,.05)",color:input.trim()&&!loading?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${input.trim()&&!loading?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:input.trim()&&!loading?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>Send</button>
+        <button onClick={send} disabled={loading||!input.trim()} style={{padding:"10px 20px",borderRadius:T.rS,border:"none",background:input.trim()&&!loading?T.goldSoft:T.inkSoft2,color:input.trim()&&!loading?T.gold:T.fadedInk,border:`1px solid ${input.trim()&&!loading?T.borderGlow:"transparent"}`,fontSize:12,fontWeight:700,cursor:input.trim()&&!loading?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>Send</button>
       </div>
     </Card>
   </div>;

@@ -66,18 +66,24 @@ function FileViewerModal({file,onClose}){
   const[error,setError]=useState(null);
   // Resolve fileData — may need to restore from localStorage
   const[resolvedData,setResolvedData]=useState(file.fileData);
+  const[loadError,setLoadError]=useState(null);
   useEffect(()=>{
+    setLoadError(null);
     if(file.fileData){setResolvedData(file.fileData);return}
-    // Try Supabase Storage
     if(file.storagePath){
-      import('../lib/db.js').then(({downloadFileData})=>downloadFileData(file.storagePath)).then(d=>{if(d)setResolvedData(d)}).catch(()=>{});
+      import('../lib/db.js')
+        .then(({downloadFileData})=>downloadFileData(file.storagePath))
+        .then(d=>{if(d)setResolvedData(d);else setLoadError('File could not be loaded from storage. It may have been deleted or your access may have changed.')})
+        .catch(e=>{console.error('[file-viewer]',e);setLoadError('File could not be loaded. Try refreshing.')});
       return;
     }
-    // Try localStorage
     if(file._hasLocalFile){
       try{const d=localStorage.getItem(`es_file_${file.id}`);if(d){setResolvedData(d);return}}catch(e){}
+      setLoadError('File is no longer available locally.');
+      return;
     }
     setResolvedData(null);
+    setLoadError('No file data available for this item.');
   },[file]);
   const isPdf=(file.fileName&&/\.pdf$/i.test(file.fileName))||(resolvedData&&resolvedData.startsWith("data:application/pdf"));
   const isImage=(file.fileName&&/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(file.fileName))||(resolvedData&&/^data:image\//i.test(resolvedData));
@@ -149,7 +155,7 @@ function FileViewerModal({file,onClose}){
     </div>
     {/* Content — full remaining space */}
     <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto"}}>
-      {!resolvedData?<div style={{padding:48,textAlign:"center",color:T.dim,fontSize:13}}>File data not available — it may have been cleared from storage</div>
+      {!resolvedData?<div style={{padding:48,textAlign:"center",color:loadError?T.alert:T.fadedInk,fontSize:13,maxWidth:480,lineHeight:1.6}}>{loadError||'Loading…'}</div>
       :isPdf?<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
         {loading&&<div style={{color:T.fadedInk,fontSize:13,padding:48}}>Loading PDF…</div>}
         {error&&<div style={{color:T.neg,fontSize:13,padding:48}}>{error}</div>}
@@ -164,7 +170,7 @@ function FileViewerModal({file,onClose}){
     {/* Page nav — fixed at bottom */}
     {isPdf&&pdf&&total>1&&<div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"10px 0",flexShrink:0,height:50,background:T.inkSoft2}}>
       <button onClick={()=>setPage(Math.max(0,page-1))} disabled={page===0} className="btn-pill" style={{padding:"4px 14px",fontSize:12,opacity:page===0?.4:1,cursor:page===0?"default":"pointer"}}>&larr; Prev</button>
-      <span style={{fontSize:12,fontFamily:T.mono,color:"#fff",fontWeight:600}}>Page {page+1} of {total}</span>
+      <span style={{fontSize:12,fontFamily:T.mono,color:T.paper,fontWeight:600}}>Page {page+1} of {total}</span>
       <button onClick={()=>setPage(Math.min(total-1,page+1))} disabled={page>=total-1} className="btn-pill" style={{padding:"4px 14px",fontSize:12,opacity:page>=total-1?.4:1,cursor:page>=total-1?"default":"pointer"}}>Next &rarr;</button>
     </div>}
   </div>;
@@ -516,7 +522,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
           <div className="num" style={{fontSize:32,fontWeight:700,color:T.gold,fontFamily:T.mono,marginBottom:12}}>{f0(comp.grandTotal)}</div>
           {cb>0&&<div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{spendPct}% of budget</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{f0(cb)} budget</span></div>
-            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${spendPct}%`,background:spendPct>90?`linear-gradient(90deg,${T.neg},#FF6B6B)`:"linear-gradient(90deg,#F59E0B,#FBBF24)",borderRadius:2}}/></div>
+            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${spendPct}%`,background:spendPct>90?T.alert:T.ink,borderRadius:2}}/></div>
           </div>}
           {cats.slice(0,4).map(c=>{const t=ct(c.items).totals;return<div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:11}}>
             <span style={{color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{c.name}</span>
@@ -542,7 +548,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
           </div>
           {tasks.length>0&&<div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{tasksDone} done</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{taskPct}%</span></div>
-            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:"linear-gradient(90deg,#14B8A6,#4ADE80)",borderRadius:2}}/></div>
+            <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${taskPct}%`,background:T.ink,borderRadius:2}}/></div>
           </div>}
           {tasks.filter(t=>parseD(t.startDate)).slice(0,5).map(t=>{const tc=t.status==="done"?T.pos:t.status==="progress"?T.cyan:T.dim;return<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:tc,flexShrink:0}}/>
@@ -570,7 +576,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
                 <div style={{fontSize:10,fontWeight:700,color:T.paper,textTransform:"uppercase",letterSpacing:".10em"}}>Creative & Design</div>
                 {inReview.length>0&&<span style={{fontSize:8,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(245,158,11,.2)",color:"#F59E0B",textTransform:"uppercase"}}>&#9679; {inReview.length} awaiting review</span>}
               </div>
-              <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{approved.length} approved asset{approved.length!==1?"s":""}</div>
+              <div style={{fontSize:14,fontWeight:600,color:T.paper}}>{approved.length} approved asset{approved.length!==1?"s":""}</div>
             </div>
           </>
           :<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:280,background:"rgba(139,92,246,.04)",position:"relative"}}>
@@ -756,7 +762,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     </div>
 
     {/* Grand Total */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 22px",borderRadius:T.rS,background:`linear-gradient(135deg,rgba(99,102,241,.08),rgba(20,184,166,.06))`,border:`1px solid rgba(99,102,241,.15)`}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 22px",borderRadius:T.rS,background:T.inkSoft2,border:`1px solid ${T.faintRule}`,borderTop:`2px solid ${T.ink}`}}>
       <span style={{fontSize:12,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".08em"}}>Grand Total</span>
       <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(viewComp.grandTotal)}</span>
     </div>

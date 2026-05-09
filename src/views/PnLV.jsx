@@ -226,8 +226,8 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
           {unscannedCount>0&&<button onClick={scanAllDocs} disabled={!!scanProgress} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:scanProgress?"transparent":`rgba(74,222,128,.08)`,color:scanProgress?T.dim:T.pos,border:`1px solid ${scanProgress?"transparent":"rgba(74,222,128,.2)"}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:scanProgress?"default":"pointer",fontFamily:T.sans}}>{scanProgress?`Scanning ${scanProgress.current}/${scanProgress.total}...`:`Scan All (${unscannedCount})`}</button>}
           <button onClick={()=>fileInputRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.color=T.cream}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.dim}}>Upload Files</button>
         </>}
-        {canEdit&&tab==="transactions"&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Entry"}</button>}
-        {canEdit&&tab==="documents"&&<button onClick={()=>setShowDocAdd(!showDocAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showDocAdd?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showDocAdd?T.dim:T.brown,border:showDocAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showDocAdd?"Cancel":"+ Add Document"}</button>}
+        {canEdit&&tab==="transactions"&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":T.ink,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Entry"}</button>}
+        {canEdit&&tab==="documents"&&<button onClick={()=>setShowDocAdd(!showDocAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showDocAdd?"transparent":T.ink,color:showDocAdd?T.dim:T.brown,border:showDocAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showDocAdd?"Cancel":"+ Add Document"}</button>}
       </div>
     </div>
 
@@ -243,7 +243,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
     {/* Collection Progress */}
     <Card style={{padding:20,marginBottom:16}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:11,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em"}}>Collection Progress</span><span style={{fontSize:12,color:T.gold,fontFamily:T.mono,fontWeight:600}}>{collected}%</span></div>
-      <div style={{height:8,background:T.surface,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(collected,100)}%`,background:`linear-gradient(90deg,${T.gold},${T.pos})`,borderRadius:4,transition:"width .4s ease"}}/></div>
+      <div style={{height:8,background:T.surface,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(collected,100)}%`,background:T.ink,borderRadius:4,transition:"width .4s ease"}}/></div>
     </Card>
 
     {/* Tab toggle */}
@@ -269,7 +269,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
             </div>
           </div>
           {/* Progress bar */}
-          <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden",marginBottom:clientPayments.length>0?12:0}}><div style={{height:"100%",width:`${Math.min(collected,100)}%`,background:`linear-gradient(90deg,${T.pos},${T.cyan})`,borderRadius:2,transition:"width .4s ease"}}/></div>
+          <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden",marginBottom:clientPayments.length>0?12:0}}><div style={{height:"100%",width:`${Math.min(collected,100)}%`,background:T.ink,borderRadius:2,transition:"width .4s ease"}}/></div>
           {clientPayments.length>0?<div style={{display:"flex",flexDirection:"column",gap:3}}>
             {clientPayments.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px",borderRadius:T.rS}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov||"rgba(255,255,255,.02)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>

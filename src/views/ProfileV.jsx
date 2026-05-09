@@ -116,7 +116,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
         <div onClick={() => avatarRef.current?.click()} style={{ position: "relative", cursor: "pointer" }}>
           {currentUser.avatar || currentUser.avatar_url
             ? <img src={currentUser.avatar || currentUser.avatar_url} alt={currentUser.name} style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `2px solid ${T.border}` }} />
-            : <div style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg,${T.goldSoft},rgba(255,234,151,.02))`, border: `2px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: T.gold }}>{(currentUser.name || currentUser.email || "?")[0]}</div>
+            : <div style={{ width: 72, height: 72, borderRadius: "50%", background: T.inkSoft, border: `2px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: T.gold }}>{(currentUser.name || currentUser.email || "?")[0]}</div>
           }
           <div style={{ position: "absolute", bottom: -2, right: -2, width: 22, height: 22, borderRadius: "50%", background: T.surfEl, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 10, color: T.dim }}>📷</span>
@@ -136,7 +136,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
     <Card style={{ padding: 28, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div style={{ fontSize: 12, fontWeight: 600, fontFamily: T.mono, textTransform: "uppercase", letterSpacing: ".08em", color: T.cream }}>Team ({team.length})</div>
-        {isAdmin && <button onClick={() => setShowInvite(!showInvite)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", background: showInvite ? "transparent" : `linear-gradient(135deg,${T.gold},#E8D080)`, color: showInvite ? T.dim : T.brown, border: showInvite ? `1px solid ${T.border}` : "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: T.sans }}>{showInvite ? "Cancel" : "+ Invite"}</button>}
+        {isAdmin && <button onClick={() => setShowInvite(!showInvite)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", background: showInvite ? "transparent" : T.ink, color: showInvite ? T.dim : T.brown, border: showInvite ? `1px solid ${T.border}` : "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: T.sans }}>{showInvite ? "Cancel" : "+ Invite"}</button>}
       </div>
 
       {showInvite && <div style={{ marginBottom: 16, padding: 16, borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}` }}>
@@ -146,7 +146,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
           <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Role</label><select value={invRole} onChange={e => setInvRole(e.target.value)} style={{ width: "100%", padding: "8px 8px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none", appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={addTeamMember} disabled={!invEmail.trim() || (!(usesSupa && orgId) && !invName.trim())} style={{ padding: "7px 16px", background: invEmail.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(15,82,186,.05)", color: invEmail.trim() ? T.brown : "rgba(255,255,255,.2)", border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() ? "pointer" : "default", fontFamily: T.sans }}>{usesSupa ? "Send Invitation" : "Invite Team Member"}</button>
+          <button onClick={addTeamMember} disabled={!invEmail.trim() || (!(usesSupa && orgId) && !invName.trim())} style={{ padding: "7px 16px", background: invEmail.trim() ? T.ink : T.inkSoft2, color: invEmail.trim() ? T.brown : T.fadedInk, border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() ? "pointer" : "default", fontFamily: T.sans }}>{usesSupa ? "Send Invitation" : "Invite Team Member"}</button>
           {inviteError && <span style={{ fontSize: 11, color: T.neg }}>{inviteError}</span>}
         </div>
       </div>}

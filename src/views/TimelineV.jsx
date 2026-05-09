@@ -213,7 +213,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       {isEditingDate&&canEdit&&<div style={{display:"flex",gap:12,padding:"10px 16px",background:T.surface,border:`1px solid ${T.borderGlow}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,marginTop:-2}}>
         <DatePick value={t.startDate||""} onChange={v=>updateTaskDates(t.id,v,t.endDate)} label="Start" compact/>
         <DatePick value={t.endDate||""} onChange={v=>updateTaskDates(t.id,t.startDate,v)} label="End" compact/>
-        <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 14px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
+        <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 14px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
       </div>}
     </div>;
   };
@@ -243,7 +243,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       {isEditingDate&&canEdit&&<div style={{display:"flex",gap:12,padding:"10px 16px",background:T.surface,border:`1px solid ${T.borderGlow}`,borderTop:"none",borderRadius:`0 0 ${T.rS} ${T.rS}`,marginBottom:4}}>
         <DatePick value={t.startDate||""} onChange={v=>updateTaskDates(t.id,v,t.endDate)} label="Start" compact/>
         <DatePick value={t.endDate||""} onChange={v=>updateTaskDates(t.id,t.startDate,v)} label="End" compact/>
-        <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 14px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
+        <button onClick={()=>setEditDateId(null)} style={{alignSelf:"flex-end",padding:"6px 14px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
       </div>}
     </div>;
   };
@@ -405,7 +405,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <div style={{display:"flex",gap:8,alignItems:"center",paddingTop:12,borderTop:`1px solid ${T.border}`}}>
         <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@example.com" onKeyDown={e=>e.key==="Enter"&&sendClientTL()} style={{flex:1,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
         <button onClick={sendClientTL} disabled={!clientEmail.trim()||clientSending} className="btn-pill" style={{padding:"7px 18px",fontSize:11,opacity:clientEmail.trim()&&!clientSending?1:.4,cursor:clientEmail.trim()&&!clientSending?"pointer":"default",...(clientEmail.trim()&&!clientSending?{background:T.ink,color:T.paper}:{})}}>{clientSending?"Sending…":"Send Email"}</button>
-        <button onClick={()=>window.print()} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}><span style={{display:"flex",alignItems:"center",gap:4}}><DlI size={12}/>PDF</span></button>
+        <button onClick={()=>window.print()} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}><span style={{display:"flex",alignItems:"center",gap:4}}><DlI size={12}/>PDF</span></button>
       </div>
       {clientSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Sent to {clientSent}</div>}
       {/* Preview */}
@@ -471,7 +471,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           {isClientMeetingFlag&&<span style={{fontSize:10,color:T.cyan}}>Will appear in Client section</span>}
         </div>
       </div>}
-      <button onClick={()=>{if(isMeeting){addMeeting(nN)}else{addTask()}}} style={{padding:"9px 20px",background:isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{isMeeting?"Schedule Meeting":"Add Task"}</button>
+      <button onClick={()=>{if(isMeeting){addMeeting(nN)}else{addTask()}}} style={{padding:"9px 20px",background:isMeeting?T.ink:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{isMeeting?"Schedule Meeting":"Add Task"}</button>
     </Card>}
 
     {/* ══ LAYER 3 — Content ══ */}
@@ -484,7 +484,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       const taskListBlock=tasks.length===0&&!showAdd?
         <div style={{textAlign:"center",padding:"48px 20px",color:T.dim}}>
           <div style={{fontSize:14,marginBottom:12}}>No tasks yet</div>
-          {canEdit&&<button onClick={()=>{setViewMode("list");setShowAdd(true)}} style={{padding:"10px 20px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
+          {canEdit&&<button onClick={()=>{setViewMode("list");setShowAdd(true)}} style={{padding:"10px 20px",background:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>+ Add Task</button>}
         </div>
       :<div>
         {isListView&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
@@ -523,7 +523,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Meeting Notes</div><textarea value={meetingNotes} onChange={e=>setMeetingNotes(e.target.value)} placeholder="Type notes during or after the meeting..." rows={6} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
           <div><div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Summary</div><textarea value={meetingSummary} onChange={e=>setMeetingSummary(e.target.value)} placeholder="Key takeaways..." rows={6} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical"}}/></div>
         </div>
-        <button onClick={()=>saveMeetingNotes(viewMeeting)} style={{padding:"7px 16px",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans,marginBottom:16}}>Save Notes</button>
+        <button onClick={()=>saveMeetingNotes(viewMeeting)} style={{padding:"7px 16px",background:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans,marginBottom:16}}>Save Notes</button>
         <div style={{marginBottom:16}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Action Items</div>
           {(m.actionItems||[]).map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
@@ -594,7 +594,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         </div>
         <div style={{padding:"16px 24px 20px",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <button onClick={()=>{const idx=tasks.findIndex(tk=>tk.id===editingTaskId);if(idx>=0){removeTask(idx);setEditingTaskId(null)}}} style={{padding:"8px 18px",borderRadius:T.rS,border:`1px solid ${T.neg}33`,background:"transparent",color:T.neg,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Delete</button>
-          <button onClick={saveEditTask} style={{padding:"8px 24px",borderRadius:T.rS,border:"none",background:`linear-gradient(135deg,${T.gold},${T.cyan})`,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
+          <button onClick={saveEditTask} style={{padding:"8px 24px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
         </div>
       </div>
     </div>})()}

@@ -178,7 +178,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
       {!project.driveFolders?<div>
         <p style={{fontSize:12,color:T.dim,marginBottom:14}}>Create a folder structure on Google Drive for this project. Files will be organized by category and shared with team members based on their roles.</p>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <button onClick={setupDriveQuick} disabled={driveCreating} style={{padding:"10px 20px",borderRadius:T.rS,background:driveCreating?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:driveCreating?T.dim:T.brown,border:driveCreating?`1px solid ${T.border}`:"none",fontSize:12,fontWeight:700,cursor:driveCreating?"default":"pointer",fontFamily:T.sans}}>{driveCreating?"Creating folders...":"Set up Google Drive"}</button>
+          <button onClick={setupDriveQuick} disabled={driveCreating} style={{padding:"10px 20px",borderRadius:T.rS,background:driveCreating?"transparent":T.ink,color:driveCreating?T.dim:T.brown,border:driveCreating?`1px solid ${T.border}`:"none",fontSize:12,fontWeight:700,cursor:driveCreating?"default":"pointer",fontFamily:T.sans}}>{driveCreating?"Creating folders...":"Set up Google Drive"}</button>
           <button onClick={()=>{setDriveSetup(!driveSetup);if(!driveSetup)loadSharedDrives()}} style={{padding:"10px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Choose location</button>
           {driveCreated&&<span style={{fontSize:11,color:T.pos,fontWeight:600}}>Done!</span>}
         </div>
@@ -217,7 +217,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
     {isAdmin&&<Card style={{padding:28,marginBottom:16}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream}}>Team & Permissions</div>
-        <button onClick={()=>setShowAddUser(!showAddUser)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:showAddUser?"transparent":`linear-gradient(135deg,${T.gold},#E8D080)`,color:showAddUser?T.dim:T.brown,border:showAddUser?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAddUser?"Cancel":"+ Invite"}</button>
+        <button onClick={()=>setShowAddUser(!showAddUser)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:showAddUser?"transparent":T.ink,color:showAddUser?T.dim:T.brown,border:showAddUser?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAddUser?"Cancel":"+ Invite"}</button>
       </div>
       {showAddUser&&<div style={{marginBottom:16,padding:16,borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
@@ -235,7 +235,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={addTeamMember} disabled={!nuEmail.trim()||!nuName.trim()} style={{padding:"7px 16px",background:nuEmail.trim()&&nuName.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(15,82,186,.05)",color:nuEmail.trim()&&nuName.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()&&nuName.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
+          <button onClick={addTeamMember} disabled={!nuEmail.trim()||!nuName.trim()} style={{padding:"7px 16px",background:nuEmail.trim()&&nuName.trim()?T.ink:T.inkSoft2,color:nuEmail.trim()&&nuName.trim()?T.brown:T.fadedInk,border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()&&nuName.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
           {inviteError&&<span style={{fontSize:11,color:T.neg}}>{inviteError}</span>}
         </div>
       </div>}

@@ -1,7 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { getStoredUsers } from '../utils/storage.js';
 
 export function useGoogleAuth() {
+  // Holds the resolver for an in-flight requestCalendarAccess() so the
+  // token-client callback can hand the new token back to the awaiter.
+  const pendingResolveRef = useRef(null);
   const [user, setUser] = useState(() => {
     try {
       const s = localStorage.getItem("es_user");
@@ -41,9 +44,16 @@ export function useGoogleAuth() {
       client_id: clientId,
       scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets',
       callback: (response) => {
-        if (response.access_token) {
-          setAccessToken(response.access_token);
-        }
+        const token = response?.access_token || null;
+        if (token) setAccessToken(token);
+        const resolve = pendingResolveRef.current;
+        pendingResolveRef.current = null;
+        if (resolve) resolve(token);
+      },
+      error_callback: () => {
+        const resolve = pendingResolveRef.current;
+        pendingResolveRef.current = null;
+        if (resolve) resolve(null);
       },
     });
     setTokenClient(client);
@@ -101,11 +111,23 @@ export function useGoogleAuth() {
     );
   }, []);
 
-  // Request Calendar/Gmail access token
+  // Request Calendar/Gmail access token. Returns a Promise that resolves
+  // with the new access token (or null if denied / not initialized) so
+  // callers can `await` the result and use the token immediately.
   const requestCalendarAccess = useCallback(() => {
-    if (tokenClient) {
-      tokenClient.requestAccessToken();
-    }
+    return new Promise((resolve) => {
+      if (!tokenClient) { resolve(null); return; }
+      // If a previous request is still pending, resolve it with null so we
+      // never strand a caller.
+      const prev = pendingResolveRef.current;
+      pendingResolveRef.current = resolve;
+      if (prev) prev(null);
+      try { tokenClient.requestAccessToken(); }
+      catch (e) {
+        pendingResolveRef.current = null;
+        resolve(null);
+      }
+    });
   }, [tokenClient]);
 
   const logout = useCallback(() => {

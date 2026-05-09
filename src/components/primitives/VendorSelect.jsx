@@ -32,7 +32,7 @@ function AddVendorModal({onAdd,onClose}){
         <div><Label>Notes</Label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional" onKeyDown={e=>e.key==="Enter"&&submit()} style={inputStyle}/></div>
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button onClick={submit} disabled={!name.trim()} style={{padding:"9px 20px",borderRadius:T.rS,background:name.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:name.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${name.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:name.trim()?"pointer":"default",fontFamily:T.sans}}>Add Vendor</button>
+        <button onClick={submit} disabled={!name.trim()} style={{padding:"9px 20px",borderRadius:T.rS,background:name.trim()?T.goldSoft:T.inkSoft2,color:name.trim()?T.gold:T.fadedInk,border:`1px solid ${name.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:name.trim()?"pointer":"default",fontFamily:T.sans}}>Add Vendor</button>
         <button onClick={onClose} style={{padding:"9px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
       </div>
     </div>

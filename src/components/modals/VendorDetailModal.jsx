@@ -316,7 +316,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 <button onClick={()=>fileRef.current?.click()} style={{padding:"6px 12px",borderRadius:T.rS,border:`1px dashed ${docFile?T.pos:T.border}`,background:docFile?"rgba(52,211,153,.06)":"transparent",color:docFile?T.pos:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>{docFile?"Replace":"Choose file…"}</button>
                 {docFileName&&<span style={{fontSize:10,color:T.pos,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{docFileName}</span>}
-                <button onClick={addVendorDoc} disabled={!docName.trim()} style={{padding:"6px 14px",marginLeft:"auto",background:docName.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:docName.trim()?T.gold:"rgba(15,82,186,.42)",border:`1px solid ${docName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:10,fontWeight:700,cursor:docName.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+                <button onClick={addVendorDoc} disabled={!docName.trim()} style={{padding:"6px 14px",marginLeft:"auto",background:docName.trim()?T.goldSoft:T.inkSoft2,color:docName.trim()?T.gold:"rgba(15,82,186,.42)",border:`1px solid ${docName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:10,fontWeight:700,cursor:docName.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
               </div>
             </div>}
 

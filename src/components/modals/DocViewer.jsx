@@ -43,7 +43,7 @@ function DocViewer({ doc, onClose }) {
           <div style={{ fontSize: 48, opacity: .2, marginBottom: 16 }}>▧</div>
           <div style={{ fontSize: 14, color: T.cream, marginBottom: 8 }}>{doc.name || doc.fileName}</div>
           <p style={{ fontSize: 12, color: T.dim, marginBottom: 16 }}>Preview not available for this file type</p>
-          <a href={fileData} download={doc.fileName || doc.name || "document"} style={{ padding: "10px 24px", borderRadius: T.rS, border: "none", background: `linear-gradient(135deg,${T.gold},#E8D080)`, color: T.brown, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.sans, textDecoration: "none" }}>Download File</a>
+          <a href={fileData} download={doc.fileName || doc.name || "document"} style={{ padding: "10px 24px", borderRadius: T.rS, border: "none", background: T.ink, color: T.brown, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.sans, textDecoration: "none" }}>Download File</a>
         </div>}
         {!loading && !fileData && <div style={{ textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 48, opacity: .2, marginBottom: 16 }}>▧</div>

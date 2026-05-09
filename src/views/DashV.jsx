@@ -381,7 +381,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
         </div>
         {weatherLoading?<div style={{fontSize:12,color:"rgba(255,255,255,.5)",position:"relative"}}>Loading...</div>
         :weather?<div style={{position:"relative"}}>
-          <div style={{fontSize:42,fontWeight:700,fontFamily:T.mono,color:"#fff",lineHeight:1,letterSpacing:"-0.04em",textShadow:"0 2px 12px rgba(0,0,0,.3)"}}>{displayTemp}°{tempUnit}</div>
+          <div style={{fontSize:42,fontWeight:700,fontFamily:T.mono,color:T.paper,lineHeight:1,letterSpacing:"-0.04em",textShadow:"0 2px 12px rgba(0,0,0,.3)"}}>{displayTemp}°{tempUnit}</div>
           <div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:6,fontWeight:600}}>{weatherLabel(weather.code)}</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,.45)",marginTop:4}}>{weather.city}</div>
         </div>:<div style={{fontSize:12,color:"rgba(255,255,255,.4)",position:"relative"}}>No weather data</div>}

@@ -11,7 +11,7 @@ export function taskColor(t){
   // Google Calendar imports get a dashed left border so they're visually
   // distinguishable from other faded chips (status=done, meetings).
   if(t._gcal)return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk,borderStyle:"dashed"};
-  if(t.status==="done")return{bg:"rgba(15,82,186,.05)",fg:T.fadedInk};
+  if(t.status==="done")return{bg:T.inkSoft2,fg:T.fadedInk};
   if(t.status==="progress")return{bg:"rgba(15,82,186,.10)",fg:T.ink};
   const cat=((t.category||"General")+" "+(t.name||"")).toLowerCase();
   if(cat.includes("meeting")||cat.includes("call")||cat.includes("sync"))return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk};
@@ -326,7 +326,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
             <button onClick={()=>setShowMore(!showMore)} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.dim,fontFamily:T.sans,padding:0}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>{showMore?"Less options":"More options"}</button>
             <div style={{display:"flex",gap:6}}>
               <button onClick={closePopover} style={{padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
-              <button onClick={quickAdd} disabled={!qN.trim()} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",background:qN.trim()?(isMeeting?`linear-gradient(135deg,${T.magenta},#C084FC)`:T.goldSoft):"rgba(15,82,186,.05)",color:qN.trim()?(isMeeting?"#fff":T.gold):"rgba(255,255,255,.2)",fontSize:10,fontWeight:700,cursor:qN.trim()?"pointer":"default",fontFamily:T.sans}}>{isMeeting?"Schedule":"Add"}</button>
+              <button onClick={quickAdd} disabled={!qN.trim()} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",background:qN.trim()?(isMeeting?T.ink:T.goldSoft):T.inkSoft2,color:qN.trim()?(isMeeting?"#fff":T.gold):T.fadedInk,fontSize:10,fontWeight:700,cursor:qN.trim()?"pointer":"default",fontFamily:T.sans}}>{isMeeting?"Schedule":"Add"}</button>
             </div>
           </div>
         </div>

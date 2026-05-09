@@ -11,7 +11,7 @@ function AddSectionModal({ onClose, onAdd }) {
       <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Entertainment, Decor, Technology" onKeyDown={e => e.key === "Enter" && submit()} style={{ width: "100%", padding: "11px 14px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: T.cream, fontSize: 14, fontFamily: T.sans, outline: "none", marginBottom: 16 }} />
       <div style={{ display: "flex", gap: 10 }}>
         <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: T.rS, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.sans }}>Cancel</button>
-        <button onClick={submit} style={{ flex: 1, padding: 11, borderRadius: T.rS, border: "none", background: name.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(15,82,186,.05)", color: name.trim() ? T.brown : "rgba(15,82,186,.42)", fontSize: 13, fontWeight: 700, cursor: name.trim() ? "pointer" : "default", fontFamily: T.sans }}>Add Section</button>
+        <button onClick={submit} style={{ flex: 1, padding: 11, borderRadius: T.rS, border: "none", background: name.trim() ? T.ink : T.inkSoft2, color: name.trim() ? T.brown : "rgba(15,82,186,.42)", fontSize: 13, fontWeight: 700, cursor: name.trim() ? "pointer" : "default", fontFamily: T.sans }}>Add Section</button>
       </div>
     </div>
   </div>;
