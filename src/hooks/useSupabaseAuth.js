@@ -13,11 +13,13 @@ import {
   getGoogleAccessToken,
 } from '../lib/db.js';
 
-const MAX_PROFILE_RETRIES = 3;
-const PROFILE_RETRY_DELAY = 1000;
-
-async function getOrCreateProfilesWithRetry(user) {
-  for (let attempt = 1; attempt <= MAX_PROFILE_RETRIES; attempt++) {
+// Keep retrying forever — a signed-in user without a profile is a broken
+// state where the app silently writes to localStorage only. Better to keep
+// trying than to give up and pretend.
+async function getOrCreateProfilesWithRetry(user, onRetry) {
+  let attempt = 0;
+  while (true) {
+    attempt++;
     try {
       const profiles = await getOrCreateProfiles(user);
       if (profiles?.length && profiles[0].org_id) {
@@ -28,12 +30,11 @@ async function getOrCreateProfilesWithRetry(user) {
     } catch (e) {
       console.error('[auth] Profile attempt', attempt, 'error:', e);
     }
-    if (attempt < MAX_PROFILE_RETRIES) {
-      await new Promise(r => setTimeout(r, PROFILE_RETRY_DELAY * attempt));
-    }
+    if (onRetry) onRetry(attempt);
+    // Exponential backoff up to 30s — never give up on a signed-in user.
+    const delay = Math.min(30000, 1000 * Math.pow(1.5, attempt - 1));
+    await new Promise(r => setTimeout(r, delay));
   }
-  console.error('[auth] All profile creation attempts failed for user:', user.id);
-  return [];
 }
 
 export function useSupabaseAuth() {
@@ -85,27 +86,34 @@ export function useSupabaseAuth() {
       return;
     }
 
-    // Check existing session with timeout
+    // Race the session check against a longer-than-before timeout. The
+    // timeout no longer drops us into a fake "local" mode — it just stops
+    // showing the boot loader so the user can see the login screen if they
+    // weren't signed in. Profiles continue loading in the background.
+    let resolved = false;
     const timeout = setTimeout(() => {
-      console.warn('[auth] Session check timed out after 5s');
-      setLoading(false);
-    }, 5000);
+      if (!resolved) {
+        console.warn('[auth] Session check slow (>15s) — showing UI; profile load continues in background');
+        setLoading(false);
+      }
+    }, 15000);
 
     getSession().then(async (session) => {
+      resolved = true;
+      clearTimeout(timeout);
       if (session?.user) {
         console.log('[auth] Existing session found for:', session.user.email);
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        const allProfiles = await initProfiles(session.user);
-        if (!allProfiles?.length) {
-          console.error('[auth] Could not load/create profiles for existing session');
-        }
+        // Don't await — render the loading screen while profiles load, but
+        // never let the timeout fall through into a broken signed-in state.
+        initProfiles(session.user).catch(e => console.error('[auth] initProfiles error:', e));
       } else {
         console.log('[auth] No existing session');
       }
-      clearTimeout(timeout);
       setLoading(false);
     }).catch(e => {
+      resolved = true;
       console.error('[auth] Session error:', e);
       clearTimeout(timeout);
       setLoading(false);
@@ -187,14 +195,21 @@ export function useSupabaseAuth() {
     return null;
   }, []);
 
-  // Normalize user object so it always has name, email, role
+  // Normalize user object so it always has name, email, role.
+  // CRITICAL: If a Supabase user is signed in but profiles haven't loaded
+  // yet, we return null org_id (NOT 'local'). 'local' is the legacy
+  // localStorage-only mode and writing project data with that org_id means
+  // it never reaches Supabase. The app should treat a null org_id as
+  // "still loading" and not let users create/edit projects until profiles
+  // arrive.
   const normalizedUser = currentProfile ? currentProfile : user ? {
     ...user,
     name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '',
     email: user.email || '',
     role: 'admin',
     avatar_url: user.user_metadata?.avatar_url || '',
-    org_id: 'local',
+    org_id: null,
+    _profilePending: true,
   } : null;
 
   return {

@@ -163,8 +163,14 @@ function App(){
   }, [themeMode]);
 
   // Projects & Shared Vendors
-  const orgId = usesSupa ? (sbAuth.currentOrgId || sbAuth.profile?.org_id || 'local') : 'local';
-  console.log('[app] Auth state:', { usesSupa, user: !!user, profile: sbAuth.profile?.id, orgId, orgCount: sbAuth.profiles?.length });
+  // For Supabase-authenticated users, only set orgId once profiles have
+  // actually loaded. Falling back to 'local' would cause silent data loss
+  // (writes go to localStorage instead of Supabase).
+  const orgId = usesSupa
+    ? (sbAuth.currentOrgId || sbAuth.profile?.org_id || (user ? null : 'local'))
+    : 'local';
+  const profilePending = usesSupa && !!user && !orgId;
+  console.log('[app] Auth state:', { usesSupa, user: !!user, profile: sbAuth.profile?.id, orgId, orgCount: sbAuth.profiles?.length, profilePending });
   const { projects, loaded, createProject: createProj, updateProject: updateProj, deleteProject: deleteProj } = useProjects(orgId);
   const { vendors: sharedVendors, addVendor: addSharedVendor, updateVendor: updateSharedVendor, removeVendor: removeSharedVendor } = useVendors(orgId);
   const[saving,setSaving]=useState(false);
@@ -242,11 +248,14 @@ function App(){
     if(e.key==="Escape"){setShowNew(false)}
   };window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[]);
 
-  // Loading state
-  if(sbAuth.loading || !loaded)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:T.bgGrad,fontFamily:T.sans}}>
-    <div style={{textAlign:"center",color:T.dim}}>
-      <div style={{fontSize:24,marginBottom:8,animation:"pulse 1.5s ease-in-out infinite"}}>◐</div>
-      <div style={{fontSize:12}}>Loading...</div>
+  // Loading state — also catches "signed in but profile still loading" so
+  // we never let the user write data while orgId is unresolved.
+  if(sbAuth.loading || !loaded || profilePending)return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,fontFamily:T.sans}}>
+    <div style={{textAlign:"center",color:T.fadedInk,maxWidth:360,padding:"0 24px"}}>
+      <div style={{fontSize:24,marginBottom:14,animation:"pulse 1.5s ease-in-out infinite",color:T.ink}}>◐</div>
+      <div style={{fontSize:13,color:T.ink,fontWeight:600,marginBottom:6}}>{profilePending?"Loading your workspace…":"Loading…"}</div>
+      {profilePending&&<div style={{fontSize:11,color:T.fadedInk,lineHeight:1.6,marginBottom:14}}>Reconnecting to the server. This usually takes a few seconds — if it doesn't clear, try signing out and back in.</div>}
+      {profilePending&&<button onClick={()=>sbAuth.logout?.().then(()=>window.location.reload())} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}>Sign out</button>}
     </div>
   </div>;
 
