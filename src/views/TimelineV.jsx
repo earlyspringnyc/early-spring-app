@@ -131,8 +131,11 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     addTask(title,"Meeting","",meetingDate,meetingDate);
     setMeetingTitle("");setMeetingDate("");setMeetingTime("");setMeetingDuration("30m");setMeetingAttendees("");setMeetingAgenda("");setMeetingLocation("");setIsMeeting(false);setIsClientMeetingFlag(false);
   };
-  const removeMeeting=id=>updateProject({meetings:(project.meetings||[]).filter(m=>m.id!==id)});
-  const updateMeeting=(id,updates)=>updateProject({meetings:(project.meetings||[]).map(m=>m.id===id?{...m,...updates}:m)});
+  const removeMeeting=id=>updateProject(prev=>({meetings:(prev.meetings||[]).filter(m=>m.id!==id)}));
+  // Functional form — updateMeeting is called after `await createCalendarEvent`
+  // and after async action-item edits, so a closure-captured project.meetings
+  // could be stale by the time the update lands.
+  const updateMeeting=(id,updates)=>updateProject(prev=>({meetings:(prev.meetings||[]).map(m=>m.id===id?{...m,...updates}:m)}));
   const addActionItemToMeeting=(meetingId,item)=>{
     const m=(project.meetings||[]).find(m=>m.id===meetingId);if(!m)return;
     const actionItem={id:uid(),text:item,done:false};
@@ -542,7 +545,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>Integrations</div>
             <button onClick={async()=>{if(!accessToken){setCalStatus("Connect Google first");return}setCalSending(true);setCalStatus("");try{await createCalendarEvent(accessToken,{title:m.title,date:m.date,time:m.time,duration:m.duration,attendees:m.attendees||[],agenda:m.agenda,location:m.location});updateMeeting(m.id,{calendarSent:true});setCalStatus("Calendar invite sent!")}catch(e){setCalStatus("Error: "+(e.message||"Failed"))}finally{setCalSending(false)}}} disabled={calSending||m.calendarSent} style={{padding:"6px 12px",border:`1px solid rgba(34,211,238,.2)`,background:m.calendarSent?"rgba(52,211,153,.06)":"rgba(34,211,238,.06)",borderRadius:T.rS,color:m.calendarSent?T.pos:T.cyan,fontSize:10,fontWeight:600,cursor:calSending||m.calendarSent?"default":"pointer",fontFamily:T.sans}}>{m.calendarSent?"Sent to Calendar":calSending?"Sending...":"Google Calendar"}</button>
-            {project.firefliesApiKey&&<button onClick={async()=>{try{const{syncFirefliesMeetings}=await import('../utils/fireflies.js');const clientEmails=(project.clientContacts||[]).map(c=>c.email).filter(Boolean);const meetings=await syncFirefliesMeetings(project.firefliesApiKey,{clientEmails,projectName:project.name||"",clientName:project.client||""});const existing=new Set((project.meetings||[]).map(x=>x.firefliesId).filter(Boolean));const newM=meetings.filter(x=>!existing.has(x.firefliesId));if(newM.length)updateProject({meetings:[...(project.meetings||[]),...newM]});setCalStatus(newM.length?`Imported ${newM.length} from Fireflies`:"No new Fireflies meetings")}catch(e){setCalStatus("Error: "+e.message)}}} style={{padding:"6px 12px",border:`1px solid rgba(255,234,151,.2)`,background:"rgba(255,234,151,.06)",borderRadius:T.rS,color:T.gold,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Sync Fireflies</button>}
+            {project.firefliesApiKey&&<button onClick={async()=>{try{const{syncFirefliesMeetings}=await import('../utils/fireflies.js');const clientEmails=(project.clientContacts||[]).map(c=>c.email).filter(Boolean);const meetings=await syncFirefliesMeetings(project.firefliesApiKey,{clientEmails,projectName:project.name||"",clientName:project.client||""});const existing=new Set((project.meetings||[]).map(x=>x.firefliesId).filter(Boolean));const newM=meetings.filter(x=>!existing.has(x.firefliesId));if(newM.length)updateProject(prev=>({meetings:[...(prev.meetings||[]),...newM]}));setCalStatus(newM.length?`Imported ${newM.length} from Fireflies`:"No new Fireflies meetings")}catch(e){setCalStatus("Error: "+e.message)}}} style={{padding:"6px 12px",border:`1px solid rgba(255,234,151,.2)`,background:"rgba(255,234,151,.06)",borderRadius:T.rS,color:T.gold,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Sync Fireflies</button>}
             {calStatus&&<span style={{fontSize:10,color:calStatus.startsWith("Error")?T.neg:T.pos,fontFamily:T.sans}}>{calStatus}</span>}
             {!calStatus&&!accessToken&&<span style={{fontSize:10,color:T.dim,fontFamily:T.sans}}>Requires Google OAuth</span>}
           </div>

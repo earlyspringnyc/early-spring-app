@@ -215,11 +215,16 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     try{
       const clientEmails=(project.clientContacts||[]).map(c=>c.email).filter(Boolean);
       const meetings=await syncFirefliesMeetings(apiKey,{clientEmails,projectName:project.name||"",clientName:project.client||""});
-      const existing=new Set((project.meetings||[]).map(m=>m.firefliesId).filter(Boolean));
-      const newMeetings=meetings.filter(m=>!existing.has(m.firefliesId));
-      if(newMeetings.length>0){
-        updateProject({meetings:[...(project.meetings||[]),...newMeetings],firefliesApiKey:apiKey});
-        setFfStatus(`Imported ${newMeetings.length} meeting${newMeetings.length!==1?"s":""}`);
+      // Functional updater — `project.meetings` captured above could be stale
+      // after the network round-trip; re-derive from prev to avoid wiping
+      // concurrent edits.
+      if(meetings.length>0){
+        updateProject(prev=>{
+          const existing=new Set((prev.meetings||[]).map(m=>m.firefliesId).filter(Boolean));
+          const newM=meetings.filter(m=>!existing.has(m.firefliesId));
+          return{meetings:[...(prev.meetings||[]),...newM],firefliesApiKey:apiKey};
+        });
+        setFfStatus(`Imported ${meetings.length} meeting${meetings.length!==1?"s":""}`);
       }else{
         updateProject({firefliesApiKey:apiKey});
         setFfStatus("No new meetings found");
