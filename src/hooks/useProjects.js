@@ -91,16 +91,19 @@ export function useProjects(orgId) {
 
     console.log('[projects] Loading from Supabase for org:', orgId);
     setLoaded(false);
-    db.getProjects(orgId).then(async serverProjects => {
+    Promise.all([db.getProjects(orgId), db.getTombstoneIds(orgId)]).then(async ([serverProjects, serverTombstones]) => {
       console.log('[projects] Loaded', serverProjects.length, 'projects from Supabase');
       const cached = readCache(orgId);
-      const tombstones = readTombstones(orgId);
+      const localTombstones = readTombstones(orgId);
       const serverIds = new Set(serverProjects.map(p => p.id));
+      const isTombstoned = (id) => !!localTombstones[id] || serverTombstones.has(id);
       // A "local-only" project is one cached but not on the server AND not
-      // intentionally deleted (tombstones survive 30 days so a stale cache
-      // can't resurrect a deleted project).
-      const localOnly = cached.filter(p => p && p.id && !serverIds.has(p.id) && !tombstones[p.id]);
-      const skippedDeleted = cached.filter(p => p && p.id && !serverIds.has(p.id) && tombstones[p.id]);
+      // intentionally deleted. Local tombstones (30-day TTL) protect against
+      // resurrection in this browser; server tombstones protect across
+      // browsers — so a teammate's stale cache can't bring back something
+      // we deleted.
+      const localOnly = cached.filter(p => p && p.id && !serverIds.has(p.id) && !isTombstoned(p.id));
+      const skippedDeleted = cached.filter(p => p && p.id && !serverIds.has(p.id) && isTombstoned(p.id));
       if (skippedDeleted.length) {
         console.log('[projects] Skipped', skippedDeleted.length, 'tombstoned project(s) from cache');
       }
@@ -350,9 +353,11 @@ export function useProjects(orgId) {
       });
     }
     // Tombstone the id so the merge-on-load recovery pass doesn't resurrect
-    // it from a stale cache in this browser.
+    // it. Local tombstone protects this browser; the orgId is passed to the
+    // server-side delete which also writes a row to project_tombstones,
+    // protecting other teammates' browsers from resurrecting via stale cache.
     addTombstone(orgId, projectId);
-    if (usesDb) { try { await db.deleteProject(projectId); } catch (e) { console.error('[projects] Delete failed:', e); } }
+    if (usesDb) { try { await db.deleteProject(projectId, orgId); } catch (e) { console.error('[projects] Delete failed:', e); } }
     setProjects(prev => prev.filter(p => p.id !== projectId));
   }, [usesDb, projects, orgId]);
 

@@ -119,6 +119,22 @@ create trigger projects_updated_at
   before update on projects
   for each row execute function update_updated_at();
 
+-- Project tombstones — record of deleted projects so a teammate's stale
+-- localStorage cache can't resurrect them via the merge-on-load recovery.
+create table if not exists project_tombstones (
+  project_id uuid primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  deleted_at timestamptz default now()
+);
+alter table project_tombstones enable row level security;
+create policy "Org members can view tombstones"
+  on project_tombstones for select
+  using (org_id in (select org_id from profiles where user_id = auth.uid()));
+create policy "Org members can create tombstones"
+  on project_tombstones for insert
+  with check (org_id in (select org_id from profiles where user_id = auth.uid()));
+create index if not exists project_tombstones_org_idx on project_tombstones(org_id);
+
 -- Storage bucket for file uploads
 insert into storage.buckets (id, name, public) values ('files', 'files', true);
 

@@ -387,13 +387,42 @@ export async function updateProject(projectId, projectData) {
   }
 }
 
-export async function deleteProject(projectId) {
+export async function deleteProject(projectId, orgId) {
   if (!isSupabaseConfigured()) return;
   const { error } = await supabase
     .from('projects')
     .delete()
     .eq('id', projectId);
   if (error) console.error('[db] Delete project failed:', error);
+  // Server-side tombstone — prevents another browser's stale cache from
+  // resurrecting this project via the merge-on-load recovery pass.
+  if (orgId && orgId !== 'local') {
+    try {
+      await supabase
+        .from('project_tombstones')
+        .upsert({ project_id: projectId, org_id: orgId }, { onConflict: 'project_id' });
+    } catch (e) { console.warn('[db] Tombstone write failed (table may not exist yet):', e); }
+  }
+}
+
+// Returns a Set of project_ids that have been deleted in this org.
+export async function getTombstoneIds(orgId) {
+  if (!isSupabaseConfigured() || !orgId || orgId === 'local') return new Set();
+  try {
+    const { data, error } = await supabase
+      .from('project_tombstones')
+      .select('project_id')
+      .eq('org_id', orgId);
+    if (error) {
+      if (error.code === '42P01' || /relation .* does not exist/i.test(error.message || '')) return new Set();
+      console.warn('[db] Tombstone fetch failed:', error);
+      return new Set();
+    }
+    return new Set((data || []).map(r => r.project_id));
+  } catch (e) {
+    console.warn('[db] Tombstone fetch threw:', e);
+    return new Set();
+  }
 }
 
 // ============================================================
