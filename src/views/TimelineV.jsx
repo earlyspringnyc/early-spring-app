@@ -181,7 +181,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     const dated=clientTasks.filter(t=>parseD(t.startDate)).sort((a,b)=>(a.startDate||"").localeCompare(b.startDate||""));
     if(!dated.length)return<div style={{padding:20,textAlign:"center",color:"#999",fontSize:13}}>No dated tasks selected.</div>;
     return<table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{borderBottom:"1px solid #0F52BA"}}>{["Task","Category","Start","End","Status"].map((h,i)=><th key={i} style={{textAlign:i>1?"center":"left",padding:"10px 4px",fontWeight:700,color:"rgba(15,82,186,.42)",fontSize:10,textTransform:"uppercase",letterSpacing:".10em"}}>{h}</th>)}</tr></thead>
-      <tbody>{dated.map(t=><tr key={t.id} style={{borderBottom:"1px solid rgba(15,82,186,.18)"}}><td style={{padding:"12px 4px",color:"#0F52BA",fontWeight:500}}>{t.name}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.42)",fontSize:12,fontStyle:"italic"}}>{t.category}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.70)",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.startDate}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.70)",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.endDate||"\u2014"}</td><td style={{padding:"12px 4px",textAlign:"center"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"transparent",color:t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.42)",border:`1px solid ${t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.42)"}`,letterSpacing:".06em",textTransform:"uppercase"}}>{STATUS_LABELS[t.status]}</span></td></tr>)}</tbody></table>
+      <tbody>{dated.map(t=><tr key={t.id} style={{borderBottom:"1px solid rgba(15,82,186,.18)"}}><td style={{padding:"12px 4px",color:"#0F52BA",fontWeight:600}}>{t.name}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.42)",fontSize:12,fontStyle:"italic"}}>{t.category}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.70)",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.startDate}</td><td style={{padding:"12px 4px",color:"rgba(15,82,186,.70)",textAlign:"center",fontFamily:"monospace",fontSize:12}}>{t.endDate||"\u2014"}</td><td style={{padding:"12px 4px",textAlign:"center"}}><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:999,background:"transparent",color:t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.42)",border:`1px solid ${t.status==="done"?"#0F52BA":t.status==="progress"?"rgba(15,82,186,.70)":"rgba(15,82,186,.42)"}`,letterSpacing:".06em",textTransform:"uppercase"}}>{STATUS_LABELS[t.status]}</span></td></tr>)}</tbody></table>
   };
 
   /* ── Card / Block / Table task renderers ── */
@@ -229,7 +229,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
           {t.status==="done"&&<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}
         </button>
         <div style={{flex:1,minWidth:0}}>
-          <span style={{fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</span>
+          <span style={{fontSize:13,fontWeight:600,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</span>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           {t.category&&<Pill color={cc} size="xs">{t.category}</Pill>}
@@ -254,7 +254,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.paper,borderRadius:T.rS,border:`1px solid ${T.faintRule}`,borderLeft:`2px solid ${T.fadedInk}`,transition:"background .18s ease",cursor:"pointer"}} onClick={()=>{setViewMeeting(m.id);setMeetingNotes(m.notes||"");setMeetingSummary(m.summary||"")}} onMouseEnter={e=>e.currentTarget.style.background=T.inkSoft3} onMouseLeave={e=>e.currentTarget.style.background=T.paper}>
         <div style={{width:8,height:8,borderRadius:"50%",background:T.fadedInk,flexShrink:0}}/>
         <div style={{flex:1,minWidth:0}}>
-          <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{m.title}</span>
+          <span style={{fontSize:13,fontWeight:600,color:T.cream}}>{m.title}</span>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <Pill color={T.fadedInk} size="xs">Meeting</Pill>
@@ -276,7 +276,7 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         <tbody>{filtered.map(t=>{const ri=tasks.indexOf(t);const cc=catColor(t.category);const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"—";
           return<tr key={t.id} style={{borderBottom:`1px solid ${T.border}`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <td style={{padding:"10px 12px",textAlign:"center"}}><button onClick={()=>cycleStatus(ri)} style={{width:16,height:16,borderRadius:t.status==="done"?8:3,border:`2px solid ${STATUS_COLORS[t.status]}`,background:t.status==="done"?T.pos:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{t.status==="done"&&<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>}</button></td>
-            <td style={{padding:"10px 12px",fontSize:13,fontWeight:500,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</td>
+            <td style={{padding:"10px 12px",fontSize:13,fontWeight:600,color:t.status==="done"?T.dim:T.cream,textDecoration:t.status==="done"?"line-through":"none"}}>{t.name}</td>
             <td style={{padding:"10px 12px"}}>{t.category&&<Pill color={cc} size="xs">{t.category}</Pill>}</td>
             <td style={{padding:"10px 12px",fontSize:11,color:T.cyan}}>{t.assignee||""}</td>
             <td style={{padding:"10px 12px",fontSize:10,color:T.dim,fontFamily:T.mono}}>{dateStr}</td>
@@ -376,8 +376,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
         <div ref={menuRef} style={{position:"relative"}}>
           <button onClick={()=>setShowMenu(!showMenu)} style={{width:32,height:32,borderRadius:20,border:`1px solid ${T.border}`,background:showMenu?T.surfHov:"transparent",color:T.dim,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,letterSpacing:2,lineHeight:1}}>...</button>
           {showMenu&&<div className="fc-panel" style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:60,minWidth:220,padding:4,borderRadius:12,overflow:"hidden"}}>
-            <button onClick={()=>{setShowClientTL(!showClientTL);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:showClientTL?T.cyan:T.cream,fontFamily:T.sans,fontWeight:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showClientTL?"Close Client Timeline":"Create Client Timeline"}</button>
-            <button onClick={()=>{setShowSuggestions(!showSuggestions);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",fontSize:11,color:showSuggestions?T.gold:T.cream,fontFamily:T.sans,fontWeight:500}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showSuggestions?"Hide Budget Items":"Budget Items"}</button>
+            <button onClick={()=>{setShowClientTL(!showClientTL);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontSize:11,color:showClientTL?T.cyan:T.cream,fontFamily:T.sans,fontWeight:600}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showClientTL?"Close Client Timeline":"Create Client Timeline"}</button>
+            <button onClick={()=>{setShowSuggestions(!showSuggestions);setShowMenu(false)}} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",fontSize:11,color:showSuggestions?T.gold:T.cream,fontFamily:T.sans,fontWeight:600}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{showSuggestions?"Hide Budget Items":"Budget Items"}</button>
           </div>}
         </div>
       </div>

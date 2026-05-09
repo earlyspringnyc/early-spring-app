@@ -237,7 +237,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       const cat=autoCategory(file.name);
       newFiles.push(mkClientFile(file.name.replace(/\.[^/.]+$/,""),cat,ev.target.result,file.name));
       processed++;if(processed===files.length){
-        updateProject({clientFiles:[...clientFiles,...newFiles]});
+        updateProject(prev=>({clientFiles:[...(prev.clientFiles||[]),...newFiles]}));
         // Background upload to Google Drive
         if(accessToken&&project.driveFolders){
           import('../utils/drive.js').then(({uploadToDrive})=>{
@@ -245,7 +245,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
               if(!f.fileData)return;
               const result=await uploadToDrive(accessToken,f.fileData,f.fileName,project.driveFolders,null,"client");
               if(result){
-                updateProject({clientFiles:(project.clientFiles||[]).concat(newFiles).map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+                updateProject(prev=>({clientFiles:(prev.clientFiles||[]).map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)}));
               }
             });
           });
@@ -293,14 +293,14 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       const cat=autoCategory(file.name);
       newFiles.push(mkClientFile(file.name.replace(/\.[^/.]+$/,""),cat,ev.target.result,file.name));
       processed++;if(processed===files.length){
-        updateProject({clientFiles:[...clientFiles,...newFiles]});
+        updateProject(prev=>({clientFiles:[...(prev.clientFiles||[]),...newFiles]}));
         if(accessToken&&project.driveFolders){
           import('../utils/drive.js').then(({uploadToDrive})=>{
             newFiles.forEach(async(f)=>{
               if(!f.fileData)return;
               const result=await uploadToDrive(accessToken,f.fileData,f.fileName,project.driveFolders,null,"client");
               if(result){
-                updateProject({clientFiles:(project.clientFiles||[]).concat(newFiles).map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+                updateProject(prev=>({clientFiles:(prev.clientFiles||[]).map(x=>x.id===f.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)}));
               }
             });
           });
@@ -622,7 +622,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
           </div>
           {clientContacts.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",gap:10}}>
             {clientContacts.map(c=><div key={c.id} style={{padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
-              <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{c.name}</div>
+              <div style={{fontSize:13,fontWeight:600,color:T.cream}}>{c.name}</div>
               {c.role&&<div style={{fontSize:10,color:T.cyan,marginTop:2}}>{c.role}</div>}
               {c.email&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{c.email}</div>}
             </div>)}
@@ -779,7 +779,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
           const dateStr=t.startDate?(t.endDate&&t.endDate!==t.startDate?`${t.startDate} — ${t.endDate}`:t.startDate):"";
           return<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:T.surfEl,borderRadius:T.rS,border:`1px solid ${T.border}`,borderLeft:`3px solid ${statusColor}`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
             <div style={{flex:1,minWidth:0}}>
-              <span style={{fontSize:13,fontWeight:500,color:T.cream}}>{t.name}</span>
+              <span style={{fontSize:13,fontWeight:600,color:T.cream}}>{t.name}</span>
               {t.category&&<span style={{marginLeft:8}}><Pill color={T.dim} size="xs">{t.category}</Pill></span>}
             </div>
             {dateStr&&<span style={{fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>{dateStr}</span>}
@@ -882,7 +882,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     </div>
     :<div onClick={()=>fileInputRef.current.click()} style={{textAlign:"center",padding:48,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.background=T.surface}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
       <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#8593;</div>
-      <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No files yet</div>
+      <div style={{fontSize:14,fontWeight:600,color:T.cream,marginBottom:6}}>No files yet</div>
       <p style={{fontSize:12,color:T.dim}}>Upload RFPs, briefs, design files, contracts, decks</p>
     </div>}
     {viewingFile&&<FileViewerModal file={viewingFile} onClose={()=>setViewingFile(null)}/>}
@@ -980,7 +980,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       </div>
       :<Card style={{padding:40}}><div style={{textAlign:"center"}}>
         <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#9900;</div>
-        <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No client meetings</div>
+        <div style={{fontSize:14,fontWeight:600,color:T.cream,marginBottom:6}}>No client meetings</div>
         <p style={{fontSize:12,color:T.dim,maxWidth:300,margin:"0 auto"}}>Meetings are auto-detected when attendees match your client contacts. You can also manually tag meetings as client-facing.</p>
       </div></Card>}
     </div>;
@@ -1019,7 +1019,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     </div>
     :<Card style={{padding:40}}><div style={{textAlign:"center"}}>
       <div style={{fontSize:24,opacity:.15,marginBottom:8}}>&#128100;</div>
-      <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No contacts yet</div>
+      <div style={{fontSize:14,fontWeight:600,color:T.cream,marginBottom:6}}>No contacts yet</div>
       <p style={{fontSize:12,color:T.dim}}>Add key people at the client organization</p>
     </div></Card>}
   </div>;
@@ -1046,7 +1046,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
               {a.isImage&&a.fileData?<img src={a.fileData} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:<div style={{fontSize:20,color:T.dim,opacity:.2}}>&#9634;</div>}
             </div>
             <div style={{padding:"8px 10px"}}>
-              <div style={{fontSize:11,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+              <div style={{fontSize:11,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
               <div style={{fontSize:9,color:"#F59E0B",marginTop:2}}>Needs approval</div>
             </div>
           </div>)}
@@ -1065,7 +1065,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
               <div style={{position:"absolute",top:6,right:6}}><Pill color={sm?.color||T.pos} size="xs">{sm?.label||"Approved"}</Pill></div>
             </div>
             <div style={{padding:"10px 12px"}}>
-              <div style={{fontSize:12,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+              <div style={{fontSize:12,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
               <div style={{fontSize:9,color:T.dim,marginTop:2}}>{a.dateAdded}</div>
               {a.fileData&&<a href={a.fileData} download={a.fileName||a.name} onClick={e=>e.stopPropagation()} style={{fontSize:9,color:T.cyan,marginTop:4,display:"block",textDecoration:"none"}}>Download</a>}
             </div>

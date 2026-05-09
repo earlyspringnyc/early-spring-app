@@ -136,7 +136,7 @@ function SharedClientView({token}){
           <div style={{display:"grid",gap:0,maxWidth:920}}>
             {timeline.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"auto 1fr auto",alignItems:"center",gap:16,padding:"14px 0",borderBottom:`1px solid ${RULE}`,fontSize:14}}>
               <span style={{fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:t.status==="done"?INK:t.status==="roadblocked"?T.alert:FADED,minWidth:96}}>{STATUS_LABELS[t.status]||t.status}</span>
-              <span style={{color:INK,fontWeight:500}}>{t.name} <em style={{marginLeft:8}}>{t.category}</em></span>
+              <span style={{color:INK,fontWeight:600}}>{t.name} <em style={{marginLeft:8}}>{t.category}</em></span>
               <span className="num" style={{fontSize:12,color:FADED,fontFamily:T.mono,whiteSpace:"nowrap"}}>{t.startDate&&t.endDate?`${t.startDate} — ${t.endDate}`:t.endDate||""}</span>
             </div>)}
           </div>

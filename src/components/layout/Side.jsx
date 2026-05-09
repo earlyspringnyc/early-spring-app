@@ -8,7 +8,7 @@ import { MorganIsotype } from '../brand/MorganLogo.jsx';
 function OrgAvatar({org,size=20}){
   const initial=(org?.name||"?")[0].toUpperCase();
   if(org?.logo_url)return<img src={org.logo_url} alt="" style={{width:size,height:size,borderRadius:size/2,objectFit:"cover"}}/>;
-  return<div style={{width:size,height:size,borderRadius:size/2,background:T.surfEl,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.5,fontWeight:600,color:T.cream,flexShrink:0}}>{initial}</div>;
+  return<div style={{width:size,height:size,borderRadius:size/2,background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.5,fontWeight:700,color:T.ink,flexShrink:0}}>{initial}</div>;
 }
 
 function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout,saving,lastSaved,profiles=[],organizations=[],currentOrgId,switchOrg}){
@@ -86,7 +86,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
       {/* Logo */}
       <div style={{padding:"20px 0",display:"flex",justifyContent:"center",alignItems:"center"}}>
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",padding:8}} title="Home">
-          <MorganIsotype size={28} color={T.gold}/>
+          <MorganIsotype size={28} color={T.ink}/>
         </button>
       </div>
 
@@ -98,7 +98,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
             display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
             borderRadius:T.rS,border:`1px solid ${orgDropdownOpen?T.borderGlow:T.border}`,
             cursor:"pointer",background:orgDropdownOpen?T.surfEl:"transparent",
-            color:T.cream,fontSize:12,fontWeight:500,fontFamily:T.sans,
+            color:T.cream,fontSize:12,fontWeight:600,fontFamily:T.sans,
             transition:"all .15s",width:"100%",textAlign:"left",
             overflow:"hidden",whiteSpace:"nowrap",
           }}
@@ -203,7 +203,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
             display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
             borderRadius:T.rS,border:"none",cursor:"pointer",
             background:"transparent",color:T.ink70,
-            fontSize:13,fontWeight:500,fontFamily:T.sans,transition:"color .18s ease",
+            fontSize:13,fontWeight:600,fontFamily:T.sans,transition:"color .18s ease",
             width:"100%",textAlign:"left",
           }}
           onMouseEnter={e=>e.currentTarget.style.color=T.ink}
@@ -220,7 +220,7 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
             display:"flex",alignItems:"center",gap:12,padding:"10px 12px",
             borderRadius:T.rS,border:"none",cursor:"pointer",
             background:"transparent",color:T.ink70,
-            fontSize:13,fontWeight:500,fontFamily:T.sans,transition:"color .18s ease",
+            fontSize:13,fontWeight:600,fontFamily:T.sans,transition:"color .18s ease",
             width:"100%",textAlign:"left",
           }}
           onMouseEnter={e=>e.currentTarget.style.color=T.alert}

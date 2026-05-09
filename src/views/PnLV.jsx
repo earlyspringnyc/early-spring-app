@@ -79,9 +79,10 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       // Try to match vendor name to existing vendors
       let matchedVendorId="";
       if(parsed.vendor){const vName=parsed.vendor.toLowerCase();const found=(project.vendors||[]).find(v=>(v.name||"").toLowerCase().includes(vName)||vName.includes((v.name||"").toLowerCase()));if(found)matchedVendorId=found.id}
-      // Auto-apply if we got good data
+      // Auto-apply if we got good data — functional form so parallel
+      // analyses don't clobber each other.
       if(parsed.amount>0||parsed.dueDate||matchedVendorId){
-        updateProject({docs:docs.map(d=>{
+        updateProject(prev=>({docs:(prev.docs||[]).map(d=>{
           if(d.id!==docId)return d;
           const updates={};
           if(parsed.type)updates.type=parsed.type;
@@ -94,7 +95,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
           const updated={...d,...updates};
           if(isOverdue(updated))updated.status="overdue";
           return updated;
-        })});
+        })}));
       }
       setAnalysisResult({docId,...parsed,matchedVendorId});
       setAnalysisVendorId(matchedVendorId);
@@ -105,7 +106,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   const confirmAnalysis=()=>{
     if(!analysisResult)return;
     const r=analysisResult;
-    updateProject({docs:docs.map(d=>{
+    updateProject(prev=>({docs:(prev.docs||[]).map(d=>{
       if(d.id!==r.docId)return d;
       const updates={};
       if(r.type)updates.type=r.type;
@@ -118,7 +119,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       const updated={...d,...updates};
       if(isOverdue(updated))updated.status="overdue";
       return updated;
-    })});
+    })}));
     setAnalysisResult(null);setAnalysisVendorId("");
   };
 
@@ -140,7 +141,9 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   };
   const unscannedCount=docs.filter(d=>d.fileData&&d.amount===0&&d.status!=="paid").length;
 
-  // File handling for drag-and-drop / upload
+  // File handling for drag-and-drop / upload. Uses the functional updater
+  // form of updateProject so concurrent file readers see fresh state, not
+  // a stale closure of `docs` (which would clobber earlier files).
   const handleFiles=useCallback((files)=>{
     Array.from(files).forEach(file=>{
       const reader=new FileReader();
@@ -149,23 +152,20 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
         const name=file.name.replace(/\.[^/.]+$/,"");
         const doc=mkDoc(name,type,"",0,"","pending","","","",ev.target.result);
         if(isOverdue(doc))doc.status="overdue";
-        updateProject({docs:[...docs,doc]});
-        // Upload to Google Drive in background
+        updateProject(prev=>({docs:[...(prev.docs||[]),doc]}));
         if(accessToken&&project.driveFolders){
           import('../utils/drive.js').then(async({uploadToDrive})=>{
             const result=await uploadToDrive(accessToken,ev.target.result,file.name,project.driveFolders,type,"finance");
             if(result){
-              // Save drive link, remove base64 to save space
-              updateProject({docs:(project.docs||[]).map(d=>d.id===doc.id?{...d,driveId:result.driveId,driveLink:result.webViewLink,fileData:null}:d)});
+              updateProject(prev=>({docs:(prev.docs||[]).map(d=>d.id===doc.id?{...d,driveId:result.driveId,driveLink:result.webViewLink,fileData:null}:d)}));
             }
           }).catch(e=>console.error('[drive]',e));
         }
-        // Analyze in background
         analyzeDoc(ev.target.result,file.name,doc.id);
       };
       reader.readAsDataURL(file);
     });
-  },[docs,updateProject]);
+  },[updateProject,accessToken,project.driveFolders]);
 
   const onDragEnter=useCallback((e)=>{e.preventDefault();e.stopPropagation();dragCounter.current++;setDragging(true)},[]);
   const onDragLeave=useCallback((e)=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDragging(false)},[]);
@@ -315,7 +315,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
               return<div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:isOD?"rgba(122,31,31,.06)":"transparent",border:`1px solid ${isOD?"rgba(122,31,31,.10)":T.border}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
                   <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10,background:isOD?`${T.neg}18`:d.status==="partial"?`${T.cyan}18`:`${T.gold}18`,color:isOD?T.neg:d.status==="partial"?T.cyan:T.gold,textTransform:"uppercase"}}>{isOD?"Overdue":d.status==="partial"?"Partial":"Due"}</span>
-                  <span style={{fontSize:12,color:T.cream,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+                  <span style={{fontSize:12,color:T.cream,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
                   {vendor&&<span style={{fontSize:10,color:T.dim}}>{vendor}</span>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:14,flexShrink:0}}>
@@ -394,14 +394,14 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       {analysisResult&&<Card style={{padding:"18px 20px",marginBottom:12,borderLeft:`3px solid ${T.pos}`,background:"rgba(74,222,128,.03)"}}>
         <div style={{fontSize:10,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Document Analyzed</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:14}}>
-          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Type</div><div style={{fontSize:12,color:T.cream,fontWeight:500,textTransform:"capitalize"}}>{analysisResult.type||"—"}</div></div>
+          <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Type</div><div style={{fontSize:12,color:T.cream,fontWeight:600,textTransform:"capitalize"}}>{analysisResult.type||"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Amount</div><div style={{fontSize:12,color:T.gold,fontWeight:600,fontFamily:T.mono}}>{analysisResult.amount?f$(analysisResult.amount):"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Due Date</div><div style={{fontSize:12,color:T.cream,fontFamily:T.mono}}>{analysisResult.dueDate||"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Terms</div><div style={{fontSize:12,color:T.cream}}>{analysisResult.terms||"—"}</div></div>
           <div><div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Number</div><div style={{fontSize:12,color:T.cream}}>{analysisResult.number||"—"}</div></div>
         </div>
         {analysisResult.vendor&&<div style={{marginBottom:8}}>
-          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Detected Vendor: <span style={{color:T.cream,fontWeight:500}}>{analysisResult.vendor}</span></div>
+          <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Detected Vendor: <span style={{color:T.cream,fontWeight:600}}>{analysisResult.vendor}</span></div>
         </div>}
         {analysisResult.notes&&<div style={{marginBottom:12,padding:"8px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
           <div style={{fontSize:9,color:T.dim,textTransform:"uppercase",marginBottom:3}}>Description / Notes</div>
@@ -444,7 +444,7 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
         {filteredDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",background:d.status==="overdue"?"rgba(122,31,31,.06)":T.surfEl,borderRadius:T.rS,border:`1px solid ${d.status==="overdue"?"rgba(122,31,31,.18)":T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=d.status==="overdue"?"rgba(122,31,31,.06)":T.surfEl}>
           <span style={{fontSize:10,fontWeight:700,color:DOC_TYPE_COLORS[d.type],textTransform:"uppercase",letterSpacing:".08em",width:60}}>{d.type==="w9"?"W-9":d.type==="w2"?"W-2":d.type}</span>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{d.name}</div><div style={{fontSize:11,color:T.dim,marginTop:2}}>{getVendorName(d.vendorId,project.vendors)||"No vendor"}{d.dueDate?` \u00b7 Due: ${d.dueDate}`:""}{d.linkedItemId?` \u00b7 Linked: ${(()=>{const cat=project.cats.find(c=>c.id===d.linkedCatId);const item=cat?.items.find(i=>i.id===d.linkedItemId);return item?`${cat.name} \u2192 ${item.name}`:""})()||""}`:""}</div></div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.cream}}>{d.name}</div><div style={{fontSize:11,color:T.dim,marginTop:2}}>{getVendorName(d.vendorId,project.vendors)||"No vendor"}{d.dueDate?` \u00b7 Due: ${d.dueDate}`:""}{d.linkedItemId?` \u00b7 Linked: ${(()=>{const cat=project.cats.find(c=>c.id===d.linkedCatId);const item=cat?.items.find(i=>i.id===d.linkedItemId);return item?`${cat.name} \u2192 ${item.name}`:""})()||""}`:""}</div></div>
           <button onClick={()=>setViewingDoc(d)} style={{padding:"4px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,flexShrink:0}}>{d.fileData?"View":"Details"}</button>
           {d.amount>0&&<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.cream,flexShrink:0}}>{f$(d.amount)}</span>}
           <span style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:10,textTransform:"uppercase",flexShrink:0,background:d.status==="paid"?"rgba(52,211,153,.1)":d.status==="overdue"?"rgba(122,31,31,.10)":"rgba(255,234,151,.06)",color:d.status==="paid"?T.pos:d.status==="overdue"?T.neg:T.gold}}>{d.status}</span>

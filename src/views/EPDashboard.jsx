@@ -26,7 +26,7 @@ function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
   const[open,setOpen]=useState(false);
   const currentOrg=organizations.find(o=>o.id===currentOrgId)||organizations[0];
   return<div style={{position:"relative"}}>
-    <button onClick={()=>setOpen(!open)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${open?T.borderGlow:T.border}`,background:open?T.surfEl:"transparent",color:T.cream,fontSize:11,fontWeight:500,fontFamily:T.sans,cursor:"pointer",transition:"all .15s"}}>
+    <button onClick={()=>setOpen(!open)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${open?T.borderGlow:T.border}`,background:open?T.surfEl:"transparent",color:T.cream,fontSize:11,fontWeight:600,fontFamily:T.sans,cursor:"pointer",transition:"all .15s"}}>
       <span style={{width:16,height:16,borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:T.cream}}>{(currentOrg?.name||"?")[0]}</span>
       {currentOrg?.name||"Org"}
       <span style={{fontSize:8,opacity:.5}}>&#9662;</span>
@@ -168,7 +168,7 @@ function StaffingGrid({crossStaffing,activeProjects}){
             <td style={{padding:"8px 14px",position:"sticky",left:0,background:T.surface,zIndex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <Avatar name={person.name} avatar={person.avatar} size={22}/>
-                <span style={{fontWeight:500,color:T.cream}}>{person.name}</span>
+                <span style={{fontWeight:600,color:T.cream}}>{person.name}</span>
               </div>
             </td>
             {activeProjects.map(p=>{
@@ -243,7 +243,7 @@ function DrillDown({data,allProjectData,crossStaffing,onClose,onOpenFull}){
               return<div key={s.userId||s.name||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:i<staff.length-1?`1px solid ${T.border}22`:"none"}}>
                 <Avatar name={s.name} avatar={s.avatar} size={28}/>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:500}}>{s.name}</div>
+                  <div style={{fontSize:13,fontWeight:600}}>{s.name}</div>
                   {s.role&&<span style={{fontSize:10,color:ROLE_COLORS[s.role]||T.dim}}>{ROLE_LABELS[s.role]||s.role}</span>}
                 </div>
                 {otherProjects.length>0&&<div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:T.rS,background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.15)"}}>
@@ -255,7 +255,7 @@ function DrillDown({data,allProjectData,crossStaffing,onClose,onOpenFull}){
         </div>
 
         {/* Open full project button */}
-        <button onClick={onOpenFull} style={{width:"100%",padding:"12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfEl}} onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>Open Full Project View</button>
+        <button onClick={onOpenFull} style={{width:"100%",padding:"12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cream,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.surfEl}} onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>Open Full Project View</button>
       </div>
     </div>
   </div>;

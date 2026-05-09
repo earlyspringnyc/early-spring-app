@@ -137,15 +137,16 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
           versions:[{id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()}],
         });
         if(newAssets.length===files.length){
-          updateProject({creativeAssets:[...assets,...newAssets]});
-          // Background upload to Google Drive
+          updateProject(prev=>({creativeAssets:[...(prev.creativeAssets||[]),...newAssets]}));
+          // Background upload to Google Drive — functional updater so
+          // parallel completions don't clobber each other.
           if(accessToken&&project.driveFolders){
             import('../utils/drive.js').then(({uploadToDrive})=>{
               newAssets.forEach(async(a)=>{
                 if(!a.fileData)return;
                 const result=await uploadToDrive(accessToken,a.fileData,a.fileName,project.driveFolders,null,"creative");
                 if(result){
-                  updateProject({creativeAssets:(project.creativeAssets||[]).concat(newAssets).map(x=>x.id===a.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)});
+                  updateProject(prev=>({creativeAssets:(prev.creativeAssets||[]).map(x=>x.id===a.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)}));
                 }
               });
             });
@@ -264,7 +265,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
           <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`}}>
             {a.isPdf&&totalPdfPages>0&&<div style={{fontSize:9,color:T.dim,marginBottom:4}}>Commenting on page {deckPage+1}</div>}
             <textarea value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder={a.isPdf?`Comment on page ${deckPage+1}...`:"Add a comment..."} rows={2} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"none",marginBottom:6}}/>
-            <button onClick={()=>addComment(a.id,deckPage)} disabled={!commentText.trim()} style={{width:"100%",padding:"7px 0",borderRadius:T.rS,background:commentText.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:commentText.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${commentText.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:commentText.trim()?"pointer":"default",fontFamily:T.sans}}>Comment</button>
+            <button onClick={()=>addComment(a.id,deckPage)} disabled={!commentText.trim()} style={{width:"100%",padding:"7px 0",borderRadius:T.rS,background:commentText.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:commentText.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${commentText.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:commentText.trim()?"pointer":"default",fontFamily:T.sans}}>Comment</button>
           </div>
         </div>
       </div>
@@ -301,7 +302,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
         <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
           <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://figma.com/..." onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
           <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>Name</div><input value={linkName} onChange={e=>setLinkName(e.target.value)} placeholder="Mood Board v2" onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
-          <button onClick={()=>addLink(activeSection)} disabled={!linkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:linkUrl.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:linkUrl.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${linkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:linkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+          <button onClick={()=>addLink(activeSection)} disabled={!linkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:linkUrl.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:linkUrl.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${linkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:linkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
         </div>
       </Card>}
 
@@ -318,7 +319,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
               :<span style={{fontSize:10,fontWeight:700,color:T.dim,fontFamily:T.mono}}>{(a.fileExt||"?").toUpperCase()}</span>}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+              <div style={{fontSize:13,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
               <div style={{fontSize:10,color:T.dim,marginTop:2}}>{a.fileSize||a.fileName} · {a.dateAdded}</div>
             </div>
             {commentCount>0&&<span style={{fontSize:10,color:T.cyan,fontFamily:T.mono}}>{commentCount} comment{commentCount>1?"s":""}</span>}
@@ -332,7 +333,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
       </Card>
       :<div onClick={()=>fileRef.current.click()} style={{textAlign:"center",padding:48,border:`2px dashed ${T.border}`,borderRadius:T.r,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=sec.color;e.currentTarget.style.background=`${sec.color}06`}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}>
         <div style={{fontSize:24,opacity:.2,marginBottom:8}}>{sec.icon}</div>
-        <div style={{fontSize:14,fontWeight:500,color:T.cream,marginBottom:6}}>No files yet</div>
+        <div style={{fontSize:14,fontWeight:600,color:T.cream,marginBottom:6}}>No files yet</div>
         <p style={{fontSize:12,color:T.dim}}>Drag and drop or click to upload</p>
       </div>}
     </div>;

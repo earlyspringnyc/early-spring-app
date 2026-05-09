@@ -314,7 +314,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <div style={{width:5,height:5,borderRadius:"50%",background:m._gcal?T.fadedInk:T.cyan,flexShrink:0}}/>
-                <div style={{fontSize:12,color:T.cream,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</div>
+                <div style={{fontSize:12,color:T.cream,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</div>
               </div>
               {m.location&&<div style={{fontSize:10,color:T.dim,marginTop:2,marginLeft:11}}>{m.location}</div>}
             </div>
@@ -336,7 +336,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       {recentTxns.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim}}>No transactions yet</div>
       :<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:4}}>
         {recentTxns.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:T.rS,background:T.surfHov||"rgba(255,255,255,.02)"}}>
-          <div style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.description}</div>
+          <div style={{fontSize:12,color:T.cream,fontWeight:600}}>{t.description}</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{t.date}</span>
             <span className="num" style={{fontSize:12,fontFamily:T.mono,fontWeight:600,color:t.type==="income"?T.pos:T.neg}}>{t.type==="income"?"+":"-"}{f0(t.amount)}</span>
@@ -380,7 +380,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
         {weatherLoading?<div style={{fontSize:12,color:"rgba(255,255,255,.5)",position:"relative"}}>Loading...</div>
         :weather?<div style={{position:"relative"}}>
           <div style={{fontSize:42,fontWeight:700,fontFamily:T.mono,color:"#fff",lineHeight:1,letterSpacing:"-0.04em",textShadow:"0 2px 12px rgba(0,0,0,.3)"}}>{displayTemp}°{tempUnit}</div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:6,fontWeight:500}}>{weatherLabel(weather.code)}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:6,fontWeight:600}}>{weatherLabel(weather.code)}</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,.45)",marginTop:4}}>{weather.city}</div>
         </div>:<div style={{fontSize:12,color:"rgba(255,255,255,.4)",position:"relative"}}>No weather data</div>}
       </div>;
@@ -521,22 +521,22 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
         {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div onClick={()=>onNavigate&&onNavigate("pnl")} style={{background:overdueDocs.length>0?"rgba(122,31,31,.06)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(122,31,31,.18)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{overdueDocs.length>0?"Invoice Alerts":"Unpaid Invoices"}</span><Pill color={overdueDocs.length>0?T.neg:T.gold}>{overdueDocs.length+unpaidInvoices.length}</Pill></div>
           {overdueDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(122,31,31,.06)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Overdue</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Overdue</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:700,color:T.neg}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
           </div>)}
           {unpaidInvoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.gold}>Pending</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.gold}>Pending</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>{d.dueDate&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span>}<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
           </div>)}
         </div>}
         {(allUpcoming.length>0||overdueTasks.length>0)&&<div onClick={()=>onNavigate&&onNavigate("timeline")} style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>Upcoming Deadlines</span><Pill color={T.gold}>{overdueTasks.length+allUpcoming.length}</Pill></div>
           {overdueTasks.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(122,31,31,.06)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Late</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{t.name}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Late</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{t.name}</span></div>
             <span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {t.endDate}</span>
           </div>)}
           {allUpcoming.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={d._isTask?T.cyan:T.gold}>{d._isTask?"Task":"Invoice"}</Pill><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{!d._isTask&&d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={d._isTask?T.cyan:T.gold}>{d._isTask?"Task":"Invoice"}</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{d.name}</span>{!d._isTask&&d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}</div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d._isTask?d.endDate:d.dueDate}</span>{!d._isTask&&<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount)}</span>}</div>
           </div>)}
         </div>}
@@ -551,7 +551,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
         {showAddMenu&&<div className="fc-panel" style={{position:"absolute",bottom:"100%",left:0,marginBottom:6,overflow:"hidden",zIndex:30,minWidth:240,maxHeight:340,overflowY:"auto",borderRadius:14,padding:4}}>
           {hiddenCards.length===0?<div style={{padding:"16px 20px",fontSize:12,color:T.dim}}>All widgets are visible</div>
           :hiddenCards.map(key=><button key={key} onClick={()=>addCard(key)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",fontFamily:T.sans,textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov||"rgba(255,255,255,.03)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{ALL_CARDS[key].label}</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>{ALL_CARDS[key].size===2?"Wide card":"Standard card"}</div></div>
+            <div><div style={{fontSize:12,fontWeight:600,color:T.cream}}>{ALL_CARDS[key].label}</div><div style={{fontSize:10,color:T.dim,marginTop:2}}>{ALL_CARDS[key].size===2?"Wide card":"Standard card"}</div></div>
             <PlusI size={12} color={T.cyan}/>
           </button>)}
         </div>}

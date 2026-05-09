@@ -69,6 +69,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   box-shadow:0 32px 80px rgba(0,0,0,.36);
 }
 
+/* Fallback for browsers without backdrop-filter — solid surfaces so
+   panel content doesn't bleed through. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  .fc-panel{background:#FFFFFF}
+  .theme-dark .fc-panel{background:#0F52BA}
+}
+
 /* Pill button (nav/inline) — paper canvas, ink border + text; hover inverts. */
 .btn-pill{
   display:inline-flex;align-items:center;gap:8px;

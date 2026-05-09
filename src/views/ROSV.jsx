@@ -153,7 +153,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       <textarea value={emailMsg} onChange={e=>setEmailMsg(e.target.value)} placeholder="Add a message (optional)..." rows={2} style={{...inputStyle,resize:"vertical",marginBottom:10}}/>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="recipient@email.com" onKeyDown={e=>e.key==="Enter"&&sendROS()} style={{flex:1,...inputStyle}}/>
-        <button onClick={sendROS} disabled={!emailTo.trim()||emailSending||!accessToken} style={{padding:"10px 20px",borderRadius:T.rS,background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",border:"none",fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>{emailSending?"Sending...":"Send"}</button>
+        <button onClick={sendROS} disabled={!emailTo.trim()||emailSending||!accessToken} style={{padding:"10px 20px",borderRadius:T.rS,background:emailTo.trim()&&!emailSending?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(15,82,186,.05)",color:emailTo.trim()&&!emailSending?T.brown:"rgba(255,255,255,.2)",border:"none",fontSize:12,fontWeight:700,cursor:emailTo.trim()&&!emailSending?"pointer":"default",fontFamily:T.sans,flexShrink:0}}>{emailSending?"Sending...":"Send"}</button>
       </div>
       {emailSent&&<div style={{marginTop:8,fontSize:11,color:T.pos}}>Run of Show sent successfully</div>}
       {!accessToken&&<div style={{marginTop:8,fontSize:11,color:T.neg}}>Sign in with Google to send emails</div>}
@@ -193,7 +193,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       {sorted.map((e,idx)=><div key={e.id} style={{display:"grid",gridTemplateColumns:".5fr .5fr 2fr 1fr 1fr 1.5fr .3fr",padding:"6px 18px",borderBottom:idx<sorted.length-1?`1px solid ${T.border}`:"none",alignItems:"center"}} onMouseEnter={ev=>ev.currentTarget.style.background=T.surfHov} onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
         <EditCell value={e.time} field="time" entryId={e.id} style={{fontSize:14,fontWeight:600,fontFamily:T.mono,color:T.gold}}/>
         <EditCell value={e.endTime||""} field="endTime" entryId={e.id} style={{fontSize:14,fontFamily:T.mono,color:T.dim}}/>
-        <EditCell value={e.item} field="item" entryId={e.id} style={{fontSize:13,color:T.cream,fontWeight:500}}/>
+        <EditCell value={e.item} field="item" entryId={e.id} style={{fontSize:13,color:T.cream,fontWeight:600}}/>
         <EditCell value={e.location} field="location" entryId={e.id} style={{fontSize:12,color:T.dim}}/>
         <EditCell value={e.lead} field="lead" entryId={e.id} style={{fontSize:12,color:T.cyan}}/>
         <EditCell value={e.notes} field="notes" entryId={e.id} style={{fontSize:11,color:T.dim}}/>

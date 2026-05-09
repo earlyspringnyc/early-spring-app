@@ -231,13 +231,13 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
             <Section title="Contacts">
               <div style={{padding:"12px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:6}}>
                 <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Primary</div>
-                <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.contactName||v.name}</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.cream}}>{v.contactName||v.name}</div>
                 {v.email&&<div style={{fontSize:11,color:T.cyan,marginTop:2}}>{v.email}</div>}
                 {v.phone&&<div style={{fontSize:11,color:T.dim,marginTop:2}}>{v.phone}</div>}
               </div>
               {(v.secondaryContactName||v.secondaryContactEmail)&&<div style={{padding:"12px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
                 <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Secondary</div>
-                <div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.secondaryContactName||"—"}</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.cream}}>{v.secondaryContactName||"—"}</div>
                 {v.secondaryContactEmail&&<div style={{fontSize:11,color:T.cyan,marginTop:2}}>{v.secondaryContactEmail}</div>}
               </div>}
             </Section>
@@ -260,7 +260,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
             {invoices.length>0&&<Section title={`Invoices (${invoices.length})`}>
               {invoices.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",marginBottom:3,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,gap:8}}>
                 <div style={{minWidth:0,flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]||T.dim} size="xs">{INVOICE_KIND_LABELS[d.invoiceKind]||d.invoiceKind}</Pill>}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]||T.dim} size="xs">{INVOICE_KIND_LABELS[d.invoiceKind]||d.invoiceKind}</Pill>}</div>
                   {d.dueDate&&<div style={{fontSize:10,color:T.dim,fontFamily:T.mono,marginTop:2}}>Due: {d.dueDate}</div>}
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
@@ -273,7 +273,7 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
             {/* Budget items */}
             {budgetItems.length>0&&<Section title={`Budget Items (${budgetItems.length})`}>
               {budgetItems.map(it=><div key={it.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",marginBottom:3,borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
-                <div><span style={{fontSize:12,color:T.cream,fontWeight:500}}>{it.name}</span><span style={{fontSize:10,color:T.dim,marginLeft:6}}>{it.catName}</span></div>
+                <div><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{it.name}</span><span style={{fontSize:10,color:T.dim,marginLeft:6}}>{it.catName}</span></div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(it.actualCost)}</span>
                   <Pill color={PAYMENT_COLORS[getPayStatus(it.id,project.docs)]} size="xs">{PAYMENT_LABELS[getPayStatus(it.id,project.docs)]}</Pill>
@@ -336,12 +336,12 @@ function VendorDetailModal({vendorId,project,onClose,canEdit,updateProject}){
             {allDocs.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:6}}>
               {vendorDocs.map(d=><div key={d.id} onClick={()=>setViewingDoc(d)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background=T.surfEl}>
                 <Pill color={VENDOR_DOC_COLORS[d.type]||VENDOR_DOC_COLORS.other} size="xs">{VENDOR_DOC_LABELS[d.type]||d.type}</Pill>
-                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div><div style={{fontSize:9,color:T.dim,marginTop:1}}>{d.dateAdded}</div></div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div><div style={{fontSize:9,color:T.dim,marginTop:1}}>{d.dateAdded}</div></div>
                 {canEdit&&<button onClick={e=>{e.stopPropagation();removeVendorDoc(d.id)}} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.10)",borderRadius:T.rS,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={10} color={T.neg}/></button>}
               </div>)}
               {projectDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
                 <Pill color={DOC_TYPE_COLORS[d.type]||T.dim} size="xs">{d.type==="w9"?"W-9":d.type}</Pill>
-                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>{d.amount>0&&<div style={{fontSize:10,color:T.dim,fontFamily:T.mono,marginTop:1}}>{f$(d.amount)}</div>}</div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>{d.amount>0&&<div style={{fontSize:10,color:T.dim,fontFamily:T.mono,marginTop:1}}>{f$(d.amount)}</div>}</div>
                 <Pill color={d.status==="paid"?T.pos:d.status==="overdue"?T.neg:T.gold} size="xs">{d.status}</Pill>
               </div>)}
             </div>

@@ -186,7 +186,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18}}>&#128193;</span>
           <div>
-            <div style={{fontSize:12,color:T.cream,fontWeight:500}}>{project.driveLocation?.driveName||"My Drive"}</div>
+            <div style={{fontSize:12,color:T.cream,fontWeight:600}}>{project.driveLocation?.driveName||"My Drive"}</div>
             <div style={{fontSize:10,color:T.pos,marginTop:2}}>Folder structure active</div>
           </div>
         </div>
@@ -198,7 +198,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
           <button onClick={()=>setDriveLocation(null,"My Drive")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:!project.driveLocation?.driveId?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${!project.driveLocation?.driveId?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:16}}>&#128193;</span>
-              <div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>My Drive</div><div style={{fontSize:10,color:T.dim}}>Personal Google Drive</div></div>
+              <div><div style={{fontSize:12,fontWeight:600,color:T.cream}}>My Drive</div><div style={{fontSize:10,color:T.dim}}>Personal Google Drive</div></div>
             </div>
             {!project.driveLocation?.driveId&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
           </button>
@@ -206,7 +206,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
           {sharedDrives.map(d=><button key={d.id} onClick={()=>setDriveLocation(d.id,d.name)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:project.driveLocation?.driveId===d.id?"rgba(74,222,128,.06)":T.surfEl,border:`1px solid ${project.driveLocation?.driveId===d.id?"rgba(74,222,128,.15)":T.border}`,cursor:"pointer",textAlign:"left"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:16}}>&#128101;</span>
-              <div><div style={{fontSize:12,fontWeight:500,color:T.cream}}>{d.name}</div><div style={{fontSize:10,color:T.dim}}>Shared Drive</div></div>
+              <div><div style={{fontSize:12,fontWeight:600,color:T.cream}}>{d.name}</div><div style={{fontSize:10,color:T.dim}}>Shared Drive</div></div>
             </div>
             {project.driveLocation?.driveId===d.id&&<span style={{fontSize:10,color:T.pos,fontWeight:600}}>Current</span>}
           </button>)}
@@ -235,7 +235,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={addTeamMember} disabled={!nuEmail.trim()||!nuName.trim()} style={{padding:"7px 16px",background:nuEmail.trim()&&nuName.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(255,255,255,.05)",color:nuEmail.trim()&&nuName.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()&&nuName.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
+          <button onClick={addTeamMember} disabled={!nuEmail.trim()||!nuName.trim()} style={{padding:"7px 16px",background:nuEmail.trim()&&nuName.trim()?`linear-gradient(135deg,${T.gold},#E8D080)`:"rgba(15,82,186,.05)",color:nuEmail.trim()&&nuName.trim()?T.brown:"rgba(255,255,255,.2)",border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:nuEmail.trim()&&nuName.trim()?"pointer":"default",fontFamily:T.sans}}>{usesSupa?"Send Invitation":"Add Team Member"}</button>
           {inviteError&&<span style={{fontSize:11,color:T.neg}}>{inviteError}</span>}
         </div>
       </div>}
@@ -243,7 +243,7 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
         {team.map(u=><div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`}}>
           <div style={{width:30,height:30,borderRadius:"50%",background:`linear-gradient(135deg,${ROLE_COLORS[u.role]}22,${ROLE_COLORS[u.role]}08)`,border:`1.5px solid ${ROLE_COLORS[u.role]}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:ROLE_COLORS[u.role],flexShrink:0}}>{u.name[0]}</div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:500,color:T.cream}}>{u.name}{u.id===user?.id&&<span style={{fontSize:10,color:T.dim,marginLeft:6}}>(you)</span>}</div>
+            <div style={{fontSize:12,fontWeight:600,color:T.cream}}>{u.name}{u.id===user?.id&&<span style={{fontSize:10,color:T.dim,marginLeft:6}}>(you)</span>}</div>
             <div style={{fontSize:10,color:T.dim}}>{u.email}</div>
           </div>
           <select value={u.role} onChange={e=>updateTeamRole(u.id,e.target.value)} disabled={u.id===user?.id} style={{padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:ROLE_COLORS[u.role],fontSize:10,fontFamily:T.sans,outline:"none",cursor:u.id===user?.id?"default":"pointer",appearance:"none",WebkitAppearance:"none"}}>{ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select>

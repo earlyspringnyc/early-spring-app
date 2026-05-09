@@ -153,7 +153,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       {filtered.length===0&&<div style={{padding:40,textAlign:"center",color:T.dim,fontSize:13}}>No vendors{typeFilter!=="all"?" match this filter":""}.</div>}
       {filtered.map(v=>{const s=getVendorStats(v);const vDocs=getVendorDocs(v);return<div key={v.id}>
         <div style={{display:"grid",gridTemplateColumns:cols,padding:"14px 18px",borderBottom:uploadVendorId===v.id?"none":`1px solid ${T.border}`,alignItems:"center",cursor:"pointer",background:uploadVendorId===v.id?T.surfHov:"transparent",transition:"background .1s"}} onClick={()=>onVendorClick&&onVendorClick(v.id)} onMouseEnter={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(uploadVendorId!==v.id)e.currentTarget.style.background="transparent"}}>
-          <div><div style={{fontSize:13,fontWeight:500,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{v.notes}</div>}</div>
+          <div><div style={{fontSize:13,fontWeight:600,color:T.cream}}>{v.name}</div>{v.notes&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{v.notes}</div>}</div>
           <div><span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:8,background:`${VENDOR_TYPE_COLORS[v.vendorType||"other"]}18`,color:VENDOR_TYPE_COLORS[v.vendorType||"other"],whiteSpace:"nowrap"}}>{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</span></div>
           <div style={{fontSize:12,color:T.cream}}>{v.contactName||"\u2014"}</div>
           <div style={{fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>{v.email||"\u2014"}{!v.email&&<span title="Email required" style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"rgba(245,158,11,.12)",borderRadius:20,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>!</span>}</div>
@@ -195,7 +195,7 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
               </div></div>
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={submitInvoice} disabled={!invName.trim()} style={{padding:"8px 18px",background:invName.trim()?T.goldSoft:"rgba(255,255,255,.05)",color:invName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${invName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:invName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Document</button>
+            <button onClick={submitInvoice} disabled={!invName.trim()} style={{padding:"8px 18px",background:invName.trim()?T.goldSoft:"rgba(15,82,186,.05)",color:invName.trim()?T.gold:"rgba(255,255,255,.2)",border:`1px solid ${invName.trim()?T.borderGlow:"transparent"}`,borderRadius:T.rS,fontSize:11,fontWeight:700,cursor:invName.trim()?"pointer":"default",fontFamily:T.sans}}>Add Document</button>
             <button onClick={()=>setUploadVendorId(null)} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
           </div>
         </div>}

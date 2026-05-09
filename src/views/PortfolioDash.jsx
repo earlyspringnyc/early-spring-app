@@ -15,7 +15,7 @@ function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
   const[open,setOpen]=useState(false);
   const currentOrg=organizations.find(o=>o.id===currentOrgId)||organizations[0];
   return<div style={{position:"relative"}}>
-    <button onClick={()=>setOpen(!open)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${open?T.borderGlow:T.border}`,background:open?T.surfEl:"transparent",color:T.cream,fontSize:11,fontWeight:500,fontFamily:T.sans,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
+    <button onClick={()=>setOpen(!open)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:T.rS,border:`1px solid ${open?T.borderGlow:T.border}`,background:open?T.surfEl:"transparent",color:T.cream,fontSize:11,fontWeight:600,fontFamily:T.sans,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
       <span style={{width:16,height:16,borderRadius:8,background:T.surfEl,border:`1px solid ${T.border}`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:T.cream}}>{(currentOrg?.name||"?")[0]}</span>
       {currentOrg?.name||"Org"}
       <span style={{fontSize:8,opacity:.5}}>&#9662;</span>
@@ -37,7 +37,7 @@ function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
 const getGreeting=()=>{const h=new Date().getHours();if(h<4)return"Burning the midnight oil";if(h<9)return"You're up early";if(h<12)return"Good morning";if(h<17)return"Good afternoon";if(h<20)return"Good evening";return"Working hard"};
 
 // Bento helpers
-const L=({children})=><div style={{fontSize:10,fontWeight:500,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".06em",color:T.dim,marginBottom:10}}>{children}</div>;
+const L=({children})=><div style={{fontSize:10,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".06em",color:T.dim,marginBottom:10}}>{children}</div>;
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,fontFamily:T.mono,letterSpacing:"-0.04em",color,lineHeight:1}}>{children}</div>;
 const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
 
@@ -178,7 +178,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         {allOverdue.length>0&&<Card style={{padding:18,gridColumn:"span 4",background:T.alertSoft,borderColor:T.alert,borderLeft:`2px solid ${T.alert}`}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.alert,textTransform:"uppercase",letterSpacing:".10em"}}>Overdue Invoices</span><Pill color={T.alert} size="xs">{allOverdue.length}</Pill></div>
           {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(122,31,31,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.fadedInk} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.fadedInk,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.alert}}>{f$(d.amount)}</span>
+            <span style={{color:T.cream,flex:1,fontWeight:600}}>{d.name}</span><Pill color={T.fadedInk} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.fadedInk,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.alert}}>{f$(d.amount)}</span>
           </div>)}
         </Card>}
 
@@ -264,7 +264,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           {upcomingTasks.length>0&&<div>
             <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Upcoming</div>
             {upcomingTasks.map(t=><div key={t.id||t.name} onClick={()=>onOpen(t.projectId)} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:11}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{color:T.cream,flex:1,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name||t.title||"Task"}</span>
+              <span style={{color:T.cream,flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name||t.title||"Task"}</span>
               <Pill color={T.dim} size="xs">{t.projectName}</Pill>
               <span style={{fontSize:9,color:T.gold,fontFamily:T.mono,flexShrink:0}}>{t.endDate}</span>
             </div>)}
@@ -332,7 +332,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           {masterVendors.length>0&&<div style={{borderTop:`1px solid ${T.border}`,paddingTop:10}}>
             <div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Recent Vendors</div>
             {masterVendors.slice(0,5).map(v=><div key={v.id+v._projectId} onClick={()=>{setVendorDetailId(v.id);setVendorProjectId(v._projectId)}} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:11}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{color:T.cream,flex:1,fontWeight:500}}>{v.name}</span>
+              <span style={{color:T.cream,flex:1,fontWeight:600}}>{v.name}</span>
               <Pill color={VENDOR_TYPE_COLORS[v.vendorType||"other"]||T.dim} size="xs">{VENDOR_TYPE_LABELS[v.vendorType||"other"]}</Pill>
               <span style={{fontSize:9,color:T.dim}}>{v.projectCount} proj{v.projectCount!==1?"s":""}</span>
             </div>)}
@@ -343,7 +343,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {stageData.map(d=>{const pct=totalRevenue>0?(d.value/totalRevenue)*100:0;return<div key={d.name}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
-                <span style={{fontSize:12,fontWeight:500,color:d.color}}>{d.name} <span style={{fontSize:10,color:T.dim,fontWeight:400}}>({d.count})</span></span>
+                <span style={{fontSize:12,fontWeight:600,color:d.color}}>{d.name} <span style={{fontSize:10,color:T.dim,fontWeight:400}}>({d.count})</span></span>
                 <span className="num" style={{fontSize:12,fontFamily:T.mono,fontWeight:600,color:d.color}}>{f0(d.value)}</span>
               </div>
               <div style={{height:6,borderRadius:3,background:T.surface,overflow:"hidden"}}>
@@ -367,7 +367,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,onDuplicate,onDelete
         {allUpcoming.length>0&&<Card style={{padding:18,gridColumn:"span 4"}}>
           <div style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Upcoming Due Dates</div>
           {allUpcoming.slice(0,6).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <span style={{color:T.cream,flex:1,fontWeight:500}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
+            <span style={{color:T.cream,flex:1,fontWeight:600}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>
           </div>)}
         </Card>}
       </div>

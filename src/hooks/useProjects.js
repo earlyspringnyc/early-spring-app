@@ -265,41 +265,60 @@ export function useProjects(orgId) {
     }
   }, [usesDb]);
 
-  const saveToSupabase = useCallback((projectId, projectData) => {
-    if (!usesDb) return;
-    pendingSaves.current.set(projectId, projectData);
+  // Per-project failure counter for backoff. Persists across the session.
+  const saveFailCount = useRef(new Map());
+
+  const scheduleRetry = useCallback((projectId, delayMs) => {
     const timerKey = `_saveTimer_${projectId}`;
     if (saveTimer.current?.[timerKey]) clearTimeout(saveTimer.current[timerKey]);
     if (!saveTimer.current) saveTimer.current = {};
     saveTimer.current[timerKey] = setTimeout(async () => {
       const data = pendingSaves.current.get(projectId);
       if (!data) return;
-      pendingSaves.current.delete(projectId);
       console.log('[projects] Saving project to Supabase:', projectId);
-      try { await db.updateProject(projectId, await stripFileData(data, projectId)); }
-      catch (e) {
-        console.error('[projects] Save failed:', e);
-        pendingSaves.current.set(projectId, data); // re-queue for next attempt
+      try {
+        await db.updateProject(projectId, await stripFileData(data, projectId));
+        pendingSaves.current.delete(projectId);
+        saveFailCount.current.delete(projectId);
+      } catch (e) {
+        const failures = (saveFailCount.current.get(projectId) || 0) + 1;
+        saveFailCount.current.set(projectId, failures);
+        // Bounded exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s cap.
+        const next = Math.min(30000, 1000 * Math.pow(2, failures - 1));
+        console.error(`[projects] Save failed (attempt ${failures}); retrying in ${next}ms`, e);
+        scheduleRetry(projectId, next);
       }
-    }, 500);
-  }, [usesDb, orgId]);
+    }, delayMs);
+  }, []);
 
-  // Flush pending saves before the page unloads.
+  const saveToSupabase = useCallback((projectId, projectData) => {
+    if (!usesDb) return;
+    pendingSaves.current.set(projectId, projectData);
+    scheduleRetry(projectId, 500);
+  }, [usesDb, scheduleRetry]);
+
+  // Flush pending saves before the page unloads. CRITICAL: must strip
+  // large fileData synchronously or Postgres rejects the row (54000) and
+  // the user's last edit is lost.
   useEffect(() => {
     const onHide = () => {
-      // Best-effort synchronous flush. Each pending save fires a fetch
-      // with `keepalive` semantics via supabase-js (which uses fetch).
       const entries = Array.from(pendingSaves.current.entries());
       for (const [projectId, data] of entries) {
-        try { db.updateProject(projectId, data); } catch (e) {}
+        try {
+          // Synchronous strip — no awaits, this is during unload.
+          const safe = stripLargeFiles(data);
+          db.updateProject(projectId, safe);
+        } catch (e) {}
       }
     };
     window.addEventListener('pagehide', onHide);
     window.addEventListener('beforeunload', onHide);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') onHide(); });
+    const visHandler = () => { if (document.visibilityState === 'hidden') onHide(); };
+    document.addEventListener('visibilitychange', visHandler);
     return () => {
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('beforeunload', onHide);
+      document.removeEventListener('visibilitychange', visHandler);
     };
   }, []);
 
@@ -335,9 +354,13 @@ export function useProjects(orgId) {
     return local.id;
   }, [orgId, usesDb]);
 
-  const updateProject = useCallback((projectId, updates) => {
+  // Accepts either an object of updates OR a function (prev) => updates.
+  // The function form is critical for code that runs after `await` — it
+  // gets the latest project from React state instead of stale closure.
+  const updateProject = useCallback((projectId, updatesOrFn) => {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
+      const updates = typeof updatesOrFn === 'function' ? updatesOrFn(p) : updatesOrFn;
       const updated = { ...p, ...updates };
       cleanupFileCache(p, updated);
       saveToSupabase(projectId, updated);
@@ -372,9 +395,10 @@ export function useProjects(orgId) {
   };
 }
 
-// Strip large fileData blobs before any DB write to avoid 1MB row limits.
+// Strip large fileData blobs and any UI-only flags before any DB write.
 function stripLargeFiles(p) {
   const out = { ...p };
+  delete out._unsynced; // UI flag, never persist
   ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
     if (out[k]) out[k] = out[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
   });

@@ -45,10 +45,28 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
+// Race a promise against a timeout. Used so a hung Supabase session call
+// doesn't lock the UI indefinitely.
+function withTimeout(promise, ms, label = 'operation') {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
 export async function getSession() {
   if (!isSupabaseConfigured()) return null;
-  const { data: { session } } = await supabase.auth.getSession();
-  return session;
+  try {
+    const { data: { session } } = await withTimeout(
+      supabase.auth.getSession(),
+      8000,
+      'getSession'
+    );
+    return session;
+  } catch (e) {
+    console.warn('[db] getSession failed:', e.message || e);
+    return null;
+  }
 }
 
 export function onAuthStateChange(callback) {
@@ -225,10 +243,24 @@ export async function getTeamMembers(orgId) {
 
 export async function updateTeamMember(profileId, updates) {
   if (!isSupabaseConfigured()) return;
-  await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', profileId);
+  // Role/permissions changes require the change_member_role RPC (admin-only).
+  // Other field updates (name, avatar_url) go via direct UPDATE.
+  const { role, permissions, ...rest } = updates || {};
+  if (role !== undefined || permissions !== undefined) {
+    const { error } = await supabase.rpc('change_member_role', {
+      target_profile_id: profileId,
+      new_role: role ?? null,
+      new_permissions: permissions ?? null,
+    });
+    if (error) {
+      console.error('[db] change_member_role failed:', error);
+      throw error;
+    }
+  }
+  if (Object.keys(rest).length) {
+    const { error } = await supabase.from('profiles').update(rest).eq('id', profileId);
+    if (error) { console.error('[db] updateTeamMember failed:', error); throw error; }
+  }
 }
 
 export async function removeTeamMember(profileId) {
@@ -490,10 +522,12 @@ export async function uploadFile(orgId, projectId, file) {
     .from('files')
     .upload(path, file);
   if (error) throw error;
-  const { data: urlData } = supabase.storage
+  // Signed URL — short-lived, scoped to the requester. Bucket is private
+  // post-migration, so getPublicUrl no longer works for cross-user reads.
+  const { data: urlData } = await supabase.storage
     .from('files')
-    .getPublicUrl(path);
-  return urlData?.publicUrl || null;
+    .createSignedUrl(path, 60 * 60); // 1 hour
+  return urlData?.signedUrl || null;
 }
 
 // Upload base64 data URL to Supabase Storage (private bucket)

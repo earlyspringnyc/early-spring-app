@@ -6,12 +6,18 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
   const[open,setOpen]=useState(false);
   const clientName=project.client||"Client";
 
-  // Close on escape
+  // Close on escape + lock body scroll while drawer is open (iOS Safari
+  // otherwise lets the page scroll behind the backdrop).
   useEffect(()=>{
     if(!open)return;
     const onKey=e=>{if(e.key==="Escape")setOpen(false)};
     window.addEventListener("keydown",onKey);
-    return()=>window.removeEventListener("keydown",onKey);
+    const prevOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return()=>{
+      window.removeEventListener("keydown",onKey);
+      document.body.style.overflow=prevOverflow;
+    };
   },[open]);
 
   // Close when view changes
@@ -86,7 +92,7 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
       </nav>
       <div style={{borderTop:`1px solid ${T.border}`,padding:"8px 8px 20px",display:"flex",flexDirection:"column",gap:1}}>
         {bottomItems.map(n=><NavBtn key={n.id} {...n}/>)}
-        {toggleTheme&&<button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.ink70,fontSize:15,fontWeight:500,fontFamily:T.sans,textAlign:"left"}}>
+        {toggleTheme&&<button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",minHeight:48,width:"100%",borderRadius:T.rS,border:"none",cursor:"pointer",background:"transparent",color:T.ink70,fontSize:15,fontWeight:600,fontFamily:T.sans,textAlign:"left"}}>
           <span style={{fontSize:18,width:24,textAlign:"center",color:"inherit"}}>{themeMode==="dark"?"☼":"☾"}</span>
           <span>{themeMode==="dark"?"Light Mode":"Dark Mode"}</span>
         </button>}

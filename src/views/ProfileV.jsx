@@ -146,7 +146,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
           <div><label style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Role</label><select value={invRole} onChange={e => setInvRole(e.target.value)} style={{ width: "100%", padding: "8px 8px", borderRadius: T.rS, background: T.surfEl, border: `1px solid ${T.border}`, color: T.cream, fontSize: 12, fontFamily: T.sans, outline: "none", appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={addTeamMember} disabled={!invEmail.trim() || (!(usesSupa && orgId) && !invName.trim())} style={{ padding: "7px 16px", background: invEmail.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(255,255,255,.05)", color: invEmail.trim() ? T.brown : "rgba(255,255,255,.2)", border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() ? "pointer" : "default", fontFamily: T.sans }}>{usesSupa ? "Send Invitation" : "Invite Team Member"}</button>
+          <button onClick={addTeamMember} disabled={!invEmail.trim() || (!(usesSupa && orgId) && !invName.trim())} style={{ padding: "7px 16px", background: invEmail.trim() ? `linear-gradient(135deg,${T.gold},#E8D080)` : "rgba(15,82,186,.05)", color: invEmail.trim() ? T.brown : "rgba(255,255,255,.2)", border: "none", borderRadius: T.rS, fontSize: 11, fontWeight: 700, cursor: invEmail.trim() ? "pointer" : "default", fontFamily: T.sans }}>{usesSupa ? "Send Invitation" : "Invite Team Member"}</button>
           {inviteError && <span style={{ fontSize: 11, color: T.neg }}>{inviteError}</span>}
         </div>
       </div>}
@@ -158,7 +158,7 @@ function ProfileV({ user, updateProject, project, onUpdateUser, orgId }) {
             : <div style={{ width: 30, height: 30, borderRadius: "50%", background: `linear-gradient(135deg,${ROLE_COLORS[u.role]}22,${ROLE_COLORS[u.role]}08)`, border: `1.5px solid ${ROLE_COLORS[u.role]}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: ROLE_COLORS[u.role], flexShrink: 0 }}>{(u.name || "?")[0]}</div>
           }
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: T.cream }}>{u.name}{u.id === user?.id && <span style={{ fontSize: 10, color: T.dim, marginLeft: 6 }}>(you)</span>}</div>
+            <div style={{ fontSize: 12, fontWeight:600, color: T.cream }}>{u.name}{u.id === user?.id && <span style={{ fontSize: 10, color: T.dim, marginLeft: 6 }}>(you)</span>}</div>
             <div style={{ fontSize: 10, color: T.dim }}>{u.email}</div>
           </div>
           {isAdmin && <select value={u.role} onChange={e => updateTeamRole(u.id, e.target.value)} disabled={u.id === user?.id} style={{ padding: "4px 6px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: ROLE_COLORS[u.role], fontSize: 10, fontFamily: T.sans, outline: "none", cursor: u.id === user?.id ? "default" : "pointer", appearance: "none", WebkitAppearance: "none" }}>{ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select>}
