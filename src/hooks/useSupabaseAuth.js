@@ -162,15 +162,23 @@ export function useSupabaseAuth() {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = onAuthStateChange((event, session) => {
       console.log('[auth] Auth state change:', event);
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         setAccessToken(session.provider_token || null);
-        const allProfiles = await initProfiles(session.user);
-        if (!allProfiles?.length) {
-          console.error('[auth] Could not create profiles after sign-in');
-        }
+        // CRITICAL: do NOT await here. supabase-js fires SIGNED_IN from
+        // inside _initialize → _acquireLock — awaiting work in this
+        // callback keeps the auth lock held, and every subsequent
+        // supabase.from(...) call (projects, vendors) hangs forever.
+        // Defer initProfiles so the lock releases first.
+        setTimeout(() => {
+          initProfiles(session.user).then(allProfiles => {
+            if (!allProfiles?.length) {
+              console.error('[auth] Could not create profiles after sign-in');
+            }
+          }).catch(e => console.error('[auth] initProfiles error:', e));
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfiles([]);
