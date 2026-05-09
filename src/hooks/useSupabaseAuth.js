@@ -13,28 +13,42 @@ import {
   getGoogleAccessToken,
 } from '../lib/db.js';
 
-// Keep retrying forever — a signed-in user without a profile is a broken
-// state where the app silently writes to localStorage only. Better to keep
-// trying than to give up and pretend.
-async function getOrCreateProfilesWithRetry(user, onRetry) {
-  let attempt = 0;
-  while (true) {
-    attempt++;
+// Per-attempt timeout — if supabase-js's auth client is in a hung state,
+// the SELECT inside getOrCreateProfiles can hang forever and the retry
+// loop never fires. Race it against a deadline.
+function withProfileTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`getOrCreateProfiles timed out after ${ms}ms`)), ms);
+    promise.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
+// Retry profile fetch up to MAX_PROFILE_RETRIES times, then trigger a
+// hard recovery (clear sb-* state and reload). A signed-in user without
+// a profile is a broken state — we'd rather kick them back to the login
+// screen than leave them trapped on the loading spinner.
+const MAX_PROFILE_RETRIES = 4;
+async function getOrCreateProfilesWithRetry(user, onRetry, onGiveUp) {
+  for (let attempt = 1; attempt <= MAX_PROFILE_RETRIES; attempt++) {
     try {
-      const profiles = await getOrCreateProfiles(user);
+      const profiles = await withProfileTimeout(getOrCreateProfiles(user), 10000);
       if (profiles?.length && profiles[0].org_id) {
         console.log('[auth] Profiles loaded on attempt', attempt, '- orgs:', profiles.map(p => p.org_id));
         return profiles;
       }
       console.warn('[auth] Profile attempt', attempt, 'returned:', profiles);
     } catch (e) {
-      console.error('[auth] Profile attempt', attempt, 'error:', e);
+      console.error('[auth] Profile attempt', attempt, 'error:', e?.message || e);
     }
     if (onRetry) onRetry(attempt);
-    // Exponential backoff up to 30s — never give up on a signed-in user.
-    const delay = Math.min(30000, 1000 * Math.pow(1.5, attempt - 1));
-    await new Promise(r => setTimeout(r, delay));
+    if (attempt < MAX_PROFILE_RETRIES) {
+      const delay = Math.min(8000, 1000 * Math.pow(1.5, attempt - 1));
+      await new Promise(r => setTimeout(r, delay));
+    }
   }
+  console.error('[auth] All profile attempts failed — forcing sign-out');
+  if (onGiveUp) onGiveUp();
+  return [];
 }
 
 export function useSupabaseAuth() {
@@ -44,6 +58,9 @@ export function useSupabaseAuth() {
   const [accessToken, setAccessTokenRaw] = useState(()=>{try{return localStorage.getItem("es_google_token")||null}catch(e){return null}});
   const setAccessToken=(t)=>{setAccessTokenRaw(t);try{if(t)localStorage.setItem("es_google_token",t);else localStorage.removeItem("es_google_token")}catch(e){}};
   const [loading, setLoading] = useState(true);
+  // Forward ref so getOrCreateProfilesWithRetry's onGiveUp can call
+  // forceSignOutAndReload (defined further down in this hook).
+  const forceSignOutAndReloadRef = useRef(null);
 
   // Derive current profile from profiles + currentOrgId
   const currentProfile = useMemo(() => {
@@ -56,9 +73,16 @@ export function useSupabaseAuth() {
     return profiles.map(p => p.organizations).filter(Boolean);
   }, [profiles]);
 
-  // Initialize profiles and pick the active org
+  // Initialize profiles and pick the active org. If all retries fail, the
+  // supabase-js client is most likely in a hung state — clear sb-* and
+  // reload, which puts the user back on the login screen with a clean
+  // session instead of trapping them on the loading spinner forever.
   const initProfiles = useCallback(async (authUser) => {
-    const allProfiles = await getOrCreateProfilesWithRetry(authUser);
+    const allProfiles = await getOrCreateProfilesWithRetry(
+      authUser,
+      null,
+      () => forceSignOutAndReloadRef.current?.('profile load failed after retries — likely stuck supabase-js client')
+    );
     setProfiles(allProfiles);
 
     if (allProfiles.length) {
@@ -86,6 +110,9 @@ export function useSupabaseAuth() {
     } catch (e) {}
     if (typeof window !== 'undefined') window.location.href = '/';
   }, []);
+  // Make the recovery available to getOrCreateProfilesWithRetry (declared
+  // above the hook). Stored in a ref because the function is defined later.
+  forceSignOutAndReloadRef.current = forceSignOutAndReload;
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
