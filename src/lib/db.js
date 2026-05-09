@@ -1,5 +1,50 @@
 import { supabase, isSupabaseConfigured } from './supabase.js';
 
+// Raw PostgREST fetch — bypasses supabase-js's internal queue, which can
+// hang indefinitely after sign-in in some browser/storage states despite
+// our passthrough lock. The auth flow ends up in a deadlock where every
+// supabase.from(...) call waits for an internal getSession() that never
+// resolves. Going direct via fetch + the JWT we already have skips the
+// queue entirely.
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPA_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+function readStoredJWT() {
+  try {
+    if (!SUPA_URL) return null;
+    const ref = SUPA_URL.match(/https?:\/\/([^.]+)\./)?.[1];
+    if (!ref) return null;
+    const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.access_token || parsed?.[0]?.access_token || null;
+  } catch (e) { return null; }
+}
+
+export async function restFetch(path, opts = {}) {
+  if (!SUPA_URL || !SUPA_ANON) throw new Error('Supabase env not configured');
+  const jwt = opts.jwt || readStoredJWT() || SUPA_ANON;
+  const headers = {
+    'apikey': SUPA_ANON,
+    'Authorization': `Bearer ${jwt}`,
+    'Content-Type': 'application/json',
+    'Prefer': opts.prefer || 'return=representation',
+    ...(opts.headers || {}),
+  };
+  const res = await fetch(`${SUPA_URL}/rest/v1${path}`, {
+    method: opts.method || 'GET',
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`PostgREST ${res.status}: ${text || res.statusText}`);
+  }
+  if (res.status === 204) return null;
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 // ============================================================
 // Auth
 // ============================================================
@@ -84,112 +129,111 @@ export async function getOrCreateProfile(user) {
   return profiles?.[0] || null;
 }
 
-// Returns ALL profiles for this user (one per org), creating any from pending invitations
+// Returns ALL profiles for this user (one per org), creating any from
+// pending invitations. Uses raw REST (restFetch) instead of supabase.from()
+// because the auth lock can deadlock the supabase-js client right after
+// SIGNED_IN, leaving the query queued forever with no HTTP request ever
+// hitting the wire.
 export async function getOrCreateProfiles(user) {
   if (!isSupabaseConfigured()) return [];
 
-  // 1. Fetch all existing profiles for this user
-  const { data: existingProfiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('*, organizations(*)')
-    .eq('user_id', user.id)
-    .order('created_at');
+  const enc = encodeURIComponent;
 
-  if (profileError) {
-    console.error('[db] Profile lookup failed:', profileError);
+  // 1. Fetch existing profiles
+  let profiles = [];
+  try {
+    profiles = await restFetch(
+      `/profiles?select=*,organizations(*)&user_id=eq.${enc(user.id)}&order=created_at.asc`
+    ) || [];
+  } catch (e) {
+    console.error('[db] Profile lookup failed:', e.message || e);
   }
 
-  const profiles = existingProfiles || [];
   const existingOrgIds = new Set(profiles.map(p => p.org_id));
 
-  // 2. Check for ALL pending invitations for this email
-  const { data: invitations, error: invError } = await supabase
-    .from('invitations')
-    .select('*')
-    .eq('email', user.email)
-    .eq('accepted', false);
-
-  if (invError) {
-    console.error('[db] Invitation lookup failed:', invError);
+  // 2. Pending invitations for this email
+  let invitations = [];
+  try {
+    invitations = await restFetch(
+      `/invitations?select=*&email=eq.${enc(user.email)}&accepted=eq.false`
+    ) || [];
+  } catch (e) {
+    console.error('[db] Invitation lookup failed:', e.message || e);
   }
 
-  // 3. Accept each invitation that doesn't duplicate an existing membership
-  if (invitations?.length) {
-    for (const invitation of invitations) {
-      if (existingOrgIds.has(invitation.org_id)) {
-        // Already a member — just mark accepted
-        await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
-        console.log('[db] Invitation to org', invitation.org_id, 'skipped (already member)');
-        continue;
-      }
+  // 3. Accept each invitation
+  for (const invitation of invitations) {
+    if (existingOrgIds.has(invitation.org_id)) {
+      try {
+        await restFetch(`/invitations?id=eq.${enc(invitation.id)}`, {
+          method: 'PATCH', body: { accepted: true },
+        });
+      } catch (e) { console.error('[db] Mark invitation accepted failed:', e.message || e); }
+      continue;
+    }
 
-      console.log('[db] Accepting invitation for', user.email, 'to org:', invitation.org_id);
-      const { data: newProfile, error } = await supabase
-        .from('profiles')
-        .insert({
+    try {
+      const inserted = await restFetch(`/profiles?select=*,organizations(*)`, {
+        method: 'POST',
+        body: {
           user_id: user.id,
           org_id: invitation.org_id,
           name: user.user_metadata?.full_name || user.email.split('@')[0],
           email: user.email,
           avatar_url: user.user_metadata?.avatar_url || '',
           role: invitation.role || 'producer',
-        })
-        .select('*, organizations(*)')
-        .maybeSingle();
-
-      if (error) {
-        console.error('[db] Profile creation via invitation failed:', error);
-        continue;
-      }
-
+        },
+      });
+      const newProfile = Array.isArray(inserted) ? inserted[0] : inserted;
       if (newProfile) {
-        await supabase.from('invitations').update({ accepted: true }).eq('id', invitation.id);
+        await restFetch(`/invitations?id=eq.${enc(invitation.id)}`, {
+          method: 'PATCH', body: { accepted: true },
+        });
         profiles.push(newProfile);
         existingOrgIds.add(invitation.org_id);
-        console.log('[db] Created profile via invitation:', newProfile.id);
       }
+    } catch (e) {
+      console.error('[db] Profile creation via invitation failed:', e.message || e);
     }
   }
 
-  // 4. If user has no profiles at all, create a new org + admin profile
+  // 4. No profiles at all → create a fresh org + admin profile
   if (profiles.length === 0) {
     const orgName = user.user_metadata?.org_name
       || (user.user_metadata?.full_name ? `${user.user_metadata.full_name}'s Team`
       : `${user.email.split('@')[0]}'s Team`);
 
-    console.log('[db] Creating new org:', orgName);
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert({ name: orgName })
-      .select()
-      .maybeSingle();
-
-    if (orgError || !org) {
-      console.error('[db] Org creation failed:', orgError);
+    let org = null;
+    try {
+      const inserted = await restFetch(`/organizations?select=*`, {
+        method: 'POST', body: { name: orgName },
+      });
+      org = Array.isArray(inserted) ? inserted[0] : inserted;
+    } catch (e) {
+      console.error('[db] Org creation failed:', e.message || e);
       return [];
     }
+    if (!org) return [];
 
-    const { data: newProfile, error: profError } = await supabase
-      .from('profiles')
-      .insert({
-        user_id: user.id,
-        org_id: org.id,
-        name: user.user_metadata?.full_name || user.email.split('@')[0],
-        email: user.email,
-        avatar_url: user.user_metadata?.avatar_url || '',
-        role: 'admin',
-      })
-      .select('*, organizations(*)')
-      .maybeSingle();
-
-    if (profError) {
-      console.error('[db] Profile creation failed:', profError);
-      await supabase.from('organizations').delete().eq('id', org.id);
+    try {
+      const inserted = await restFetch(`/profiles?select=*,organizations(*)`, {
+        method: 'POST',
+        body: {
+          user_id: user.id,
+          org_id: org.id,
+          name: user.user_metadata?.full_name || user.email.split('@')[0],
+          email: user.email,
+          avatar_url: user.user_metadata?.avatar_url || '',
+          role: 'admin',
+        },
+      });
+      const newProfile = Array.isArray(inserted) ? inserted[0] : inserted;
+      if (newProfile) profiles.push(newProfile);
+    } catch (e) {
+      console.error('[db] Profile creation failed:', e.message || e);
+      try { await restFetch(`/organizations?id=eq.${enc(org.id)}`, { method: 'DELETE' }); } catch (e2) {}
       return [];
     }
-
-    if (newProfile) profiles.push(newProfile);
-    console.log('[db] Created profile:', newProfile?.id, 'org:', newProfile?.org_id);
   }
 
   return profiles;
