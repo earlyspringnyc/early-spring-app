@@ -186,16 +186,18 @@ create policy "vendor_delete" on vendors for delete using (
   org_id in (select org_id from profiles where user_id = auth.uid() and role in ('admin', 'producer'))
 );
 
--- Invitations
+-- Invitations. Use auth.jwt()->>'email' instead of selecting from
+-- auth.users, which is not readable by the authenticated role and
+-- raises "permission denied for table users".
 create policy "invitation_select" on invitations for select using (
-  email = (select email from auth.users where id = auth.uid())
+  email = (auth.jwt() ->> 'email')
   or org_id in (select org_id from profiles where user_id = auth.uid() and role = 'admin')
 );
 create policy "invitation_insert" on invitations for insert with check (
   org_id in (select org_id from profiles where user_id = auth.uid() and role = 'admin')
 );
 create policy "invitation_update" on invitations for update using (
-  email = (select email from auth.users where id = auth.uid())
+  email = (auth.jwt() ->> 'email')
   or org_id in (select org_id from profiles where user_id = auth.uid() and role = 'admin')
 );
 create policy "invitation_delete" on invitations for delete using (
