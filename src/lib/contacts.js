@@ -26,6 +26,46 @@ export async function rocketReachLookup(query) {
   return data; // { ok, status, profile, raw }
 }
 
+// List "My Contacts" from RocketReach (the contacts saved via the
+// browser extension or past lookups). Returns an array of profiles
+// already shaped like our CSV importer's output, ready to feed into
+// importContacts() for dedup + merge.
+export async function listRocketReachContacts({ page = 1, page_size = 100 } = {}) {
+  const session = await getSession();
+  const res = await fetch('/api/rocketreach', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify({ mode: 'list', page, page_size }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `RocketReach list error: ${res.status}`);
+  return data; // { ok, endpoint, page, page_size, count, has_more, profiles }
+}
+
+// Pull every page of "My Contacts" from RocketReach and merge into
+// the user's CRM via the same path the CSV importer uses. Stops when
+// the API says has_more=false or after a hard cap (in case the API
+// loops). Reports progress with onProgress(pageDone, contactsSeen).
+export async function syncRocketReachContacts(userId, { onProgress, maxPages = 30 } = {}) {
+  const all = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore && page <= maxPages) {
+    const res = await listRocketReachContacts({ page });
+    all.push(...(res.profiles || []));
+    onProgress?.(page, all.length);
+    hasMore = !!res.has_more;
+    page += 1;
+  }
+  // Reuse the bulk importer — handles dedup-vs-existing, in-batch
+  // duplicates, and unique-constraint stragglers via ignore-duplicates.
+  const result = await importContacts(userId, all);
+  return { fetched: all.length, ...result };
+}
+
 // Re-enrich an existing contact in place. Looks up by linkedin_url
 // (preferred — most stable) or falls back to email. Merges fresh
 // fields onto the contact and bumps the source list.

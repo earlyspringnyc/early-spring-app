@@ -33,6 +33,11 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'RocketReach API key not configured' });
 
   const body = req.body || {};
+
+  // Mode: 'list' returns the user's "My Contacts" (recent lookups);
+  // anything else is a single-profile lookup.
+  if (body.mode === 'list') return handleList(body, apiKey, res);
+
   const params = new URLSearchParams();
   let hasInput = false;
   if (body.linkedin_url) { params.set('linkedin_url', String(body.linkedin_url).trim()); hasInput = true; }
@@ -68,6 +73,53 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: e.message || String(e) });
   }
+}
+
+// "My Contacts" — RocketReach exposes this as past lookups under
+// /api/v2/lookups. Some accounts have it under /searches; we try the
+// most likely paths in order and return the first that responds.
+async function handleList(body, apiKey, res) {
+  const pageSize = Math.min(100, Math.max(1, Number(body.page_size) || 100));
+  const page     = Math.max(1, Number(body.page) || 1);
+  const candidates = [
+    `/lookups/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
+    `/lookups/?page=${page}&page_size=${pageSize}`,
+    `/searches/?page=${page}&page_size=${pageSize}`,
+  ];
+
+  let lastErr = null;
+  for (const path of candidates) {
+    const r = await rrFetch(path, apiKey);
+    if (r.ok && r.json) {
+      // RocketReach typically returns { profiles: [...] } or
+      // { results: [...] } depending on the endpoint version.
+      const rawList =
+        Array.isArray(r.json) ? r.json :
+        Array.isArray(r.json.profiles) ? r.json.profiles :
+        Array.isArray(r.json.results) ? r.json.results :
+        Array.isArray(r.json.data) ? r.json.data :
+        [];
+      const profiles = rawList.map(p => shapeProfile(p)).filter(Boolean);
+      return res.status(200).json({
+        ok: true,
+        endpoint: path,
+        page,
+        page_size: pageSize,
+        count: profiles.length,
+        has_more: !!(r.json.next || r.json.has_more || rawList.length === pageSize),
+        profiles,
+      });
+    }
+    lastErr = r.error || `status ${r.status}`;
+    // Only fall through on 404; other errors are real failures.
+    if (r.status !== 404) break;
+  }
+
+  return res.status(502).json({
+    error: 'Could not find a working RocketReach list endpoint',
+    detail: lastErr,
+    tried: candidates,
+  });
 }
 
 async function rrFetch(path, apiKey) {

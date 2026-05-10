@@ -4,7 +4,7 @@ import { ESWordmark } from '../components/brand/index.js';
 import { LogOutI, PlusI } from '../components/icons/index.js';
 import {
   listContacts, createContact, updateContact, deleteContact, importContacts,
-  rocketReachLookup, reenrichContact,
+  rocketReachLookup, reenrichContact, syncRocketReachContacts,
 } from '../lib/contacts.js';
 import { parseContactsCSV } from '../utils/csvImport.js';
 
@@ -410,6 +410,25 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   const [showImport, setShowImport] = useState(false);
   const [showLookup, setShowLookup] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
+
+  const onSyncRocketReach = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true); setSyncStatus('Fetching from RocketReach…');
+    try {
+      const result = await syncRocketReachContacts(userId, {
+        onProgress: (page, seen) => setSyncStatus(`Fetched page ${page} · ${seen} contacts`),
+      });
+      setSyncStatus(`Synced. ${result.created} new, ${result.merged} merged${result.skipped?.length ? `, ${result.skipped.length} skipped` : ''}.`);
+      await reload();
+    } catch (e) {
+      setSyncStatus('Sync failed: ' + (e.message || 'unknown'));
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncStatus(''), 6000);
+    }
+  }, [userId, syncing, reload]);
 
   const onRefreshContact = useCallback(async (contact) => {
     setRefreshingId(contact.id);
@@ -508,6 +527,9 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
               transition: 'all .15s', whiteSpace: 'nowrap',
             }}>{s.label} <span style={{ opacity: .7, fontSize: 10 }}>{c}</span></button>;
           })}
+          <button onClick={onSyncRocketReach} disabled={syncing} style={{ ...btnGhost, opacity: syncing ? .5 : 1, cursor: syncing ? 'wait' : 'pointer' }}>
+            {syncing ? 'Syncing…' : '↻ Sync RocketReach'}
+          </button>
           <button onClick={() => setShowImport(true)} style={btnGhost}>↑ Import CSV</button>
           <button onClick={() => setShowLookup(true)} style={btnSolid}>＋ Look up contact</button>
         </div>
@@ -542,8 +564,13 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
           )}
         </div>
 
+        {syncStatus && (
+          <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: T.inkSoft, border: `1px solid ${T.faintRule}`, color: T.ink, fontSize: 12, fontWeight: 500 }}>
+            {syncStatus}
+          </div>
+        )}
         <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 10, border: `1px dashed ${T.faintRule}`, color: T.fadedInk, fontSize: 12, lineHeight: 1.55 }}>
-          <b style={{ color: T.ink }}>Phase 1A.</b> Schema + import + browse. Coming next: contact detail with notes &amp; project linking, then Gmail thread sync, then Fireflies meeting routing.
+          <b style={{ color: T.ink }}>Phase 1A.</b> Schema + import + browse + RocketReach sync. Coming next: contact detail with notes &amp; project linking, then Gmail thread sync, then Fireflies meeting routing.
         </div>
       </div>
 
