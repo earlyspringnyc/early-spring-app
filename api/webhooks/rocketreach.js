@@ -38,47 +38,33 @@ export default async function handler(req, res) {
     console.error('[rr-webhook] DEBUG body:', rawBody);
   }
 
-  if (secret) {
-    const sigHeaders = {};
-    Object.entries(req.headers || {}).forEach(([k, v]) => {
-      if (/sign|hash|hmac|secret|token|auth|webhook|rocketreach/i.test(k)) {
-        sigHeaders[k] = v;
-      }
-    });
+  // RocketReach (at least on this plan) does NOT sign webhooks — their
+  // test request comes in with no x-...-signature header at all. So
+  // verification has to be soft: when a signature header IS present we
+  // verify against the secret; when it's absent we accept the request
+  // and rely on the URL itself being the shared secret (it isn't
+  // published anywhere).
+  const sig =
+    req.headers['x-rocketreach-signature'] ||
+    req.headers['x-webhook-signature'] ||
+    req.headers['x-hub-signature-256'] ||
+    req.headers['x-signature'] ||
+    req.headers['signature'] ||
+    '';
 
-    const sig =
-      req.headers['x-rocketreach-signature'] ||
-      req.headers['x-webhook-signature'] ||
-      req.headers['x-hub-signature-256'] ||
-      req.headers['x-signature'] ||
-      req.headers['signature'] ||
-      '';
+  if (secret && sig) {
     const expectedHex = createHmac('sha256', secret).update(rawBody).digest('hex');
     const expectedB64 = createHmac('sha256', secret).update(rawBody).digest('base64');
-    // Try bare-hex / sha256=hex / base64 / base64-after-sha256= forms
     const cleaned = String(sig).replace(/^sha256=/, '').trim();
     const ok =
       (cleaned && safeEqual(cleaned, expectedHex)) ||
       (cleaned && cleaned === expectedB64);
-
     if (!ok) {
-      console.error('[rr-webhook] signature mismatch.', {
-        all_header_keys: Object.keys(req.headers || {}),
-        signature_related_headers: sigHeaders,
+      console.error('[rr-webhook] signature present but mismatched', {
         provided_length: cleaned.length,
         expected_hex_length: expectedHex.length,
-        expected_b64_length: expectedB64.length,
       });
-      return res.status(401).json({
-        error: 'Invalid signature',
-        ...(debug ? {
-          debug: {
-            all_header_keys: Object.keys(req.headers || {}),
-            signature_related_headers: sigHeaders,
-            body_preview: rawBody.slice(0, 500),
-          },
-        } : {}),
-      });
+      return res.status(401).json({ error: 'Invalid signature' });
     }
   }
 
