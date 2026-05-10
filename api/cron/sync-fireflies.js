@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   }
 
   const startedAt = Date.now();
-  const result = { fetched: 0, created: 0, merged: 0, linkedToContacts: 0, errors: [] };
+  const result = { fetched: 0, created: 0, merged: 0, linkedToContacts: 0, linkedToProjects: 0, errors: [] };
 
   try {
     // Pull the most recent 50 transcripts. Cron runs every 5 min so
@@ -56,6 +56,15 @@ export default async function handler(req, res) {
           if (matchedContactIds.length) {
             const linked = await linkContacts({ supaUrl, serviceKey, userId, meetingId: action.id, contactIds: matchedContactIds });
             result.linkedToContacts += linked;
+
+            // Auto-link the meeting to any projects those contacts are
+            // attached to. A "project" attendee shows up here as someone
+            // already linked to the project via contact_projects.
+            const projectIds = await fetchProjectsForContacts({ supaUrl, serviceKey, userId, contactIds: matchedContactIds });
+            if (projectIds.length) {
+              const projLinked = await linkProjects({ supaUrl, serviceKey, userId, meetingId: action.id, projectIds });
+              result.linkedToProjects += projLinked;
+            }
           }
         }
       } catch (e) {
@@ -277,5 +286,34 @@ async function linkContacts({ supaUrl, serviceKey, userId, meetingId, contactIds
     method: 'POST', headers, body: JSON.stringify(rows),
   });
   if (!r.ok) throw new Error(`Contact link failed: ${r.status} ${await r.text()}`);
+  return rows.length;
+}
+
+async function fetchProjectsForContacts({ supaUrl, serviceKey, userId, contactIds }) {
+  if (!contactIds?.length) return [];
+  const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+  const ids = contactIds.map(id => `"${id}"`).join(',');
+  const url = `${supaUrl}/rest/v1/contact_projects?select=project_id&user_id=eq.${userId}&contact_id=in.(${encodeURIComponent(ids)})`;
+  const r = await fetch(url, { headers });
+  if (!r.ok) {
+    console.warn('[cron-ff] fetch projects for contacts failed:', r.status);
+    return [];
+  }
+  const rows = await r.json().catch(() => []);
+  return Array.from(new Set(rows.map(x => x.project_id).filter(Boolean)));
+}
+
+async function linkProjects({ supaUrl, serviceKey, userId, meetingId, projectIds }) {
+  const headers = {
+    apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json',
+    Prefer: 'return=minimal,resolution=ignore-duplicates',
+  };
+  const rows = projectIds.map(pid => ({
+    user_id: userId, meeting_id: meetingId, project_id: pid, match_type: 'auto-contact',
+  }));
+  const r = await fetch(`${supaUrl}/rest/v1/meeting_projects`, {
+    method: 'POST', headers, body: JSON.stringify(rows),
+  });
+  if (!r.ok) throw new Error(`Project link failed: ${r.status} ${await r.text()}`);
   return rows.length;
 }

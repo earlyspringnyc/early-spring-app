@@ -77,3 +77,53 @@ export async function listMeetingsForContact(contactId) {
     .filter(m => m && m.id)
     .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
 }
+
+// ---- meeting_projects junction ----
+export async function listProjectsForMeeting(meetingId) {
+  return await restFetch(
+    `/meeting_projects?select=match_type,created_at,projects(id,name,stage)&meeting_id=eq.${enc(meetingId)}`
+  ) || [];
+}
+
+export async function linkMeetingToProject(userId, meetingId, projectId) {
+  await restFetch('/meeting_projects', {
+    method: 'POST',
+    prefer: 'return=minimal,resolution=ignore-duplicates',
+    body: { user_id: userId, meeting_id: meetingId, project_id: projectId, match_type: 'manual' },
+  });
+}
+
+export async function unlinkMeetingFromProject(meetingId, projectId) {
+  await restFetch(
+    `/meeting_projects?meeting_id=eq.${enc(meetingId)}&project_id=eq.${enc(projectId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+// All meetings linked to a given project — used by the project view.
+export async function listMeetingsForProject(projectId) {
+  const rows = await restFetch(
+    `/meeting_projects?select=match_type,meetings(*)&project_id=eq.${enc(projectId)}`
+  );
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map(r => ({ ...r.meetings, _match_type: r.match_type }))
+    .filter(m => m && m.id)
+    .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
+}
+
+// ---- contacts manual link to a meeting (uses meeting_contacts) ----
+export async function linkContactToMeeting(userId, meetingId, contactId) {
+  await restFetch('/meeting_contacts', {
+    method: 'POST',
+    prefer: 'return=minimal,resolution=ignore-duplicates',
+    body: { user_id: userId, meeting_id: meetingId, contact_id: contactId, match_type: 'manual' },
+  });
+}
+
+export async function unlinkContactFromMeeting(meetingId, contactId) {
+  await restFetch(
+    `/meeting_contacts?meeting_id=eq.${enc(meetingId)}&contact_id=eq.${enc(contactId)}`,
+    { method: 'DELETE' }
+  );
+}

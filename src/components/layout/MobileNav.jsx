@@ -29,6 +29,7 @@ function MobileNav({view,setView,project,onBack,toggleTheme,themeMode,onLogout})
     {id:"timeline",label:"Production",icon:"\u25A4"},
     {id:"vendors",label:"Vendors",icon:"\u25C6"},
     {id:"creative",label:"Creative",icon:"\u25A8"},
+    {id:"meetings",label:"Meetings",icon:"\u25CB"},
     {id:"ai",label:"ES AI",icon:"\u25C9"},
   ];
   const clientNav={id:"export",label:`Client: ${clientName}`,icon:"\u25CE"};

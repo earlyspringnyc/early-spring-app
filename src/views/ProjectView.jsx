@@ -12,6 +12,7 @@ import DashV from './DashV.jsx';
 import TimelineV from './TimelineV.jsx';
 import ROSV from './ROSV.jsx';
 import CreativeV from './CreativeV.jsx';
+import ProjectMeetingsV from './ProjectMeetingsV.jsx';
 import ReportingV from './ReportingV.jsx';
 import PnLV from './PnLV.jsx';
 import DocsV from './DocsV.jsx';
@@ -138,6 +139,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={primaryComp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} accessToken={accessToken}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId}/>}
       {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
+      {view==="meetings"&&<ProjectMeetingsV project={project} user={user} accessToken={accessToken}/>}
       {view==="reporting"&&<ReportingV project={project} updateProject={updateProject} canEdit={canEdit} comp={primaryComp}/>}
       {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={primaryComp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken} budgets={project.budgets||[]} requestCalendarAccess={requestCalendarAccess}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={primaryComp} accessToken={accessToken}/>}

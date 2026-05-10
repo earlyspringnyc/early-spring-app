@@ -5,7 +5,10 @@ import { LogOutI } from '../components/icons/index.js';
 import {
   listMeetings, getMeeting, updateMeeting,
   setUserClassification, effectiveClassification,
+  listProjectsForMeeting, linkMeetingToProject, unlinkMeetingFromProject,
+  linkContactToMeeting, unlinkContactFromMeeting,
 } from '../lib/meetings.js';
+import { listContacts } from '../lib/contacts.js';
 
 const CLASS_OPTIONS = [
   { id: 'all',           label: 'All' },
@@ -14,6 +17,16 @@ const CLASS_OPTIONS = [
   { id: 'uncategorized', label: 'Uncategorized' },
 ];
 const CLASS_LABEL = Object.fromEntries(CLASS_OPTIONS.map(o => [o.id, o.label]));
+
+const selectStyle = {
+  flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 11, fontFamily: T.sans,
+  border: `1px solid ${T.faintRule}`, background: T.paper, color: T.ink, cursor: 'pointer', outline: 'none',
+};
+const miniLinkBtn = (enabled) => ({
+  padding: '7px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
+  background: T.ink, color: T.paper, border: 'none',
+  cursor: enabled ? 'pointer' : 'default', opacity: enabled ? 1 : .4,
+});
 
 function classBadge(cls) {
   const map = {
@@ -88,15 +101,62 @@ function MeetingRow({ m, onClick }) {
   );
 }
 
-function MeetingDetail({ meeting, onClose, onReclassify, onSaveNotes }) {
+function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose, onReclassify, onSaveNotes, onLinksChanged }) {
   const [tab, setTab] = useState('summary');
   const [notesDraft, setNotesDraft] = useState(meeting?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [linkedProjects, setLinkedProjects] = useState([]);
+  const [linkProjectId, setLinkProjectId] = useState('');
+  const [linkContactId, setLinkContactId] = useState('');
+
   useEffect(() => { setNotesDraft(meeting?.notes || ''); }, [meeting?.id]);
+  useEffect(() => {
+    if (!meeting?.id) return;
+    listProjectsForMeeting(meeting.id).then(setLinkedProjects).catch(() => {});
+  }, [meeting?.id]);
 
   if (!meeting) return null;
   const cls = effectiveClassification(meeting);
   const linkedContacts = (meeting.meeting_contacts || []).filter(mc => mc.contacts);
+
+  const linkableProjects = projects.filter(p => !linkedProjects.some(lp => lp.projects?.id === p.id));
+  const linkedContactIds = new Set(linkedContacts.map(lc => lc.contact_id));
+  const linkableContacts = contacts.filter(c => !linkedContactIds.has(c.id));
+
+  const onLinkProject = async () => {
+    if (!linkProjectId) return;
+    try {
+      await linkMeetingToProject(userId, meeting.id, linkProjectId);
+      const next = await listProjectsForMeeting(meeting.id);
+      setLinkedProjects(next);
+      setLinkProjectId('');
+      onLinksChanged?.();
+    } catch (e) { alert('Link failed: ' + (e.message || 'unknown')); }
+  };
+
+  const onUnlinkProject = async (projectId) => {
+    try {
+      await unlinkMeetingFromProject(meeting.id, projectId);
+      setLinkedProjects(prev => prev.filter(lp => lp.projects?.id !== projectId));
+      onLinksChanged?.();
+    } catch (e) { alert('Unlink failed: ' + (e.message || 'unknown')); }
+  };
+
+  const onLinkContact = async () => {
+    if (!linkContactId) return;
+    try {
+      await linkContactToMeeting(userId, meeting.id, linkContactId);
+      setLinkContactId('');
+      onLinksChanged?.(); // parent re-fetches meetings so meeting_contacts updates
+    } catch (e) { alert('Link failed: ' + (e.message || 'unknown')); }
+  };
+
+  const onUnlinkContact = async (contactId) => {
+    try {
+      await unlinkContactFromMeeting(meeting.id, contactId);
+      onLinksChanged?.();
+    } catch (e) { alert('Unlink failed: ' + (e.message || 'unknown')); }
+  };
 
   const saveNotes = async () => {
     setSavingNotes(true);
@@ -160,23 +220,78 @@ function MeetingDetail({ meeting, onClose, onReclassify, onSaveNotes }) {
         <div style={{ padding: '24px 28px 40px' }}>
           {tab === 'summary' && (
             <>
-              {linkedContacts.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 8 }}>Linked contacts</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {/* Linked contacts */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Linked contacts · {linkedContacts.length}
+                </div>
+                {linkedContacts.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                     {linkedContacts.map(mc => (
                       <span key={mc.contact_id} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
                         padding: '5px 10px', borderRadius: 999, fontSize: 11,
                         background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
                       }}>
                         {mc.contacts.first_name} {mc.contacts.last_name}
                         {mc.contacts.company ? ` · ${mc.contacts.company}` : ''}
-                        {mc.match_type === 'auto-email' ? ' ✓' : ''}
+                        {mc.match_type === 'auto-email' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
+                        <button onClick={() => onUnlinkContact(mc.contact_id)} title="Unlink" style={{
+                          background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+                          padding: 0, fontSize: 12, lineHeight: 1,
+                        }}>×</button>
                       </span>
                     ))}
                   </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 8, fontStyle: 'italic' }}>No contacts linked.</div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select value={linkContactId} onChange={e => setLinkContactId(e.target.value)} style={selectStyle}>
+                    <option value="">Link a contact…</option>
+                    {linkableContacts.slice(0, 500).map(c => (
+                      <option key={c.id} value={c.id}>
+                        {(c.first_name || '') + ' ' + (c.last_name || '')}{c.company ? ` — ${c.company}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={onLinkContact} disabled={!linkContactId} style={miniLinkBtn(linkContactId)}>Link</button>
                 </div>
-              )}
+              </div>
+
+              {/* Linked projects */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Linked projects · {linkedProjects.length}
+                </div>
+                {linkedProjects.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                    {linkedProjects.map(lp => (
+                      <span key={lp.projects?.id} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '5px 10px', borderRadius: 999, fontSize: 11,
+                        background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
+                      }}>
+                        {lp.projects?.name || '(deleted)'}
+                        {lp.match_type === 'auto-contact' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
+                        <button onClick={() => onUnlinkProject(lp.projects?.id)} title="Unlink" style={{
+                          background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+                          padding: 0, fontSize: 12, lineHeight: 1,
+                        }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 8, fontStyle: 'italic' }}>No projects linked.</div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select value={linkProjectId} onChange={e => setLinkProjectId(e.target.value)} style={selectStyle}>
+                    <option value="">Link a project…</option>
+                    {linkableProjects.map(p => <option key={p.id} value={p.id}>{p.name || '(unnamed)'}</option>)}
+                  </select>
+                  <button onClick={onLinkProject} disabled={!linkProjectId} style={miniLinkBtn(linkProjectId)}>Link</button>
+                </div>
+              </div>
 
               {meeting.summary ? (
                 <>
@@ -270,9 +385,10 @@ function MeetingDetail({ meeting, onClose, onReclassify, onSaveNotes }) {
   );
 }
 
-function MeetingsView({ user, onBack, onLogout, accessToken }) {
+function MeetingsView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const userId = user?.user_id || user?.id;
   const [meetings, setMeetings] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -281,8 +397,12 @@ function MeetingsView({ user, onBack, onLogout, accessToken }) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await listMeetings({ limit: 500 });
-      setMeetings(rows);
+      const [m, c] = await Promise.all([
+        listMeetings({ limit: 500 }),
+        listContacts({ limit: 2000 }),
+      ]);
+      setMeetings(m);
+      setContacts(c);
     } catch (e) {
       console.error('[meetings] load failed:', e.message || e);
     } finally { setLoading(false); }
@@ -414,9 +534,22 @@ function MeetingsView({ user, onBack, onLogout, accessToken }) {
       {selected && (
         <MeetingDetail
           meeting={selected}
+          projects={projects}
+          contacts={contacts}
+          userId={userId}
           onClose={() => setSelected(null)}
           onReclassify={onReclassify}
           onSaveNotes={onSaveNotes}
+          onLinksChanged={async () => {
+            // Re-fetch the affected meeting so meeting_contacts updates
+            try {
+              const fresh = await getMeeting(selected.id);
+              if (fresh) {
+                setSelected(fresh);
+                setMeetings(prev => prev.map(m => m.id === fresh.id ? fresh : m));
+              }
+            } catch (e) {}
+          }}
         />
       )}
     </div>
