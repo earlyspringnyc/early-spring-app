@@ -9,6 +9,7 @@ import {
   linkContactToMeeting, unlinkContactFromMeeting,
 } from '../lib/meetings.js';
 import { listContacts, createContact } from '../lib/contacts.js';
+import { addProjectNote, meetingAlreadySavedToProject } from '../lib/projectNotes.js';
 
 // Personal email domains — never use as a "same company" signal.
 const PERSONAL_DOMAINS = new Set([
@@ -205,21 +206,27 @@ function ContactLinkSection({
 
       {linkedContacts.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-          {linkedContacts.map(mc => (
-            <span key={mc.contact_id} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '5px 10px', borderRadius: 999, fontSize: 11,
-              background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
-            }}>
-              {mc.contacts.first_name} {mc.contacts.last_name}
-              {mc.contacts.company ? ` · ${mc.contacts.company}` : ''}
-              {mc.match_type === 'auto-email' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
-              <button onClick={() => onUnlinkContact(mc.contact_id)} title="Unlink" style={{
-                background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
-                padding: 0, fontSize: 12, lineHeight: 1,
-              }}>×</button>
-            </span>
-          ))}
+          {linkedContacts.map(mc => {
+            const t = mc.contacts.contact_type;
+            const typeMap = { brand: '◆', agency: '◇', vendor: '▣', agent: '◍', press: '✎', internal: '●' };
+            const typeLabel = { brand: 'Brand', agency: 'Agency', vendor: 'Vendor', agent: 'Agent', press: 'Press', internal: 'Internal' };
+            return (
+              <span key={mc.contact_id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '5px 10px', borderRadius: 999, fontSize: 11,
+                background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
+              }}>
+                {t && <span title={typeLabel[t]} style={{ fontSize: 11 }}>{typeMap[t]}</span>}
+                {mc.contacts.first_name} {mc.contacts.last_name}
+                {mc.contacts.company ? ` · ${mc.contacts.company}` : ''}
+                {mc.match_type === 'auto-email' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
+                <button onClick={() => onUnlinkContact(mc.contact_id)} title="Unlink" style={{
+                  background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+                  padding: 0, fontSize: 12, lineHeight: 1,
+                }}>×</button>
+              </span>
+            );
+          })}
         </div>
       ) : (
         <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 12, fontStyle: 'italic' }}>No contacts linked.</div>
@@ -338,12 +345,62 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
   const [linkProjectId, setLinkProjectId] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [creatingAttendeeEmail, setCreatingAttendeeEmail] = useState(null);
+  // Track which linked projects already have this meeting saved as
+  // a note + which ones are mid-save (for button state).
+  const [savedToProjects, setSavedToProjects] = useState(new Set());
+  const [savingProjectId, setSavingProjectId] = useState(null);
 
   useEffect(() => { setNotesDraft(meeting?.notes || ''); }, [meeting?.id]);
   useEffect(() => {
     if (!meeting?.id) return;
     listProjectsForMeeting(meeting.id).then(setLinkedProjects).catch(() => {});
   }, [meeting?.id]);
+
+  // For each linked project, check whether this meeting has already
+  // been saved as a project_note, so the button can show "✓ Saved".
+  useEffect(() => {
+    if (!meeting?.id || linkedProjects.length === 0) { setSavedToProjects(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      const saved = new Set();
+      for (const lp of linkedProjects) {
+        if (!lp.projects?.id) continue;
+        try {
+          if (await meetingAlreadySavedToProject(meeting.id, lp.projects.id)) {
+            saved.add(lp.projects.id);
+          }
+        } catch (e) {}
+      }
+      if (!cancelled) setSavedToProjects(saved);
+    })();
+    return () => { cancelled = true; };
+  }, [meeting?.id, linkedProjects.length]);
+
+  // Build the note content from the meeting's summary + action items
+  // and persist it as a project_note on the chosen project.
+  const onSaveToProjectNotes = async (projectId) => {
+    if (!projectId || !meeting?.id) return;
+    setSavingProjectId(projectId);
+    try {
+      const parts = [];
+      const head = `🎥 ${meeting.title || 'Untitled'} — ${meeting.occurred_at ? new Date(meeting.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}${meeting.duration_minutes ? ` · ${meeting.duration_minutes}m` : ''}`;
+      parts.push(head);
+      if (meeting.summary) parts.push('\n' + meeting.summary);
+      const ai = (meeting.action_items || []).filter(Boolean);
+      if (ai.length) parts.push('\n✅ Action items:\n' + ai.map(a => '• ' + (typeof a === 'string' ? a : JSON.stringify(a))).join('\n'));
+      if (meeting.external_url) parts.push('\n🔗 ' + meeting.external_url);
+      await addProjectNote(userId, projectId, {
+        content: parts.join('\n'),
+        source: 'meeting',
+        source_meeting_id: meeting.id,
+      });
+      setSavedToProjects(prev => new Set([...prev, projectId]));
+    } catch (e) {
+      alert('Could not save to project notes: ' + (e.message || 'unknown'));
+    } finally {
+      setSavingProjectId(null);
+    }
+  };
 
   if (!meeting) return null;
   const cls = effectiveClassification(meeting);
@@ -509,21 +566,44 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
               <SectionHeader icon="📌" title="Projects" subtitle={`Linked · ${linkedProjects.length}`}/>
               <div style={{ marginBottom: 24 }}>
                 {linkedProjects.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                    {linkedProjects.map(lp => (
-                      <span key={lp.projects?.id} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '5px 10px', borderRadius: 999, fontSize: 11,
-                        background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
-                      }}>
-                        {lp.projects?.name || '(deleted)'}
-                        {lp.match_type === 'auto-contact' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
-                        <button onClick={() => onUnlinkProject(lp.projects?.id)} title="Unlink" style={{
-                          background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
-                          padding: 0, fontSize: 12, lineHeight: 1,
-                        }}>×</button>
-                      </span>
-                    ))}
+                  <div style={{ marginBottom: 10 }}>
+                    {linkedProjects.map(lp => {
+                      const pid = lp.projects?.id;
+                      const saved = savedToProjects.has(pid);
+                      const isSaving = savingProjectId === pid;
+                      return (
+                        <div key={pid} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                          padding: '8px 12px', borderRadius: 8, marginBottom: 4,
+                          background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {lp.projects?.name || '(deleted)'}
+                            </span>
+                            {lp.match_type === 'auto-contact' && <span style={{ opacity: .55, fontSize: 9, color: T.ink70 }}>auto</span>}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <button
+                              onClick={() => !saved && !isSaving && onSaveToProjectNotes(pid)}
+                              disabled={saved || isSaving}
+                              title={saved ? 'Already saved to this project' : 'Append the meeting summary + action items to this project\'s notes'}
+                              style={{
+                                padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                                background: saved ? 'transparent' : T.ink, color: saved ? T.ink70 : T.paper,
+                                border: saved ? `1px solid ${T.faintRule}` : 'none',
+                                cursor: (saved || isSaving) ? 'default' : 'pointer',
+                                opacity: isSaving ? .5 : 1,
+                              }}
+                            >{saved ? '✓ Saved' : isSaving ? 'Saving…' : '📥 Save to notes'}</button>
+                            <button onClick={() => onUnlinkProject(pid)} title="Unlink" style={{
+                              background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+                              padding: '4px 6px', fontSize: 14, lineHeight: 1,
+                            }}>×</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 8, fontStyle: 'italic' }}>No projects linked.</div>

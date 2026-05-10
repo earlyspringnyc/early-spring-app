@@ -15,6 +15,15 @@ const STATUS_OPTIONS = [
   { id: 'press',    label: 'Press' },
 ];
 
+const TYPE_OPTIONS = [
+  { id: 'brand',    label: 'Brand', icon: '◆' },
+  { id: 'agency',   label: 'Agency', icon: '◇' },
+  { id: 'vendor',   label: 'Vendor', icon: '▣' },
+  { id: 'agent',    label: 'Agent', icon: '◍' },
+  { id: 'press',    label: 'Press', icon: '✎' },
+  { id: 'internal', label: 'Internal', icon: '●' },
+];
+
 const PROJECT_ROLES = [
   { id: 'rfp_sender',       label: 'RFP sender' },
   { id: 'champion',         label: 'Champion' },
@@ -167,17 +176,41 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
           </div>
 
           {/* Status pills */}
-          <div style={{ marginTop: 14, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {STATUS_OPTIONS.map(opt => {
-              const active = (contact.status || 'prospect') === opt.id;
-              return <button key={opt.id} onClick={() => updateImmediate({ status: opt.id })} style={{
-                padding: '5px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
-                cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.06em',
-                background: active ? T.ink : 'transparent',
-                color: active ? T.paper : T.ink70,
-                border: `1px solid ${active ? T.ink : T.faintRule}`,
-              }}>{opt.label}</button>;
-            })}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 6 }}>Status · funnel stage</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {STATUS_OPTIONS.map(opt => {
+                const active = (contact.status || 'prospect') === opt.id;
+                return <button key={opt.id} onClick={() => updateImmediate({ status: opt.id })} style={{
+                  padding: '5px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                  cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.06em',
+                  background: active ? T.ink : 'transparent',
+                  color: active ? T.paper : T.ink70,
+                  border: `1px solid ${active ? T.ink : T.faintRule}`,
+                }}>{opt.label}</button>;
+              })}
+            </div>
+          </div>
+
+          {/* Type pills */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 6 }}>Type · what kind of contact</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {TYPE_OPTIONS.map(opt => {
+                const active = contact.contact_type === opt.id;
+                return <button key={opt.id} onClick={() => updateImmediate({ contact_type: active ? null : opt.id })} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                  cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.06em',
+                  background: active ? T.inkSoft : 'transparent',
+                  color: active ? T.ink : T.ink70,
+                  border: `1px solid ${active ? T.ink : T.faintRule}`,
+                }}>
+                  <span style={{ fontSize: 11 }}>{opt.icon}</span>
+                  {opt.label}
+                </button>;
+              })}
+            </div>
           </div>
         </div>
 
