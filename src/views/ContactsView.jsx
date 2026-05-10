@@ -464,7 +464,7 @@ function relativeDays(iso) {
 
 function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId }) {
   return (
-    <div style={{
+    <div data-company-detail style={{
       marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
     }}>
       <div style={{
@@ -591,6 +591,109 @@ function RefreshPreviewModal({ contact, patch, onCancel, onApply, applying }) {
   );
 }
 
+// Stats / priorities panel — what to focus on right now.
+// 1. Active pitches → list of pitching-status contacts with company
+// 2. Top companies → top 4 clusters by contact count
+// 3. Going cold → contacts not touched in 90+ days
+// 4. Total → quick orientation
+function StatsCards({ contacts, clusters, onFilter, onPickCompany }) {
+  const stats = useMemo(() => {
+    const pitching = contacts.filter(c => (c.status || 'prospect') === 'pitching');
+    const active = contacts.filter(c => (c.status || 'prospect') === 'active');
+    const ninetyDaysAgo = Date.now() - 90 * 86400000;
+    const goingCold = contacts.filter(c => {
+      const stage = c.status || 'prospect';
+      if (stage === 'past' || stage === 'vendor') return false;
+      if (!c.last_contacted_at) return false; // no signal — don't count
+      return new Date(c.last_contacted_at).getTime() < ninetyDaysAgo;
+    });
+    return {
+      total: contacts.length,
+      companyCount: clusters.length,
+      pitching: pitching.slice(0, 4),
+      pitchingTotal: pitching.length,
+      active: active.length,
+      topCompanies: clusters.slice(0, 4),
+      goingCold: goingCold.length,
+    };
+  }, [contacts, clusters]);
+
+  const baseCard = {
+    padding: '14px 16px', borderRadius: 10,
+    border: `1px solid ${T.faintRule}`, background: T.paper,
+    transition: 'all .18s', cursor: 'pointer', fontFamily: T.sans,
+    minHeight: 132, display: 'flex', flexDirection: 'column',
+  };
+  const label = { fontSize: 9, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: T.ink70, marginBottom: 8 };
+  const bigValue = { fontSize: 28, fontWeight: 800, color: T.ink, letterSpacing: '-.018em', lineHeight: 1 };
+  const sub = { fontSize: 11, color: T.fadedInk, marginTop: 6 };
+  const listRow = { display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8, padding: '2px 0' };
+
+  const hover = on => e => {
+    e.currentTarget.style.borderColor = on ? T.ink : T.faintRule;
+    e.currentTarget.style.transform = on ? 'translateY(-1px)' : 'none';
+    e.currentTarget.style.boxShadow = on ? '0 6px 18px rgba(15,82,186,.06)' : 'none';
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 20, marginBottom: 4 }}>
+      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)} onClick={() => onFilter('all')}>
+        <div style={label}>Total</div>
+        <div style={bigValue}>{stats.total}</div>
+        <div style={sub}>across {stats.companyCount} compan{stats.companyCount === 1 ? 'y' : 'ies'}</div>
+      </div>
+
+      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)} onClick={() => onFilter('pitching')}>
+        <div style={label}>Active pitches <span style={{ color: T.ink, fontWeight: 800 }}>{stats.pitchingTotal}</span></div>
+        {stats.pitching.length === 0 ? (
+          <div style={{ ...sub, marginTop: 4 }}>No active pitches.</div>
+        ) : (
+          <div style={{ marginTop: 4 }}>
+            {stats.pitching.map(c => (
+              <div key={c.id} style={listRow}>
+                <span style={{ color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {c.company || '—'}
+                </span>
+                <span style={{ color: T.fadedInk, whiteSpace: 'nowrap' }}>
+                  {(c.first_name || '') + (c.last_name ? ' ' + c.last_name[0] + '.' : '')}
+                </span>
+              </div>
+            ))}
+            {stats.pitchingTotal > stats.pitching.length && (
+              <div style={{ ...sub, marginTop: 6 }}>+ {stats.pitchingTotal - stats.pitching.length} more</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)}>
+        <div style={label}>Top companies</div>
+        {stats.topCompanies.length === 0 ? (
+          <div style={{ ...sub, marginTop: 4 }}>No companies yet.</div>
+        ) : (
+          <div style={{ marginTop: 4 }}>
+            {stats.topCompanies.map(cl => (
+              <div key={cl.canonical} style={listRow}
+                onClick={e => { e.stopPropagation(); onPickCompany(cl.canonical); }}>
+                <span style={{ color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {cl.canonical || <i style={{ opacity: .55 }}>No company</i>}
+                </span>
+                <span style={{ color: T.fadedInk, fontWeight: 600, whiteSpace: 'nowrap' }}>{cl.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)}>
+        <div style={label}>Going cold</div>
+        <div style={bigValue}>{stats.goingCold}</div>
+        <div style={sub}>no contact in 90+ days{stats.goingCold === 0 ? '' : ' · follow up'}</div>
+      </div>
+    </div>
+  );
+}
+
 function ContactsView({ user, onBack, onLogout, accessToken }) {
   const userId = user?.user_id || user?.id;
   const [contacts, setContacts] = useState([]);
@@ -698,7 +801,17 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   // companyDedup.js — normalizes names (Volvo Cars vs Volvo Car USA)
   // and merges by email domain. Recomputed on every render so newly
   // synced contacts automatically join the right cluster.
+  // Default order is by count (used by stats panel for "top companies").
   const clusters = useMemo(() => clusterByCompany(filtered), [filtered]);
+  // Main grid uses alphabetical order — easier to scan when you know
+  // who you're looking for. Stats panel still highlights priorities
+  // (top by count, active pitches, going cold) above the grid.
+  const clustersAlpha = useMemo(() =>
+    [...clusters].sort((a, b) =>
+      (a.canonical || '').toLowerCase().localeCompare((b.canonical || '').toLowerCase())
+    ),
+    [clusters]
+  );
 
   // Keep the selected company by canonical name so re-renders don't
   // lose the selection when the underlying cluster array changes.
@@ -707,6 +820,13 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
     () => clusters.find(cl => cl.canonical === selectedCanonical) || null,
     [clusters, selectedCanonical]
   );
+  // 412 cards is too many to render or scan. Default to top 10 by
+  // contact count (priorities), with a "Show all" toggle that expands
+  // to the full A–Z list. A live search query bypasses the limit —
+  // when you're hunting for something specific, see everything that
+  // matches.
+  const [showAllCompanies, setShowAllCompanies] = useState(false);
+  const TOP_COUNT = 10;
 
   const counts = useMemo(() => {
     const by = { all: contacts.length };
@@ -740,13 +860,29 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
         </div>
 
         {/* Page heading */}
-        <div style={{ marginBottom: 24, marginTop: 12 }}>
+        <div style={{ marginBottom: 8, marginTop: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: T.ink, marginBottom: 14 }}>CRM · Personal</div>
           <h1 style={{ fontSize: 'clamp(34px,5.4vw,56px)', fontWeight: 800, color: T.ink, letterSpacing: '-0.022em', lineHeight: 1, margin: 0 }}>Contacts</h1>
           <div style={{ fontSize: 13, color: T.fadedInk, marginTop: 4 }}>
             {loading ? 'Loading…' : `${counts.all} contact${counts.all === 1 ? '' : 's'}`}
           </div>
         </div>
+
+        {/* Priorities — stats above the company grid */}
+        {!loading && contacts.length > 0 && (
+          <StatsCards
+            contacts={contacts}
+            clusters={clusters}
+            onFilter={(f) => setFilter(f)}
+            onPickCompany={(canonical) => {
+              setSelectedCanonical(canonical);
+              setTimeout(() => {
+                const el = document.querySelector('[data-company-detail]');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
+          />
+        )}
 
         {/* Toolbar */}
         <div style={{
@@ -789,19 +925,54 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 12 }}>
-                {clusters.length} compan{clusters.length === 1 ? 'y' : 'ies'} · {filtered.length} contact{filtered.length === 1 ? '' : 's'}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-                {clusters.map(cl => (
-                  <CompanyCard
-                    key={cl.canonical + ':' + cl.count}
-                    cluster={cl}
-                    selected={selectedCanonical === cl.canonical}
-                    onClick={() => setSelectedCanonical(selectedCanonical === cl.canonical ? null : cl.canonical)}
-                  />
-                ))}
-              </div>
+              {(() => {
+                const searching = search.trim().length > 0;
+                const showingAll = showAllCompanies || searching;
+                // Top 10 by count when collapsed; A–Z when expanded or searching
+                const visible = showingAll ? clustersAlpha : clusters.slice(0, TOP_COUNT);
+                const hidden = clusters.length - visible.length;
+                return (
+                  <>
+                    <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 12 }}>
+                      {showingAll
+                        ? <>{clustersAlpha.length} compan{clustersAlpha.length === 1 ? 'y' : 'ies'} · {filtered.length} contact{filtered.length === 1 ? '' : 's'} · A–Z</>
+                        : <>Top {visible.length} of {clusters.length} compan{clusters.length === 1 ? 'y' : 'ies'} · ranked by contact count</>}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                      {visible.map(cl => (
+                        <CompanyCard
+                          key={cl.canonical + ':' + cl.count}
+                          cluster={cl}
+                          selected={selectedCanonical === cl.canonical}
+                          onClick={() => setSelectedCanonical(selectedCanonical === cl.canonical ? null : cl.canonical)}
+                        />
+                      ))}
+                    </div>
+                    {!showingAll && hidden > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                        <button onClick={() => setShowAllCompanies(true)} style={{
+                          padding: '8px 18px', borderRadius: 999,
+                          background: 'transparent', border: `1px solid ${T.faintRule}`,
+                          color: T.ink, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: T.sans,
+                          transition: 'all .18s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.background = T.inkSoft; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; }}
+                        >Show all {clusters.length} companies (A–Z)</button>
+                      </div>
+                    )}
+                    {showingAll && !searching && clusters.length > TOP_COUNT && (
+                      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                        <button onClick={() => setShowAllCompanies(false)} style={{
+                          padding: '8px 18px', borderRadius: 999,
+                          background: 'transparent', border: `1px solid ${T.faintRule}`,
+                          color: T.fadedInk, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: T.sans,
+                        }}>Collapse to top {TOP_COUNT}</button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </>
           )}
 
