@@ -65,3 +65,15 @@ export async function setUserClassification(meetingId, classification) {
 export function effectiveClassification(meeting) {
   return meeting?.user_classification || meeting?.classification || 'uncategorized';
 }
+
+// Meetings linked to a specific contact via meeting_contacts.
+export async function listMeetingsForContact(contactId) {
+  const rows = await restFetch(
+    `/meeting_contacts?select=match_type,meetings(*)&contact_id=eq.${enc(contactId)}`
+  );
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map(r => ({ ...r.meetings, _match_type: r.match_type }))
+    .filter(m => m && m.id)
+    .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
+}

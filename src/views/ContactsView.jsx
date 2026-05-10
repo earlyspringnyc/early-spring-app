@@ -8,6 +8,7 @@ import {
 } from '../lib/contacts.js';
 import { parseContactsCSV } from '../utils/csvImport.js';
 import { clusterByCompany } from '../utils/companyDedup.js';
+import ContactDetailDrawer from '../components/ContactDetailDrawer.jsx';
 
 const STATUS_OPTIONS = [
   { id: 'all',      label: 'All' },
@@ -490,7 +491,7 @@ function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId }) {
         {cluster.contacts.map(c => (
           <ContactRow
             key={c.id} c={c}
-            onClick={() => alert('Detail drawer coming next — Phase 1B.')}
+            onClick={() => setOpenContactId(c.id)}
             onRefresh={onRefreshContact}
             refreshing={refreshingId === c.id}
           />
@@ -697,7 +698,7 @@ function StatsCards({ contacts, clusters, onFilter, onPickCompany }) {
   );
 }
 
-function ContactsView({ user, onBack, onLogout, accessToken }) {
+function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const userId = user?.user_id || user?.id;
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -830,6 +831,13 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   // matches.
   const [showAllCompanies, setShowAllCompanies] = useState(false);
   const TOP_COUNT = 10;
+  // Detail drawer state — open a contact by id, drawer reads/updates
+  // and lifts changes back into the local list so the UI stays fresh.
+  const [openContactId, setOpenContactId] = useState(null);
+  const openContact = useMemo(
+    () => contacts.find(c => c.id === openContactId) || null,
+    [contacts, openContactId]
+  );
 
   const counts = useMemo(() => {
     const by = { all: contacts.length };
@@ -1013,6 +1021,20 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
           applying={applyingRefresh}
           onCancel={() => !applyingRefresh && setRefreshPreview(null)}
           onApply={onApplyRefresh}
+        />
+      )}
+      {openContact && (
+        <ContactDetailDrawer
+          contact={openContact}
+          projects={projects}
+          userId={userId}
+          onClose={() => setOpenContactId(null)}
+          onUpdate={(updated) => {
+            setContacts(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+          }}
+          onDelete={(id) => {
+            setContacts(prev => prev.filter(c => c.id !== id));
+          }}
         />
       )}
     </div>
