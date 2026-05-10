@@ -291,6 +291,130 @@ const btnGhost = {
   background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`,
 };
 
+const NEW_TYPE_OPTIONS = [
+  { id: '',         label: 'Type…' },
+  { id: 'brand',    label: 'Brand' },
+  { id: 'agency',   label: 'Agency' },
+  { id: 'vendor',   label: 'Vendor' },
+  { id: 'agent',    label: 'Agent' },
+  { id: 'press',    label: 'Press' },
+  { id: 'internal', label: 'Internal (me / team)' },
+];
+const NEW_STATUS_OPTIONS = [
+  { id: 'prospect', label: 'Prospect' },
+  { id: 'pitching', label: 'Pitching' },
+  { id: 'active',   label: 'Active' },
+  { id: 'past',     label: 'Past' },
+  { id: 'vendor',   label: 'Vendor' },
+  { id: 'press',    label: 'Press' },
+];
+
+function NewContactModal({ userId, onClose, onCreated }) {
+  const [form, setForm] = useState({
+    first_name: '', last_name: '', email: '', phone: '',
+    title: '', company: '', location: '', linkedin_url: '',
+    contact_type: '', status: 'prospect',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const canSave = (form.first_name.trim() || form.last_name.trim() || form.email.trim()) && !saving;
+
+  const onSave = async () => {
+    setSaving(true); setError(null);
+    try {
+      const body = { ...form, sources: ['manual'] };
+      // Trim + null-out empty strings so DB doesn't store ""
+      Object.keys(body).forEach(k => {
+        if (typeof body[k] === 'string') {
+          const t = body[k].trim();
+          body[k] = t === '' ? null : t;
+        }
+      });
+      // Lowercase email for unique-index match
+      if (body.email) body.email = body.email.toLowerCase();
+      // Lowercase linkedin url for the same reason
+      if (body.linkedin_url) body.linkedin_url = body.linkedin_url.toLowerCase().split('?')[0].replace(/\/$/, '');
+      const created = await createContact(userId, body);
+      if (!created) throw new Error('No contact returned');
+      onCreated?.(created);
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Could not create');
+    } finally { setSaving(false); }
+  };
+
+  const inp = {
+    width: '100%', padding: '8px 10px', borderRadius: 6,
+    border: `1px solid ${T.faintRule}`, background: T.paper,
+    fontSize: 13, fontFamily: T.sans, color: T.ink, outline: 'none',
+  };
+  const Field = ({ label, children }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase' }}>{label}</span>
+      {children}
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: 600, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto',
+        background: T.paper, borderRadius: 12, padding: 28,
+        border: `1px solid ${T.faintRule}`, boxShadow: T.shadow, fontFamily: T.sans,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.01em' }}>New contact</h2>
+          <button onClick={onClose} disabled={saving} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: saving ? 'wait' : 'pointer', width: 28, height: 28 }}>×</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+          <Field label="First name"><input autoFocus value={form.first_name} onChange={e => update('first_name', e.target.value)} style={inp}/></Field>
+          <Field label="Last name"><input value={form.last_name} onChange={e => update('last_name', e.target.value)} style={inp}/></Field>
+          <Field label="Email"><input value={form.email} onChange={e => update('email', e.target.value)} placeholder="name@company.com" style={inp}/></Field>
+          <Field label="Phone"><input value={form.phone} onChange={e => update('phone', e.target.value)} style={inp}/></Field>
+          <Field label="Title"><input value={form.title} onChange={e => update('title', e.target.value)} style={inp}/></Field>
+          <Field label="Company"><input value={form.company} onChange={e => update('company', e.target.value)} style={inp}/></Field>
+          <Field label="Location"><input value={form.location} onChange={e => update('location', e.target.value)} style={inp}/></Field>
+          <Field label="LinkedIn URL"><input value={form.linkedin_url} onChange={e => update('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/…" style={inp}/></Field>
+          <Field label="Type">
+            <select value={form.contact_type} onChange={e => update('contact_type', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+              {NEW_TYPE_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Status">
+            <select value={form.status} onChange={e => update('status', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+              {NEW_STATUS_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 8, background: T.alertSoft, border: `1px solid ${T.alert}33`, color: T.alert, fontSize: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ marginTop: 18, fontSize: 11, color: T.fadedInk, lineHeight: 1.55 }}>
+          At least one of first name, last name, or email is required. Anything else is optional — add later from the contact detail drawer.
+        </div>
+
+        <div style={{ marginTop: 18, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onClose} disabled={saving} style={btnGhost}>Cancel</button>
+          <button onClick={onSave} disabled={!canSave} style={{ ...btnSolid, opacity: canSave ? 1 : .4, cursor: canSave ? 'pointer' : 'default' }}>
+            {saving ? 'Saving…' : 'Add contact'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LookupModal({ userId, onClose, onCreated }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -420,6 +544,38 @@ function Field({ label, value }) {
   );
 }
 
+// Company logo via Google's favicon service. Free, no auth, returns
+// a square favicon at the requested size. Falls back to a sapphire
+// initial-letter tile when the favicon doesn't exist for the domain.
+function CompanyLogo({ cluster, size = 36 }) {
+  const domain = cluster.emailDomain || (cluster.contacts[0]?.company_url || '')
+    .replace(/^https?:\/\/(www\.)?/, '').split('/')[0].toLowerCase() || null;
+  const [errored, setErrored] = useState(false);
+  const letter = (cluster.canonical || '?').charAt(0).toUpperCase();
+
+  if (!domain || errored) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: 6, background: T.inkSoft,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: size < 32 ? 13 : 16, fontWeight: 700, color: T.ink,
+        border: `1px solid ${T.faintRule}`, flexShrink: 0,
+      }}>{letter}</div>
+    );
+  }
+  return (
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
+      alt=""
+      onError={() => setErrored(true)}
+      style={{
+        width: size, height: size, borderRadius: 6, objectFit: 'cover',
+        border: `1px solid ${T.faintRule}`, background: T.paper, flexShrink: 0,
+      }}
+    />
+  );
+}
+
 function CompanyCard({ cluster, selected, onClick }) {
   const STAGE_ORDER = ['active', 'pitching', 'prospect', 'vendor', 'press', 'past'];
   const orderedStages = STAGE_ORDER.filter(s => cluster.stages.includes(s));
@@ -439,7 +595,8 @@ function CompanyCard({ cluster, selected, onClick }) {
     onMouseEnter={e => { if (!selected) { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(15,82,186,.08)'; } }}
     onMouseLeave={e => { if (!selected) { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; } }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <CompanyLogo cluster={cluster} size={36}/>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, letterSpacing: '-.003em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
@@ -450,7 +607,7 @@ function CompanyCard({ cluster, selected, onClick }) {
             </div>
           )}
         </div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: T.ink70, whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.ink70, whiteSpace: 'nowrap', flexShrink: 0 }}>
           {cluster.count}
         </div>
       </div>
@@ -489,14 +646,17 @@ function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId }) {
         padding: '16px 22px', background: T.inkSoft2, borderBottom: `1px solid ${T.faintRule}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
       }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, letterSpacing: '-.008em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
-          </div>
-          <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 3 }}>
-            {cluster.count} contact{cluster.count === 1 ? '' : 's'}
-            {cluster.aliases.length > 0 ? ' · includes ' + cluster.aliases.join(', ') : ''}
-            {cluster.emailDomain ? ' · @' + cluster.emailDomain : ''}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+          <CompanyLogo cluster={cluster} size={44}/>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, letterSpacing: '-.008em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
+            </div>
+            <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 3 }}>
+              {cluster.count} contact{cluster.count === 1 ? '' : 's'}
+              {cluster.aliases.length > 0 ? ' · includes ' + cluster.aliases.join(', ') : ''}
+              {cluster.emailDomain ? ' · @' + cluster.emailDomain : ''}
+            </div>
           </div>
         </div>
         <button onClick={onClose} style={{
@@ -726,6 +886,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showNewContact, setShowNewContact] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
   // Preview state for the per-row refresh confirmation modal
   const [refreshPreview, setRefreshPreview] = useState(null); // { contact, patch }
@@ -942,7 +1103,8 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
           <button onClick={onSyncRocketReach} disabled={syncing} style={{ ...btnGhost, opacity: syncing ? .5 : 1, cursor: syncing ? 'wait' : 'pointer' }}>
             {syncing ? 'Syncing…' : '↻ Sync RocketReach'}
           </button>
-          <button onClick={() => setShowImport(true)} style={btnSolid}>↑ Import CSV</button>
+          <button onClick={() => setShowImport(true)} style={btnGhost}>↑ Import CSV</button>
+          <button onClick={() => setShowNewContact(true)} style={btnSolid}>＋ New contact</button>
         </div>
 
         {/* Companies grid */}
@@ -1035,6 +1197,16 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
       </div>
 
       {showImport && <ImportWizard userId={userId} onClose={() => setShowImport(false)} onComplete={reload}/>}
+      {showNewContact && (
+        <NewContactModal
+          userId={userId}
+          onClose={() => setShowNewContact(false)}
+          onCreated={(c) => {
+            setContacts(prev => [c, ...prev]);
+            setOpenContactId(c.id);
+          }}
+        />
+      )}
       {refreshPreview && (
         <RefreshPreviewModal
           contact={refreshPreview.contact}
