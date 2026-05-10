@@ -27,19 +27,58 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Could not read body' });
   }
 
-  // 2. Verify HMAC signature if a webhook secret is set
+  // 2. Verify HMAC signature if a webhook secret is set.
+  // Diagnostic mode: when ROCKETREACH_WEBHOOK_DEBUG=1 we log + return
+  // the headers so we can see what RocketReach actually sends.
   const secret = process.env.ROCKETREACH_WEBHOOK_SECRET;
+  const debug = process.env.ROCKETREACH_WEBHOOK_DEBUG === '1';
+
+  if (debug) {
+    console.error('[rr-webhook] DEBUG headers:', JSON.stringify(req.headers, null, 2));
+    console.error('[rr-webhook] DEBUG body:', rawBody);
+  }
+
   if (secret) {
+    const sigHeaders = {};
+    Object.entries(req.headers || {}).forEach(([k, v]) => {
+      if (/sign|hash|hmac|secret|token|auth|webhook|rocketreach/i.test(k)) {
+        sigHeaders[k] = v;
+      }
+    });
+
     const sig =
       req.headers['x-rocketreach-signature'] ||
       req.headers['x-webhook-signature'] ||
       req.headers['x-hub-signature-256'] ||
+      req.headers['x-signature'] ||
+      req.headers['signature'] ||
       '';
-    const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
-    // Allow either bare hex or "sha256=hex" forms
-    const provided = String(sig).replace(/^sha256=/, '');
-    if (!provided || !safeEqual(provided, expected)) {
-      return res.status(401).json({ error: 'Invalid signature' });
+    const expectedHex = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const expectedB64 = createHmac('sha256', secret).update(rawBody).digest('base64');
+    // Try bare-hex / sha256=hex / base64 / base64-after-sha256= forms
+    const cleaned = String(sig).replace(/^sha256=/, '').trim();
+    const ok =
+      (cleaned && safeEqual(cleaned, expectedHex)) ||
+      (cleaned && cleaned === expectedB64);
+
+    if (!ok) {
+      console.error('[rr-webhook] signature mismatch.', {
+        all_header_keys: Object.keys(req.headers || {}),
+        signature_related_headers: sigHeaders,
+        provided_length: cleaned.length,
+        expected_hex_length: expectedHex.length,
+        expected_b64_length: expectedB64.length,
+      });
+      return res.status(401).json({
+        error: 'Invalid signature',
+        ...(debug ? {
+          debug: {
+            all_header_keys: Object.keys(req.headers || {}),
+            signature_related_headers: sigHeaders,
+            body_preview: rawBody.slice(0, 500),
+          },
+        } : {}),
+      });
     }
   }
 
