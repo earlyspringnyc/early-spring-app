@@ -12,6 +12,8 @@ import { Card } from '../components/primitives/index.js';
 import GanttChart from './GanttChart.jsx';
 import { getTeamMembers } from '../lib/db.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
+import StickyNotes from '../components/StickyNotes.jsx';
+import { useUserNotes } from '../hooks/useUserNotes.js';
 
 /* ── helpers ── */
 const Pill=({children,color=T.gold})=><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
@@ -50,6 +52,8 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
   const[tab,setTab]=useState("overview"); // overview | staffing
   const[expandedId,setExpandedId]=useState(null);
   const[teamMembers,setTeamMembers]=useState([]);
+  // Personal notes — RLS scopes to auth.uid(), per-user not per-org
+  const{notes,addNote,updateNote,deleteNote}=useUserNotes(user?.user_id||user?.id);
 
   useEffect(()=>{
     if(isSupabaseConfigured()&&orgId){
@@ -98,6 +102,8 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
           {["overview","staffing"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:T.rS,border:"none",background:tab===t?T.surfEl:"transparent",color:tab===t?T.cream:T.dim,fontSize:11,fontWeight:tab===t?600:400,cursor:"pointer",fontFamily:T.sans,textTransform:"capitalize",transition:"all .15s"}}>{t}</button>)}
         </div>
       </div>
+
+      <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote}/>
 
       {/* Overview Tab */}
       {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>

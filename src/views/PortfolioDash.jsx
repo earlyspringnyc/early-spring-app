@@ -8,6 +8,8 @@ import { ESWordmark } from '../components/brand/index.js';
 import { Card, DonutChart } from '../components/primitives/index.js';
 import BarChart from '../components/primitives/BarChart.jsx';
 import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
+import StickyNotes from '../components/StickyNotes.jsx';
+import { useUserNotes } from '../hooks/useUserNotes.js';
 
 const Pill=({children,color=T.ink,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 8px":"3px 10px",borderRadius:999,background:"transparent",color,border:`1px solid ${color}`,textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap"}}>{children}</span>;
 
@@ -49,6 +51,8 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,accessToken,profiles
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
   const[showArchived,setShowArchived]=useState(false);
+  // Personal notes — RLS scopes to auth.uid(), never shared with org
+  const{notes,addNote,updateNote,deleteNote}=useUserNotes(user?.user_id||user?.id);
 
   // Calculations — memoized so calcProject only reruns when projects change
   // Financial totals exclude archived projects so the dashboard reflects active business
@@ -156,6 +160,8 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,accessToken,profiles
         <div style={{fontSize:11,fontWeight:700,letterSpacing:".10em",textTransform:"uppercase",color:T.ink,marginBottom:14}}>Portfolio</div>
         <h1 style={{fontSize:"clamp(34px,5.4vw,64px)",fontWeight:800,color:T.ink,letterSpacing:"-0.028em",lineHeight:0.98,margin:0}}>{getGreeting()}, {firstName}{getGreeting()==="Working hard"?"?":"."}</h1>
       </div>
+
+      <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote}/>
 
       {/* ── BENTO GRID ── */}
       <div className="portfolio-bento" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
