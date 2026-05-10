@@ -637,7 +637,7 @@ function relativeDays(iso) {
   return Math.round(diff / 365) + 'y ago';
 }
 
-function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany }) {
+function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany, onOpenContact }) {
   return (
     <div data-company-detail style={{
       marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
@@ -677,7 +677,7 @@ function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDel
         {cluster.contacts.map(c => (
           <ContactRow
             key={c.id} c={c}
-            onClick={() => setOpenContactId(c.id)}
+            onClick={() => onOpenContact?.(c.id)}
             onRefresh={onRefreshContact}
             refreshing={refreshingId === c.id}
           />
@@ -1192,6 +1192,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
               onClose={() => setSelectedCanonical(null)}
               onRefreshContact={onRefreshContact}
               refreshingId={refreshingId}
+              onOpenContact={(id) => setOpenContactId(id)}
               deletingCompany={deletingCompany}
               onDeleteCompany={async () => {
                 const n = selectedCluster.contacts.length;
