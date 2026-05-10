@@ -90,8 +90,11 @@ export async function importContacts(userId, normalizedRows, { onProgress } = {}
     if (c.email) byEmail.set(c.email.toLowerCase(), c);
   });
 
-  // 2. Walk the input. Insert in batches; merge updates one-by-one
-  //    (simpler RLS handling than bulk PATCH-by-id).
+  // 2. Walk the input. Track LinkedIn/emails seen WITHIN this import so
+  //    in-file duplicates don't both make it into the same insert batch
+  //    (which would 409 on the unique constraint and fail the whole batch).
+  const seenLinks = new Set();
+  const seenEmails = new Set();
   const toInsert = [];
   const toMerge = []; // { id, patch }
   for (const row of normalizedRows) {
@@ -102,24 +105,42 @@ export async function importContacts(userId, normalizedRows, { onProgress } = {}
     if (match) {
       const patch = mergePatch(match, row);
       if (Object.keys(patch).length) toMerge.push({ id: match.id, patch });
-      else result.skipped.push({ name: row.first_name + ' ' + row.last_name, reason: 'no changes' });
-    } else {
-      toInsert.push(stripImporterMeta({
-        user_id: userId,
-        ...row,
-        status: row.status || 'prospect',
-      }));
+      else result.skipped.push({ name: (row.first_name || '') + ' ' + (row.last_name || ''), reason: 'no changes' });
+      continue;
     }
+
+    // No DB match — but check if we already queued a row with the same
+    // linkedin_url or email in this same import.
+    if (matchKey && seenLinks.has(matchKey)) {
+      result.skipped.push({ name: (row.first_name || '') + ' ' + (row.last_name || ''), reason: 'duplicate LinkedIn URL within file' });
+      continue;
+    }
+    if (emailKey && seenEmails.has(emailKey)) {
+      result.skipped.push({ name: (row.first_name || '') + ' ' + (row.last_name || ''), reason: 'duplicate email within file' });
+      continue;
+    }
+    if (matchKey) seenLinks.add(matchKey);
+    if (emailKey) seenEmails.add(emailKey);
+
+    toInsert.push(stripImporterMeta({
+      user_id: userId,
+      ...row,
+      status: row.status || 'prospect',
+    }));
   }
 
-  // 3. Insert in chunks of 100 (PostgREST handles ~10k bytes per request comfortably)
+  // 3. Insert in chunks of 100. Pass resolution=ignore-duplicates so any
+  //    straggler unique-constraint conflicts (e.g., from a previous
+  //    partial run) become silent skips instead of failing the batch.
   const CHUNK = 100;
   let done = 0;
   for (let i = 0; i < toInsert.length; i += CHUNK) {
     const slice = toInsert.slice(i, i + CHUNK);
     try {
-      // Use Prefer: return=minimal — we don't need the inserted rows back
-      await restFetch('/contacts', { method: 'POST', body: slice, prefer: 'return=minimal' });
+      await restFetch('/contacts', {
+        method: 'POST', body: slice,
+        prefer: 'return=minimal,resolution=ignore-duplicates',
+      });
       result.created += slice.length;
     } catch (e) {
       result.errors.push({ kind: 'insert', message: e.message || String(e), batchSize: slice.length });

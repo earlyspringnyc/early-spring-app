@@ -148,7 +148,10 @@ function cleanLinkedIn(u) {
   v = v.split('?')[0].replace(/\/$/, '');
   // LinkedIn sometimes exports URLs without protocol
   if (!v.startsWith('http')) v = 'https://' + v;
-  return v;
+  // Lowercase for stable comparison — LinkedIn URLs are case-insensitive
+  // and the DB unique index is on lower(linkedin_url). Storing in a
+  // single canonical case keeps in-batch and DB dedup aligned.
+  return v.toLowerCase();
 }
 
 function parseLinkedInDate(s) {
