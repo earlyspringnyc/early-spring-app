@@ -3,8 +3,43 @@
 // project. RLS scopes everything to auth.uid() — these calls don't
 // need to pass user_id explicitly except on insert.
 
-import { restFetch } from './db.js';
+import { restFetch, getSession } from './db.js';
 import { mergePatch } from '../utils/csvImport.js';
+
+// ----------------------------------------------------------------
+// RocketReach lookup — proxies through /api/rocketreach so the API
+// key stays server-side. Accepts {linkedin_url, email, name, current_employer}.
+// Returns a normalized profile in the same shape the CSV importer emits.
+// ----------------------------------------------------------------
+export async function rocketReachLookup(query) {
+  const session = await getSession();
+  const res = await fetch('/api/rocketreach', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(query || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `RocketReach error: ${res.status}`);
+  return data; // { ok, status, profile, raw }
+}
+
+// Re-enrich an existing contact in place. Looks up by linkedin_url
+// (preferred — most stable) or falls back to email. Merges fresh
+// fields onto the contact and bumps the source list.
+export async function reenrichContact(contact) {
+  const query = {};
+  if (contact.linkedin_url) query.linkedin_url = contact.linkedin_url;
+  else if (contact.email)    query.email = contact.email;
+  else throw new Error('Cannot re-enrich a contact without LinkedIn URL or email');
+  const { profile } = await rocketReachLookup(query);
+  if (!profile) throw new Error('No profile returned');
+  const patch = mergePatch(contact, profile);
+  if (Object.keys(patch).length) await updateContact(contact.id, patch);
+  return { patch, profile };
+}
 
 const enc = encodeURIComponent;
 
