@@ -628,13 +628,17 @@ function StatsCards({ contacts, clusters, onFilter, onPickCompany }) {
     // Filter out "Freelance" / "Self-Employed" / "Consultant" etc. from
     // priority surfaces — they're not real prospects, just labels on
     // independent contacts.
+    // Filter out independent (Freelance / Self-Employed) AND internal
+    // (your own team) contacts from priority surfaces — neither are
+    // real prospects.
+    const realContacts = contacts.filter(c => c.contact_type !== 'internal');
     return {
-      total: contacts.length,
-      companyCount: clusters.length,
+      total: realContacts.length,
+      companyCount: clusters.filter(cl => !cl.isInternal).length,
       pitching: pitching.slice(0, 4),
       pitchingTotal: pitching.length,
       active: active.length,
-      topCompanies: clusters.filter(cl => !cl.isIndependent).slice(0, 4),
+      topCompanies: clusters.filter(cl => !cl.isIndependent && !cl.isInternal).slice(0, 4),
       goingCold: goingCold.length,
     };
   }, [contacts, clusters]);
@@ -957,10 +961,10 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
                 const searching = search.trim().length > 0;
                 const showingAll = showAllCompanies || searching;
                 // Top 10 by count when collapsed — exclude independent
-                // contacts (freelance, self-employed, etc.) since they
-                // aren't real company prospects. They still show up in
-                // the A–Z expanded list and via search.
-                const topCompanies = clusters.filter(cl => !cl.isIndependent);
+                // (freelance, self-employed, etc.) AND internal (your
+                // own team) clusters since neither are real prospects.
+                // They're still browsable in the A–Z view and via search.
+                const topCompanies = clusters.filter(cl => !cl.isIndependent && !cl.isInternal);
                 const visible = showingAll ? clustersAlpha : topCompanies.slice(0, TOP_COUNT);
                 const hidden = clustersAlpha.length - visible.length;
                 const independentCount = clusters.filter(cl => cl.isIndependent)

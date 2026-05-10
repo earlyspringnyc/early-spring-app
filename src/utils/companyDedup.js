@@ -123,6 +123,12 @@ export function clusterByCompany(contacts) {
       .filter(Boolean)
       .sort((a, b) => new Date(b) - new Date(a))[0] || null;
 
+    // A cluster is "internal" if every contact in it is marked
+    // contact_type='internal' (you, your teammates). These are still
+    // browsable via search and the full A-Z, but excluded from the
+    // priority cards / Top Companies / company grid by default.
+    const allInternal = group.length > 0 && group.every(c => c.contact_type === 'internal');
+
     out.push({
       canonical,
       aliases,
@@ -132,6 +138,7 @@ export function clusterByCompany(contacts) {
       emailDomain: [...new Set(group.map(c => emailDomain(c.email)).filter(Boolean))][0] || null,
       lastContactedAt,
       isIndependent: isIndependentCompany(canonical),
+      isInternal: allInternal,
     });
   }
 
