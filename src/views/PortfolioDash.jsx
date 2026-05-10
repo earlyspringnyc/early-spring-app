@@ -43,7 +43,7 @@ const L=({children})=><div style={{fontSize:10,fontWeight:600,fontFamily:T.mono,
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,fontFamily:T.mono,letterSpacing:"-0.04em",color,lineHeight:1}}>{children}</div>;
 const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
 
-function PortfolioDash({projects,onOpen,onNew,onOpenContacts,user,onLogout,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
+function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,user,onLogout,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
   // Note: onDelete/onDuplicate/onUpdateStage are reachable from the open
   // ProjectView, not from this dashboard. Kept off the API surface here
   // so we don't accumulate prop drift.
@@ -146,6 +146,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,user,onLogout,acces
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
           {onOpenContacts&&<button onClick={onOpenContacts} style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.ink,cursor:"pointer",transition:"all .18s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.background=T.inkSoft}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.background="transparent"}}>Contacts</button>}
+          {onOpenMeetings&&<button onClick={onOpenMeetings} style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.ink,cursor:"pointer",transition:"all .18s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.background=T.inkSoft}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.background="transparent"}}>Meetings</button>}
           {canCreate&&<button className="portfolio-new-btn btn-pill" onClick={onNew} style={{padding:"7px 14px",fontSize:12}}><PlusI size={11} color="currentColor"/> New Project</button>}
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:26,height:26,borderRadius:"50%",background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:T.ink,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
