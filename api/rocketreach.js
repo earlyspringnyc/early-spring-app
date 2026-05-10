@@ -155,6 +155,7 @@ function shapeProfile(p) {
     pickEmail(p.personal_emails) ||
     null;
   return {
+    rocketreach_profile_id: p.profile_id != null ? String(p.profile_id) : (p.id != null ? String(p.id) : null),
     first_name: p.first_name || splitName(p.name).first || null,
     last_name:  p.last_name  || splitName(p.name).last  || null,
     email:      email ? String(email).trim().toLowerCase() : null,

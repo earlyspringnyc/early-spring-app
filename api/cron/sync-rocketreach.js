@@ -98,6 +98,10 @@ function shapeProfile(p) {
     pickEmail(p.personal_emails) ||
     null;
   return {
+    // RocketReach's stable internal id — used as the primary dedup
+    // key for contacts that have no email AND no linkedin_url, which
+    // would otherwise duplicate on every sync.
+    rocketreach_profile_id: p.profile_id != null ? String(p.profile_id) : (p.id != null ? String(p.id) : null),
     first_name: p.first_name || splitName(p.name).first || null,
     last_name:  p.last_name  || splitName(p.name).last  || null,
     email:      email ? String(email).trim().toLowerCase() : null,
@@ -148,7 +152,20 @@ async function upsertContact({ supaUrl, serviceKey, userId, contact }) {
   const enc = encodeURIComponent;
 
   let existing = null;
-  if (contact.linkedin_url) {
+  // 1. RocketReach profile_id is the most reliable match — present on
+  //    every RR row, stable, never null on /v1/user_contacts. Catches
+  //    contacts that have no email/linkedin which would otherwise
+  //    duplicate on every cron run.
+  if (contact.rocketreach_profile_id) {
+    const r = await fetch(
+      `${supaUrl}/rest/v1/contacts?select=*&user_id=eq.${userId}&rocketreach_profile_id=eq.${enc(contact.rocketreach_profile_id)}&limit=1`,
+      { headers }
+    );
+    const rows = await r.json().catch(() => []);
+    if (Array.isArray(rows) && rows.length) existing = rows[0];
+  }
+  // 2. LinkedIn URL fallback — for non-RR sources (CSV, manual entry)
+  if (!existing && contact.linkedin_url) {
     const r = await fetch(
       `${supaUrl}/rest/v1/contacts?select=*&user_id=eq.${userId}&linkedin_url=eq.${enc(contact.linkedin_url)}&limit=1`,
       { headers }
@@ -156,6 +173,7 @@ async function upsertContact({ supaUrl, serviceKey, userId, contact }) {
     const rows = await r.json().catch(() => []);
     if (Array.isArray(rows) && rows.length) existing = rows[0];
   }
+  // 3. Email — last fallback
   if (!existing && contact.email) {
     const r = await fetch(
       `${supaUrl}/rest/v1/contacts?select=*&user_id=eq.${userId}&email=eq.${enc(contact.email)}&limit=1`,
@@ -173,6 +191,11 @@ async function upsertContact({ supaUrl, serviceKey, userId, contact }) {
     ['first_name','last_name','email','title','company','company_url','location','linkedin_url','phone']
       .forEach(k => { if (contact[k] && !existing[k]) patch[k] = contact[k]; });
     if (!existing.bio && contact.bio) patch.bio = contact.bio;
+    // Backfill profile_id on rows that were created before we started
+    // tracking it — once set, all future syncs dedup cleanly.
+    if (!existing.rocketreach_profile_id && contact.rocketreach_profile_id) {
+      patch.rocketreach_profile_id = contact.rocketreach_profile_id;
+    }
     const sources = Array.from(new Set([...(existing.sources || []), 'rocketreach']));
     if (sources.length !== (existing.sources || []).length) patch.sources = sources;
     if (Object.keys(patch).length) {
