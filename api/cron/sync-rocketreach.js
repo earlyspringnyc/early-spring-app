@@ -7,6 +7,7 @@
 // CSV importer uses, so re-running is cheap and idempotent.
 
 const RR_API = 'https://api.rocketreach.co/api/v2';
+const RR_CONTACTS_BASE = 'https://rocketreach.co/v1';
 
 export default async function handler(req, res) {
   // Vercel Cron sends Authorization: Bearer <CRON_SECRET> when
@@ -69,37 +70,26 @@ export default async function handler(req, res) {
 
 // ----------------------------------------------------------------
 async function fetchRocketReachList(apiKey, page, pageSize) {
-  // Try a few endpoint patterns RR uses across plan tiers. /contacts/
-  // is what their "My Contacts" UI page is backed by; /lookups/ is
-  // past API calls (which may or may not include extension-saves).
-  const candidates = [
-    `${RR_API}/contacts/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
-    `${RR_API}/contacts/?page=${page}&page_size=${pageSize}`,
-    `${RR_API}/contacts?page=${page}&page_size=${pageSize}`,
-    `${RR_API}/lookups/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
-    `${RR_API}/lookups/?page=${page}&page_size=${pageSize}`,
-    `${RR_API}/searches/?page=${page}&page_size=${pageSize}`,
-  ];
-  let lastErr = null;
-  for (const url of candidates) {
-    const res = await fetch(url, { headers: { 'Api-Key': apiKey } });
-    if (res.ok) {
-      const json = await res.json().catch(() => ({}));
-      return Array.isArray(json) ? json
-        : Array.isArray(json.profiles) ? json.profiles
-        : Array.isArray(json.results) ? json.results
-        : Array.isArray(json.data) ? json.data
-        : [];
-    }
-    lastErr = `${res.status} ${await res.text().catch(() => '')}`.slice(0, 200);
-    if (res.status !== 404) break;
+  // Confirmed via DevTools on rocketreach.co/app/my-contacts: the
+  // canonical "My Contacts" endpoint is /v1/user_contacts on the
+  // rocketreach.co domain — NOT /api/v2/* on api.rocketreach.co.
+  const url = `${RR_CONTACTS_BASE}/user_contacts?num_results=${pageSize}&page=${page}`;
+  const res = await fetch(url, { headers: { 'Api-Key': apiKey, Accept: 'application/json' } });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`RocketReach user_contacts failed: ${res.status} ${text.slice(0, 200)}`);
   }
-  throw new Error(`No working RocketReach list endpoint: ${lastErr}`);
+  const json = await res.json().catch(() => ({}));
+  return Array.isArray(json.results) ? json.results
+       : Array.isArray(json) ? json
+       : [];
 }
 
 // ----------------------------------------------------------------
 function shapeProfile(p) {
   if (!p || typeof p !== 'object') return null;
+  // Handle both /api/v2/person/lookup shape AND /v1/user_contacts shape
+  // (the user_contacts list uses company_name/title and no linkedin_url).
   const email =
     p.current_work_email ||
     p.recommended_email ||
@@ -111,8 +101,8 @@ function shapeProfile(p) {
     first_name: p.first_name || splitName(p.name).first || null,
     last_name:  p.last_name  || splitName(p.name).last  || null,
     email:      email ? String(email).trim().toLowerCase() : null,
-    title:      p.current_title || p.title || null,
-    company:    p.current_employer || p.employer || null,
+    title:      p.current_title || p.title || p.most_recent_ended_exp_title || null,
+    company:    p.current_employer || p.employer || p.company_name || p.most_recent_ended_exp_company_name || null,
     company_url: p.current_employer_domain ? `https://${p.current_employer_domain}` : (p.employer_website || null),
     location:   p.location || p.city || null,
     linkedin_url: p.linkedin_url ? String(p.linkedin_url).split('?')[0].replace(/\/$/, '').toLowerCase() : null,

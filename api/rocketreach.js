@@ -10,6 +10,11 @@ import { verifyAuth, rateLimit } from './_auth.js';
 // Returns: { ok, status, profile?, raw? }
 
 const RR_API = 'https://api.rocketreach.co/api/v2';
+// "My Contacts" — extension-saved + manually-added profiles — lives on
+// a different subdomain entirely, at /v1/user_contacts. Returns a
+// different shape (results[] with profile_id, company_name, emails[])
+// than the /api/v2/* endpoints, so the parser branches on it.
+const RR_CONTACTS_BASE = 'https://rocketreach.co/v1';
 // RocketReach can return "queued" or "searching" when a profile isn't
 // yet in their cache. We poll up to this many times before giving up.
 const MAX_POLLS = 6;
@@ -75,58 +80,50 @@ export default async function handler(req, res) {
   }
 }
 
-// "My Contacts" — RocketReach exposes this as past lookups under
-// /api/v2/lookups. Some accounts have it under /searches; we try the
-// most likely paths in order and return the first that responds.
+// "My Contacts" — confirmed via DevTools on rocketreach.co/app/my-contacts:
+// data lives at https://rocketreach.co/v1/user_contacts (different
+// subdomain + path from /api/v2/* on api.rocketreach.co).
 async function handleList(body, apiKey, res) {
-  const pageSize = Math.min(100, Math.max(1, Number(body.page_size) || 100));
+  const pageSize = Math.min(100, Math.max(1, Number(body.page_size) || Number(body.num_results) || 100));
   const page     = Math.max(1, Number(body.page) || 1);
-  // Candidate endpoints — RocketReach exposes "My Contacts" under
-  // different paths depending on plan tier and account age. Try the
-  // most likely first, fall through 404s.
-  const candidates = [
-    `/contacts/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
-    `/contacts/?page=${page}&page_size=${pageSize}`,
-    `/contacts?page=${page}&page_size=${pageSize}`,
-    `/lookups/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
-    `/lookups/?page=${page}&page_size=${pageSize}`,
-    `/lookups?page=${page}&page_size=${pageSize}`,
-    `/searches/?page=${page}&page_size=${pageSize}`,
-  ];
+  const url = `${RR_CONTACTS_BASE}/user_contacts?num_results=${pageSize}&page=${page}`;
+  const r = await rrFetchAbsolute(url, apiKey);
 
-  let lastErr = null;
-  for (const path of candidates) {
-    const r = await rrFetch(path, apiKey);
-    if (r.ok && r.json) {
-      // RocketReach typically returns { profiles: [...] } or
-      // { results: [...] } depending on the endpoint version.
-      const rawList =
-        Array.isArray(r.json) ? r.json :
-        Array.isArray(r.json.profiles) ? r.json.profiles :
-        Array.isArray(r.json.results) ? r.json.results :
-        Array.isArray(r.json.data) ? r.json.data :
-        [];
-      const profiles = rawList.map(p => shapeProfile(p)).filter(Boolean);
-      return res.status(200).json({
-        ok: true,
-        endpoint: path,
-        page,
-        page_size: pageSize,
-        count: profiles.length,
-        has_more: !!(r.json.next || r.json.has_more || rawList.length === pageSize),
-        profiles,
-      });
-    }
-    lastErr = r.error || `status ${r.status}`;
-    // Only fall through on 404; other errors are real failures.
-    if (r.status !== 404) break;
+  if (r.ok && r.json) {
+    const rawList = Array.isArray(r.json.results) ? r.json.results
+                  : Array.isArray(r.json) ? r.json
+                  : [];
+    const profiles = rawList.map(p => shapeProfile(p)).filter(Boolean);
+    return res.status(200).json({
+      ok: true,
+      endpoint: url,
+      page,
+      page_size: pageSize,
+      count: profiles.length,
+      total: r.json.count ?? null,
+      has_more: !!r.json.next,
+      profiles,
+    });
   }
 
   return res.status(502).json({
-    error: 'Could not find a working RocketReach list endpoint',
-    detail: lastErr,
-    tried: candidates,
+    error: 'RocketReach user_contacts call failed',
+    status: r.status,
+    detail: typeof r.error === 'string' ? r.error.slice(0, 400) : r.error,
+    url,
   });
+}
+
+async function rrFetchAbsolute(url, apiKey) {
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch (e) {}
+  if (!res.ok) return { ok: false, status: res.status, error: json?.detail || json?.message || text || res.statusText };
+  return { ok: true, status: res.status, json };
 }
 
 async function rrFetch(path, apiKey) {
@@ -144,10 +141,12 @@ async function rrFetch(path, apiKey) {
 }
 
 // Normalize RocketReach's response into the same shape our CSV
-// importer emits, so the client can use one merge path.
+// importer emits. Two distinct payload formats arrive here:
+//   1. /api/v2/person/lookup — current_employer, current_title, emails[]
+//   2. /v1/user_contacts (My Contacts list) — company_name, title, emails[],
+//      no linkedin_url, profile_id is the RR internal id
 function shapeProfile(p) {
   if (!p || typeof p !== 'object') return null;
-  // Pick best email — current_work_email > recommended_email > first verified
   const email =
     p.current_work_email ||
     p.recommended_email ||
@@ -159,8 +158,8 @@ function shapeProfile(p) {
     first_name: p.first_name || splitName(p.name).first || null,
     last_name:  p.last_name  || splitName(p.name).last  || null,
     email:      email ? String(email).trim().toLowerCase() : null,
-    title:      p.current_title || p.title || null,
-    company:    p.current_employer || p.employer || null,
+    title:      p.current_title || p.title || p.most_recent_ended_exp_title || null,
+    company:    p.current_employer || p.employer || p.company_name || p.most_recent_ended_exp_company_name || null,
     company_url: p.current_employer_domain ? `https://${p.current_employer_domain}` : (p.employer_website || null),
     location:   p.location || p.city || null,
     linkedin_url: p.linkedin_url ? String(p.linkedin_url).split('?')[0].replace(/\/$/, '').toLowerCase() : null,
