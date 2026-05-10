@@ -12,6 +12,7 @@ import LandingPage from './views/LandingPage.jsx';
 import PortfolioDash from './views/PortfolioDash.jsx';
 import EPDashboard from './views/EPDashboard.jsx';
 import ProjectView from './views/ProjectView.jsx';
+import ContactsView from './views/ContactsView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
 import SharedClientView from './views/SharedClientView.jsx';
 
@@ -189,6 +190,9 @@ function App(){
   const[activeId,setActiveIdRaw]=useState(()=>{try{return sessionStorage.getItem("es_activeProject")||null}catch(e){return null}});
   const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id)sessionStorage.setItem("es_activeProject",id);else sessionStorage.removeItem("es_activeProject")}catch(e){}},[]);
   const[showNew,setShowNew]=useState(false);
+  // Top-level view: 'dashboard' (home) or 'contacts' (CRM). Project view
+  // is owned by activeId; setting it to a non-null value supersedes both.
+  const[topView,setTopView]=useState("dashboard");
   const[toasts,setToasts]=useState([]);
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   // Subscribe to the global toast bus so any module can surface errors.
@@ -311,6 +315,12 @@ function App(){
     return<LandingPage onGetStarted={()=>setShowLogin(true)}/>;
   }
 
+  if(topView==="contacts"&&!activeProject)return<><ContactsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken}/>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+    </div>
+  </>;
+
   if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{
@@ -321,7 +331,7 @@ function App(){
     </div>
   </>;
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
-  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} user={user} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} onOpenContacts={()=>setTopView("contacts")} user={user} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {(conflicts||[]).map(c=><div key={c.projectId} className="slide-in" style={{padding:"12px 18px",borderRadius:T.rS,background:T.alertSoft,border:`1px solid ${T.alert}`,color:T.alert,fontSize:12,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>
         <div style={{fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:4}}>Refreshed from server</div>
