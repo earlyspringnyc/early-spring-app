@@ -11,6 +11,18 @@ import {
 import { listContacts, createContact } from '../lib/contacts.js';
 import { addProjectNote, meetingAlreadySavedToProject } from '../lib/projectNotes.js';
 
+// Title-case a name string. Fireflies sometimes returns attendee
+// names as lowercase usernames (e.g. "kamil") because the user's
+// FF profile name isn't capitalized. We always display them
+// title-cased so the UI reads cleanly regardless of source.
+function titleCaseName(s) {
+  if (!s) return s;
+  return String(s)
+    .split(/(\s+)/)
+    .map(part => /^\s+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+}
+
 // Personal email domains — never use as a "same company" signal.
 const PERSONAL_DOMAINS = new Set([
   'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com',
@@ -149,7 +161,7 @@ function MeetingRow({ m, onClick }) {
         )}
       </div>
       <div style={{ fontSize: 11, color: T.fadedInk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {attendees.slice(0, 3).map(a => a.name || a.email.split('@')[0]).join(', ')}
+        {attendees.slice(0, 3).map(a => titleCaseName(a.name || a.email.split('@')[0])).join(', ')}
         {attendees.length > 3 ? ` +${attendees.length - 3}` : ''}
       </div>
       <div style={{ fontSize: 11, color: T.fadedInk, textAlign: 'right' }}>
@@ -248,7 +260,7 @@ function ContactLinkSection({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {att.name || (att.email && att.email.split('@')[0]) || 'Unnamed'}
+                        {titleCaseName(att.name || (att.email && att.email.split('@')[0])) || 'Unnamed'}
                       </div>
                       {att.email && (
                         <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -337,7 +349,7 @@ function ContactLinkSection({
   );
 }
 
-function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose, onReclassify, onSaveNotes, onLinksChanged }) {
+function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreateProject, onClose, onReclassify, onSaveNotes, onLinksChanged }) {
   const [tab, setTab] = useState('summary');
   const [notesDraft, setNotesDraft] = useState(meeting?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -345,6 +357,10 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
   const [linkProjectId, setLinkProjectId] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [creatingAttendeeEmail, setCreatingAttendeeEmail] = useState(null);
+  // Inline-create-project state. User types a name, clicks Create,
+  // we make the project and immediately link this meeting to it.
+  const [newProjectName, setNewProjectName] = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
   // Track which linked projects already have this meeting saved as
   // a note + which ones are mid-save (for button state).
   const [savedToProjects, setSavedToProjects] = useState(new Set());
@@ -427,6 +443,29 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
       setLinkedProjects(prev => prev.filter(lp => lp.projects?.id !== projectId));
       onLinksChanged?.();
     } catch (e) { alert('Unlink failed: ' + (e.message || 'unknown')); }
+  };
+
+  // Create a brand-new project from the meeting context, then auto-link
+  // this meeting to it. Default client = the meeting title (often
+  // descriptive of the brand or topic) so the project is searchable.
+  const onCreateAndLinkProject = async () => {
+    const name = newProjectName.trim();
+    if (!name || !onCreateProject) return;
+    setCreatingProject(true);
+    try {
+      const newId = await onCreateProject(name, '', '', '', '', 0, 'pitching');
+      if (newId) {
+        await linkMeetingToProject(userId, meeting.id, newId);
+        const next = await listProjectsForMeeting(meeting.id);
+        setLinkedProjects(next);
+        setNewProjectName('');
+        onLinksChanged?.();
+      } else {
+        alert('Could not create project.');
+      }
+    } catch (e) {
+      alert('Create failed: ' + (e.message || 'unknown'));
+    } finally { setCreatingProject(false); }
   };
 
   const onLinkContact = async (contactId) => {
@@ -608,13 +647,33 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
                 ) : (
                   <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 8, fontStyle: 'italic' }}>No projects linked.</div>
                 )}
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   <select value={linkProjectId} onChange={e => setLinkProjectId(e.target.value)} style={selectStyle}>
-                    <option value="">Link a project…</option>
+                    <option value="">Link an existing project…</option>
                     {linkableProjects.map(p => <option key={p.id} value={p.id}>{p.name || '(unnamed)'}</option>)}
                   </select>
                   <button onClick={onLinkProject} disabled={!linkProjectId} style={miniLinkBtn(linkProjectId)}>Link</button>
                 </div>
+                {onCreateProject && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      value={newProjectName}
+                      onChange={e => setNewProjectName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && newProjectName.trim() && !creatingProject) onCreateAndLinkProject(); }}
+                      placeholder="Or create a new project from this meeting…"
+                      style={{
+                        flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 11, fontFamily: T.sans,
+                        border: `1px solid ${T.faintRule}`, background: T.paper, color: T.ink, outline: 'none',
+                      }}
+                    />
+                    <button onClick={onCreateAndLinkProject} disabled={!newProjectName.trim() || creatingProject} style={{
+                      padding: '7px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
+                      background: T.ink, color: T.paper, border: 'none',
+                      cursor: (newProjectName.trim() && !creatingProject) ? 'pointer' : 'default',
+                      opacity: (newProjectName.trim() && !creatingProject) ? 1 : .4,
+                    }}>{creatingProject ? 'Creating…' : '＋ Create'}</button>
+                  </div>
+                )}
               </div>
 
               {/* Section: summary */}
@@ -717,7 +776,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
                       }}>{initials || '?'}</div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 13, color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {a.name || a.email?.split('@')[0] || '—'}
+                          {titleCaseName(a.name || a.email?.split('@')[0]) || '—'}
                         </div>
                         {a.email && <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{a.email}</div>}
                       </div>
@@ -760,7 +819,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
   );
 }
 
-function MeetingsView({ user, onBack, onLogout, accessToken, projects = [] }) {
+function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCreateProject }) {
   const userId = user?.user_id || user?.id;
   const [meetings, setMeetings] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -912,6 +971,7 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [] }) {
           projects={projects}
           contacts={contacts}
           userId={userId}
+          onCreateProject={onCreateProject}
           onClose={() => setSelected(null)}
           onReclassify={onReclassify}
           onSaveNotes={onSaveNotes}

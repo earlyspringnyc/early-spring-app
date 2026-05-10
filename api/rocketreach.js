@@ -166,6 +166,7 @@ function shapeProfile(p) {
     linkedin_url: p.linkedin_url ? String(p.linkedin_url).split('?')[0].replace(/\/$/, '').toLowerCase() : null,
     bio:        p.bio || p.description || null,
     phone:      pickPhone(p.phones) || null,
+    avatar_url: p.profile_image_url || p.profile_pic_url || null,
     sources:    ['rocketreach'],
   };
 }

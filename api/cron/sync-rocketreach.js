@@ -112,6 +112,7 @@ function shapeProfile(p) {
     linkedin_url: p.linkedin_url ? String(p.linkedin_url).split('?')[0].replace(/\/$/, '').toLowerCase() : null,
     bio:        p.bio || p.description || null,
     phone:      pickPhone(p.phones) || null,
+    avatar_url: p.profile_image_url || p.profile_pic_url || null,
     sources:    ['rocketreach'],
   };
 }
@@ -188,7 +189,7 @@ async function upsertContact({ supaUrl, serviceKey, userId, contact }) {
     // Background sync never overwrites user-edited (or previously-
     // synced) data. Explicit refresh button handles overwrites.
     const patch = {};
-    ['first_name','last_name','email','title','company','company_url','location','linkedin_url','phone']
+    ['first_name','last_name','email','title','company','company_url','location','linkedin_url','phone','avatar_url']
       .forEach(k => { if (contact[k] && !existing[k]) patch[k] = contact[k]; });
     if (!existing.bio && contact.bio) patch.bio = contact.bio;
     // Backfill profile_id on rows that were created before we started

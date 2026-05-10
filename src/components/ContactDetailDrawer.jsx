@@ -140,6 +140,8 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
 
   const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || '(No name)';
   const initials = ((contact.first_name?.[0] || '') + (contact.last_name?.[0] || '')).toUpperCase();
+  const [avatarError, setAvatarError] = useState(false);
+  useEffect(() => { setAvatarError(false); }, [contact?.avatar_url]);
 
   return (
     <div onClick={onClose} style={{
@@ -156,11 +158,20 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
         <div style={{ padding: '24px 28px 18px', borderBottom: `1px solid ${T.faintRule}`, position: 'sticky', top: 0, background: T.paper, zIndex: 2 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%', background: T.inkSoft,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 16, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
-              }}>{initials || '?'}</div>
+              {contact.avatar_url && !avatarError ? (
+                <img
+                  src={contact.avatar_url}
+                  alt=""
+                  onError={() => setAvatarError(true)}
+                  style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${T.faintRule}`, flexShrink: 0 }}
+                />
+              ) : (
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%', background: T.inkSoft,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
+                }}>{initials || '?'}</div>
+              )}
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: T.ink, letterSpacing: '-0.012em', wordBreak: 'break-word' }}>
                   {fullName}

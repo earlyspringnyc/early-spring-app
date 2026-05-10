@@ -38,8 +38,30 @@ function StatusBadge({ status }) {
   }}>{STATUS_LABEL[status] || status}</span>;
 }
 
-function ContactRow({ c, onClick, onRefresh, refreshing }) {
+function ContactAvatar({ c, size = 32 }) {
   const initials = ((c.first_name?.[0] || '') + (c.last_name?.[0] || '')).toUpperCase();
+  const [errored, setErrored] = useState(false);
+  if (c.avatar_url && !errored) {
+    return <img
+      src={c.avatar_url}
+      alt=""
+      onError={() => setErrored(true)}
+      style={{
+        width: size, height: size, borderRadius: '50%',
+        objectFit: 'cover',
+        border: `1px solid ${T.faintRule}`, background: T.inkSoft, flexShrink: 0,
+      }}
+    />;
+  }
+  return <div style={{
+    width: size, height: size, borderRadius: '50%', background: T.inkSoft,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: size < 36 ? 11 : 14, fontWeight: 700, color: T.ink,
+    border: `1px solid ${T.faintRule}`, flexShrink: 0,
+  }}>{initials || '?'}</div>;
+}
+
+function ContactRow({ c, onClick, onRefresh, refreshing }) {
   const [hover, setHover] = useState(false);
   const canRefresh = !!(c.linkedin_url || c.email);
   return (
@@ -52,12 +74,7 @@ function ContactRow({ c, onClick, onRefresh, refreshing }) {
     }}
     onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
     >
-      <div style={{
-        width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 700, color: T.ink,
-        border: `1px solid ${T.faintRule}`,
-      }}>{initials || '?'}</div>
+      <ContactAvatar c={c} size={32}/>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {(c.first_name || '') + ' ' + (c.last_name || '')}
