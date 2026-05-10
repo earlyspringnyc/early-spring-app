@@ -7,6 +7,7 @@ import {
   rocketReachLookup, previewReenrich, applyReenrichPatch, syncRocketReachContacts,
 } from '../lib/contacts.js';
 import { parseContactsCSV } from '../utils/csvImport.js';
+import { clusterByCompany } from '../utils/companyDedup.js';
 
 const STATUS_OPTIONS = [
   { id: 'all',      label: 'All' },
@@ -401,6 +402,104 @@ function Field({ label, value }) {
   );
 }
 
+function CompanyCard({ cluster, selected, onClick }) {
+  const STAGE_ORDER = ['active', 'pitching', 'prospect', 'vendor', 'press', 'past'];
+  const orderedStages = STAGE_ORDER.filter(s => cluster.stages.includes(s));
+  const lastSeen = cluster.lastContactedAt
+    ? relativeDays(cluster.lastContactedAt)
+    : null;
+  return (
+    <div onClick={onClick} style={{
+      padding: '16px 18px',
+      border: `1px solid ${selected ? T.ink : T.faintRule}`,
+      background: selected ? T.inkSoft2 : T.paper,
+      borderRadius: 10, cursor: 'pointer',
+      transition: 'all .18s',
+      display: 'flex', flexDirection: 'column', gap: 10,
+      fontFamily: T.sans,
+    }}
+    onMouseEnter={e => { if (!selected) { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(15,82,186,.08)'; } }}
+    onMouseLeave={e => { if (!selected) { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; } }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, letterSpacing: '-.003em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
+          </div>
+          {cluster.aliases.length > 0 && (
+            <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`Also: ${cluster.aliases.join(' · ')}`}>
+              also: {cluster.aliases.join(' · ')}
+            </div>
+          )}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.ink70, whiteSpace: 'nowrap' }}>
+          {cluster.count}
+        </div>
+      </div>
+
+      {orderedStages.length > 0 && (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {orderedStages.map(s => <StatusBadge key={s} status={s}/>)}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.fadedInk }}>
+        <span>{cluster.count} contact{cluster.count === 1 ? '' : 's'}</span>
+        <span>{lastSeen || '—'}</span>
+      </div>
+    </div>
+  );
+}
+
+function relativeDays(iso) {
+  if (!iso) return null;
+  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (diff <= 0) return 'today';
+  if (diff === 1) return 'yesterday';
+  if (diff < 7) return diff + 'd ago';
+  if (diff < 30) return Math.round(diff / 7) + 'w ago';
+  if (diff < 365) return Math.round(diff / 30) + 'mo ago';
+  return Math.round(diff / 365) + 'y ago';
+}
+
+function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId }) {
+  return (
+    <div style={{
+      marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
+    }}>
+      <div style={{
+        padding: '16px 22px', background: T.inkSoft2, borderBottom: `1px solid ${T.faintRule}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, letterSpacing: '-.008em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
+          </div>
+          <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 3 }}>
+            {cluster.count} contact{cluster.count === 1 ? '' : 's'}
+            {cluster.aliases.length > 0 ? ' · includes ' + cluster.aliases.join(', ') : ''}
+            {cluster.emailDomain ? ' · @' + cluster.emailDomain : ''}
+          </div>
+        </div>
+        <button onClick={onClose} style={{
+          background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
+          padding: '6px 12px', fontSize: 11, fontWeight: 600, color: T.ink70, cursor: 'pointer', fontFamily: T.sans,
+        }}>Close</button>
+      </div>
+      <div>
+        {cluster.contacts.map(c => (
+          <ContactRow
+            key={c.id} c={c}
+            onClick={() => alert('Detail drawer coming next — Phase 1B.')}
+            onRefresh={onRefreshContact}
+            refreshing={refreshingId === c.id}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const FIELD_LABELS = {
   first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Phone',
   title: 'Title', company: 'Company', company_url: 'Company URL',
@@ -595,6 +694,20 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
     });
   }, [contacts, filter, search]);
 
+  // Cluster filtered contacts into companies. Dedup logic in
+  // companyDedup.js — normalizes names (Volvo Cars vs Volvo Car USA)
+  // and merges by email domain. Recomputed on every render so newly
+  // synced contacts automatically join the right cluster.
+  const clusters = useMemo(() => clusterByCompany(filtered), [filtered]);
+
+  // Keep the selected company by canonical name so re-renders don't
+  // lose the selection when the underlying cluster array changes.
+  const [selectedCanonical, setSelectedCanonical] = useState(null);
+  const selectedCluster = useMemo(
+    () => clusters.find(cl => cl.canonical === selectedCanonical) || null,
+    [clusters, selectedCanonical]
+  );
+
   const counts = useMemo(() => {
     const by = { all: contacts.length };
     contacts.forEach(c => { const s = c.status || 'prospect'; by[s] = (by[s] || 0) + 1; });
@@ -664,33 +777,41 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
           <button onClick={() => setShowImport(true)} style={btnSolid}>↑ Import CSV</button>
         </div>
 
-        {/* Table */}
-        <div style={{ marginTop: 20, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '32px 2fr 1.6fr 1.4fr 1.2fr 1fr 56px',
-            gap: 16, padding: '12px 18px', background: T.inkSoft2,
-            borderBottom: `1px solid ${T.faintRule}`,
-            fontSize: 10, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: T.ink70,
-          }}>
-            <div></div><div>Name</div><div>Company</div><div>Title</div><div>Location</div><div>Status</div><div></div>
-          </div>
+        {/* Companies grid */}
+        <div style={{ marginTop: 20 }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: T.fadedInk, fontSize: 12 }}>Loading contacts…</div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: T.fadedInk, fontSize: 12 }}>
+            <div style={{ padding: 40, textAlign: 'center', color: T.fadedInk, fontSize: 12, border: `1px dashed ${T.faintRule}`, borderRadius: 10 }}>
               {contacts.length === 0
                 ? <>No contacts yet. <button onClick={() => setShowImport(true)} style={{ ...btnGhost, padding: '6px 14px' }}>Import a CSV</button> to get started.</>
                 : 'No contacts match this filter.'}
             </div>
           ) : (
-            filtered.map(c => (
-              <ContactRow
-                key={c.id} c={c}
-                onClick={() => alert('Detail drawer coming next — Phase 1B.')}
-                onRefresh={onRefreshContact}
-                refreshing={refreshingId === c.id}
-              />
-            ))
+            <>
+              <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 12 }}>
+                {clusters.length} compan{clusters.length === 1 ? 'y' : 'ies'} · {filtered.length} contact{filtered.length === 1 ? '' : 's'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                {clusters.map(cl => (
+                  <CompanyCard
+                    key={cl.canonical + ':' + cl.count}
+                    cluster={cl}
+                    selected={selectedCanonical === cl.canonical}
+                    onClick={() => setSelectedCanonical(selectedCanonical === cl.canonical ? null : cl.canonical)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {selectedCluster && (
+            <CompanyDetail
+              cluster={selectedCluster}
+              onClose={() => setSelectedCanonical(null)}
+              onRefreshContact={onRefreshContact}
+              refreshingId={refreshingId}
+            />
           )}
         </div>
 
@@ -700,7 +821,7 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
           </div>
         )}
         <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 10, border: `1px dashed ${T.faintRule}`, color: T.fadedInk, fontSize: 12, lineHeight: 1.55 }}>
-          <b style={{ color: T.ink }}>Phase 1A.</b> Schema + import + browse + RocketReach sync. Coming next: contact detail with notes &amp; project linking, then Gmail thread sync, then Fireflies meeting routing.
+          <b style={{ color: T.ink }}>Company dedup.</b> Variants like "Volvo Cars" / "Volvo Car USA" and "Mattel" / "Mattel, Inc." merge automatically based on name normalization + email-domain matching. New contacts join the right cluster on the next render — no manual cleanup needed.
         </div>
       </div>
 
