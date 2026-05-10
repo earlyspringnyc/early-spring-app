@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import T from '../theme/tokens.js';
 
-// Personal sticky notes. Horizontally-scrolling row of post-it cards,
-// click to edit inline, hover to reveal delete. Brand-aware color set
-// (Early Spring accent yellow + sapphire/mint/rose washes).
+// Personal sticky notes. All sapphire — same hue, different opacities,
+// matches the rest of the Lab brand. Click to edit inline; hover reveals
+// delete + a one-click color cycle. After the user stops typing for a
+// moment we ask Claude to look for a reminder ("check in on the car
+// dealers tuesday") and surface a one-click "Add to Calendar".
 const COLORS = {
-  yellow: { bg: '#FFF4D6', ink: '#5A4A1A', border: 'rgba(240,184,73,.45)' },
-  sapphire: { bg: 'rgba(15,82,186,.10)', ink: '#0F52BA', border: 'rgba(15,82,186,.30)' },
-  mint: { bg: '#E8F5E8', ink: '#1F5132', border: 'rgba(31,81,50,.30)' },
-  rose: { bg: '#FCE8EE', ink: '#7A2746', border: 'rgba(122,39,70,.30)' },
+  light:  { bg: 'rgba(15,82,186,.06)', ink: '#0F52BA', border: 'rgba(15,82,186,.22)', label: 'Light' },
+  wash:   { bg: 'rgba(15,82,186,.12)', ink: '#0F52BA', border: 'rgba(15,82,186,.28)', label: 'Wash' },
+  deep:   { bg: 'rgba(15,82,186,.20)', ink: '#0F52BA', border: 'rgba(15,82,186,.40)', label: 'Deep' },
+  solid:  { bg: '#0F52BA',             ink: '#FFFFFF', border: '#0F52BA',             label: 'Solid' },
 };
 const COLOR_KEYS = Object.keys(COLORS);
 
@@ -21,12 +23,30 @@ function rotationFor(id) {
   return ((h % 5) - 2) * 0.6; // -1.2deg .. +1.2deg
 }
 
-function StickyNote({ note, onChange, onDelete }) {
+function fmtReminderDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tgt = new Date(d); tgt.setHours(0,0,0,0);
+  const diff = Math.round((tgt - today) / 86400000);
+  const hasTime = iso.includes('T') && !iso.endsWith('T00:00:00.000Z');
+  const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const timeStr = hasTime ? ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  if (diff === 0) return 'Today' + timeStr;
+  if (diff === 1) return 'Tomorrow' + timeStr;
+  if (diff > 1 && diff < 7) return d.toLocaleDateString('en-US', { weekday: 'long' }) + timeStr;
+  return dateStr + timeStr;
+}
+
+function StickyNote({ note, onChange, onDelete, onAddToCalendar, onDismissReminder, analyzing }) {
   const [editing, setEditing] = useState(!note.content);
   const [hover, setHover] = useState(false);
   const taRef = useRef(null);
-  const palette = COLORS[note.color] || COLORS.yellow;
+  const palette = COLORS[note.color] || COLORS.wash;
   const rotation = rotationFor(note.id);
+  const hasReminder = note.reminder_date && note.reminder_action;
+  const hasCalendarEvent = !!note.calendar_event_id;
 
   useEffect(() => {
     if (editing && taRef.current) {
@@ -42,6 +62,13 @@ function StickyNote({ note, onChange, onDelete }) {
     onChange({ color: next });
   };
 
+  const subtle = palette.ink === '#FFFFFF'
+    ? 'rgba(255,255,255,.85)'
+    : 'rgba(15,82,186,.70)';
+  const muted = palette.ink === '#FFFFFF'
+    ? 'rgba(255,255,255,.65)'
+    : 'rgba(15,82,186,.50)';
+
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -49,7 +76,8 @@ function StickyNote({ note, onChange, onDelete }) {
       onClick={() => !editing && setEditing(true)}
       style={{
         position: 'relative', flex: '0 0 auto',
-        width: 200, minHeight: 160, padding: 16,
+        width: 220, minHeight: 170,
+        display: 'flex', flexDirection: 'column',
         background: palette.bg,
         border: `1px solid ${palette.border}`,
         borderRadius: 6,
@@ -60,30 +88,83 @@ function StickyNote({ note, onChange, onDelete }) {
         transition: 'transform .18s ease, box-shadow .18s ease',
         cursor: editing ? 'text' : 'pointer',
         fontFamily: T.sans,
+        overflow: 'hidden',
       }}
     >
-      {editing ? (
-        <textarea
-          ref={taRef}
-          value={note.content}
-          onChange={e => onChange({ content: e.target.value })}
-          onBlur={() => setEditing(false)}
-          onKeyDown={e => { if (e.key === 'Escape') { e.target.blur(); } }}
-          placeholder="What's on your mind?"
+      <div style={{ flex: 1, padding: 16, paddingBottom: hasReminder ? 10 : 16 }}>
+        {editing ? (
+          <textarea
+            ref={taRef}
+            value={note.content}
+            onChange={e => onChange({ content: e.target.value })}
+            onBlur={() => setEditing(false)}
+            onKeyDown={e => { if (e.key === 'Escape') { e.target.blur(); } }}
+            placeholder="What's on your mind?"
+            style={{
+              width: '100%', minHeight: 120,
+              background: 'transparent', border: 'none', outline: 'none',
+              resize: 'none',
+              fontFamily: T.sans, fontSize: 13, lineHeight: 1.5, color: palette.ink,
+            }}
+          />
+        ) : (
+          <div style={{
+            fontSize: 13, lineHeight: 1.5, color: palette.ink,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            minHeight: 120,
+          }}>
+            {note.content || <span style={{ opacity: .55 }}>Empty note — click to write</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Reminder strip */}
+      {hasReminder && (
+        <div
+          onClick={e => e.stopPropagation()}
           style={{
-            width: '100%', minHeight: 120,
-            background: 'transparent', border: 'none', outline: 'none',
-            resize: 'none',
-            fontFamily: T.sans, fontSize: 13, lineHeight: 1.5, color: palette.ink,
+            padding: '8px 12px', borderTop: `1px solid ${palette.border}`,
+            background: palette.ink === '#FFFFFF' ? 'rgba(255,255,255,.10)' : 'rgba(15,82,186,.06)',
+            display: 'flex', flexDirection: 'column', gap: 6,
+            fontSize: 11,
           }}
-        />
-      ) : (
-        <div style={{
-          fontSize: 13, lineHeight: 1.5, color: palette.ink,
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          minHeight: 120,
-        }}>
-          {note.content || <span style={{ opacity: .45 }}>Empty note — click to write</span>}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: palette.ink, fontWeight: 600 }}>
+            <span style={{ fontSize: 12 }}>◷</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {fmtReminderDate(note.reminder_date)}
+            </span>
+          </div>
+          <div style={{ color: subtle, fontSize: 11, lineHeight: 1.3 }}>
+            {note.reminder_action}
+          </div>
+          {!hasCalendarEvent ? (
+            <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+              <button
+                onClick={() => onAddToCalendar()}
+                style={{
+                  flex: 1, padding: '4px 8px', borderRadius: 4,
+                  background: palette.ink === '#FFFFFF' ? '#FFFFFF' : '#0F52BA',
+                  color: palette.ink === '#FFFFFF' ? '#0F52BA' : '#FFFFFF',
+                  border: 'none', cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700, letterSpacing: '.04em',
+                  textTransform: 'uppercase', fontFamily: T.sans,
+                }}
+              >Add to calendar</button>
+              <button
+                onClick={() => onDismissReminder()}
+                title="Dismiss"
+                style={{
+                  padding: '4px 8px', borderRadius: 4,
+                  background: 'transparent', border: `1px solid ${palette.border}`,
+                  color: subtle, cursor: 'pointer',
+                  fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                }}
+              >×</button>
+            </div>
+          ) : (
+            <div style={{ color: muted, fontSize: 10, marginTop: 2 }}>✓ On your calendar</div>
+          )}
         </div>
       )}
 
@@ -91,11 +172,17 @@ function StickyNote({ note, onChange, onDelete }) {
       <div style={{
         position: 'absolute', top: 6, right: 6,
         display: 'flex', gap: 4,
-        opacity: hover ? 1 : 0, transition: 'opacity .18s',
+        opacity: hover ? 1 : (analyzing ? 1 : 0), transition: 'opacity .18s',
       }}>
+        {analyzing && (
+          <div title="Looking for reminders..." style={{
+            width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: subtle, fontSize: 11,
+          }}>✨</div>
+        )}
         <button
           onClick={cycleColor}
-          title="Change color"
+          title={`Color: ${palette.label}`}
           style={{
             width: 18, height: 18, padding: 0, borderRadius: '50%',
             background: COLORS[COLOR_KEYS[(COLOR_KEYS.indexOf(note.color) + 1) % COLOR_KEYS.length]].bg,
@@ -108,7 +195,8 @@ function StickyNote({ note, onChange, onDelete }) {
           title="Delete note"
           style={{
             width: 18, height: 18, padding: 0, borderRadius: '50%',
-            background: 'rgba(0,0,0,.06)', border: 'none',
+            background: palette.ink === '#FFFFFF' ? 'rgba(255,255,255,.20)' : 'rgba(15,82,186,.10)',
+            border: 'none',
             color: palette.ink, cursor: 'pointer',
             fontSize: 12, lineHeight: 1, fontFamily: T.sans, fontWeight: 600,
           }}
@@ -118,7 +206,7 @@ function StickyNote({ note, onChange, onDelete }) {
   );
 }
 
-function StickyNotes({ notes, addNote, updateNote, deleteNote }) {
+function StickyNotes({ notes, addNote, updateNote, deleteNote, addToCalendar, dismissReminder, analyzingIds = new Set() }) {
   return (
     <div style={{ marginBottom: 32 }}>
       <div style={{
@@ -132,7 +220,7 @@ function StickyNotes({ notes, addNote, updateNote, deleteNote }) {
           Notes <span style={{ color: T.fadedInk, fontWeight: 600 }}>· only you</span>
         </div>
         <button
-          onClick={() => addNote('yellow')}
+          onClick={() => addNote('wash')}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '6px 12px', borderRadius: 999,
@@ -148,7 +236,7 @@ function StickyNotes({ notes, addNote, updateNote, deleteNote }) {
 
       {notes.length === 0 ? (
         <div
-          onClick={() => addNote('yellow')}
+          onClick={() => addNote('wash')}
           style={{
             padding: '24px 20px', borderRadius: T.rS,
             border: `1px dashed ${T.faintRule}`,
@@ -159,21 +247,23 @@ function StickyNotes({ notes, addNote, updateNote, deleteNote }) {
           onMouseEnter={e => { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.color = T.ink; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.color = T.fadedInk; }}
         >
-          A quiet workspace. Click to add your first note — reminders, follow-ups, anything that doesn't belong to a project yet.
+          A quiet workspace. Click to add your first note — try “remind me to check in on the car dealers tuesday.”
         </div>
       ) : (
         <div style={{
           display: 'flex', gap: 14, overflowX: 'auto',
           padding: '8px 4px 16px',
-          // Hide scrollbar but keep scroll
           scrollbarWidth: 'thin',
         }}>
           {notes.map(n => (
             <StickyNote
               key={n.id}
               note={n}
+              analyzing={analyzingIds.has(n.id)}
               onChange={patch => updateNote(n.id, patch)}
               onDelete={() => deleteNote(n.id)}
+              onAddToCalendar={() => addToCalendar(n)}
+              onDismissReminder={() => dismissReminder(n.id)}
             />
           ))}
         </div>

@@ -52,7 +52,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,accessToken,profiles
   const[vendorProjectId,setVendorProjectId]=useState(null);
   const[showArchived,setShowArchived]=useState(false);
   // Personal notes — RLS scopes to auth.uid(), never shared with org
-  const{notes,addNote,updateNote,deleteNote}=useUserNotes(user?.user_id||user?.id);
+  const{notes,addNote,updateNote,deleteNote,addToCalendar,dismissReminder,analyzingIds}=useUserNotes(user?.user_id||user?.id,accessToken);
 
   // Calculations — memoized so calcProject only reruns when projects change
   // Financial totals exclude archived projects so the dashboard reflects active business
@@ -161,7 +161,7 @@ function PortfolioDash({projects,onOpen,onNew,user,onLogout,accessToken,profiles
         <h1 style={{fontSize:"clamp(34px,5.4vw,64px)",fontWeight:800,color:T.ink,letterSpacing:"-0.028em",lineHeight:0.98,margin:0}}>{getGreeting()}, {firstName}{getGreeting()==="Working hard"?"?":"."}</h1>
       </div>
 
-      <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote}/>
+      <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote} addToCalendar={addToCalendar} dismissReminder={dismissReminder} analyzingIds={analyzingIds}/>
 
       {/* ── BENTO GRID ── */}
       <div className="portfolio-bento" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>

@@ -48,12 +48,12 @@ function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
 }
 
 /* ── EP Dashboard ── */
-function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[],currentOrgId,switchOrg,orgId}){
+function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[],currentOrgId,switchOrg,orgId,accessToken}){
   const[tab,setTab]=useState("overview"); // overview | staffing
   const[expandedId,setExpandedId]=useState(null);
   const[teamMembers,setTeamMembers]=useState([]);
   // Personal notes — RLS scopes to auth.uid(), per-user not per-org
-  const{notes,addNote,updateNote,deleteNote}=useUserNotes(user?.user_id||user?.id);
+  const{notes,addNote,updateNote,deleteNote,addToCalendar,dismissReminder,analyzingIds}=useUserNotes(user?.user_id||user?.id,accessToken);
 
   useEffect(()=>{
     if(isSupabaseConfigured()&&orgId){
@@ -103,7 +103,7 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
         </div>
       </div>
 
-      <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote}/>
+      <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote} addToCalendar={addToCalendar} dismissReminder={dismissReminder} analyzingIds={analyzingIds}/>
 
       {/* Overview Tab */}
       {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>
