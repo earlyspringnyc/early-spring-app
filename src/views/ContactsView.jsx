@@ -413,6 +413,18 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
 
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await listContacts({ limit: 1000 });
+      setContacts(rows);
+    } catch (e) {
+      console.error('[contacts] load failed:', e.message || e);
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
   const onSyncRocketReach = useCallback(async () => {
     if (syncing) return;
     setSyncing(true); setSyncStatus('Fetching from RocketReach…');
@@ -441,18 +453,6 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
       alert('Refresh failed: ' + (e.message || 'unknown'));
     } finally { setRefreshingId(null); }
   }, []);
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const rows = await listContacts({ limit: 1000 });
-      setContacts(rows);
-    } catch (e) {
-      console.error('[contacts] load failed:', e.message || e);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { reload(); }, [reload]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
