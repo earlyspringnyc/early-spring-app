@@ -8,7 +8,53 @@ import {
   listProjectsForMeeting, linkMeetingToProject, unlinkMeetingFromProject,
   linkContactToMeeting, unlinkContactFromMeeting,
 } from '../lib/meetings.js';
-import { listContacts } from '../lib/contacts.js';
+import { listContacts, createContact } from '../lib/contacts.js';
+
+// Personal email domains — never use as a "same company" signal.
+const PERSONAL_DOMAINS = new Set([
+  'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com',
+  'me.com','aol.com','live.com','protonmail.com','proton.me','fastmail.com','mac.com','msn.com'
+]);
+
+// For each unlinked attendee, find the best CRM matches: exact-email,
+// same-non-personal-domain, name match. Returns up to 3 per attendee.
+function findContactSuggestions(attendee, allContacts) {
+  if (!attendee) return [];
+  const email = (attendee.email || '').toLowerCase().trim();
+  const domain = email.includes('@') ? email.split('@')[1] : null;
+  const nameStr = (attendee.name || '').trim().toLowerCase();
+  const [aFirst, ...aRest] = nameStr.split(/\s+/);
+  const aLast = aRest.join(' ');
+
+  const out = [];
+  const seen = new Set();
+  const push = (c, reason) => {
+    if (!c || seen.has(c.id)) return;
+    seen.add(c.id); out.push({ contact: c, reason });
+  };
+
+  // 1. Exact email match (highest confidence)
+  if (email) {
+    const exact = allContacts.find(c => c.email && c.email.toLowerCase() === email);
+    if (exact) push(exact, 'same email');
+  }
+  // 2. Same non-personal domain
+  if (domain && !PERSONAL_DOMAINS.has(domain)) {
+    allContacts
+      .filter(c => c.email && c.email.toLowerCase().endsWith('@' + domain))
+      .forEach(c => push(c, 'same company domain'));
+  }
+  // 3. Name match (both first + last present)
+  if (aFirst && aLast) {
+    allContacts
+      .filter(c =>
+        (c.first_name || '').toLowerCase() === aFirst &&
+        (c.last_name || '').toLowerCase() === aLast
+      )
+      .forEach(c => push(c, 'name match'));
+  }
+  return out.slice(0, 3);
+}
 
 const CLASS_OPTIONS = [
   { id: 'all',           label: 'All' },
@@ -101,13 +147,178 @@ function MeetingRow({ m, onClick }) {
   );
 }
 
+// Smarter contact-linking UX. Reads the meeting's attendees, finds
+// the best CRM matches per attendee, surfaces them at the top with
+// one-click Link buttons. For attendees with no match, a one-click
+// "Add as new contact" button creates the contact + auto-links it.
+// Below that, a fuzzy search input over the full CRM with up to 8
+// inline results.
+function ContactLinkSection({
+  meeting, contacts, linkedContacts, linkableContacts,
+  contactSearch, setContactSearch,
+  onLinkContact, onUnlinkContact, onCreateFromAttendee, creatingAttendeeEmail,
+}) {
+  // Attendees that aren't already linked to a CRM contact via email
+  const linkedEmails = new Set(
+    linkedContacts.map(lc => lc.contacts?.email?.toLowerCase()).filter(Boolean)
+  );
+  const unlinkedAttendees = (meeting.attendees || [])
+    .filter(a => (a.email || a.name) && !linkedEmails.has((a.email || '').toLowerCase()));
+
+  const suggestionsByAttendee = unlinkedAttendees.map(att => ({
+    att,
+    suggestions: findContactSuggestions(att, linkableContacts),
+  }));
+
+  const q = contactSearch.trim().toLowerCase();
+  const filteredContacts = q
+    ? linkableContacts.filter(c => {
+        const hay = `${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.company || ''} ${c.title || ''}`.toLowerCase();
+        return hay.includes(q);
+      }).slice(0, 8)
+    : [];
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+        Linked contacts · {linkedContacts.length}
+      </div>
+
+      {linkedContacts.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+          {linkedContacts.map(mc => (
+            <span key={mc.contact_id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '5px 10px', borderRadius: 999, fontSize: 11,
+              background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
+            }}>
+              {mc.contacts.first_name} {mc.contacts.last_name}
+              {mc.contacts.company ? ` · ${mc.contacts.company}` : ''}
+              {mc.match_type === 'auto-email' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
+              <button onClick={() => onUnlinkContact(mc.contact_id)} title="Unlink" style={{
+                background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+                padding: 0, fontSize: 12, lineHeight: 1,
+              }}>×</button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 12, fontStyle: 'italic' }}>No contacts linked.</div>
+      )}
+
+      {/* Attendee-driven suggestions */}
+      {suggestionsByAttendee.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: T.ink70, marginBottom: 6 }}>From this meeting's attendees</div>
+          <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 8, overflow: 'hidden' }}>
+            {suggestionsByAttendee.map(({ att, suggestions }, i) => {
+              const isCreating = creatingAttendeeEmail === (att.email || att.name);
+              return (
+                <div key={i} style={{
+                  padding: '10px 12px',
+                  borderBottom: i < suggestionsByAttendee.length - 1 ? `1px solid ${T.faintRule}` : 'none',
+                  background: T.paper,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {att.name || (att.email && att.email.split('@')[0]) || 'Unnamed'}
+                      </div>
+                      {att.email && (
+                        <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {att.email}
+                        </div>
+                      )}
+                    </div>
+                    {att.email && (
+                      <button
+                        onClick={() => onCreateFromAttendee(att)}
+                        disabled={isCreating}
+                        style={{
+                          padding: '4px 10px', borderRadius: 999, border: `1px solid ${T.faintRule}`,
+                          background: 'transparent', color: T.ink, fontSize: 10, fontWeight: 600,
+                          cursor: isCreating ? 'wait' : 'pointer', fontFamily: T.sans, opacity: isCreating ? .5 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >{isCreating ? 'Adding…' : '+ Add as new'}</button>
+                    )}
+                  </div>
+                  {suggestions.length > 0 ? (
+                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {suggestions.map(({ contact: c, reason }) => (
+                        <button key={c.id} onClick={() => onLinkContact(c.id)} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                          background: T.ink, color: T.paper, border: 'none', cursor: 'pointer', fontFamily: T.sans,
+                        }}>
+                          Link {c.first_name} {c.last_name}
+                          {c.company ? <span style={{ opacity: .75, fontWeight: 400 }}>· {c.company}</span> : null}
+                          <span style={{ opacity: .65, fontSize: 9 }}>({reason})</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : att.email ? (
+                    <div style={{ marginTop: 6, fontSize: 10, color: T.fadedInk, fontStyle: 'italic' }}>No CRM match — add or search below.</div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Search */}
+      <div style={{ position: 'relative' }}>
+        <input
+          value={contactSearch}
+          onChange={e => setContactSearch(e.target.value)}
+          placeholder="Search contacts by name, email, company, title…"
+          style={{
+            width: '100%', padding: '8px 12px', borderRadius: 6, fontSize: 12, fontFamily: T.sans,
+            border: `1px solid ${T.faintRule}`, background: T.inkSoft2, color: T.ink, outline: 'none',
+          }}
+        />
+        {q && filteredContacts.length > 0 && (
+          <div style={{
+            marginTop: 6, border: `1px solid ${T.faintRule}`, borderRadius: 8, background: T.paper, overflow: 'hidden',
+          }}>
+            {filteredContacts.map(c => (
+              <button key={c.id} onClick={() => onLinkContact(c.id)} style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '8px 12px', background: 'transparent', border: 'none',
+                borderBottom: `1px solid ${T.faintRule}`,
+                cursor: 'pointer', fontFamily: T.sans,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.inkSoft}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{ fontSize: 12, color: T.ink, fontWeight: 500 }}>
+                  {c.first_name} {c.last_name}
+                  {c.company ? <span style={{ color: T.fadedInk, fontWeight: 400 }}> · {c.company}</span> : null}
+                </div>
+                {c.email && <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2 }}>{c.email}</div>}
+              </button>
+            ))}
+          </div>
+        )}
+        {q && filteredContacts.length === 0 && (
+          <div style={{ marginTop: 6, padding: 10, fontSize: 11, color: T.fadedInk, fontStyle: 'italic' }}>
+            No matches.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose, onReclassify, onSaveNotes, onLinksChanged }) {
   const [tab, setTab] = useState('summary');
   const [notesDraft, setNotesDraft] = useState(meeting?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
   const [linkedProjects, setLinkedProjects] = useState([]);
   const [linkProjectId, setLinkProjectId] = useState('');
-  const [linkContactId, setLinkContactId] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const [creatingAttendeeEmail, setCreatingAttendeeEmail] = useState(null);
 
   useEffect(() => { setNotesDraft(meeting?.notes || ''); }, [meeting?.id]);
   useEffect(() => {
@@ -142,11 +353,11 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
     } catch (e) { alert('Unlink failed: ' + (e.message || 'unknown')); }
   };
 
-  const onLinkContact = async () => {
-    if (!linkContactId) return;
+  const onLinkContact = async (contactId) => {
+    if (!contactId) return;
     try {
-      await linkContactToMeeting(userId, meeting.id, linkContactId);
-      setLinkContactId('');
+      await linkContactToMeeting(userId, meeting.id, contactId);
+      setContactSearch('');
       onLinksChanged?.(); // parent re-fetches meetings so meeting_contacts updates
     } catch (e) { alert('Link failed: ' + (e.message || 'unknown')); }
   };
@@ -156,6 +367,33 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
       await unlinkContactFromMeeting(meeting.id, contactId);
       onLinksChanged?.();
     } catch (e) { alert('Unlink failed: ' + (e.message || 'unknown')); }
+  };
+
+  // Create a new contact from a meeting attendee in one click, then
+  // auto-link it. Names are split first-word vs rest; status defaults
+  // to 'prospect' (since they're external to your team) but the user
+  // can change it from the contact detail drawer afterward.
+  const onCreateFromAttendee = async (att) => {
+    if (!att?.email && !att?.name) return;
+    setCreatingAttendeeEmail(att.email || att.name);
+    try {
+      const nameParts = (att.name || '').trim().split(/\s+/);
+      const newContact = await createContact(userId, {
+        first_name: nameParts[0] || null,
+        last_name: nameParts.slice(1).join(' ') || null,
+        email: att.email || null,
+        status: 'prospect',
+        sources: ['meeting'],
+      });
+      if (newContact?.id) {
+        await linkContactToMeeting(userId, meeting.id, newContact.id);
+        onLinksChanged?.();
+      }
+    } catch (e) {
+      alert('Could not add contact: ' + (e.message || 'unknown'));
+    } finally {
+      setCreatingAttendeeEmail(null);
+    }
   };
 
   const saveNotes = async () => {
@@ -221,43 +459,18 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
           {tab === 'summary' && (
             <>
               {/* Linked contacts */}
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Linked contacts · {linkedContacts.length}
-                </div>
-                {linkedContacts.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                    {linkedContacts.map(mc => (
-                      <span key={mc.contact_id} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '5px 10px', borderRadius: 999, fontSize: 11,
-                        background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
-                      }}>
-                        {mc.contacts.first_name} {mc.contacts.last_name}
-                        {mc.contacts.company ? ` · ${mc.contacts.company}` : ''}
-                        {mc.match_type === 'auto-email' && <span style={{ opacity: .55, fontSize: 9 }}>auto</span>}
-                        <button onClick={() => onUnlinkContact(mc.contact_id)} title="Unlink" style={{
-                          background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
-                          padding: 0, fontSize: 12, lineHeight: 1,
-                        }}>×</button>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 8, fontStyle: 'italic' }}>No contacts linked.</div>
-                )}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <select value={linkContactId} onChange={e => setLinkContactId(e.target.value)} style={selectStyle}>
-                    <option value="">Link a contact…</option>
-                    {linkableContacts.slice(0, 500).map(c => (
-                      <option key={c.id} value={c.id}>
-                        {(c.first_name || '') + ' ' + (c.last_name || '')}{c.company ? ` — ${c.company}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button onClick={onLinkContact} disabled={!linkContactId} style={miniLinkBtn(linkContactId)}>Link</button>
-                </div>
-              </div>
+              <ContactLinkSection
+                meeting={meeting}
+                contacts={contacts}
+                linkedContacts={linkedContacts}
+                linkableContacts={linkableContacts}
+                contactSearch={contactSearch}
+                setContactSearch={setContactSearch}
+                onLinkContact={onLinkContact}
+                onUnlinkContact={onUnlinkContact}
+                onCreateFromAttendee={onCreateFromAttendee}
+                creatingAttendeeEmail={creatingAttendeeEmail}
+              />
 
               {/* Linked projects */}
               <div style={{ marginBottom: 24 }}>
