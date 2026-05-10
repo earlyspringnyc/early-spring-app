@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=1200,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>Morgan CRM — Layout Options</title>
+<link rel="icon" href="/favicon.svg"/>
+<style>
+  @font-face { font-family: 'TWK Lausanne'; src: url('/fonts/TWKLausanne-300.woff2') format('woff2'); font-weight: 300; font-display: swap; }
+  @font-face { font-family: 'TWK Lausanne'; src: url('/fonts/TWKLausanne-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+  @font-face { font-family: 'TWK Lausanne'; src: url('/fonts/TWKLausanne-400Italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+  @font-face { font-family: 'TWK Lausanne'; src: url('/fonts/TWKLausanne-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+  @font-face { font-family: 'TWK Lausanne'; src: url('/fonts/TWKLausanne-800.woff2') format('woff2'); font-weight: 800; font-display: swap; }
+
+  :root {
+    --paper: #FFFFFF;
+    --ink: #0F52BA;
+    --ink70: rgba(15,82,186,.70);
+    --ink60: rgba(15,82,186,.60);
+    --ink40: rgba(15,82,186,.42);
+    --ink25: rgba(15,82,186,.25);
+    --ink20: rgba(15,82,186,.20);
+    --inkSoft: rgba(15,82,186,.08);
+    --inkSoft2: rgba(15,82,186,.05);
+    --faintRule: rgba(15,82,186,.18);
+    --alert: #7A1F1F;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'TWK Lausanne', -apple-system, system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .lab-banner {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--ink); color: var(--paper);
+    padding: 10px 28px;
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .lab-banner b { font-weight: 800; letter-spacing: .14em; }
+  .lab-banner .sub { color: rgba(255,255,255,.65); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .lab-banner .tabs { display: flex; gap: 14px; }
+  .lab-banner .tabs button {
+    background: transparent; border: none; color: rgba(255,255,255,.7);
+    font: inherit; cursor: pointer; padding: 4px 0;
+    text-transform: uppercase; letter-spacing: .08em; font-weight: 600; font-size: 11px;
+  }
+  .lab-banner .tabs button.active { color: var(--paper); border-bottom: 1.5px solid var(--paper); }
+
+  .container { max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
+
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.018em; line-height: 1; margin: 8px 0 4px; }
+  .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); margin-bottom: 6px; }
+  .sub-h1 { font-size: 13px; color: var(--ink70); margin-bottom: 28px; max-width: 720px; line-height: 1.55; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 0; margin-top: 12px;
+    border-top: 1px solid var(--faintRule);
+    border-bottom: 1px solid var(--faintRule);
+    flex-wrap: wrap;
+  }
+  .search {
+    flex: 1; min-width: 240px; display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 8px; background: var(--inkSoft2);
+  }
+  .search input { flex: 1; border: none; background: transparent; outline: none; font: inherit; color: var(--ink); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: transparent; border: 1px solid var(--faintRule);
+    color: var(--ink70); cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .chip:hover:not(.active) { border-color: var(--ink); color: var(--ink); }
+  .chip .count { font-size: 10px; opacity: .7; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ─────────────────────────────────────────────── */
+  /* LAYOUT A — Company-first cards                  */
+  /* ─────────────────────────────────────────────── */
+  .companies-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px; margin-top: 24px;
+  }
+  .company-card {
+    padding: 18px 20px; border: 1px solid var(--faintRule); border-radius: 10px;
+    background: var(--paper); cursor: pointer; transition: all .18s;
+    display: flex; flex-direction: column; gap: 12px;
+    position: relative;
+  }
+  .company-card:hover { border-color: var(--ink); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(15,82,186,.10); }
+  .company-card.selected { border-color: var(--ink); background: var(--inkSoft2); }
+  .company-card .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .company-card .name { font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: -.005em; min-width: 0; }
+  .company-card .name .aka {
+    display: block; font-size: 10px; font-weight: 400; color: var(--ink40);
+    margin-top: 3px; letter-spacing: 0;
+  }
+  .company-card .count { font-size: 11px; font-weight: 700; color: var(--ink70); white-space: nowrap; }
+  .company-card .pills { display: flex; gap: 4px; flex-wrap: wrap; }
+  .company-card .pip {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ink); border: 1px solid var(--ink);
+  }
+  .company-card .pip.outline { background: transparent; }
+  .company-card .meta { font-size: 11px; color: var(--ink40); display: flex; justify-content: space-between; gap: 6px; }
+  .company-card .stages { display: flex; gap: 4px; flex-wrap: wrap; }
+  .stage-tag {
+    font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid;
+  }
+  .stage-tag.pitching { color: var(--ink); border-color: var(--ink); background: var(--inkSoft); }
+  .stage-tag.active { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+  .stage-tag.prospect { color: var(--ink70); border-color: var(--faintRule); }
+  .stage-tag.vendor { color: var(--ink70); border-color: var(--faintRule); background: var(--inkSoft2); }
+  .stage-tag.past { color: var(--ink40); border-color: var(--faintRule); }
+
+  .company-detail {
+    margin-top: 24px; border: 1px solid var(--faintRule); border-radius: 10px; overflow: hidden;
+    background: var(--paper);
+  }
+  .company-detail-head {
+    padding: 18px 22px; background: var(--inkSoft2); border-bottom: 1px solid var(--faintRule);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .company-detail-head h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+  .company-detail-head .aka { font-size: 11px; color: var(--ink40); margin-left: 8px; font-weight: 400; }
+  .company-detail-list { padding: 0; }
+  .contact-row {
+    display: grid; grid-template-columns: 32px 2fr 1.6fr 1fr 80px;
+    gap: 16px; align-items: center;
+    padding: 12px 22px; border-bottom: 1px solid var(--faintRule);
+    cursor: pointer; transition: background .15s;
+  }
+  .contact-row:last-child { border-bottom: none; }
+  .contact-row:hover { background: var(--inkSoft); }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--inkSoft); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: var(--ink); border: 1px solid var(--faintRule);
+  }
+  .contact-row .name-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .contact-row .name-cell .nm { font-size: 13px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contact-row .name-cell .em { font-size: 11px; color: var(--ink40); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contact-row .cell { font-size: 12px; color: var(--ink70); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ─────────────────────────────────────────────── */
+  /* LAYOUT B — Two-pane                             */
+  /* ─────────────────────────────────────────────── */
+  .two-pane {
+    display: grid; grid-template-columns: 280px 1fr; gap: 0;
+    margin-top: 24px; border: 1px solid var(--faintRule); border-radius: 10px;
+    overflow: hidden; background: var(--paper); min-height: 520px;
+  }
+  .pane-left {
+    border-right: 1px solid var(--faintRule); background: var(--inkSoft2);
+    overflow-y: auto; max-height: 720px;
+  }
+  .pane-left .item {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+    padding: 10px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--faintRule);
+    transition: background .15s;
+  }
+  .pane-left .item:hover { background: var(--inkSoft); }
+  .pane-left .item.selected { background: var(--paper); border-left: 3px solid var(--ink); padding-left: 11px; }
+  .pane-left .item .nm { font-size: 12px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pane-left .item .aka { font-size: 10px; color: var(--ink40); margin-top: 2px; }
+  .pane-left .item .ct { font-size: 11px; font-weight: 700; color: var(--ink70); }
+  .pane-left .head {
+    padding: 14px; font-size: 9px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink40);
+    border-bottom: 1px solid var(--faintRule);
+  }
+  .pane-right { display: flex; flex-direction: column; max-height: 720px; overflow-y: auto; }
+  .pane-right-head { padding: 18px 22px; border-bottom: 1px solid var(--faintRule); }
+  .pane-right-head h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+  .pane-right-head .meta { font-size: 11px; color: var(--ink40); margin-top: 4px; }
+
+  /* ─────────────────────────────────────────────── */
+  /* LAYOUT C — Stats + table                        */
+  /* ─────────────────────────────────────────────── */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin-top: 24px; margin-bottom: 8px;
+  }
+  .stat-card {
+    padding: 16px 18px; border: 1px solid var(--faintRule); border-radius: 10px;
+    background: var(--paper); cursor: pointer; transition: all .18s;
+  }
+  .stat-card:hover { border-color: var(--ink); }
+  .stat-card .label { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink70); margin-bottom: 8px; }
+  .stat-card .value { font-size: 24px; font-weight: 800; color: var(--ink); letter-spacing: -.018em; line-height: 1; }
+  .stat-card .sub { font-size: 11px; color: var(--ink40); margin-top: 6px; }
+  .stat-card .list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .stat-card .list .row { display: flex; justify-content: space-between; font-size: 12px; }
+  .stat-card .list .row .nm { color: var(--ink); font-weight: 500; }
+  .stat-card .list .row .ct { color: var(--ink40); font-weight: 600; }
+
+  .table {
+    margin-top: 20px; border: 1px solid var(--faintRule); border-radius: 10px;
+    overflow: hidden; background: var(--paper);
+  }
+  .table-header, .table-row {
+    display: grid; grid-template-columns: 32px 2fr 1.6fr 1.4fr 1.2fr 1fr 24px;
+    gap: 16px; align-items: center; padding: 12px 18px;
+  }
+  .table-header {
+    background: var(--inkSoft2); border-bottom: 1px solid var(--faintRule);
+    font-size: 10px; font-weight: 700; letter-spacing: .10em; text-transform: uppercase; color: var(--ink70);
+  }
+  .table-row { border-bottom: 1px solid var(--faintRule); cursor: pointer; transition: background .15s; }
+  .table-row:last-child { border-bottom: none; }
+  .table-row:hover { background: var(--inkSoft); }
+
+  .toggle-row { display: flex; gap: 8px; margin-top: 16px; }
+  .toggle-row button {
+    padding: 6px 12px; border-radius: 999px;
+    background: transparent; border: 1px solid var(--faintRule);
+    color: var(--ink70); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  }
+  .toggle-row button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .note-card {
+    margin-top: 24px; padding: 16px 20px;
+    background: var(--inkSoft); border-left: 3px solid var(--ink); border-radius: 0 8px 8px 0;
+    font-size: 12px; color: var(--ink70); line-height: 1.6;
+  }
+  .note-card b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="lab-banner">
+  <div><b>Lab Preview</b> · <span class="sub">CRM layouts — pick one to ship</span></div>
+  <div class="tabs">
+    <button data-view="A" class="active">A · Company cards</button>
+    <button data-view="B">B · Two-pane</button>
+    <button data-view="C">C · Stats + table</button>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────── -->
+<!-- LAYOUT A — Company-first cards                   -->
+<!-- ─────────────────────────────────────────────── -->
+<div class="view active" id="view-A">
+  <div class="container">
+    <div class="eyebrow">CRM · Personal</div>
+    <h1>Contacts by company</h1>
+    <div class="sub-h1">757 contacts across 412 companies. Cards group everyone at the same employer — variations like "Volvo Cars" / "Volvo Car USA" are auto-merged so you see one card per real company.</div>
+
+    <div class="toolbar">
+      <div class="search">⌕ <input placeholder="Search companies, names, titles…"/></div>
+      <div class="chip active">All <span class="count">412</span></div>
+      <div class="chip">With pitches <span class="count">12</span></div>
+      <div class="chip">Active <span class="count">8</span></div>
+      <div class="chip">≥ 3 contacts <span class="count">47</span></div>
+    </div>
+
+    <div class="companies-grid" id="companies-grid-A"></div>
+
+    <div id="company-detail-A" style="display:none"></div>
+
+    <div class="note-card">
+      <b>How dedup works.</b> Companies are grouped by a normalized form of their name (strip <i>Inc</i>, <i>LLC</i>, <i>Cars</i>, <i>USA</i>, <i>Group</i> etc.) plus email-domain matching. "Volvo Cars" and "Volvo Car USA" both reduce to <i>volvo</i>; everyone at <i>@volvocars.com</i> joins the same card. Hover the (i) on any merged card to see which raw variants are inside.
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────── -->
+<!-- LAYOUT B — Two-pane                              -->
+<!-- ─────────────────────────────────────────────── -->
+<div class="view" id="view-B">
+  <div class="container">
+    <div class="eyebrow">CRM · Personal</div>
+    <h1>Contacts</h1>
+    <div class="sub-h1">Companies on the left, contacts on the right. Feels like Gmail. Same dedup logic as A — "Volvo Cars" + "Volvo Car USA" appear as one row.</div>
+
+    <div class="toolbar">
+      <div class="search">⌕ <input placeholder="Search…"/></div>
+      <div class="chip active">All</div>
+      <div class="chip">Pitching</div>
+      <div class="chip">Active</div>
+      <div class="chip">Prospects</div>
+      <div class="chip">Vendors</div>
+    </div>
+
+    <div class="two-pane">
+      <div class="pane-left" id="pane-left-B"></div>
+      <div class="pane-right" id="pane-right-B"></div>
+    </div>
+
+    <div class="note-card">
+      <b>Pro.</b> Fast jumping between accounts; familiar mental model. <b>Con.</b> Adds a click to find a specific person if you don't remember their company; the left rail can get crowded at 412 entries (we'd add search-within-companies).
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────── -->
+<!-- LAYOUT C — Stats + table                         -->
+<!-- ─────────────────────────────────────────────── -->
+<div class="view" id="view-C">
+  <div class="container">
+    <div class="eyebrow">CRM · Personal</div>
+    <h1>Contacts</h1>
+    <div class="sub-h1">Insight cards on top — top companies, active pitches, contacts going cold — then the flat table you have today, with a card-view toggle. Lowest-disruption option.</div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="label">Total</div>
+        <div class="value">757</div>
+        <div class="sub">across 412 companies</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Active pitches</div>
+        <div class="value">3</div>
+        <div class="list">
+          <div class="row"><span class="nm">Mejuri</span><span class="ct">Priya K.</span></div>
+          <div class="row"><span class="nm">Patagonia</span><span class="ct">Sarah C.</span></div>
+          <div class="row"><span class="nm">Glossier</span><span class="ct">Mira B.</span></div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Top companies</div>
+        <div class="list">
+          <div class="row"><span class="nm">Visa</span><span class="ct">11</span></div>
+          <div class="row"><span class="nm">Mattel</span><span class="ct">9</span></div>
+          <div class="row"><span class="nm">Spotify</span><span class="ct">8</span></div>
+          <div class="row"><span class="nm">Volvo</span><span class="ct">8</span></div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Going cold</div>
+        <div class="value">47</div>
+        <div class="sub">no contact in 90+ days</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">⌕ <input placeholder="Search by name, company, email, title…"/></div>
+      <div class="chip active">All <span class="count">757</span></div>
+      <div class="chip">Pitching <span class="count">3</span></div>
+      <div class="chip">Active <span class="count">12</span></div>
+      <div class="chip">Prospects <span class="count">694</span></div>
+      <div class="chip">Vendors <span class="count">21</span></div>
+    </div>
+
+    <div class="toggle-row">
+      <button class="active">Table</button>
+      <button>Card grid</button>
+      <button>Group by company</button>
+    </div>
+
+    <div class="table" id="table-C">
+      <div class="table-header">
+        <div></div><div>Name</div><div>Company</div><div>Title</div><div>Location</div><div>Status</div><div></div>
+      </div>
+    </div>
+
+    <div class="note-card">
+      <b>Pro.</b> Closest to what you have, plus the stat cards surface what matters without you searching. The "Group by company" toggle hands you Layout A any time you want it. <b>Con.</b> Less of a top-down "I know who I have at Visa" feel than A.
+    </div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────────────────────────
+// SAMPLE DATA — small, includes the Volvo dedup case + variety of
+// statuses / companies with 1 vs many contacts.
+// ────────────────────────────────────────────────────────────────────
+const contacts = [
+  // Volvo Cars / Volvo Car USA — same company, different label
+  { id:'1', first:'My', last:'Lindström', company:'Volvo Cars', email:'my.lindstrom@volvocars.com', title:'Interim Head of Global Brand', status:'prospect', location:'Gothenburg, SE', lastContact:'12d ago' },
+  { id:'2', first:'Erik', last:'Hansen', company:'Volvo Car USA', email:'erik.hansen@volvocars.com', title:'Marketing Director', status:'prospect', location:'Mahwah, NJ', lastContact:'34d ago' },
+  { id:'3', first:'Linnea', last:'Berg', company:'Volvo Cars', email:'linnea.berg@volvocars.com', title:'Senior Brand Manager', status:'prospect', location:'Gothenburg, SE', lastContact:'62d ago' },
+  // Patagonia — 2 contacts, one in pitching
+  { id:'4', first:'Sarah', last:'Chen', company:'Patagonia', email:'sarah.chen@patagonia.com', title:'VP Brand', status:'pitching', location:'Ventura, CA', lastContact:'2d ago' },
+  { id:'5', first:'Jordan', last:'Hale', company:'Patagonia', email:'jordan.hale@patagonia.com', title:'Producer', status:'prospect', location:'Ventura, CA', lastContact:'180d ago' },
+  // Mattel — 5 contacts
+  { id:'6', first:'Anjali', last:'Roy', company:'Mattel, Inc.', email:'anjali.roy@mattel.com', title:'Head of Brand Marketing', status:'prospect', location:'El Segundo, CA', lastContact:'21d ago' },
+  { id:'7', first:'Chris', last:'Bauer', company:'Mattel', email:'chris.bauer@mattel.com', title:'Creative Director', status:'prospect', location:'El Segundo, CA', lastContact:'56d ago' },
+  { id:'8', first:'Dana', last:'Wu', company:'Mattel', email:'dana.wu@mattel.com', title:'Senior Producer', status:'prospect', location:'El Segundo, CA', lastContact:'9d ago' },
+  // Spotify — 4 contacts including 1 active
+  { id:'9', first:'Felix', last:'Andersson', company:'Spotify', email:'felix.a@spotify.com', title:'Head of Cultural Marketing', status:'active', location:'Stockholm, SE', lastContact:'4d ago' },
+  { id:'10', first:'Mira', last:'Klein', company:'Spotify', email:'mira.klein@spotify.com', title:'Brand Director', status:'active', location:'New York, NY', lastContact:'8d ago' },
+  { id:'11', first:'Hugo', last:'Park', company:'Spotify', email:'hugo.park@spotify.com', title:'Producer', status:'prospect', location:'London, UK', lastContact:'72d ago' },
+  // Aesop — single contact, active
+  { id:'12', first:'Marcus', last:'Reid', company:'Aesop', email:'m.reid@aesop.com', title:'Marketing Director', status:'active', location:'Melbourne, AU', lastContact:'8d ago' },
+  // Stink Films — vendor
+  { id:'13', first:'Olivia', last:'Park', company:'Stink Films', email:'olivia@stinkfilms.com', title:'Executive Producer', status:'vendor', location:'New York, NY', lastContact:'1d ago' },
+  // Mejuri — pitching
+  { id:'14', first:'Priya', last:'Kapoor', company:'Mejuri', email:'priya@mejuri.com', title:'Head of Brand', status:'pitching', location:'Toronto, ON', lastContact:'3d ago' },
+  // Glossier — pitching, with Ana as past
+  { id:'15', first:'Mira', last:'Bell', company:'Glossier', email:'mira@glossier.com', title:'VP Marketing', status:'pitching', location:'New York, NY', lastContact:'5d ago' },
+  { id:'16', first:'Ana', last:'Fernandez', company:'Glossier', email:'ana@glossier.com', title:'Brand Director (former)', status:'past', location:'New York, NY', lastContact:'220d ago' },
+  // Singletons
+  { id:'17', first:'David', last:'Okafor', company:'Liquid Death', email:'d.okafor@liquiddeath.com', title:'Brand Lead — Comedy', status:'prospect', location:'Los Angeles, CA', lastContact:'60d ago' },
+  { id:'18', first:'Yuki', last:'Tanaka', company:'Tatcha', email:'yuki.tanaka@tatcha.com', title:'Marketing Director', status:'prospect', location:'San Francisco, CA', lastContact:'22d ago' },
+];
+
+// ────────────────────────────────────────────────────────────────────
+// Company dedup — normalize names + use email domain as a second signal
+// ────────────────────────────────────────────────────────────────────
+function normalizeCompany(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(inc|llc|ltd|co|corp|corporation|company|group|holdings|usa|uk|us|na|north america|cars?)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function emailDomain(email) {
+  const m = (email || '').match(/@([\w.-]+)/);
+  if (!m) return null;
+  const d = m[1].toLowerCase();
+  // Drop common generic personal domains so they don't fuse contacts
+  if (/^(gmail|yahoo|hotmail|outlook|icloud|me|aol|live|protonmail|fastmail)\./.test(d + '.')) return null;
+  return d;
+}
+
+// Group by (normalizedName ∪ emailDomain). The display name picks the
+// longest variant in the cluster as canonical, plus an "aka" list.
+function clusterByCompany(contacts) {
+  // Union-find by either normalized name or email domain
+  const groupKey = c => normalizeCompany(c.company) || emailDomain(c.email) || c.company.toLowerCase();
+  const buckets = new Map();
+  for (const c of contacts) {
+    const k = groupKey(c);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(c);
+  }
+  // Convert to array, pick canonical name + aliases
+  return [...buckets.values()].map(group => {
+    const variants = [...new Set(group.map(c => c.company))];
+    // Canonical = the most common variant; tie-break by longest
+    const counts = variants.map(v => ({ v, n: group.filter(c => c.company === v).length }));
+    counts.sort((a, b) => b.n - a.n || b.v.length - a.v.length);
+    const canonical = counts[0].v;
+    const aliases = variants.filter(v => v !== canonical);
+    // Latest contact + status mix
+    const stages = [...new Set(group.map(c => c.status))];
+    return {
+      canonical, aliases,
+      contacts: group,
+      count: group.length,
+      stages,
+      lastContact: group.map(c => c.lastContact).sort(parseRelTime)[0],
+    };
+  }).sort((a, b) => b.count - a.count);
+}
+
+function parseRelTime(a, b) {
+  const nA = parseInt(a, 10) || 999;
+  const nB = parseInt(b, 10) || 999;
+  return nA - nB;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// LAYOUT A — Company cards
+// ────────────────────────────────────────────────────────────────────
+function renderA() {
+  const grid = document.getElementById('companies-grid-A');
+  const clusters = clusterByCompany(contacts);
+  grid.innerHTML = clusters.map((cl, i) => `
+    <div class="company-card" onclick="selectCompanyA(${i})" data-i="${i}">
+      <div class="head">
+        <div class="name">
+          ${cl.canonical}
+          ${cl.aliases.length ? `<span class="aka">also: ${cl.aliases.join(' · ')}</span>` : ''}
+        </div>
+        <div class="count">${cl.count}</div>
+      </div>
+      <div class="stages">${cl.stages.map(s => `<span class="stage-tag ${s}">${s}</span>`).join('')}</div>
+      <div class="meta"><span>${cl.contacts.length} contact${cl.contacts.length===1?'':'s'}</span><span>${cl.lastContact}</span></div>
+    </div>
+  `).join('');
+  window._clustersA = clusters;
+}
+
+function selectCompanyA(i) {
+  const clusters = window._clustersA;
+  const cl = clusters[i];
+  document.querySelectorAll('#companies-grid-A .company-card').forEach((el, idx) => {
+    el.classList.toggle('selected', idx === i);
+  });
+  const det = document.getElementById('company-detail-A');
+  det.style.display = 'block';
+  det.innerHTML = `
+    <div class="company-detail">
+      <div class="company-detail-head">
+        <div>
+          <h2>${cl.canonical}<span class="aka">${cl.aliases.length ? '· includes ' + cl.aliases.join(', ') : ''}</span></h2>
+        </div>
+        <div style="font-size:11px;color:var(--ink70);font-weight:600">${cl.count} contacts</div>
+      </div>
+      <div class="company-detail-list">
+        ${cl.contacts.map(c => `
+          <div class="contact-row">
+            <div class="avatar">${c.first[0]}${c.last[0]}</div>
+            <div class="name-cell"><span class="nm">${c.first} ${c.last}</span><span class="em">${c.email}</span></div>
+            <div class="cell">${c.title}</div>
+            <div class="cell">${c.location}</div>
+            <div><span class="stage-tag ${c.status}">${c.status}</span></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  det.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ────────────────────────────────────────────────────────────────────
+// LAYOUT B — Two-pane
+// ────────────────────────────────────────────────────────────────────
+function renderB() {
+  const clusters = clusterByCompany(contacts);
+  const left = document.getElementById('pane-left-B');
+  left.innerHTML = `
+    <div class="head">Companies · ${clusters.length}</div>
+    <div class="item selected" data-i="-1" onclick="selectCompanyB(-1)">
+      <div><div class="nm">Everyone</div></div>
+      <div class="ct">${contacts.length}</div>
+    </div>
+    ${clusters.map((cl, i) => `
+      <div class="item" data-i="${i}" onclick="selectCompanyB(${i})">
+        <div>
+          <div class="nm">${cl.canonical}</div>
+          ${cl.aliases.length ? `<div class="aka">+ ${cl.aliases.length} variant${cl.aliases.length===1?'':'s'}</div>` : ''}
+        </div>
+        <div class="ct">${cl.count}</div>
+      </div>
+    `).join('')}
+  `;
+  window._clustersB = clusters;
+  selectCompanyB(-1);
+}
+
+function selectCompanyB(i) {
+  document.querySelectorAll('#pane-left-B .item').forEach(el => {
+    el.classList.toggle('selected', Number(el.dataset.i) === i);
+  });
+  const right = document.getElementById('pane-right-B');
+  if (i === -1) {
+    right.innerHTML = `
+      <div class="pane-right-head">
+        <h2>Everyone</h2>
+        <div class="meta">${contacts.length} contacts across ${window._clustersB.length} companies</div>
+      </div>
+      ${contacts.map(c => `
+        <div class="contact-row">
+          <div class="avatar">${c.first[0]}${c.last[0]}</div>
+          <div class="name-cell"><span class="nm">${c.first} ${c.last}</span><span class="em">${c.email}</span></div>
+          <div class="cell">${c.company}</div>
+          <div class="cell">${c.title}</div>
+          <div><span class="stage-tag ${c.status}">${c.status}</span></div>
+        </div>
+      `).join('')}
+    `;
+    return;
+  }
+  const cl = window._clustersB[i];
+  right.innerHTML = `
+    <div class="pane-right-head">
+      <h2>${cl.canonical}</h2>
+      <div class="meta">${cl.count} contacts ${cl.aliases.length ? '· merged from: ' + cl.aliases.join(', ') : ''}</div>
+    </div>
+    ${cl.contacts.map(c => `
+      <div class="contact-row">
+        <div class="avatar">${c.first[0]}${c.last[0]}</div>
+        <div class="name-cell"><span class="nm">${c.first} ${c.last}</span><span class="em">${c.email}</span></div>
+        <div class="cell">${c.title}</div>
+        <div class="cell">${c.location}</div>
+        <div><span class="stage-tag ${c.status}">${c.status}</span></div>
+      </div>
+    `).join('')}
+  `;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// LAYOUT C — Stats + table
+// ────────────────────────────────────────────────────────────────────
+function renderC() {
+  const tbl = document.getElementById('table-C');
+  // Keep the header that's already in HTML, append rows
+  const existing = tbl.querySelector('.table-header').outerHTML;
+  tbl.innerHTML = existing + contacts.map(c => `
+    <div class="table-row">
+      <div class="avatar">${c.first[0]}${c.last[0]}</div>
+      <div class="name-cell"><span class="nm">${c.first} ${c.last}</span><span class="em">${c.email}</span></div>
+      <div class="cell">${c.company}</div>
+      <div class="cell">${c.title}</div>
+      <div class="cell">${c.location}</div>
+      <div><span class="stage-tag ${c.status}">${c.status}</span></div>
+      <div class="cell" style="text-align:right">›</div>
+    </div>
+  `).join('');
+}
+
+// ────────────────────────────────────────────────────────────────────
+// View switcher
+// ────────────────────────────────────────────────────────────────────
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  document.querySelectorAll('.lab-banner .tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('.lab-banner .tabs button').forEach(b => {
+  b.addEventListener('click', () => showView(b.dataset.view));
+});
+
+renderA(); renderB(); renderC();
+</script>
+
+</body>
+</html>
