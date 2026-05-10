@@ -424,6 +424,30 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Auto-sync from RocketReach on first visit so the list reflects any
+  // contacts you saved via the LinkedIn extension since you were last
+  // here. Runs once per session — the cron handles ongoing background
+  // sync. The button stays as a manual force-refresh.
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncedRef.current || !userId) return;
+    autoSyncedRef.current = true;
+    onSyncRocketReachSilent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const onSyncRocketReachSilent = useCallback(async () => {
+    try {
+      const result = await syncRocketReachContacts(userId);
+      if ((result.created || 0) > 0 || (result.merged || 0) > 0) {
+        await reload();
+      }
+    } catch (e) {
+      // Silent — the manual sync button is there if anything's wrong
+      console.warn('[contacts] auto-sync failed:', e?.message || e);
+    }
+  }, [userId, reload]);
+
   const onSyncRocketReach = useCallback(async () => {
     if (syncing) return;
     setSyncing(true); setSyncStatus('Fetching from RocketReach…');

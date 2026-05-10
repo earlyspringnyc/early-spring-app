@@ -24,6 +24,6 @@
   ],
   "crons": [
     { "path": "/api/notify", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/sync-rocketreach", "schedule": "*/10 * * * *" }
+    { "path": "/api/cron/sync-rocketreach", "schedule": "*/2 * * * *" }
   ]
 }

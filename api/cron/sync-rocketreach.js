@@ -69,8 +69,13 @@ export default async function handler(req, res) {
 
 // ----------------------------------------------------------------
 async function fetchRocketReachList(apiKey, page, pageSize) {
-  // Try a few endpoint patterns RR uses across plan tiers.
+  // Try a few endpoint patterns RR uses across plan tiers. /contacts/
+  // is what their "My Contacts" UI page is backed by; /lookups/ is
+  // past API calls (which may or may not include extension-saves).
   const candidates = [
+    `${RR_API}/contacts/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
+    `${RR_API}/contacts/?page=${page}&page_size=${pageSize}`,
+    `${RR_API}/contacts?page=${page}&page_size=${pageSize}`,
     `${RR_API}/lookups/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
     `${RR_API}/lookups/?page=${page}&page_size=${pageSize}`,
     `${RR_API}/searches/?page=${page}&page_size=${pageSize}`,

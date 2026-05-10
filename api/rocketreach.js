@@ -81,9 +81,16 @@ export default async function handler(req, res) {
 async function handleList(body, apiKey, res) {
   const pageSize = Math.min(100, Math.max(1, Number(body.page_size) || 100));
   const page     = Math.max(1, Number(body.page) || 1);
+  // Candidate endpoints — RocketReach exposes "My Contacts" under
+  // different paths depending on plan tier and account age. Try the
+  // most likely first, fall through 404s.
   const candidates = [
+    `/contacts/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
+    `/contacts/?page=${page}&page_size=${pageSize}`,
+    `/contacts?page=${page}&page_size=${pageSize}`,
     `/lookups/?page=${page}&page_size=${pageSize}&order_by=-created_at`,
     `/lookups/?page=${page}&page_size=${pageSize}`,
+    `/lookups?page=${page}&page_size=${pageSize}`,
     `/searches/?page=${page}&page_size=${pageSize}`,
   ];
 
