@@ -274,7 +274,7 @@ export async function unlinkContactFromProject(contactId, projectId, role) {
 
 export async function listProjectsForContact(contactId) {
   return await restFetch(
-    `/contact_projects?select=role,created_at,projects(id,name,stage)&contact_id=eq.${enc(contactId)}`
+    `/contact_projects?select=role,created_at,projects(id,name)&contact_id=eq.${enc(contactId)}`
   ) || [];
 }
 

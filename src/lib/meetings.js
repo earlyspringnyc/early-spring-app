@@ -81,7 +81,7 @@ export async function listMeetingsForContact(contactId) {
 // ---- meeting_projects junction ----
 export async function listProjectsForMeeting(meetingId) {
   return await restFetch(
-    `/meeting_projects?select=match_type,created_at,projects(id,name,stage)&meeting_id=eq.${enc(meetingId)}`
+    `/meeting_projects?select=match_type,created_at,projects(id,name)&meeting_id=eq.${enc(meetingId)}`
   ) || [];
 }
 
