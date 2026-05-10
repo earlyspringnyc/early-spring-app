@@ -64,6 +64,25 @@ const CLASS_OPTIONS = [
 ];
 const CLASS_LABEL = Object.fromEntries(CLASS_OPTIONS.map(o => [o.id, o.label]));
 
+function Stat({ icon, label }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.ink }}>
+      <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontWeight: 500 }}>{label}</span>
+    </span>
+  );
+}
+
+function SectionHeader({ icon, title, subtitle }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, marginTop: 4 }}>
+      <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: T.ink, letterSpacing: '-.002em' }}>{title}</span>
+      {subtitle && <span style={{ fontSize: 10, color: T.fadedInk, fontWeight: 500 }}>· {subtitle}</span>}
+    </div>
+  );
+}
+
 const selectStyle = {
   flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 11, fontFamily: T.sans,
   border: `1px solid ${T.faintRule}`, background: T.paper, color: T.ink, cursor: 'pointer', outline: 'none',
@@ -458,7 +477,21 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
         <div style={{ padding: '24px 28px 40px' }}>
           {tab === 'summary' && (
             <>
-              {/* Linked contacts */}
+              {/* At-a-glance stat row */}
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'center',
+                padding: '12px 14px', borderRadius: 10,
+                background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+                marginBottom: 24,
+              }}>
+                <Stat icon="📅" label={fmtTime(meeting.occurred_at)}/>
+                <Stat icon="⏱️" label={meeting.duration_minutes ? `${meeting.duration_minutes} min` : '—'}/>
+                <Stat icon="👥" label={`${(meeting.attendees || []).length} attendee${(meeting.attendees || []).length === 1 ? '' : 's'}`}/>
+                <Stat icon="🏷️" label={CLASS_LABEL[effectiveClassification(meeting)] || 'Uncategorized'}/>
+              </div>
+
+              {/* Section: people */}
+              <SectionHeader icon="👥" title="People" subtitle="Who's on this meeting and how it lines up with your CRM"/>
               <ContactLinkSection
                 meeting={meeting}
                 contacts={contacts}
@@ -472,11 +505,9 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
                 creatingAttendeeEmail={creatingAttendeeEmail}
               />
 
-              {/* Linked projects */}
+              {/* Section: projects */}
+              <SectionHeader icon="📌" title="Projects" subtitle={`Linked · ${linkedProjects.length}`}/>
               <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Linked projects · {linkedProjects.length}
-                </div>
                 {linkedProjects.length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                     {linkedProjects.map(lp => (
@@ -506,35 +537,65 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
                 </div>
               </div>
 
+              {/* Section: summary */}
+              <SectionHeader icon="📝" title="Summary" subtitle="From Fireflies"/>
               {meeting.summary ? (
-                <>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 10 }}>Fireflies summary</div>
-                  <div style={{ fontSize: 13, color: T.ink, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{meeting.summary}</div>
-                </>
+                <div style={{
+                  padding: '14px 18px', borderLeft: `3px solid ${T.ink}`, background: T.inkSoft2,
+                  borderRadius: '0 8px 8px 0', marginBottom: 24,
+                  fontSize: 13, color: T.ink, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                }}>{meeting.summary}</div>
               ) : (
-                <div style={{ fontSize: 12, color: T.fadedInk, fontStyle: 'italic' }}>No summary from Fireflies.</div>
-              )}
-
-              {(meeting.action_items || []).length > 0 && (
-                <div style={{ marginTop: 28 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 10 }}>Action items</div>
-                  <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                    {meeting.action_items.map((a, i) => (
-                      <li key={i} style={{ fontSize: 13, color: T.ink, padding: '8px 0', borderBottom: `1px dashed ${T.faintRule}`, lineHeight: 1.5 }}>
-                        <span style={{ color: T.ink70, marginRight: 8 }}>▢</span>{typeof a === 'string' ? a : JSON.stringify(a)}
-                      </li>
-                    ))}
-                  </ul>
+                <div style={{ marginBottom: 24, padding: '14px 18px', borderRadius: 8, background: T.inkSoft2, border: `1px dashed ${T.faintRule}`, fontSize: 12, color: T.fadedInk, fontStyle: 'italic' }}>
+                  No summary from Fireflies for this meeting.
                 </div>
               )}
 
+              {/* Section: keywords */}
+              {(meeting.keywords || []).length > 0 && (
+                <>
+                  <SectionHeader icon="🎯" title="Topics" subtitle={`${meeting.keywords.length} key term${meeting.keywords.length === 1 ? '' : 's'}`}/>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 24 }}>
+                    {meeting.keywords.map((k, i) => (
+                      <span key={i} style={{
+                        padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 500,
+                        background: T.inkSoft2, color: T.ink70, border: `1px solid ${T.faintRule}`,
+                      }}>{typeof k === 'string' ? k : JSON.stringify(k)}</span>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Section: action items */}
+              {(meeting.action_items || []).length > 0 && (
+                <>
+                  <SectionHeader icon="✅" title="Action items" subtitle={`${meeting.action_items.length} item${meeting.action_items.length === 1 ? '' : 's'}`}/>
+                  <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
+                    {meeting.action_items.map((a, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: '12px 14px',
+                        borderBottom: i < meeting.action_items.length - 1 ? `1px solid ${T.faintRule}` : 'none',
+                        background: T.paper,
+                      }}>
+                        <span style={{ flexShrink: 0, marginTop: 1, fontSize: 14 }}>◯</span>
+                        <span style={{ fontSize: 13, color: T.ink, lineHeight: 1.55 }}>
+                          {typeof a === 'string' ? a : JSON.stringify(a)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Open in Fireflies */}
               {meeting.external_url && (
-                <div style={{ marginTop: 28 }}>
+                <div style={{ marginTop: 8 }}>
                   <a href={meeting.external_url} target="_blank" rel="noopener" style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     fontSize: 11, fontWeight: 600, color: T.ink, textDecoration: 'none',
                     padding: '8px 14px', borderRadius: 999, border: `1px solid ${T.faintRule}`,
-                  }}>Open transcript in Fireflies ↗</a>
+                  }}>🎥 Open transcript in Fireflies ↗</a>
                 </div>
               )}
             </>
@@ -558,29 +619,50 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
           )}
 
           {tab === 'attendees' && (
-            <div>
-              {(meeting.attendees || []).map((a, i) => (
-                <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${T.faintRule}`, display: 'flex', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: 13, color: T.ink, fontWeight: 500 }}>{a.name || a.email?.split('@')[0] || '—'}</div>
-                    <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{a.email || ''}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <>
+              <SectionHeader icon="👥" title="Attendees" subtitle={`${(meeting.attendees || []).length} on the call`}/>
+              <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 8, overflow: 'hidden' }}>
+                {(meeting.attendees || []).map((a, i) => {
+                  const initials = (a.name || a.email || '?').split(/[\s@]/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('');
+                  return (
+                    <div key={i} style={{
+                      padding: '12px 14px',
+                      borderBottom: i < (meeting.attendees || []).length - 1 ? `1px solid ${T.faintRule}` : 'none',
+                      display: 'flex', alignItems: 'center', gap: 12, background: T.paper,
+                    }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
+                      }}>{initials || '?'}</div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 13, color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.name || a.email?.split('@')[0] || '—'}
+                        </div>
+                        {a.email && <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{a.email}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
 
           {tab === 'notes' && (
-            <div>
-              <div style={{ fontSize: 11, color: T.ink70, lineHeight: 1.5, marginBottom: 10 }}>Your private notes layered on top of the Fireflies summary. Markdown ok, plain text fine.</div>
+            <>
+              <SectionHeader icon="✍️" title="Your private notes" subtitle="Layered on top of the Fireflies summary"/>
+              <div style={{ fontSize: 11, color: T.ink70, lineHeight: 1.5, marginBottom: 10 }}>
+                Free-form. Sync never touches this field — your call recaps stay yours.
+              </div>
               <textarea
                 value={notesDraft}
                 onChange={e => setNotesDraft(e.target.value)}
                 placeholder="What did you take away from this meeting?"
                 style={{
-                  width: '100%', minHeight: 200, padding: 14, borderRadius: 8,
+                  width: '100%', minHeight: 240, padding: 14, borderRadius: 8,
                   border: `1px solid ${T.faintRule}`, background: T.inkSoft2,
                   fontSize: 13, fontFamily: T.sans, color: T.ink, outline: 'none', resize: 'vertical',
+                  lineHeight: 1.6,
                 }}
               />
               <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -588,9 +670,9 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onClose,
                   padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
                   fontSize: 12, fontWeight: 700, fontFamily: T.sans,
                   background: T.ink, color: T.paper, opacity: savingNotes ? .5 : 1,
-                }}>{savingNotes ? 'Saving…' : 'Save notes'}</button>
+                }}>{savingNotes ? 'Saving…' : '💾 Save notes'}</button>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
