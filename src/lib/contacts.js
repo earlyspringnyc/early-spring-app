@@ -66,11 +66,15 @@ export async function syncRocketReachContacts(userId, { onProgress, maxPages = 3
   return { fetched: all.length, ...result };
 }
 
-// Re-enrich an existing contact in place. User-initiated, so we use
-// 'overwrite' mode — they're asking for fresh data, give it. The
-// background sync path uses the default 'fill-only' which preserves
-// their manual edits.
-export async function reenrichContact(contact) {
+// Two-step re-enrich. The refresh button on a row now previews the
+// diff before writing anything — so a user with hand-curated notes
+// can see exactly what RocketReach would change and reject stale or
+// regressive updates.
+//
+// 1. previewReenrich → fetches the fresh profile + computes the
+//    overwrite patch. NOTHING is written.
+// 2. applyReenrichPatch → writes the user-approved patch.
+export async function previewReenrich(contact) {
   const query = {};
   if (contact.linkedin_url) query.linkedin_url = contact.linkedin_url;
   else if (contact.email)    query.email = contact.email;
@@ -78,7 +82,19 @@ export async function reenrichContact(contact) {
   const { profile } = await rocketReachLookup(query);
   if (!profile) throw new Error('No profile returned');
   const patch = mergePatch(contact, profile, { mode: 'overwrite' });
-  if (Object.keys(patch).length) await updateContact(contact.id, patch);
+  return { profile, patch };
+}
+
+export async function applyReenrichPatch(contactId, patch) {
+  if (!patch || !Object.keys(patch).length) return;
+  await updateContact(contactId, patch);
+}
+
+// Legacy single-shot variant — kept for any callers that still want
+// the old "lookup + apply" behavior. New UI uses the preview path.
+export async function reenrichContact(contact) {
+  const { profile, patch } = await previewReenrich(contact);
+  if (Object.keys(patch).length) await applyReenrichPatch(contact.id, patch);
   return { patch, profile };
 }
 

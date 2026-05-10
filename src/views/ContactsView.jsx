@@ -4,7 +4,7 @@ import { ESWordmark } from '../components/brand/index.js';
 import { LogOutI, PlusI } from '../components/icons/index.js';
 import {
   listContacts, createContact, updateContact, deleteContact, importContacts,
-  rocketReachLookup, reenrichContact, syncRocketReachContacts,
+  rocketReachLookup, previewReenrich, applyReenrichPatch, syncRocketReachContacts,
 } from '../lib/contacts.js';
 import { parseContactsCSV } from '../utils/csvImport.js';
 
@@ -401,6 +401,97 @@ function Field({ label, value }) {
   );
 }
 
+const FIELD_LABELS = {
+  first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Phone',
+  title: 'Title', company: 'Company', company_url: 'Company URL',
+  location: 'Location', linkedin_url: 'LinkedIn',
+};
+
+function RefreshPreviewModal({ contact, patch, onCancel, onApply, applying }) {
+  const fields = Object.keys(FIELD_LABELS).filter(k => k in patch);
+  const noChanges = fields.length === 0;
+
+  return (
+    <div onClick={onCancel} style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: 640, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto',
+        background: T.paper, borderRadius: 12, padding: 28,
+        border: `1px solid ${T.faintRule}`, boxShadow: T.shadow, fontFamily: T.sans,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.ink, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 6 }}>Review refresh</div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.012em' }}>
+              {(contact.first_name || '') + ' ' + (contact.last_name || '')}
+            </h2>
+            <div style={{ fontSize: 12, color: T.fadedInk, marginTop: 2 }}>
+              From RocketReach. Nothing's saved yet — confirm below.
+            </div>
+          </div>
+          <button onClick={onCancel} disabled={applying} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: applying ? 'wait' : 'pointer', width: 28, height: 28 }}>×</button>
+        </div>
+
+        {noChanges ? (
+          <div style={{
+            marginTop: 18, padding: '18px 16px', borderRadius: 10,
+            background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+            fontSize: 13, color: T.ink, lineHeight: 1.55,
+          }}>
+            <b>Nothing to update.</b> RocketReach's data matches what you already have in Morgan.
+          </div>
+        ) : (
+          <div style={{ marginTop: 18, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '120px 1fr 1fr',
+              gap: 16, padding: '10px 14px',
+              background: T.inkSoft2, borderBottom: `1px solid ${T.faintRule}`,
+              fontSize: 9, fontWeight: 700, color: T.ink70, letterSpacing: '.10em', textTransform: 'uppercase',
+            }}>
+              <div>Field</div><div>Current</div><div>New</div>
+            </div>
+            {fields.map(k => (
+              <div key={k} style={{
+                display: 'grid', gridTemplateColumns: '120px 1fr 1fr',
+                gap: 16, padding: '10px 14px',
+                borderBottom: `1px solid ${T.faintRule}`, alignItems: 'baseline',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.ink70 }}>{FIELD_LABELS[k]}</div>
+                <div style={{ fontSize: 12, color: contact[k] ? T.fadedInk : T.ink25, textDecoration: contact[k] ? 'line-through' : 'none', wordBreak: 'break-word' }}>
+                  {contact[k] || <i style={{ opacity: .55 }}>empty</i>}
+                </div>
+                <div style={{ fontSize: 12, color: T.ink, fontWeight: 500, wordBreak: 'break-word' }}>
+                  {patch[k] || <i style={{ opacity: .55, fontWeight: 400 }}>empty</i>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{
+          marginTop: 16, padding: '10px 14px', borderRadius: 8,
+          background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+          fontSize: 11, color: T.ink70, lineHeight: 1.6,
+        }}>
+          <b style={{ color: T.ink }}>Untouched no matter what you pick:</b> your notes, tags, status, and any field not listed above. Only the rows shown here would change.
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <button onClick={onCancel} disabled={applying} style={{ ...btnGhost, opacity: applying ? .5 : 1 }}>Cancel</button>
+          {!noChanges && (
+            <button onClick={onApply} disabled={applying} style={{ ...btnSolid, opacity: applying ? .5 : 1, cursor: applying ? 'wait' : 'pointer' }}>
+              {applying ? 'Applying…' : `Apply ${fields.length} change${fields.length === 1 ? '' : 's'} →`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ContactsView({ user, onBack, onLogout, accessToken }) {
   const userId = user?.user_id || user?.id;
   const [contacts, setContacts] = useState([]);
@@ -409,6 +500,9 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   const [search, setSearch] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
+  // Preview state for the per-row refresh confirmation modal
+  const [refreshPreview, setRefreshPreview] = useState(null); // { contact, patch }
+  const [applyingRefresh, setApplyingRefresh] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
 
@@ -465,17 +559,31 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
     }
   }, [userId, syncing, reload]);
 
+  // Two-step refresh: fetch + preview, then user confirms apply.
   const onRefreshContact = useCallback(async (contact) => {
     setRefreshingId(contact.id);
     try {
-      const { patch } = await reenrichContact(contact);
-      if (Object.keys(patch).length) {
-        setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, ...patch } : c));
-      }
+      const { patch } = await previewReenrich(contact);
+      // Always open the preview so the user gets explicit feedback —
+      // even when there's nothing to change, the modal will say so.
+      setRefreshPreview({ contact, patch });
     } catch (e) {
       alert('Refresh failed: ' + (e.message || 'unknown'));
     } finally { setRefreshingId(null); }
   }, []);
+
+  const onApplyRefresh = useCallback(async () => {
+    if (!refreshPreview) return;
+    const { contact, patch } = refreshPreview;
+    setApplyingRefresh(true);
+    try {
+      await applyReenrichPatch(contact.id, patch);
+      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, ...patch } : c));
+      setRefreshPreview(null);
+    } catch (e) {
+      alert('Could not apply changes: ' + (e.message || 'unknown'));
+    } finally { setApplyingRefresh(false); }
+  }, [refreshPreview]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -597,6 +705,15 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
       </div>
 
       {showImport && <ImportWizard userId={userId} onClose={() => setShowImport(false)} onComplete={reload}/>}
+      {refreshPreview && (
+        <RefreshPreviewModal
+          contact={refreshPreview.contact}
+          patch={refreshPreview.patch}
+          applying={applyingRefresh}
+          onCancel={() => !applyingRefresh && setRefreshPreview(null)}
+          onApply={onApplyRefresh}
+        />
+      )}
     </div>
   );
 }
