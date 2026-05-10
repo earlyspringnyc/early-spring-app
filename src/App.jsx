@@ -192,7 +192,17 @@ function App(){
   const[showNew,setShowNew]=useState(false);
   // Top-level view: 'dashboard' (home) or 'contacts' (CRM). Project view
   // is owned by activeId; setting it to a non-null value supersedes both.
-  const[topView,setTopView]=useState("dashboard");
+  // Persisted in sessionStorage so a page refresh keeps you on the same
+  // top-level surface — refreshing on /contacts no longer kicks back to
+  // the dashboard.
+  const[topView,setTopViewRaw]=useState(()=>{try{return sessionStorage.getItem("es_topView")||"dashboard"}catch(e){return"dashboard"}});
+  const setTopView=useCallback(v=>{
+    setTopViewRaw(v);
+    try{
+      if(v&&v!=="dashboard")sessionStorage.setItem("es_topView",v);
+      else sessionStorage.removeItem("es_topView");
+    }catch(e){}
+  },[]);
   const[toasts,setToasts]=useState([]);
   const toast=useCallback((msg,type="success")=>{const id=uid();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000)},[]);
   // Subscribe to the global toast bus so any module can surface errors.
