@@ -5,6 +5,7 @@ import {
   linkContactToProject, unlinkContactFromProject, listProjectsForContact,
 } from '../lib/contacts.js';
 import { listMeetingsForContact, effectiveClassification } from '../lib/meetings.js';
+import { uploadAvatar } from '../lib/avatarUpload.js';
 
 const STATUS_OPTIONS = [
   { id: 'prospect', label: 'Prospect' },
@@ -33,6 +34,12 @@ const PROJECT_ROLES = [
 
 function ContactDetailDrawer({ contact: initialContact, projects = [], userId, onClose, onUpdate, onDelete }) {
   const [contact, setContact] = useState(initialContact);
+  // `dirty` holds in-progress edits keyed by field name. The contact
+  // state above is the union of (saved data) + (dirty edits) for
+  // display; saved data only updates after the user hits Save.
+  const [dirty, setDirty] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [linkedProjects, setLinkedProjects] = useState([]);
   const [linkedMeetings, setLinkedMeetings] = useState([]);
   const [tab, setTab] = useState('overview');
@@ -40,10 +47,13 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
   const [linkProjectId, setLinkProjectId] = useState('');
   const [linkRole, setLinkRole] = useState('point_of_contact');
   const [deleting, setDeleting] = useState(false);
-  const saveTimers = useRef(new Map());
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const hasUnsavedChanges = Object.keys(dirty).length > 0;
 
   // Reset state when a different contact is opened
-  useEffect(() => { setContact(initialContact); }, [initialContact?.id]);
+  useEffect(() => { setContact(initialContact); setDirty({}); }, [initialContact?.id]);
 
   // Load linked projects + meetings whenever contact id changes
   useEffect(() => {
@@ -67,24 +77,18 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
     return (projects || []).filter(p => !linkedIds.has(p.id));
   }, [projects, linkedProjects]);
 
-  // Debounced field save — 500ms after last keystroke
+  // Draft-only field update. Stages the change in `dirty`, shows
+  // the Save bar; nothing is written until the user clicks Save.
+  // Lets the user revisit edits before committing instead of
+  // autosaving every keystroke.
   const updateField = useCallback((field, value) => {
     setContact(c => ({ ...c, [field]: value }));
-    const existing = saveTimers.current.get(field);
-    if (existing) clearTimeout(existing);
-    const t = setTimeout(async () => {
-      saveTimers.current.delete(field);
-      try {
-        await updateContact(contact.id, { [field]: value });
-        onUpdate?.({ ...contact, [field]: value });
-      } catch (e) {
-        console.error('[contact-drawer] save failed:', e.message || e);
-      }
-    }, 500);
-    saveTimers.current.set(field, t);
-  }, [contact, onUpdate]);
+    setDirty(d => ({ ...d, [field]: value }));
+  }, []);
 
-  // Immediate save for instant fields (status pills, link/unlink, etc.)
+  // Immediate save for instant-commit fields (status pills, contact
+  // type, photo upload). These don't pollute the dirty state; user
+  // clicked a discrete action and expects it to stick.
   const updateImmediate = useCallback(async (patch) => {
     setContact(c => ({ ...c, ...patch }));
     try {
@@ -94,6 +98,62 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
       console.error('[contact-drawer] update failed:', e.message || e);
     }
   }, [contact, onUpdate]);
+
+  // Save all pending field edits. Discards dirty state on success.
+  const saveAll = useCallback(async () => {
+    if (!hasUnsavedChanges) return;
+    setSaving(true);
+    try {
+      await updateContact(contact.id, dirty);
+      onUpdate?.({ ...contact, ...dirty });
+      setDirty({});
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2000);
+    } catch (e) {
+      alert('Save failed: ' + (e.message || 'unknown'));
+    } finally { setSaving(false); }
+  }, [contact, dirty, hasUnsavedChanges, onUpdate]);
+
+  // Discard pending edits and revert local state to last-saved.
+  const discardChanges = useCallback(() => {
+    if (!hasUnsavedChanges) return;
+    if (!confirm('Discard your unsaved changes?')) return;
+    // Revert by re-applying initialContact's values for each dirty key
+    const revertPatch = {};
+    for (const k of Object.keys(dirty)) revertPatch[k] = initialContact?.[k] ?? null;
+    setContact(c => ({ ...c, ...revertPatch }));
+    setDirty({});
+  }, [dirty, hasUnsavedChanges, initialContact]);
+
+  // Cmd/Ctrl+S keyboard shortcut to save
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's' && hasUnsavedChanges && !saving) {
+        e.preventDefault();
+        saveAll();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hasUnsavedChanges, saving, saveAll]);
+
+  // File-input upload handler. Uploads to Supabase storage, sets
+  // avatar_url immediately (separate write — doesn't go through
+  // the dirty/save flow).
+  const onPickAvatar = () => fileInputRef.current?.click();
+  const onAvatarFileChosen = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so same file can be reselected
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadAvatar(userId, contact.id, file);
+      if (!url) throw new Error('No URL returned');
+      await updateImmediate({ avatar_url: url });
+    } catch (err) {
+      alert(err.message || 'Upload failed');
+    } finally { setUploadingAvatar(false); }
+  };
 
   const onAddProjectLink = useCallback(async () => {
     if (!linkProjectId) return;
@@ -130,11 +190,15 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
     }
   }, [contact, onClose, onDelete]);
 
-  // Flush any pending debounced saves on close
-  useEffect(() => () => {
-    saveTimers.current.forEach(t => clearTimeout(t));
-    saveTimers.current.clear();
-  }, []);
+  // Warn before closing the drawer with unsaved edits — the user
+  // explicitly opted for Save-on-click, so prompting is the right
+  // call rather than silently discarding.
+  const safeClose = () => {
+    if (hasUnsavedChanges) {
+      if (!confirm('You have unsaved changes. Close without saving?')) return;
+    }
+    onClose();
+  };
 
   if (!contact) return null;
 
@@ -144,45 +208,61 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
   useEffect(() => { setAvatarError(false); }, [contact?.avatar_url]);
 
   return (
-    <div onClick={onClose} style={{
+    <div onClick={safeClose} style={{
       position: 'fixed', inset: 0, zIndex: 100,
       background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
       display: 'flex', justifyContent: 'flex-end',
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        width: 760, maxWidth: '95vw', height: '100vh', overflow: 'auto',
+        width: 760, maxWidth: '95vw', height: '100vh',
         background: T.paper, borderLeft: `1px solid ${T.faintRule}`,
         boxShadow: '-16px 0 48px rgba(15,82,186,.12)', fontFamily: T.sans,
+        display: 'flex', flexDirection: 'column',
       }}>
+        <div style={{ flex: 1, overflow: 'auto' }}>
         {/* Header */}
         <div style={{ padding: '24px 28px 18px', borderBottom: `1px solid ${T.faintRule}`, position: 'sticky', top: 0, background: T.paper, zIndex: 2 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
-              <button
-                onClick={() => {
-                  const next = prompt('Photo URL — paste a LinkedIn profile photo URL or any image link (empty to clear):', contact.avatar_url || '');
-                  if (next === null) return;
-                  const v = next.trim();
-                  updateImmediate({ avatar_url: v || null });
-                }}
-                title="Click to change photo"
-                style={{ padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-              >
-                {contact.avatar_url && !avatarError ? (
-                  <img
-                    src={contact.avatar_url}
-                    alt=""
-                    onError={() => setAvatarError(true)}
-                    style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${T.faintRule}`, display: 'block' }}
-                  />
-                ) : (
-                  <div style={{
-                    width: 48, height: 48, borderRadius: '50%', background: T.inkSoft,
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  onClick={onPickAvatar}
+                  disabled={uploadingAvatar}
+                  title={uploadingAvatar ? 'Uploading…' : 'Click to upload a new photo'}
+                  style={{ padding: 0, border: 'none', background: 'transparent', cursor: uploadingAvatar ? 'wait' : 'pointer', display: 'block', position: 'relative' }}
+                >
+                  {contact.avatar_url && !avatarError ? (
+                    <img
+                      src={contact.avatar_url}
+                      alt=""
+                      onError={() => setAvatarError(true)}
+                      style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${T.faintRule}`, display: 'block', opacity: uploadingAvatar ? .4 : 1 }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 48, height: 48, borderRadius: '50%', background: T.inkSoft,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`,
+                      opacity: uploadingAvatar ? .4 : 1,
+                    }}>{initials || '?'}</div>
+                  )}
+                  {/* Tiny camera badge in the corner — visual cue that it's clickable */}
+                  <span style={{
+                    position: 'absolute', right: -2, bottom: -2,
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: T.ink, color: T.paper, fontSize: 9,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 16, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`,
-                  }}>{initials || '?'}</div>
-                )}
-              </button>
+                    border: `2px solid ${T.paper}`,
+                  }}>{uploadingAvatar ? '…' : '✎'}</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={onAvatarFileChosen}
+                  style={{ display: 'none' }}
+                />
+              </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: T.ink, letterSpacing: '-0.012em', wordBreak: 'break-word' }}>
                   {fullName}
@@ -194,7 +274,7 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
                 </div>
               </div>
             </div>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
+            <button onClick={safeClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
           </div>
 
           {/* Status pills */}
@@ -427,6 +507,44 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
             </div>
           )}
         </div>
+        </div>{/* end scroll area */}
+
+        {/* Sticky save bar — appears only when there are pending edits
+            OR briefly after a successful save (savedFlash). */}
+        {(hasUnsavedChanges || savedFlash) && (
+          <div style={{
+            padding: '12px 20px', borderTop: `1px solid ${T.faintRule}`,
+            background: hasUnsavedChanges ? T.inkSoft : T.paper,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <div style={{ fontSize: 12, color: T.ink70, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {hasUnsavedChanges ? (
+                <>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: T.ink, display: 'inline-block' }}/>
+                  <span><b style={{ color: T.ink, fontWeight: 700 }}>{Object.keys(dirty).length}</b> unsaved change{Object.keys(dirty).length === 1 ? '' : 's'}</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: T.ink, fontWeight: 600 }}>✓ Saved</span>
+                </>
+              )}
+            </div>
+            {hasUnsavedChanges && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={discardChanges} disabled={saving} style={{
+                  padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, fontFamily: T.sans,
+                  background: 'transparent', border: `1px solid ${T.faintRule}`, color: T.ink70,
+                  cursor: saving ? 'wait' : 'pointer', opacity: saving ? .5 : 1,
+                }}>Discard</button>
+                <button onClick={saveAll} disabled={saving} style={{
+                  padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
+                  background: T.ink, color: T.paper, border: 'none',
+                  cursor: saving ? 'wait' : 'pointer', opacity: saving ? .5 : 1,
+                }}>{saving ? 'Saving…' : '💾 Save changes'}</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
