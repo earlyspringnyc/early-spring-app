@@ -637,7 +637,7 @@ function relativeDays(iso) {
   return Math.round(diff / 365) + 'y ago';
 }
 
-function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId }) {
+function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany }) {
   return (
     <div data-company-detail style={{
       marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
@@ -659,10 +659,19 @@ function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId }) {
             </div>
           </div>
         </div>
-        <button onClick={onClose} style={{
-          background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
-          padding: '6px 12px', fontSize: 11, fontWeight: 600, color: T.ink70, cursor: 'pointer', fontFamily: T.sans,
-        }}>Close</button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          {onDeleteCompany && (
+            <button onClick={onDeleteCompany} disabled={deletingCompany} title={`Delete all ${cluster.count} contact${cluster.count === 1 ? '' : 's'} in this company`} style={{
+              background: 'transparent', border: `1px solid ${T.alert}33`, borderRadius: 999,
+              padding: '6px 12px', fontSize: 11, fontWeight: 600, color: T.alert, cursor: deletingCompany ? 'wait' : 'pointer',
+              fontFamily: T.sans, opacity: deletingCompany ? .5 : 1,
+            }}>{deletingCompany ? 'Deleting…' : 'Delete company'}</button>
+          )}
+          <button onClick={onClose} style={{
+            background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
+            padding: '6px 12px', fontSize: 11, fontWeight: 600, color: T.ink70, cursor: 'pointer', fontFamily: T.sans,
+          }}>Close</button>
+        </div>
       </div>
       <div>
         {cluster.contacts.map(c => (
@@ -888,6 +897,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const [showImport, setShowImport] = useState(false);
   const [showNewContact, setShowNewContact] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
+  const [deletingCompany, setDeletingCompany] = useState(false);
   // Preview state for the per-row refresh confirmation modal
   const [refreshPreview, setRefreshPreview] = useState(null); // { contact, patch }
   const [applyingRefresh, setApplyingRefresh] = useState(false);
@@ -1182,6 +1192,22 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
               onClose={() => setSelectedCanonical(null)}
               onRefreshContact={onRefreshContact}
               refreshingId={refreshingId}
+              deletingCompany={deletingCompany}
+              onDeleteCompany={async () => {
+                const n = selectedCluster.contacts.length;
+                const name = selectedCluster.canonical || 'No company';
+                if (!confirm(`Delete all ${n} contact${n === 1 ? '' : 's'} at "${name}"? This can't be undone.`)) return;
+                setDeletingCompany(true);
+                try {
+                  // Parallel delete; restFetch handles auth + RLS.
+                  await Promise.all(selectedCluster.contacts.map(c => deleteContact(c.id)));
+                  const idsToRemove = new Set(selectedCluster.contacts.map(c => c.id));
+                  setContacts(prev => prev.filter(c => !idsToRemove.has(c.id)));
+                  setSelectedCanonical(null);
+                } catch (e) {
+                  alert('Delete failed: ' + (e.message || 'unknown'));
+                } finally { setDeletingCompany(false); }
+              }}
             />
           )}
         </div>

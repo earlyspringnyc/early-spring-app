@@ -158,20 +158,31 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
         <div style={{ padding: '24px 28px 18px', borderBottom: `1px solid ${T.faintRule}`, position: 'sticky', top: 0, background: T.paper, zIndex: 2 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
-              {contact.avatar_url && !avatarError ? (
-                <img
-                  src={contact.avatar_url}
-                  alt=""
-                  onError={() => setAvatarError(true)}
-                  style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${T.faintRule}`, flexShrink: 0 }}
-                />
-              ) : (
-                <div style={{
-                  width: 48, height: 48, borderRadius: '50%', background: T.inkSoft,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
-                }}>{initials || '?'}</div>
-              )}
+              <button
+                onClick={() => {
+                  const next = prompt('Photo URL — paste a LinkedIn profile photo URL or any image link (empty to clear):', contact.avatar_url || '');
+                  if (next === null) return;
+                  const v = next.trim();
+                  updateImmediate({ avatar_url: v || null });
+                }}
+                title="Click to change photo"
+                style={{ padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+              >
+                {contact.avatar_url && !avatarError ? (
+                  <img
+                    src={contact.avatar_url}
+                    alt=""
+                    onError={() => setAvatarError(true)}
+                    style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${T.faintRule}`, display: 'block' }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '50%', background: T.inkSoft,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`,
+                  }}>{initials || '?'}</div>
+                )}
+              </button>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: T.ink, letterSpacing: '-0.012em', wordBreak: 'break-word' }}>
                   {fullName}
@@ -256,7 +267,8 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
                 <EditableField label="Company" value={contact.company || ''} onChange={v => updateField('company', v || null)}/>
                 <EditableField label="Location" value={contact.location || ''} onChange={v => updateField('location', v || null)}/>
                 <EditableField label="LinkedIn URL" value={contact.linkedin_url || ''} onChange={v => updateField('linkedin_url', v || null)}/>
-                <EditableField label="Company URL" value={contact.company_url || ''} onChange={v => updateField('company_url', v || null)} fullWidth/>
+                <EditableField label="Company URL" value={contact.company_url || ''} onChange={v => updateField('company_url', v || null)}/>
+                <EditableField label="Photo URL" value={contact.avatar_url || ''} onChange={v => updateField('avatar_url', v || null)}/>
               </div>
 
               {contact.bio && (
