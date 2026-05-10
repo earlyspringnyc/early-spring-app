@@ -221,7 +221,7 @@ export function mergePatch(existing, incoming, opts = {}) {
   const patch = {};
 
   const EDITABLE = ['first_name', 'last_name', 'email', 'title', 'company',
-    'company_url', 'location', 'linkedin_url', 'phone'];
+    'company_url', 'location', 'linkedin_url', 'phone', 'avatar_url'];
 
   for (const k of EDITABLE) {
     if (incoming[k] == null || incoming[k] === '') continue;
