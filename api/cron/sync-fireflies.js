@@ -103,9 +103,29 @@ async function fetchFireflies(apiKey, limit) {
   return json.data?.transcripts || [];
 }
 
+// Robust Fireflies date parser. Their API can return:
+//   — ISO string ("2025-08-01T12:00:00Z")
+//   — Unix milliseconds (1722513600000)
+//   — Unix seconds (1722513600)
+// Anything > 1e12 is assumed to already be ms (year 33658+ in seconds
+// would be required to ambiguate, so this is safe for centuries).
+function parseFFDate(d) {
+  if (d == null) return null;
+  if (typeof d === 'string') {
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? null : dt.toISOString();
+  }
+  if (typeof d === 'number' && Number.isFinite(d)) {
+    const ms = d > 1e12 ? d : d * 1000;
+    const dt = new Date(ms);
+    return isNaN(dt.getTime()) ? null : dt.toISOString();
+  }
+  return null;
+}
+
 function shapeMeeting(t) {
   if (!t || !t.id) return null;
-  const occurredAt = t.date ? new Date(t.date * 1000).toISOString() : null;
+  const occurredAt = parseFFDate(t.date);
   if (!occurredAt) return null;
 
   const rawAtt = Array.isArray(t.meeting_attendees) ? t.meeting_attendees : [];
