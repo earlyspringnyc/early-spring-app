@@ -280,6 +280,78 @@
   }
   .ff-explainer b { color: var(--ink); font-weight: 600; }
 
+  /* Gmail-synced email cards */
+  .sync-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--inkSoft); color: var(--ink);
+    font-size: 10px; font-weight: 600;
+    border: 1px solid var(--faintRule);
+  }
+  .sync-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .section-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+
+  .email-thread {
+    border: 1px solid var(--faintRule); border-radius: 8px;
+    margin-bottom: 8px; overflow: hidden;
+    background: var(--paper);
+    transition: border-color .15s;
+  }
+  .email-thread:hover { border-color: var(--ink25); }
+  .email-thread-head {
+    display: grid; grid-template-columns: 14px 1fr auto; gap: 10px;
+    padding: 10px 12px; cursor: pointer; align-items: center;
+  }
+  .email-thread-head .arrow {
+    color: var(--ink40); font-size: 10px;
+    transition: transform .2s;
+  }
+  .email-thread.open .email-thread-head .arrow { transform: rotate(90deg); }
+  .email-thread-meta { min-width: 0; }
+  .email-thread-meta .subject { font-size: 13px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .email-thread-meta .preview { font-size: 11px; color: var(--ink40); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .email-thread-meta .preview b { color: var(--ink70); font-weight: 600; }
+  .email-thread-date { font-size: 10px; color: var(--ink40); white-space: nowrap; }
+  .email-thread-body {
+    display: none; padding: 0 12px 12px;
+    border-top: 1px dashed var(--faintRule); margin-top: 4px; padding-top: 12px;
+  }
+  .email-thread.open .email-thread-body { display: block; }
+  .email-thread-body .body-row { font-size: 11px; color: var(--ink70); margin-bottom: 8px; }
+  .email-thread-body .body-row b { color: var(--ink); font-weight: 600; font-size: 11px; }
+  .email-thread-body .body-text { font-size: 12px; color: var(--ink); line-height: 1.55; white-space: pre-wrap; padding-top: 6px; border-top: 1px dashed var(--faintRule); }
+  .email-thread-body .body-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .email-thread-body .body-actions a, .email-thread-body .body-actions button {
+    text-decoration: none;
+    background: transparent; border: 1px solid var(--faintRule);
+    color: var(--ink70); padding: 4px 10px; border-radius: 4px;
+    font: inherit; font-size: 10px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .email-thread-body .body-actions a:hover, .email-thread-body .body-actions button:hover { border-color: var(--ink); color: var(--ink); }
+  .email-thread-body .lazy-hint { font-size: 11px; color: var(--ink40); font-style: italic; padding: 8px 10px; background: var(--inkSoft2); border-radius: 4px; }
+
+  .integrations-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--faintRule); border-radius: 8px;
+    background: var(--inkSoft2);
+    margin-bottom: 16px;
+  }
+  .integrations-card .gicon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--paper);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: var(--ink);
+    border: 1px solid var(--faintRule);
+  }
+  .integrations-card .gtext { flex: 1; min-width: 0; }
+  .integrations-card .gtext .gtitle { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .integrations-card .gtext .gsub { font-size: 11px; color: var(--ink70); margin-top: 2px; line-height: 1.4; }
+  .integrations-card .gactions { display: flex; gap: 6px; }
+
   .project-card {
     display: grid; grid-template-columns: 1fr auto;
     gap: 12px; align-items: center;
@@ -445,7 +517,7 @@
     </div>
 
     <div class="empty-hint" id="contacts-hint">
-      <b>Tip.</b> Click any row to open the contact's file. RFP-status contacts surface at the top when you filter by <b>Pitching</b>. Fireflies meeting transcripts auto-route into a contact's communications log when their email matches an attendee on the call.
+      <b>Tip.</b> Click any row to open the contact's file. RFP-status contacts surface at the top when you filter by <b>Pitching</b>. <b>Gmail</b> auto-syncs threads against each contact's email and updates a "last contacted" timestamp; <b>Fireflies</b> routes meeting transcripts into the contact's communications log when their email matches an attendee on the call.
     </div>
   </div>
 </div>
@@ -577,7 +649,9 @@ const contacts = [
     projects: [{ id:'p-trail', name:'Trail Anthology · Spring 2026', stage:'pitching', daysOut:18, role:'RFP sender' }],
     interactions: [
       { type:'fireflies', title:'Brief alignment call', date: days(2), summary:'Sarah confirmed scope: 6 hero stories + 12 cutdowns. Wants edit decisions by June 1. Brought up cost ceiling of $1.4M. Production needs to wrap by July 15 for back-to-school push.', duration:'47 min', attendees:['Sarah Chen','Kamil','Morgan'] },
-      { type:'email', title:'Re: Trail Anthology brief — questions', date: days(4), summary:'Replied with our 5 pre-prod questions. Awaiting answer on athlete approvals.' },
+      { type:'email', source:'gmail', direction:'in', subject:'Re: Trail Anthology brief — questions', from:'Sarah Chen <sarah.chen@patagonia.com>', to:'Kamil Tyebally', date: days(4), preview:'Thanks Kamil — answers inline. On athlete approvals: we\'ve confirmed Killian and Courtney for the lead spots; the rest are pencil...', body:`Thanks Kamil — answers inline. On athlete approvals: we've confirmed Killian and Courtney for the lead spots; the rest are pencil until next Tuesday. Cost ceiling is firm at $1.4M total, including post.\n\nOn the timeline: I can flex the wrap date to July 22 if it gets us a better cut. But not later — back-to-school launch is non-negotiable.\n\nCan you send the athlete release templates so legal can pre-clear?\n\nSarah`, threadId:'17b3a2' },
+      { type:'email', source:'gmail', direction:'out', subject:'Trail Anthology brief — questions', from:'Kamil Tyebally', to:'Sarah Chen', date: days(5), preview:'Sarah — five quick questions before we lock the treatment direction: athlete approvals, location flex, cost ceiling reality check...', body:'(snippet only — body fetched on demand)', threadId:'17b3a2' },
+      { type:'email', source:'gmail', direction:'in', subject:'Welcome — looking forward', from:'Sarah Chen', to:'Kamil', date: days(38), preview:'Loved the meeting today. Marcus said you were the right team and now I see why. Sending the brief by EOW.', threadId:'17b1c0' },
       { type:'meeting', title:'HQ visit · Ventura', date: days(45), summary:'Full-day site visit. Toured fabric lab. Sarah introduced us to her CFO.' },
       { type:'note', title:'Note', date: days(50), summary:'Sarah hates VFX-heavy spots. Anything that looks "too post" she will kill in review.' },
     ],
@@ -591,7 +665,9 @@ const contacts = [
     projects: [{ id:'p-aesop', name:'Aesop Library — pre-prod', stage:'producing', daysOut:14, role:'Point of contact' }],
     interactions: [
       { type:'meeting', title:'Pre-prod kickoff', date: days(8), summary:'Director confirmed. Locations scouted. Final cast review next Tuesday.' },
-      { type:'email', title:'Re: Aesop Library — director treatment', date: days(15), summary:'Approved Sofia Coppola treatment. Wants to add Australian DP to the call list.' },
+      { type:'email', source:'gmail', direction:'in', subject:'Re: Aesop Library — director treatment', from:'Marcus Reid', to:'Kamil', date: days(15), preview:'Treatment approved. One ask — can we add an Australian DP to the call list? Felix Watts has been doing beautiful work locally.', body:`Treatment approved. One ask — can we add an Australian DP to the call list? Felix Watts has been doing beautiful work locally and the local crew loves him.\n\nTimeline still works for me. Send the budget when you have it.\n\nM`, threadId:'17a9e1' },
+      { type:'email', source:'gmail', direction:'out', subject:'Aesop Library — director treatment', from:'Kamil', to:'Marcus Reid', date: days(16), preview:'Marcus — director treatment attached. Sofia\'s read of the brief is dead on. Quick call this week to walk through?', threadId:'17a9e1' },
+      { type:'email', source:'gmail', direction:'in', subject:'Q1 invoice paid', from:'AP — Aesop <ap@aesop.com>', to:'Kamil', date: days(33), preview:'Confirmation that invoice ES-1041 was processed today. Funds should land in 3-5 business days.', threadId:'179f22' },
     ],
   },
   {
@@ -819,9 +895,26 @@ function renderDetail(c, mountId) {
 
     <div id="${mountId}-tab-communications" class="drawer-tab-pane" style="display:none">
       <div class="drawer-section">
-        <h3 class="section-heading">Activity</h3>
+        <div class="integrations-card">
+          <div class="gicon">M</div>
+          <div class="gtext">
+            <div class="gtitle">Gmail · synced 2 minutes ago</div>
+            <div class="gsub">Threads with <b>${c.email}</b> sync automatically. Bodies are fetched only when you expand a message.</div>
+          </div>
+          <div class="gactions">
+            <button class="btn ghost" style="font-size:10px;padding:4px 10px">Refresh</button>
+          </div>
+        </div>
+
+        <div class="section-row">
+          <h3 class="section-heading" style="margin:0">Email threads <span style="color:var(--ink40);font-weight:500">· ${c.interactions.filter(i=>i.type==='email').length}</span></h3>
+          <span class="sync-status"><span class="dot"></span>LIVE</span>
+        </div>
+        ${c.interactions.filter(i=>i.type==='email').map((i,idx)=>renderEmailThread(i, mountId+'-em-'+idx)).join('') || `<div class="empty-hint" style="margin-top:0">No emails synced yet from this contact.</div>`}
+
+        <h3 class="section-heading" style="margin-top:24px">Other activity</h3>
         <div class="timeline">
-          ${c.interactions.map(i => renderInteraction(i)).join('')}
+          ${c.interactions.filter(i=>i.type!=='email').map(i => renderInteraction(i)).join('')}
         </div>
       </div>
     </div>
@@ -855,6 +948,36 @@ function renderDetail(c, mountId) {
           `).join('')
         }
         <button class="btn ghost" style="margin-top:8px">＋ Link to another project</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderEmailThread(i, id) {
+  const dirArrow = i.direction === 'in' ? '←' : '→';
+  const dirLabel = i.direction === 'in' ? 'From' : 'To';
+  const counterparty = i.direction === 'in' ? (i.from || '') : (i.to || '');
+  const fmtTime = i.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `
+    <div class="email-thread" id="${id}">
+      <div class="email-thread-head" onclick="document.getElementById('${id}').classList.toggle('open')">
+        <span class="arrow">▸</span>
+        <div class="email-thread-meta">
+          <div class="subject">${dirArrow} ${i.subject}</div>
+          <div class="preview"><b>${dirLabel}: ${counterparty}.</b> ${i.preview || ''}</div>
+        </div>
+        <span class="email-thread-date">${fmtTime}</span>
+      </div>
+      <div class="email-thread-body">
+        <div class="body-row"><b>From:</b> ${i.from || '—'}</div>
+        <div class="body-row"><b>To:</b> ${i.to || '—'}</div>
+        <div class="body-row"><b>Date:</b> ${fmtDate(i.date)}</div>
+        ${i.body && i.body !== '(snippet only — body fetched on demand)' ? `<div class="body-text">${i.body}</div>` : `<div class="lazy-hint">Body not loaded. Click "Load full message" to fetch — this stays in your browser, not stored in Morgan.</div>`}
+        <div class="body-actions">
+          ${!i.body || i.body === '(snippet only — body fetched on demand)' ? `<button onclick="alert('Mockup: would call gmail.users.messages.get with this thread id and inline the body here.')">Load full message</button>` : ''}
+          <a href="https://mail.google.com/mail/u/0/#inbox/${i.threadId||''}" target="_blank" rel="noopener">Open in Gmail ↗</a>
+          <button onclick="alert('Mockup: would compose a reply via the Gmail API in a popover.')">Reply</button>
+        </div>
       </div>
     </div>
   `;
