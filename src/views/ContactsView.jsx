@@ -607,13 +607,16 @@ function StatsCards({ contacts, clusters, onFilter, onPickCompany }) {
       if (!c.last_contacted_at) return false; // no signal — don't count
       return new Date(c.last_contacted_at).getTime() < ninetyDaysAgo;
     });
+    // Filter out "Freelance" / "Self-Employed" / "Consultant" etc. from
+    // priority surfaces — they're not real prospects, just labels on
+    // independent contacts.
     return {
       total: contacts.length,
       companyCount: clusters.length,
       pitching: pitching.slice(0, 4),
       pitchingTotal: pitching.length,
       active: active.length,
-      topCompanies: clusters.slice(0, 4),
+      topCompanies: clusters.filter(cl => !cl.isIndependent).slice(0, 4),
       goingCold: goingCold.length,
     };
   }, [contacts, clusters]);
@@ -928,15 +931,21 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
               {(() => {
                 const searching = search.trim().length > 0;
                 const showingAll = showAllCompanies || searching;
-                // Top 10 by count when collapsed; A–Z when expanded or searching
-                const visible = showingAll ? clustersAlpha : clusters.slice(0, TOP_COUNT);
-                const hidden = clusters.length - visible.length;
+                // Top 10 by count when collapsed — exclude independent
+                // contacts (freelance, self-employed, etc.) since they
+                // aren't real company prospects. They still show up in
+                // the A–Z expanded list and via search.
+                const topCompanies = clusters.filter(cl => !cl.isIndependent);
+                const visible = showingAll ? clustersAlpha : topCompanies.slice(0, TOP_COUNT);
+                const hidden = clustersAlpha.length - visible.length;
+                const independentCount = clusters.filter(cl => cl.isIndependent)
+                  .reduce((n, cl) => n + cl.count, 0);
                 return (
                   <>
                     <div style={{ fontSize: 11, color: T.fadedInk, marginBottom: 12 }}>
                       {showingAll
                         ? <>{clustersAlpha.length} compan{clustersAlpha.length === 1 ? 'y' : 'ies'} · {filtered.length} contact{filtered.length === 1 ? '' : 's'} · A–Z</>
-                        : <>Top {visible.length} of {clusters.length} compan{clusters.length === 1 ? 'y' : 'ies'} · ranked by contact count</>}
+                        : <>Top {visible.length} of {topCompanies.length} compan{topCompanies.length === 1 ? 'y' : 'ies'} · ranked by contact count{independentCount > 0 ? ` · ${independentCount} independent contact${independentCount === 1 ? '' : 's'} hidden` : ''}</>}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
                       {visible.map(cl => (

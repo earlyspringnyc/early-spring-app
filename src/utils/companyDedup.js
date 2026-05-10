@@ -15,6 +15,21 @@
 // proton / fastmail) are skipped so freelancers don't all fuse.
 
 const SUFFIX_RE = /\b(inc|llc|ltd|co|corp|corporation|company|companies|group|holdings|partners|partnership|usa|uk|us|na|north\s+america|cars?|limited|gmbh|s\.?a\.?|ag|plc|pty)\b/gi;
+
+// Values that aren't really a company — freelancers, self-employed,
+// retired, "looking", etc. We still cluster them (so individual rows
+// don't sprawl) but flag the cluster as independent so the UI can
+// keep them out of the "top companies" priority view.
+const INDEPENDENT_TERMS = new Set([
+  'freelance', 'freelancer', 'self employed', 'self-employed',
+  'independent', 'independent contractor', 'consultant', 'consulting',
+  'retired', 'unemployed', 'looking', 'open to work', 'student',
+  'n a', 'na', 'none', 'unknown',
+]);
+
+export function isIndependentCompany(canonical) {
+  return INDEPENDENT_TERMS.has(normalizeCompany(canonical));
+}
 const PERSONAL_DOMAINS = new Set([
   'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com',
   'me.com', 'aol.com', 'live.com', 'protonmail.com', 'proton.me',
@@ -116,6 +131,7 @@ export function clusterByCompany(contacts) {
       stages,
       emailDomain: [...new Set(group.map(c => emailDomain(c.email)).filter(Boolean))][0] || null,
       lastContactedAt,
+      isIndependent: isIndependentCompany(canonical),
     });
   }
 
