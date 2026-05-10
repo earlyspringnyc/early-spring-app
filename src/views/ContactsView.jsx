@@ -408,7 +408,6 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showImport, setShowImport] = useState(false);
-  const [showLookup, setShowLookup] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
@@ -530,8 +529,7 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
           <button onClick={onSyncRocketReach} disabled={syncing} style={{ ...btnGhost, opacity: syncing ? .5 : 1, cursor: syncing ? 'wait' : 'pointer' }}>
             {syncing ? 'Syncing…' : '↻ Sync RocketReach'}
           </button>
-          <button onClick={() => setShowImport(true)} style={btnGhost}>↑ Import CSV</button>
-          <button onClick={() => setShowLookup(true)} style={btnSolid}>＋ Look up contact</button>
+          <button onClick={() => setShowImport(true)} style={btnSolid}>↑ Import CSV</button>
         </div>
 
         {/* Table */}
@@ -575,7 +573,6 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
       </div>
 
       {showImport && <ImportWizard userId={userId} onClose={() => setShowImport(false)} onComplete={reload}/>}
-      {showLookup && <LookupModal userId={userId} onClose={() => setShowLookup(false)} onCreated={(c) => { setContacts(prev => [c, ...prev]); }}/>}
     </div>
   );
 }
