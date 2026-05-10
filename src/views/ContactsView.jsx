@@ -287,7 +287,7 @@ function ContactsView({ user, onBack, onLogout, accessToken }) {
   }, [contacts]);
 
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, fontFamily: T.sans }}>
+    <div style={{ height: '100vh', background: T.bg, fontFamily: T.sans, overflow: 'auto' }}>
       <div style={{ height: 1, background: T.faintRule }}/>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '36px 32px' }}>
         {/* Header */}
