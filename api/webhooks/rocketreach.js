@@ -205,9 +205,12 @@ async function upsertContact({ supaUrl, serviceKey, userId, contact }) {
   }
 
   if (existing) {
+    // Fill-only — preserve Morgan-side edits. (Same policy as the
+    // cron sync; this webhook path is currently unused but kept in
+    // sync with the rest of the codebase for consistency.)
     const patch = {};
     ['first_name','last_name','email','title','company','company_url','location','linkedin_url','phone']
-      .forEach(k => { if (contact[k] && contact[k] !== existing[k]) patch[k] = contact[k]; });
+      .forEach(k => { if (contact[k] && !existing[k]) patch[k] = contact[k]; });
     if (!existing.bio && contact.bio) patch.bio = contact.bio;
     const sources = Array.from(new Set([...(existing.sources || []), 'rocketreach']));
     if (sources.length !== (existing.sources || []).length) patch.sources = sources;

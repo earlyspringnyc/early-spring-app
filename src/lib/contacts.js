@@ -66,9 +66,10 @@ export async function syncRocketReachContacts(userId, { onProgress, maxPages = 3
   return { fetched: all.length, ...result };
 }
 
-// Re-enrich an existing contact in place. Looks up by linkedin_url
-// (preferred — most stable) or falls back to email. Merges fresh
-// fields onto the contact and bumps the source list.
+// Re-enrich an existing contact in place. User-initiated, so we use
+// 'overwrite' mode — they're asking for fresh data, give it. The
+// background sync path uses the default 'fill-only' which preserves
+// their manual edits.
 export async function reenrichContact(contact) {
   const query = {};
   if (contact.linkedin_url) query.linkedin_url = contact.linkedin_url;
@@ -76,7 +77,7 @@ export async function reenrichContact(contact) {
   else throw new Error('Cannot re-enrich a contact without LinkedIn URL or email');
   const { profile } = await rocketReachLookup(query);
   if (!profile) throw new Error('No profile returned');
-  const patch = mergePatch(contact, profile);
+  const patch = mergePatch(contact, profile, { mode: 'overwrite' });
   if (Object.keys(patch).length) await updateContact(contact.id, patch);
   return { patch, profile };
 }

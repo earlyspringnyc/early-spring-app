@@ -202,28 +202,42 @@ export function parseContactsCSV(text) {
 
 // ------------------------------------------------------------
 // Merge helper for re-imports. Given an existing row + a new
-// import row, produce the patch to apply. Rules:
-// — most-recent-wins for editable fields (LinkedIn likely fresher)
-// — bio is set if existing is null, otherwise preserved
-// — sources accumulate
-// — linkedin_connected_at preferred from import if existing is null
-// — never overwrite user-authored notes / tags / status
+// import row, produce the patch to apply.
+//
+// Default mode: 'fill-only' — Morgan is the source of truth. Once a
+// field has a value (user-edited or first sync), we never overwrite
+// it from a later sync. The user's manual edits are sticky.
+//
+// 'overwrite' mode — for explicit user-initiated refreshes (the ↻
+// button on each row). The user asked for fresh data; we give it.
+//
+// Bio/linkedin_connected_at: always fill-only since they're external
+// metadata the user wouldn't typically edit.
+// Sources: always accumulate so we can trace provenance.
+// Notes/tags/status: never touched by sync, full stop.
 // ------------------------------------------------------------
-export function mergePatch(existing, incoming) {
+export function mergePatch(existing, incoming, opts = {}) {
+  const mode = opts.mode || 'fill-only';
   const patch = {};
-  const fillIfChanged = (k) => {
-    if (incoming[k] != null && incoming[k] !== '' && incoming[k] !== existing[k]) {
-      patch[k] = incoming[k];
+
+  const EDITABLE = ['first_name', 'last_name', 'email', 'title', 'company',
+    'company_url', 'location', 'linkedin_url', 'phone'];
+
+  for (const k of EDITABLE) {
+    if (incoming[k] == null || incoming[k] === '') continue;
+    if (mode === 'fill-only') {
+      // Only set if existing is empty / null
+      if (!existing[k]) patch[k] = incoming[k];
+    } else {
+      // Overwrite when different
+      if (incoming[k] !== existing[k]) patch[k] = incoming[k];
     }
-  };
-  ['first_name', 'last_name', 'email', 'title', 'company', 'company_url',
-    'location', 'linkedin_url', 'phone'].forEach(fillIfChanged);
+  }
 
   if (!existing.bio && incoming.bio) patch.bio = incoming.bio;
   if (!existing.linkedin_connected_at && incoming.linkedin_connected_at) {
     patch.linkedin_connected_at = incoming.linkedin_connected_at;
   }
-  // sources — accumulate unique
   const merged = Array.from(new Set([...(existing.sources || []), ...(incoming.sources || [])]));
   if (merged.length !== (existing.sources || []).length) patch.sources = merged;
 
