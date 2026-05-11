@@ -295,6 +295,14 @@ export async function listProjectsForContact(contactId) {
   ) || [];
 }
 
+// Reverse lookup — all contacts linked to a project, with their role.
+// Used by the project view's contacts panel.
+export async function listContactsForProject(projectId) {
+  return await restFetch(
+    `/contact_projects?select=role,created_at,contacts(*)&project_id=eq.${enc(projectId)}`
+  ) || [];
+}
+
 // ----------------------------------------------------------------
 // Interactions
 // ----------------------------------------------------------------

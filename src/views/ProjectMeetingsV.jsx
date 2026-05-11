@@ -5,6 +5,70 @@ import {
   listMeetings, effectiveClassification,
 } from '../lib/meetings.js';
 import { listProjectNotes, addProjectNote, deleteProjectNote } from '../lib/projectNotes.js';
+import { listContactsForProject, linkContactToProject, unlinkContactFromProject, listContacts } from '../lib/contacts.js';
+
+function ProjectContactLinker({ allContacts, linkedContacts, contactSearch, setContactSearch, contactRole, setContactRole, onLink }) {
+  const linkedIds = new Set(linkedContacts.map(lc => lc.contacts?.id).filter(Boolean));
+  const q = contactSearch.trim().toLowerCase();
+  const matches = q
+    ? allContacts
+        .filter(c => !linkedIds.has(c.id))
+        .filter(c => {
+          const hay = `${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.company || ''} ${c.title || ''}`.toLowerCase();
+          return hay.includes(q);
+        }).slice(0, 6)
+    : [];
+  const ROLES = [
+    { id: 'point_of_contact', label: 'Point of contact' },
+    { id: 'rfp_sender', label: 'RFP sender' },
+    { id: 'champion', label: 'Champion' },
+    { id: 'team_member', label: 'Team member' },
+  ];
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <input
+          value={contactSearch}
+          onChange={e => setContactSearch(e.target.value)}
+          placeholder="Search contacts to link…"
+          style={{
+            flex: 1, padding: '8px 12px', borderRadius: 6, fontSize: 12, fontFamily: T.sans,
+            border: `1px solid ${T.faintRule}`, background: T.inkSoft2, color: T.ink, outline: 'none',
+          }}
+        />
+        <select value={contactRole} onChange={e => setContactRole(e.target.value)} style={{
+          padding: '8px 10px', borderRadius: 6, fontSize: 12, fontFamily: T.sans,
+          border: `1px solid ${T.faintRule}`, background: T.paper, color: T.ink, cursor: 'pointer',
+        }}>
+          {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+      </div>
+      {q && matches.length > 0 && (
+        <div style={{ marginTop: 6, border: `1px solid ${T.faintRule}`, borderRadius: 8, background: T.paper, overflow: 'hidden' }}>
+          {matches.map(c => (
+            <button key={c.id} onClick={() => onLink(c.id)} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '8px 12px', background: 'transparent', border: 'none',
+              borderBottom: `1px solid ${T.faintRule}`, cursor: 'pointer', fontFamily: T.sans,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = T.inkSoft}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ fontSize: 12, color: T.ink, fontWeight: 500 }}>
+                {c.first_name} {c.last_name}
+                {c.company && <span style={{ color: T.fadedInk, fontWeight: 400 }}> · {c.company}</span>}
+              </div>
+              {c.email && <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2 }}>{c.email}</div>}
+            </button>
+          ))}
+        </div>
+      )}
+      {q && matches.length === 0 && (
+        <div style={{ marginTop: 6, padding: 10, fontSize: 11, color: T.fadedInk, fontStyle: 'italic' }}>No matches.</div>
+      )}
+    </div>
+  );
+}
 
 // Meetings linked to this project — auto-attached when an attendee on
 // the meeting is a CRM contact who's linked to this project, plus any
@@ -15,6 +79,10 @@ function ProjectMeetingsV({ project, user, accessToken }) {
   const [allMeetings, setAllMeetings] = useState([]);
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
+  const [linkedContacts, setLinkedContacts] = useState([]);
+  const [allContacts, setAllContacts] = useState([]);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactRole, setContactRole] = useState('point_of_contact');
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
@@ -24,14 +92,18 @@ function ProjectMeetingsV({ project, user, accessToken }) {
     if (!project?.id) return;
     setLoading(true);
     try {
-      const [l, all, n] = await Promise.all([
+      const [l, all, n, lc, ac] = await Promise.all([
         listMeetingsForProject(project.id),
         listMeetings({ limit: 200 }),
         listProjectNotes(project.id),
+        listContactsForProject(project.id),
+        listContacts({ limit: 2000 }),
       ]);
       setLinked(l);
       setAllMeetings(all);
       setNotes(n);
+      setLinkedContacts(lc);
+      setAllContacts(ac);
     } finally { setLoading(false); }
   }, [project?.id]);
 
@@ -78,6 +150,23 @@ function ProjectMeetingsV({ project, user, accessToken }) {
     } catch (e) { alert('Could not delete: ' + (e.message || 'unknown')); }
   };
 
+  const onLinkContact = async (contactId) => {
+    if (!contactId) return;
+    try {
+      await linkContactToProject(userId, contactId, project.id, contactRole);
+      const fresh = await listContactsForProject(project.id);
+      setLinkedContacts(fresh);
+      setContactSearch('');
+    } catch (e) { alert('Link failed: ' + (e.message || 'unknown')); }
+  };
+
+  const onUnlinkContact = async (contactId, role) => {
+    try {
+      await unlinkContactFromProject(contactId, project.id, role);
+      setLinkedContacts(prev => prev.filter(lc => !(lc.contacts?.id === contactId && lc.role === role)));
+    } catch (e) { alert('Unlink failed: ' + (e.message || 'unknown')); }
+  };
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 8px 80px', fontFamily: T.sans }}>
       <div style={{ marginBottom: 18 }}>
@@ -90,6 +179,72 @@ function ProjectMeetingsV({ project, user, accessToken }) {
         <div style={{ fontSize: 13, color: T.fadedInk, marginTop: 6 }}>
           {loading ? 'Loading…' : `${notes.length} note${notes.length === 1 ? '' : 's'} · ${linked.length} meeting${linked.length === 1 ? '' : 's'}`}
         </div>
+      </div>
+
+      {/* Linked contacts — who's on this project from your CRM */}
+      <div style={{ marginTop: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>👥</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>Contacts</span>
+          <span style={{ fontSize: 10, color: T.fadedInk, fontWeight: 500 }}>· {linkedContacts.length} on this project</span>
+        </div>
+
+        {linkedContacts.length > 0 ? (
+          <div style={{ marginBottom: 14 }}>
+            {linkedContacts.map(lc => {
+              if (!lc.contacts) return null;
+              const c = lc.contacts;
+              const ROLE_LABEL = { rfp_sender: 'RFP sender', champion: 'Champion', point_of_contact: 'Point of contact', team_member: 'Team member' };
+              const initials = ((c.first_name?.[0] || '') + (c.last_name?.[0] || '')).toUpperCase();
+              return (
+                <div key={`${c.id}-${lc.role}`} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', borderRadius: 8, marginBottom: 4,
+                  background: T.paper, border: `1px solid ${T.faintRule}`,
+                }}>
+                  {c.avatar_url ? (
+                    <img src={c.avatar_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${T.faintRule}`, flexShrink: 0 }}/>
+                  ) : (
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
+                    }}>{initials || '?'}</div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {(c.first_name || '') + ' ' + (c.last_name || '')}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ROLE_LABEL[lc.role] || lc.role}
+                      {c.title || c.company ? ' · ' : ''}
+                      {c.title}{c.title && c.company ? ' @ ' : ''}{c.company}
+                    </div>
+                  </div>
+                  <button onClick={() => onUnlinkContact(c.id, lc.role)} title="Unlink" style={{
+                    background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
+                    padding: '4px 10px', fontSize: 10, fontWeight: 600, color: T.fadedInk, cursor: 'pointer', fontFamily: T.sans,
+                  }}>Unlink</button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ padding: 18, border: `1px dashed ${T.faintRule}`, borderRadius: 8, color: T.fadedInk, fontSize: 12, textAlign: 'center', lineHeight: 1.6, marginBottom: 14 }}>
+            No contacts linked yet. Add them below or from a contact's detail drawer.
+          </div>
+        )}
+
+        {/* Search to link */}
+        <ProjectContactLinker
+          allContacts={allContacts}
+          linkedContacts={linkedContacts}
+          contactSearch={contactSearch}
+          setContactSearch={setContactSearch}
+          contactRole={contactRole}
+          setContactRole={setContactRole}
+          onLink={onLinkContact}
+        />
       </div>
 
       {/* Notes feed — auto-populated when you click "Save to notes" on a meeting, plus manual entries */}
