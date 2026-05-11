@@ -314,6 +314,12 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
               })}
             </div>
           </div>
+
+          {/* Tags — free-form cross-cutting labels */}
+          <TagsEditor
+            tags={Array.isArray(contact.tags) ? contact.tags : []}
+            onChange={(next) => updateImmediate({ tags: next })}
+          />
         </div>
 
         {/* Tabs */}
@@ -545,6 +551,55 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TagsEditor({ tags, onChange }) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    // De-dupe case-insensitively
+    const lower = v.toLowerCase();
+    if (tags.some(t => t.toLowerCase() === lower)) { setDraft(''); return; }
+    onChange([...tags, v]);
+    setDraft('');
+  };
+  const remove = (t) => onChange(tags.filter(x => x !== t));
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 6 }}>
+        Tags · free-form labels
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {tags.map(t => (
+          <span key={t} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+            background: T.inkSoft, color: T.ink, border: `1px solid ${T.faintRule}`,
+          }}>
+            {t}
+            <button onClick={() => remove(t)} title="Remove" style={{
+              background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+              padding: 0, fontSize: 12, lineHeight: 1,
+            }}>×</button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          onBlur={() => { if (draft.trim()) add(); }}
+          placeholder={tags.length ? 'Add another…' : '+ Add a tag (Cannes 2024, Q4, etc.)'}
+          style={{
+            flex: '0 0 auto', minWidth: 160,
+            padding: '4px 10px', borderRadius: 999, fontSize: 11,
+            border: `1px dashed ${T.faintRule}`, background: 'transparent',
+            color: T.ink, outline: 'none', fontFamily: T.sans,
+          }}
+        />
       </div>
     </div>
   );

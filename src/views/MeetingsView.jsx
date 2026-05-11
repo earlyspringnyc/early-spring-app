@@ -757,35 +757,63 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
             </div>
           )}
 
-          {tab === 'attendees' && (
-            <>
-              <SectionHeader icon="👥" title="Attendees" subtitle={`${(meeting.attendees || []).length} on the call`}/>
-              <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 8, overflow: 'hidden' }}>
-                {(meeting.attendees || []).map((a, i) => {
-                  const initials = (a.name || a.email || '?').split(/[\s@]/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('');
-                  return (
-                    <div key={i} style={{
-                      padding: '12px 14px',
-                      borderBottom: i < (meeting.attendees || []).length - 1 ? `1px solid ${T.faintRule}` : 'none',
-                      display: 'flex', alignItems: 'center', gap: 12, background: T.paper,
-                    }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
-                      }}>{initials || '?'}</div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 13, color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {titleCaseName(a.name || a.email?.split('@')[0]) || '—'}
-                        </div>
-                        {a.email && <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{a.email}</div>}
-                      </div>
+          {tab === 'attendees' && (() => {
+            // Group attendees: anyone whose email matches a contact_type='internal'
+            // contact (or whose email is the current viewer's) folds into a single
+            // "Internal team" pill so client-facing rows aren't drowned in
+            // your own + teammates' rows.
+            const internalEmails = new Set(
+              contacts.filter(c => c.contact_type === 'internal' && c.email).map(c => c.email.toLowerCase())
+            );
+            const all = meeting.attendees || [];
+            const internals = all.filter(a => a.email && internalEmails.has(a.email.toLowerCase()));
+            const externals = all.filter(a => !(a.email && internalEmails.has(a.email.toLowerCase())));
+            return (
+              <>
+                <SectionHeader icon="👥" title="Attendees" subtitle={`${all.length} on the call${internals.length ? ` · ${externals.length} external` : ''}`}/>
+                {internals.length > 0 && (
+                  <div style={{
+                    padding: '10px 14px', marginBottom: 8, borderRadius: 8,
+                    background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+                    fontSize: 12, color: T.ink70,
+                  }}>
+                    <span style={{ fontWeight: 600, color: T.ink }}>● Internal team · {internals.length}</span>
+                    <span style={{ marginLeft: 8 }}>
+                      {internals.map(a => titleCaseName(a.name || a.email?.split('@')[0])).filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                )}
+                <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 8, overflow: 'hidden' }}>
+                  {externals.length === 0 ? (
+                    <div style={{ padding: '14px 16px', fontSize: 12, color: T.fadedInk, fontStyle: 'italic' }}>
+                      No external attendees — this looks like an internal-only call.
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                  ) : externals.map((a, i) => {
+                    const initials = (a.name || a.email || '?').split(/[\s@]/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('');
+                    return (
+                      <div key={i} style={{
+                        padding: '12px 14px',
+                        borderBottom: i < externals.length - 1 ? `1px solid ${T.faintRule}` : 'none',
+                        display: 'flex', alignItems: 'center', gap: 12, background: T.paper,
+                      }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`, flexShrink: 0,
+                        }}>{initials || '?'}</div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 13, color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {titleCaseName(a.name || a.email?.split('@')[0]) || '—'}
+                          </div>
+                          {a.email && <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{a.email}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
 
           {tab === 'notes' && (
             <>
@@ -854,7 +882,13 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
       if (!q) return true;
       const attEmails = (m.attendees || []).map(a => a?.email).filter(Boolean).join(' ');
       const attNames = (m.attendees || []).map(a => a?.name).filter(Boolean).join(' ');
-      const hay = `${m.title || ''} ${m.summary || ''} ${m.notes || ''} ${attNames} ${attEmails}`.toLowerCase();
+      // Include linked CRM contacts so "show me meetings with Sarah Chen"
+      // works even when Sarah attended from a personal email Fireflies
+      // didn't capture as her name.
+      const linkedContactNames = (m.meeting_contacts || [])
+        .map(mc => `${mc.contacts?.first_name || ''} ${mc.contacts?.last_name || ''} ${mc.contacts?.company || ''}`)
+        .join(' ');
+      const hay = `${m.title || ''} ${m.summary || ''} ${m.notes || ''} ${attNames} ${attEmails} ${linkedContactNames}`.toLowerCase();
       return hay.includes(q);
     });
   }, [meetings, filter, search]);
