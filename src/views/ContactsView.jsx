@@ -1097,12 +1097,15 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
     [clusters]
   );
 
-  // Keep the selected company by canonical name so re-renders don't
-  // lose the selection when the underlying cluster array changes.
-  const [selectedCanonical, setSelectedCanonical] = useState(null);
+  // Keep the selected company by stable cluster id (NOT canonical
+  // name) — multiple clusters can share the same canonical when
+  // contacts have no company set, so name-based selection would
+  // always collapse them onto the first match. The id is derived
+  // from contact ids, so it survives re-renders.
+  const [selectedClusterId, setSelectedClusterId] = useState(null);
   const selectedCluster = useMemo(
-    () => clusters.find(cl => cl.canonical === selectedCanonical) || null,
-    [clusters, selectedCanonical]
+    () => clusters.find(cl => cl.id === selectedClusterId) || null,
+    [clusters, selectedClusterId]
   );
   // 412 cards is too many to render or scan. Default to top 10 by
   // contact count (priorities), with a "Show all" toggle that expands
@@ -1176,7 +1179,8 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
             clusters={clusters}
             onFilter={(f) => setFilter(f)}
             onPickCompany={(canonical) => {
-              setSelectedCanonical(canonical);
+              const cl = clusters.find(c => c.canonical === canonical);
+              if (cl) setSelectedClusterId(cl.id);
               setTimeout(() => {
                 const el = document.querySelector('[data-company-detail]');
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1252,10 +1256,10 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
                       {visible.map(cl => (
                         <CompanyCard
-                          key={cl.canonical + ':' + cl.count}
+                          key={cl.id}
                           cluster={cl}
-                          selected={selectedCanonical === cl.canonical}
-                          onClick={() => setSelectedCanonical(selectedCanonical === cl.canonical ? null : cl.canonical)}
+                          selected={selectedClusterId === cl.id}
+                          onClick={() => setSelectedClusterId(selectedClusterId === cl.id ? null : cl.id)}
                         />
                       ))}
                     </div>
@@ -1290,7 +1294,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
           {selectedCluster && (
             <CompanyDetail
               cluster={selectedCluster}
-              onClose={() => setSelectedCanonical(null)}
+              onClose={() => setSelectedClusterId(null)}
               onRefreshContact={onRefreshContact}
               refreshingId={refreshingId}
               onOpenContact={(id) => setOpenContactId(id)}
@@ -1305,7 +1309,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                   await Promise.all(selectedCluster.contacts.map(c => deleteContact(c.id)));
                   const idsToRemove = new Set(selectedCluster.contacts.map(c => c.id));
                   setContacts(prev => prev.filter(c => !idsToRemove.has(c.id)));
-                  setSelectedCanonical(null);
+                  setSelectedClusterId(null);
                 } catch (e) {
                   alert('Delete failed: ' + (e.message || 'unknown'));
                 } finally { setDeletingCompany(false); }

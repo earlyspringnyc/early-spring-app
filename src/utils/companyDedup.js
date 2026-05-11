@@ -129,7 +129,15 @@ export function clusterByCompany(contacts) {
     // priority cards / Top Companies / company grid by default.
     const allInternal = group.length > 0 && group.every(c => c.contact_type === 'internal');
 
+    // Stable per-cluster id derived from the sorted contact ids in
+    // the group. Two clusters can share the same canonical name
+    // (e.g., multiple "(No company)" clusters when several contacts
+    // have no company set) — using canonical as the selection key
+    // collapses them all onto the first one. The id solves that.
+    const id = group.map(c => c.id).sort().join('|');
+
     out.push({
+      id,
       canonical,
       aliases,
       contacts: group,
