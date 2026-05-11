@@ -6,6 +6,7 @@ import {
 } from '../lib/contacts.js';
 import { listMeetingsForContact, effectiveClassification } from '../lib/meetings.js';
 import { uploadAvatar } from '../lib/avatarUpload.js';
+import { listGmailThreadsForEmail } from '../utils/gmail.js';
 
 const STATUS_OPTIONS = [
   { id: 'prospect', label: 'Prospect' },
@@ -32,7 +33,7 @@ const PROJECT_ROLES = [
   { id: 'team_member',      label: 'Team member' },
 ];
 
-function ContactDetailDrawer({ contact: initialContact, projects = [], userId, onClose, onUpdate, onDelete }) {
+function ContactDetailDrawer({ contact: initialContact, projects = [], userId, accessToken, onClose, onUpdate, onDelete }) {
   const [contact, setContact] = useState(initialContact);
   // `dirty` holds in-progress edits keyed by field name. The contact
   // state above is the union of (saved data) + (dirty edits) for
@@ -42,6 +43,9 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
   const [savedFlash, setSavedFlash] = useState(false);
   const [linkedProjects, setLinkedProjects] = useState([]);
   const [linkedMeetings, setLinkedMeetings] = useState([]);
+  const [gmailThreads, setGmailThreads] = useState(null);  // null = not loaded; [] = loaded empty
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailError, setGmailError] = useState(null);
   const [tab, setTab] = useState('overview');
   const [showBio, setShowBio] = useState(false);
   const [linkProjectId, setLinkProjectId] = useState('');
@@ -70,7 +74,28 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
         console.error('[contact-drawer] load failed:', e.message || e);
       }
     })();
+    // Reset Gmail state — re-fetch when the tab is opened.
+    setGmailThreads(null); setGmailError(null);
   }, [contact?.id]);
+
+  // Lazy-fetch Gmail threads when the user opens the Gmail tab. Only
+  // fires once per contact-open — manually trigger refresh below.
+  const fetchGmail = useCallback(async (force = false) => {
+    if (!contact?.email || !accessToken) return;
+    if (gmailThreads !== null && !force) return; // already loaded
+    setGmailLoading(true); setGmailError(null);
+    try {
+      const rows = await listGmailThreadsForEmail(accessToken, contact.email, { limit: 25 });
+      setGmailThreads(rows);
+    } catch (e) {
+      setGmailError(e.message || 'Could not load Gmail');
+      setGmailThreads([]);
+    } finally { setGmailLoading(false); }
+  }, [contact?.email, accessToken, gmailThreads]);
+
+  useEffect(() => {
+    if (tab === 'gmail') fetchGmail(false);
+  }, [tab, fetchGmail]);
 
   const linkableProjects = useMemo(() => {
     const linkedIds = new Set(linkedProjects.map(lp => lp.projects?.id).filter(Boolean));
@@ -329,6 +354,7 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
             { id: 'notes', label: 'Notes' },
             { id: 'projects', label: `Projects · ${linkedProjects.length}` },
             { id: 'meetings', label: `Meetings · ${linkedMeetings.length}` },
+            ...(contact.email ? [{ id: 'gmail', label: 'Gmail' }] : []),
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               background: 'transparent', border: 'none', padding: '12px 14px',
@@ -508,6 +534,78 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, o
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'gmail' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: T.ink70 }}>
+                  Threads to/from <b>{contact.email}</b>.
+                  Metadata only — body content isn't stored in Morgan.
+                </div>
+                <button onClick={() => fetchGmail(true)} disabled={gmailLoading} style={{
+                  padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                  background: 'transparent', border: `1px solid ${T.faintRule}`, color: T.ink70,
+                  cursor: gmailLoading ? 'wait' : 'pointer',
+                }}>{gmailLoading ? 'Loading…' : '↻ Refresh'}</button>
+              </div>
+
+              {!accessToken && (
+                <div style={{ padding: '14px 16px', borderRadius: 8, background: T.inkSoft2, border: `1px solid ${T.faintRule}`, fontSize: 12, color: T.ink70, lineHeight: 1.55 }}>
+                  Sign in with Google to enable Gmail sync. The first sign-in after the latest deploy will ask for Gmail read access — that's what powers this tab.
+                </div>
+              )}
+
+              {gmailError && (
+                <div style={{ padding: '12px 14px', borderRadius: 8, background: T.alertSoft, border: `1px solid ${T.alert}33`, color: T.alert, fontSize: 11, lineHeight: 1.55 }}>
+                  {gmailError}. Most common cause: Gmail read scope hasn't been granted yet — sign out + sign back in to re-authorize.
+                </div>
+              )}
+
+              {gmailLoading && gmailThreads === null && (
+                <div style={{ padding: 30, textAlign: 'center', color: T.fadedInk, fontSize: 12 }}>Loading threads…</div>
+              )}
+
+              {gmailThreads && gmailThreads.length === 0 && !gmailLoading && !gmailError && (
+                <div style={{ padding: '18px 16px', border: `1px dashed ${T.faintRule}`, borderRadius: 8, color: T.fadedInk, fontSize: 12, textAlign: 'center' }}>
+                  No threads found with this email.
+                </div>
+              )}
+
+              {gmailThreads && gmailThreads.length > 0 && (
+                <div>
+                  {gmailThreads.map(t => (
+                    <a key={t.id}
+                      href={`https://mail.google.com/mail/u/0/#all/${t.threadId}`}
+                      target="_blank" rel="noopener"
+                      style={{
+                        display: 'block', padding: '12px 14px', textDecoration: 'none',
+                        border: `1px solid ${T.faintRule}`, borderRadius: 8, marginBottom: 6,
+                        background: T.paper, color: T.ink, fontFamily: T.sans,
+                      }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: 11, color: t.direction === 'in' ? T.ink70 : T.fadedInk, flexShrink: 0 }}>
+                            {t.direction === 'in' ? '↙' : '↗'}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.subject}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 11, color: T.fadedInk, whiteSpace: 'nowrap' }}>
+                          {t.date ? new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                      {t.snippet && (
+                        <div style={{ fontSize: 11, color: T.fadedInk, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.snippet}
+                        </div>
+                      )}
+                    </a>
+                  ))}
                 </div>
               )}
             </div>

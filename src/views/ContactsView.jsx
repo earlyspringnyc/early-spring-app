@@ -1339,6 +1339,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
           contact={openContact}
           projects={projects}
           userId={userId}
+          accessToken={accessToken}
           onClose={() => setOpenContactId(null)}
           onUpdate={(updated) => {
             setContacts(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
