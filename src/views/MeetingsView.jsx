@@ -847,7 +847,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
   );
 }
 
-function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCreateProject }) {
+function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCreateProject, onOpenContacts }) {
   const userId = user?.user_id || user?.id;
   const [meetings, setMeetings] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -927,6 +927,16 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
             <ESWordmark height={14} color={T.ink}/>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onOpenContacts && (
+              <button onClick={onOpenContacts} style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: 600, fontFamily: T.sans,
+                background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
+                color: T.ink, cursor: 'pointer', transition: 'all .18s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.background = T.inkSoft; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; }}
+              >Contacts</button>
+            )}
             <span style={{ fontSize: 11, color: T.fadedInk }}>{user?.name || user?.email || ''}</span>
             <button onClick={onLogout} style={{
               display: 'flex', alignItems: 'center', gap: 4,

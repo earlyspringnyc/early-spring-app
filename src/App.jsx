@@ -332,13 +332,13 @@ function App(){
     return<LandingPage onGetStarted={()=>setShowLogin(true)}/>;
   }
 
-  if(topView==="contacts"&&!activeProject)return<><ContactsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects}/>
+  if(topView==="contacts"&&!activeProject)return<><ContactsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenMeetings={()=>setTopView("meetings")}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
   </>;
 
-  if(topView==="meetings"&&!activeProject)return<><MeetingsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onCreateProject={createProjectQuietly}/>
+  if(topView==="meetings"&&!activeProject)return<><MeetingsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onCreateProject={createProjectQuietly} onOpenContacts={()=>setTopView("contacts")}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
