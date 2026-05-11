@@ -26,6 +26,23 @@ export async function rocketReachLookup(query) {
   return data; // { ok, status, profile, raw }
 }
 
+// One-shot backfill: page through every contact in RocketReach and
+// fill in avatar_url on matching CRM rows that don't have one yet.
+// Server endpoint handles pagination + service-role writes.
+export async function backfillAvatarsFromRocketReach() {
+  const session = await getSession();
+  const res = await fetch('/api/cron/backfill-avatars', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `Backfill failed: ${res.status}`);
+  return data;
+}
+
 // List "My Contacts" from RocketReach (the contacts saved via the
 // browser extension or past lookups). Returns an array of profiles
 // already shaped like our CSV importer's output, ready to feed into

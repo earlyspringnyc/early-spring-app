@@ -5,6 +5,7 @@ import { LogOutI, PlusI } from '../components/icons/index.js';
 import {
   listContacts, createContact, updateContact, deleteContact, importContacts,
   rocketReachLookup, previewReenrich, applyReenrichPatch, syncRocketReachContacts,
+  backfillAvatarsFromRocketReach,
 } from '../lib/contacts.js';
 import { parseContactsCSV } from '../utils/csvImport.js';
 import { clusterByCompany } from '../utils/companyDedup.js';
@@ -966,6 +967,23 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const [showNewContact, setShowNewContact] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
   const [deletingCompany, setDeletingCompany] = useState(false);
+  const [backfillingAvatars, setBackfillingAvatars] = useState(false);
+
+  const onBackfillAvatars = useCallback(async () => {
+    if (backfillingAvatars) return;
+    setBackfillingAvatars(true);
+    setSyncStatus('Backfilling profile photos from RocketReach…');
+    try {
+      const r = await backfillAvatarsFromRocketReach();
+      setSyncStatus(`Photos backfilled. ${r.updated} updated · ${r.alreadyHad} already had one · ${r.noImage} no photo on file · ${r.noMatch} no CRM match.`);
+      await reload();
+    } catch (e) {
+      setSyncStatus('Backfill failed: ' + (e.message || 'unknown'));
+    } finally {
+      setBackfillingAvatars(false);
+      setTimeout(() => setSyncStatus(''), 10000);
+    }
+  }, [backfillingAvatars, reload]);
   // Preview state for the per-row refresh confirmation modal
   const [refreshPreview, setRefreshPreview] = useState(null); // { contact, patch }
   const [applyingRefresh, setApplyingRefresh] = useState(false);
@@ -1182,6 +1200,9 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
           })}
           <button onClick={onSyncRocketReach} disabled={syncing} style={{ ...btnGhost, opacity: syncing ? .5 : 1, cursor: syncing ? 'wait' : 'pointer' }}>
             {syncing ? 'Syncing…' : '↻ Sync RocketReach'}
+          </button>
+          <button onClick={onBackfillAvatars} disabled={backfillingAvatars} style={{ ...btnGhost, opacity: backfillingAvatars ? .5 : 1, cursor: backfillingAvatars ? 'wait' : 'pointer' }}>
+            {backfillingAvatars ? 'Backfilling…' : '📷 Backfill photos'}
           </button>
           <button onClick={() => setShowImport(true)} style={btnGhost}>↑ Import CSV</button>
           <button onClick={() => setShowNewContact(true)} style={btnSolid}>＋ New contact</button>
