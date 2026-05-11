@@ -968,6 +968,21 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const [refreshingId, setRefreshingId] = useState(null);
   const [deletingCompany, setDeletingCompany] = useState(false);
   const [backfillingAvatars, setBackfillingAvatars] = useState(false);
+  // Preview state for the per-row refresh confirmation modal
+  const [refreshPreview, setRefreshPreview] = useState(null); // { contact, patch }
+  const [applyingRefresh, setApplyingRefresh] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await listContacts({ limit: 1000 });
+      setContacts(rows);
+    } catch (e) {
+      console.error('[contacts] load failed:', e.message || e);
+    } finally { setLoading(false); }
+  }, []);
 
   const onBackfillAvatars = useCallback(async () => {
     if (backfillingAvatars) return;
@@ -984,21 +999,6 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [] }) {
       setTimeout(() => setSyncStatus(''), 10000);
     }
   }, [backfillingAvatars, reload]);
-  // Preview state for the per-row refresh confirmation modal
-  const [refreshPreview, setRefreshPreview] = useState(null); // { contact, patch }
-  const [applyingRefresh, setApplyingRefresh] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('');
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const rows = await listContacts({ limit: 1000 });
-      setContacts(rows);
-    } catch (e) {
-      console.error('[contacts] load failed:', e.message || e);
-    } finally { setLoading(false); }
-  }, []);
 
   useEffect(() => { reload(); }, [reload]);
 
