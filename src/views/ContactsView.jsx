@@ -318,7 +318,49 @@ function NewContactModal({ userId, onClose, onCreated }) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [lookupUrl, setLookupUrl] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupNote, setLookupNote] = useState(null);
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const onLookup = async () => {
+    const url = lookupUrl.trim();
+    if (!url) return;
+    setLookingUp(true); setError(null); setLookupNote(null);
+    try {
+      // RocketReach accepts a LinkedIn URL or an email
+      const isUrl = url.includes('linkedin.com') || url.startsWith('http');
+      const isEmail = url.includes('@') && !isUrl;
+      const body = isUrl ? { linkedin_url: url } : isEmail ? { email: url } : { name: url };
+      const { profile, status } = await rocketReachLookup(body);
+      if (!profile || (!profile.first_name && !profile.email && !profile.linkedin_url)) {
+        setLookupNote(status === 'queued' || status === 'searching'
+          ? 'RocketReach is still searching — wait a moment and try again.'
+          : 'No matching profile found. Fill in the fields manually.');
+        return;
+      }
+      // Pre-fill empty form fields from the looked-up profile
+      setForm(prev => ({
+        first_name: prev.first_name || profile.first_name || '',
+        last_name:  prev.last_name  || profile.last_name  || '',
+        email:      prev.email      || profile.email      || '',
+        phone:      prev.phone      || profile.phone      || '',
+        title:      prev.title      || profile.title      || '',
+        company:    prev.company    || profile.company    || '',
+        location:   prev.location   || profile.location   || '',
+        linkedin_url: prev.linkedin_url || profile.linkedin_url || '',
+        contact_type: prev.contact_type,
+        status: prev.status,
+        // Attach the RocketReach profile_id so dedup picks it up
+        rocketreach_profile_id: profile.rocketreach_profile_id || null,
+        avatar_url: profile.avatar_url || null,
+        bio: profile.bio || null,
+      }));
+      setLookupNote('Pre-filled from RocketReach. Edit anything before saving.');
+    } catch (e) {
+      setError(e.message || 'Lookup failed');
+    } finally { setLookingUp(false); }
+  };
 
   const canSave = (form.first_name.trim() || form.last_name.trim() || form.email.trim()) && !saving;
 
@@ -372,6 +414,37 @@ function NewContactModal({ userId, onClose, onCreated }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.01em' }}>New contact</h2>
           <button onClick={onClose} disabled={saving} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: saving ? 'wait' : 'pointer', width: 28, height: 28 }}>×</button>
+        </div>
+
+        {/* Quick-lookup from LinkedIn URL (or email / name) — pre-fills
+            the form via RocketReach. Skips this row if you already
+            know everything and want to type manually. */}
+        <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 8, background: T.inkSoft2, border: `1px solid ${T.faintRule}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.ink, marginBottom: 6 }}>
+            🚀 Paste a LinkedIn URL to autofill
+          </div>
+          <div style={{ fontSize: 10, color: T.fadedInk, marginBottom: 8, lineHeight: 1.45 }}>
+            Pulls name, email, title, company, location, photo via RocketReach. Email or just a name also work.
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={lookupUrl}
+              onChange={e => setLookupUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && lookupUrl.trim() && !lookingUp) onLookup(); }}
+              placeholder="https://linkedin.com/in/… (or email, or name)"
+              autoFocus
+              style={{ ...inp, flex: 1 }}
+            />
+            <button onClick={onLookup} disabled={!lookupUrl.trim() || lookingUp} style={{
+              padding: '8px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
+              background: T.ink, color: T.paper, border: 'none',
+              cursor: (lookupUrl.trim() && !lookingUp) ? 'pointer' : 'default',
+              opacity: (lookupUrl.trim() && !lookingUp) ? 1 : .4,
+            }}>{lookingUp ? 'Looking up…' : 'Lookup'}</button>
+          </div>
+          {lookupNote && (
+            <div style={{ marginTop: 8, fontSize: 10, color: T.ink70, lineHeight: 1.4 }}>{lookupNote}</div>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
@@ -536,6 +609,61 @@ function LookupModal({ userId, onClose, onCreated }) {
   );
 }
 
+function ToolbarMenu({ syncing, backfillingAvatars, onSyncRocketReach, onBackfillAvatars, onImportCSV }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const item = (label, onClick, opts = {}) => (
+    <button onClick={() => { setOpen(false); onClick(); }} disabled={opts.disabled} style={{
+      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+      padding: '10px 14px', textAlign: 'left',
+      background: 'transparent', border: 'none', cursor: opts.disabled ? 'wait' : 'pointer',
+      fontSize: 12, fontWeight: 500, fontFamily: T.sans, color: T.ink,
+      opacity: opts.disabled ? .5 : 1,
+    }}
+    onMouseEnter={e => { if (!opts.disabled) e.currentTarget.style.background = T.inkSoft; }}
+    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      <span style={{ fontSize: 13 }}>{opts.icon}</span>
+      <span>{label}</span>
+      {opts.desc && <span style={{ marginLeft: 'auto', fontSize: 10, color: T.fadedInk, fontWeight: 400 }}>{opts.desc}</span>}
+    </button>
+  );
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6,
+        opacity: (syncing || backfillingAvatars) ? .85 : 1,
+      }}>
+        {syncing ? 'Syncing…' : backfillingAvatars ? 'Backfilling…' : '⋯ More'}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+          minWidth: 240,
+          background: T.paper, border: `1px solid ${T.faintRule}`, borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(15,82,186,.15)',
+          padding: '4px 0', overflow: 'hidden',
+        }}>
+          {item('Sync RocketReach now', onSyncRocketReach, { icon: '↻', desc: syncing ? 'running' : 'auto every 2 min', disabled: syncing })}
+          {item('Backfill missing photos', onBackfillAvatars, { icon: '📷', desc: 'from RocketReach', disabled: backfillingAvatars })}
+          <div style={{ height: 1, background: T.faintRule, margin: '4px 0' }}/>
+          {item('Import CSV', onImportCSV, { icon: '↑' })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value }) {
   return (
     <div style={{ minWidth: 0 }}>
@@ -577,7 +705,7 @@ function CompanyLogo({ cluster, size = 36 }) {
   );
 }
 
-function CompanyCard({ cluster, selected, onClick }) {
+function CompanyCard({ cluster, selected, onClick, pinned }) {
   const STAGE_ORDER = ['active', 'pitching', 'prospect', 'vendor', 'press', 'past'];
   const orderedStages = STAGE_ORDER.filter(s => cluster.stages.includes(s));
   const lastSeen = cluster.lastContactedAt
@@ -599,8 +727,11 @@ function CompanyCard({ cluster, selected, onClick }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <CompanyLogo cluster={cluster} size={36}/>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, letterSpacing: '-.003em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+            {pinned && <span title="Pinned to top" style={{ fontSize: 12, lineHeight: 1, color: T.ink }}>📌</span>}
+            <span style={{ fontSize: 14, fontWeight: 700, color: T.ink, letterSpacing: '-.003em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
+            </span>
           </div>
           {cluster.aliases.length > 0 && (
             <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`Also: ${cluster.aliases.join(' · ')}`}>
@@ -638,7 +769,7 @@ function relativeDays(iso) {
   return Math.round(diff / 365) + 'y ago';
 }
 
-function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany, onOpenContact }) {
+function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany, onOpenContact, pinned, onTogglePin }) {
   return (
     <div data-company-detail style={{
       marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
@@ -661,6 +792,13 @@ function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDel
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          {onTogglePin && (
+            <button onClick={onTogglePin} title={pinned ? 'Unpin from top' : 'Pin to top'} style={{
+              background: pinned ? T.ink : 'transparent', border: `1px solid ${pinned ? T.ink : T.faintRule}`, borderRadius: 999,
+              padding: '6px 12px', fontSize: 11, fontWeight: 600,
+              color: pinned ? T.paper : T.ink70, cursor: 'pointer', fontFamily: T.sans,
+            }}>{pinned ? '📌 Pinned' : '📌 Pin to top'}</button>
+          )}
           {onDeleteCompany && (
             <button onClick={onDeleteCompany} disabled={deletingCompany} title={`Delete all ${cluster.count} contact${cluster.count === 1 ? '' : 's'} in this company`} style={{
               background: 'transparent', border: `1px solid ${T.alert}33`, borderRadius: 999,
@@ -1107,6 +1245,26 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
     () => clusters.find(cl => cl.id === selectedClusterId) || null,
     [clusters, selectedClusterId]
   );
+
+  // Pinned companies. Persisted in localStorage per browser for now —
+  // upgrade to a server-side user_preferences column if needed for
+  // cross-device sync. Pinned clusters jump to the top of every
+  // surface (default grid, A-Z view, search results).
+  const PIN_KEY = `es_pinned_companies_${userId || 'anon'}`;
+  const [pinnedIds, setPinnedIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PIN_KEY);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) { return new Set(); }
+  });
+  const togglePin = useCallback((id) => {
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(PIN_KEY, JSON.stringify([...next])); } catch (e) {}
+      return next;
+    });
+  }, [PIN_KEY]);
   // 412 cards is too many to render or scan. Default to top 10 by
   // contact count (priorities), with a "Show all" toggle that expands
   // to the full A–Z list. A live search query bypasses the limit —
@@ -1212,13 +1370,13 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
               transition: 'all .15s', whiteSpace: 'nowrap',
             }}>{s.label} <span style={{ opacity: .7, fontSize: 10 }}>{c}</span></button>;
           })}
-          <button onClick={onSyncRocketReach} disabled={syncing} style={{ ...btnGhost, opacity: syncing ? .5 : 1, cursor: syncing ? 'wait' : 'pointer' }}>
-            {syncing ? 'Syncing…' : '↻ Sync RocketReach'}
-          </button>
-          <button onClick={onBackfillAvatars} disabled={backfillingAvatars} style={{ ...btnGhost, opacity: backfillingAvatars ? .5 : 1, cursor: backfillingAvatars ? 'wait' : 'pointer' }}>
-            {backfillingAvatars ? 'Backfilling…' : '📷 Backfill photos'}
-          </button>
-          <button onClick={() => setShowImport(true)} style={btnGhost}>↑ Import CSV</button>
+          <ToolbarMenu
+            syncing={syncing}
+            backfillingAvatars={backfillingAvatars}
+            onSyncRocketReach={onSyncRocketReach}
+            onBackfillAvatars={onBackfillAvatars}
+            onImportCSV={() => setShowImport(true)}
+          />
           <button onClick={() => setShowNewContact(true)} style={btnSolid}>＋ New contact</button>
         </div>
 
@@ -1237,12 +1395,19 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
               {(() => {
                 const searching = search.trim().length > 0;
                 const showingAll = showAllCompanies || searching;
+                // Pinned clusters always come first regardless of mode.
+                const pinned = clusters.filter(cl => pinnedIds.has(cl.id));
                 // Top 10 by count when collapsed — exclude independent
                 // (freelance, self-employed, etc.) AND internal (your
-                // own team) clusters since neither are real prospects.
-                // They're still browsable in the A–Z view and via search.
-                const topCompanies = clusters.filter(cl => !cl.isIndependent && !cl.isInternal);
-                const visible = showingAll ? clustersAlpha : topCompanies.slice(0, TOP_COUNT);
+                // own team) AND already-pinned clusters since we
+                // surface pinned ones first.
+                const topCompanies = clusters.filter(cl =>
+                  !cl.isIndependent && !cl.isInternal && !pinnedIds.has(cl.id)
+                );
+                const remainingAlpha = clustersAlpha.filter(cl => !pinnedIds.has(cl.id));
+                const visible = showingAll
+                  ? [...pinned, ...remainingAlpha]
+                  : [...pinned, ...topCompanies.slice(0, TOP_COUNT)];
                 const hidden = clustersAlpha.length - visible.length;
                 const independentCount = clusters.filter(cl => cl.isIndependent)
                   .reduce((n, cl) => n + cl.count, 0);
@@ -1259,6 +1424,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                           key={cl.id}
                           cluster={cl}
                           selected={selectedClusterId === cl.id}
+                          pinned={pinnedIds.has(cl.id)}
                           onClick={() => setSelectedClusterId(selectedClusterId === cl.id ? null : cl.id)}
                         />
                       ))}
@@ -1298,6 +1464,8 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
               onRefreshContact={onRefreshContact}
               refreshingId={refreshingId}
               onOpenContact={(id) => setOpenContactId(id)}
+              pinned={pinnedIds.has(selectedCluster.id)}
+              onTogglePin={() => togglePin(selectedCluster.id)}
               deletingCompany={deletingCompany}
               onDeleteCompany={async () => {
                 const n = selectedCluster.contacts.length;
