@@ -8,6 +8,8 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 import { getTeamMembers, inviteTeamMember as dbInvite, updateTeamMember as dbUpdateMember, removeTeamMember as dbRemoveMember, getPendingInvitations, revokeInvitation } from '../lib/db.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card, DatePick } from '../components/primitives/index.js';
+import { listContacts } from '../lib/contacts.js';
+import { normalizeCompany } from '../utils/companyDedup.js';
 
 function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
   const isAdmin=user?.role==="admin";
@@ -131,13 +133,125 @@ function SetV({project,updateProject,onDelete,user,accessToken,orgId}){
     return<div style={{marginBottom:18}}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>{label}</label>
     <input value={val} onChange={onChange} onBlur={()=>{clearTimeout(timer.current);if(val!==(project[field]||""))updateProject({[field]:val})}} style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}/></div>;
   };
+
+  // ClientPicker — same shape as <F/> but the input gets typeahead
+  // suggestions from CRM contacts' distinct company names. Free text
+  // is still allowed (you can type a brand-new company not in the
+  // CRM yet). On select, the canonical company name is committed —
+  // which is what unlocks the hardwire on the project dashboard /
+  // client view / shared link.
+  const ClientPicker=({label,field})=>{
+    const[val,setVal]=useState(project[field]||"");
+    const[focused,setFocused]=useState(false);
+    const[companies,setCompanies]=useState([]); // [{ name, count, normalized }]
+    const timer=useRef(null);
+    useEffect(()=>{setVal(project[field]||"")},[project[field]]);
+
+    // Load distinct company names from the CRM once. Cheap and small.
+    useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        try{
+          const rows=await listContacts({limit:1000});
+          const byNorm=new Map();
+          for(const c of (rows||[])){
+            const raw=(c.company||"").trim();
+            if(!raw)continue;
+            const norm=normalizeCompany(raw);
+            if(!norm)continue;
+            // Track count + canonical (most-frequent raw spelling)
+            const prev=byNorm.get(norm)||{ canonical:raw, count:0, variants:new Map() };
+            prev.count++;
+            prev.variants.set(raw,(prev.variants.get(raw)||0)+1);
+            // Re-pick canonical as the most-common variant
+            let best=raw, bestN=0;
+            for(const[v,n] of prev.variants){if(n>bestN){best=v;bestN=n}}
+            prev.canonical=best;
+            byNorm.set(norm,prev);
+          }
+          const list=[...byNorm.entries()].map(([norm,v])=>({
+            name:v.canonical, count:v.count, normalized:norm,
+          })).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+          if(!cancelled)setCompanies(list);
+        }catch(e){console.warn("[setv] companies load failed:",e.message||e)}
+      })();
+      return()=>{cancelled=true};
+    },[]);
+
+    const commit=(v)=>{
+      setVal(v);
+      clearTimeout(timer.current);
+      if(v!==(project[field]||""))updateProject({[field]:v});
+    };
+    const onChange=e=>{const v=e.target.value;setVal(v);clearTimeout(timer.current);timer.current=setTimeout(()=>updateProject({[field]:v}),400)};
+
+    const q=val.trim().toLowerCase();
+    const matches=q
+      ? companies.filter(c=>c.name.toLowerCase().includes(q)||c.normalized.includes(q)).slice(0,8)
+      : companies.slice(0,8);
+    const exact=q&&matches.some(m=>m.name.toLowerCase()===q);
+    const showDropdown=focused&&(matches.length>0||(q&&!exact));
+
+    return<div style={{marginBottom:18,position:"relative"}}>
+      <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>{label}</label>
+      <input
+        value={val}
+        onChange={onChange}
+        onFocus={()=>setFocused(true)}
+        onBlur={()=>{
+          // Delay so click on a dropdown item can fire before close
+          setTimeout(()=>setFocused(false),150);
+          clearTimeout(timer.current);
+          if(val!==(project[field]||""))updateProject({[field]:val});
+        }}
+        placeholder="Type to search CRM companies, or enter a new one"
+        autoComplete="off"
+        style={{width:"100%",padding:"10px 14px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none"}}
+      />
+      {showDropdown&&<div style={{
+        position:"absolute",top:"100%",left:0,right:0,zIndex:10,marginTop:4,
+        background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.rS,
+        boxShadow:T.shadow,maxHeight:280,overflow:"auto",
+        fontFamily:T.sans,
+      }}>
+        {matches.map(m=><button
+          key={m.normalized}
+          type="button"
+          onMouseDown={e=>{e.preventDefault();commit(m.name);setFocused(false)}}
+          style={{
+            display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,
+            width:"100%",padding:"8px 14px",background:"transparent",border:"none",cursor:"pointer",
+            textAlign:"left",fontFamily:T.sans,color:T.cream,fontSize:13,
+          }}
+          onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        >
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
+          <span style={{fontSize:10,color:T.dim,whiteSpace:"nowrap"}}>{m.count} contact{m.count===1?"":"s"}</span>
+        </button>)}
+        {q&&!exact&&<button
+          type="button"
+          onMouseDown={e=>{e.preventDefault();commit(val);setFocused(false)}}
+          style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",
+            padding:"8px 14px",background:"transparent",border:"none",borderTop:matches.length?`1px solid ${T.border}`:"none",
+            cursor:"pointer",textAlign:"left",fontFamily:T.sans,color:T.dim,fontSize:12,
+          }}
+          onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        >
+          <span>+ Use "<b style={{color:T.cream}}>{val}</b>" as a new client</span>
+        </button>}
+      </div>}
+    </div>;
+  };
   const logoRef=useRef(null);
   const handleLogo=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>updateProject({logo:ev.target.result});reader.readAsDataURL(file)};
   return<div style={{maxWidth:isAdmin?700:500}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Settings</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>Changes save automatically</p></div>
     </div>
-    <Card style={{padding:28,marginBottom:16}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Project Information</div><F label="Project Name" field="name"/><F label="Client" field="client"/>
+    <Card style={{padding:28,marginBottom:16}}><div style={{fontSize:12,fontWeight:600,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em",color:T.cream,marginBottom:18}}>Project Information</div><F label="Project Name" field="name"/><ClientPicker label="Client" field="client"/>
       <div style={{marginBottom:18}}>
         <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:7}}>Client Logo</label>
         <input ref={logoRef} type="file" accept="image/*,.svg" onChange={handleLogo} style={{display:"none"}}/>

@@ -13,6 +13,9 @@ import GanttChart from './GanttChart.jsx';
 import { getTeamMembers } from '../lib/db.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import StickyNotes from '../components/StickyNotes.jsx';
+import UpcomingMeetings from '../components/UpcomingMeetings.jsx';
+import FollowUps from '../components/FollowUps.jsx';
+import PrepBrief from '../components/PrepBrief.jsx';
 import { useUserNotes } from '../hooks/useUserNotes.js';
 
 /* ── helpers ── */
@@ -48,12 +51,17 @@ function OrgSwitcher({organizations,profiles,currentOrgId,switchOrg}){
 }
 
 /* ── EP Dashboard ── */
-function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[],currentOrgId,switchOrg,orgId,accessToken}){
+function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[],currentOrgId,switchOrg,orgId,accessToken,onOpenContacts}){
   const[tab,setTab]=useState("overview"); // overview | staffing
   const[expandedId,setExpandedId]=useState(null);
   const[teamMembers,setTeamMembers]=useState([]);
   // Personal notes — RLS scopes to auth.uid(), per-user not per-org
   const{notes,addNote,updateNote,deleteNote,addToCalendar,dismissReminder,analyzingIds}=useUserNotes(user?.user_id||user?.id,accessToken);
+  // Prep-brief overlay: opened from the Upcoming Meetings widget
+  // when the user clicks ✦ Prep brief on a calendar event with a
+  // resolved CRM contact. Holds both the contact and the calendar
+  // event so the brief can persist per-event (prep_briefs table).
+  const[prepBrief,setPrepBrief]=useState(null); // { contact, event }
 
   useEffect(()=>{
     if(isSupabaseConfigured()&&orgId){
@@ -103,6 +111,10 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
         </div>
       </div>
 
+      <UpcomingMeetings accessToken={accessToken} onOpenPrepBrief={(contact,event)=>setPrepBrief({contact,event})}/>
+
+      <FollowUps onOpenContact={()=>onOpenContacts?.()}/>
+
       <StickyNotes notes={notes} addNote={addNote} updateNote={updateNote} deleteNote={deleteNote} addToCalendar={addToCalendar} dismissReminder={dismissReminder} analyzingIds={analyzingIds}/>
 
       {/* Overview Tab */}
@@ -150,6 +162,9 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
 
     {/* Drill-down overlay */}
     {expandedData&&<DrillDown data={expandedData} allProjectData={projectData} crossStaffing={crossStaffing} onClose={()=>setExpandedId(null)} onOpenFull={()=>{onOpen(expandedData.project.id);setExpandedId(null)}}/>}
+
+    {/* Prep brief overlay launched from Upcoming Meetings */}
+    {prepBrief&&<PrepBrief contact={prepBrief.contact} event={prepBrief.event} userId={user?.user_id||user?.id} accessToken={accessToken} onClose={()=>setPrepBrief(null)}/>}
   </div>;
 }
 

@@ -5,11 +5,14 @@ import { LogOutI, PlusI } from '../components/icons/index.js';
 import {
   listContacts, createContact, updateContact, deleteContact, importContacts,
   rocketReachLookup, previewReenrich, applyReenrichPatch, syncRocketReachContacts,
-  backfillAvatarsFromRocketReach,
+  backfillAvatarsFromRocketReach, listProjectsForContact,
 } from '../lib/contacts.js';
+import { getCompanyByName, upsertCompany } from '../lib/companies.js';
 import { parseContactsCSV } from '../utils/csvImport.js';
-import { clusterByCompany } from '../utils/companyDedup.js';
+import { clusterByCompany, normalizeCompany } from '../utils/companyDedup.js';
 import ContactDetailDrawer from '../components/ContactDetailDrawer.jsx';
+import PrepBrief from '../components/PrepBrief.jsx';
+import ScheduleMeetingModal from '../components/ScheduleMeetingModal.jsx';
 
 const STATUS_OPTIONS = [
   { id: 'all',      label: 'All' },
@@ -62,7 +65,7 @@ function ContactAvatar({ c, size = 32 }) {
   }}>{initials || '?'}</div>;
 }
 
-function ContactRow({ c, onClick, onRefresh, refreshing }) {
+function ContactRow({ c, onClick, onRefresh, refreshing, onSchedule, canSchedule, awardedCount = 0, pitchingCount = 0 }) {
   const [hover, setHover] = useState(false);
   const canRefresh = !!(c.linkedin_url || c.email);
   return (
@@ -77,8 +80,24 @@ function ContactRow({ c, onClick, onRefresh, refreshing }) {
     >
       <ContactAvatar c={c} size={32}/>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {(c.first_name || '') + ' ' + (c.last_name || '')}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+            {(c.first_name || '') + ' ' + (c.last_name || '')}
+          </div>
+          {awardedCount > 0 && (
+            <span title={`${awardedCount} awarded project${awardedCount === 1 ? '' : 's'}`} style={{
+              flexShrink: 0, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+              background: T.ink, color: T.paper, letterSpacing: '.06em', textTransform: 'uppercase',
+              fontFamily: T.sans, whiteSpace: 'nowrap',
+            }}>✓ {awardedCount} awarded</span>
+          )}
+          {pitchingCount > 0 && (
+            <span title={`${pitchingCount} project${pitchingCount === 1 ? '' : 's'} pitching`} style={{
+              flexShrink: 0, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+              background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`,
+              letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: T.sans, whiteSpace: 'nowrap',
+            }}>◐ {pitchingCount} pitching</span>
+          )}
         </div>
         <div style={{ fontSize: 11, color: T.fadedInk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {c.email || <i style={{ opacity: .55 }}>no email on file</i>}
@@ -89,6 +108,23 @@ function ContactRow({ c, onClick, onRefresh, refreshing }) {
       <div style={{ fontSize: 12, color: T.fadedInk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.location || '—'}</div>
       <div><StatusBadge status={c.status || 'prospect'}/></div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+        {canSchedule && c.email && (
+          <button
+            onClick={e => { e.stopPropagation(); onSchedule?.(c); }}
+            title="Schedule a meeting with this contact"
+            style={{
+              opacity: hover ? 1 : 0,
+              transition: 'opacity .15s',
+              width: 22, height: 22, borderRadius: '50%',
+              background: 'transparent',
+              border: `1px solid ${T.faintRule}`,
+              color: T.ink70,
+              fontSize: 11, fontFamily: T.sans, fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >📅</button>
+        )}
         {canRefresh && (
           <button
             onClick={e => { e.stopPropagation(); onRefresh?.(c); }}
@@ -310,6 +346,43 @@ const NEW_STATUS_OPTIONS = [
   { id: 'press',    label: 'Press' },
 ];
 
+// Free / personal email providers — domain from one of these is NOT
+// the contact's company website. Lowercase, no trailing dot.
+const PERSONAL_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com',
+  'yahoo.com', 'yahoo.co.uk', 'ymail.com', 'rocketmail.com',
+  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com',
+  'aol.com',
+  'protonmail.com', 'proton.me', 'pm.me',
+  'fastmail.com', 'zoho.com',
+  'yandex.com', 'yandex.ru',
+  'mail.com', 'gmx.com', 'gmx.net',
+  'hey.com', 'duck.com',
+]);
+function deriveCompanyWebsiteFromEmail(email) {
+  if (!email || typeof email !== 'string') return null;
+  const at = email.indexOf('@');
+  if (at < 0) return null;
+  const domain = email.slice(at + 1).trim().toLowerCase();
+  if (!domain || !domain.includes('.')) return null;
+  if (PERSONAL_EMAIL_DOMAINS.has(domain)) return null;
+  return domain;
+}
+
+// Hoisted outside NewContactModal so its identity is stable across
+// re-renders. Defining it inside the parent made React remount every
+// <input> on each keystroke, which stole focus back to the autoFocus
+// field — the cursor would jump out of email into first name.
+function NCField({ label, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase' }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
 function NewContactModal({ userId, onClose, onCreated }) {
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '', phone: '',
@@ -381,6 +454,25 @@ function NewContactModal({ userId, onClose, onCreated }) {
       if (body.linkedin_url) body.linkedin_url = body.linkedin_url.toLowerCase().split('?')[0].replace(/\/$/, '');
       const created = await createContact(userId, body);
       if (!created) throw new Error('No contact returned');
+
+      // Best-effort: create/refresh the companies row so the new
+      // contact's company gets a metadata card. Website is filled
+      // from the email domain (skipping personal providers like
+      // gmail) but only if no existing row already has a website,
+      // so we never clobber something the user set by hand.
+      if (body.company) {
+        try {
+          const existing = await getCompanyByName(body.company);
+          const derivedWebsite = deriveCompanyWebsiteFromEmail(body.email);
+          const patch = {};
+          if (derivedWebsite && !existing?.website) patch.website = derivedWebsite;
+          await upsertCompany(userId, body.company, patch);
+        } catch (companyErr) {
+          // Don't fail the contact creation — log and move on.
+          console.warn('[new-contact] auto-create company failed:', companyErr?.message);
+        }
+      }
+
       onCreated?.(created);
       onClose();
     } catch (e) {
@@ -393,12 +485,7 @@ function NewContactModal({ userId, onClose, onCreated }) {
     border: `1px solid ${T.faintRule}`, background: T.paper,
     fontSize: 13, fontFamily: T.sans, color: T.ink, outline: 'none',
   };
-  const Field = ({ label, children }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase' }}>{label}</span>
-      {children}
-    </div>
-  );
+  const Field = NCField;
 
   return (
     <div onClick={onClose} style={{
@@ -448,7 +535,7 @@ function NewContactModal({ userId, onClose, onCreated }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
-          <Field label="First name"><input autoFocus value={form.first_name} onChange={e => update('first_name', e.target.value)} style={inp}/></Field>
+          <Field label="First name"><input value={form.first_name} onChange={e => update('first_name', e.target.value)} style={inp}/></Field>
           <Field label="Last name"><input value={form.last_name} onChange={e => update('last_name', e.target.value)} style={inp}/></Field>
           <Field label="Email"><input value={form.email} onChange={e => update('email', e.target.value)} placeholder="name@company.com" style={inp}/></Field>
           <Field label="Phone"><input value={form.phone} onChange={e => update('phone', e.target.value)} style={inp}/></Field>
@@ -769,7 +856,144 @@ function relativeDays(iso) {
   return Math.round(diff / 365) + 'y ago';
 }
 
-function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany, onOpenContact, pinned, onTogglePin }) {
+function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany, onOpenContact, pinned, onTogglePin, onOpenProject, onScheduleMeeting, canSchedule, userId }) {
+  // Company-level metadata stored in the companies table. Edits
+  // propagate to the contract editor + any other surface that
+  // reads getCompanyByName(project.client). Autosave on blur.
+  const [companyMeta, setCompanyMeta] = useState(null);
+  const [companyDirty, setCompanyDirty] = useState(false);
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companySaveError, setCompanySaveError] = useState(null);
+  const [companyLastSavedAt, setCompanyLastSavedAt] = useState(null);
+  const companySaveTimer = useRef(null);
+  useEffect(() => {
+    if (!cluster?.canonical) return;
+    let cancelled = false;
+    getCompanyByName(cluster.canonical)
+      .then(row => { if (!cancelled) setCompanyMeta(row || { name_canonical: cluster.canonical, address: '', website: '', legal_name: '', billing_email: '' }); })
+      .catch(() => { if (!cancelled) setCompanyMeta({ name_canonical: cluster.canonical, address: '', website: '', legal_name: '', billing_email: '' }); });
+    return () => { cancelled = true; };
+  }, [cluster?.canonical]);
+  const saveCompanyMeta = useCallback(async () => {
+    if (!userId || !cluster?.canonical || !companyMeta) return;
+    setCompanySaving(true);
+    setCompanySaveError(null);
+    try {
+      const saved = await upsertCompany(userId, cluster.canonical, {
+        legal_name: companyMeta.legal_name || null,
+        address: companyMeta.address || null,
+        website: companyMeta.website || null,
+        billing_email: companyMeta.billing_email || null,
+      });
+      if (saved) setCompanyMeta(saved);
+      setCompanyDirty(false);
+      setCompanyLastSavedAt(Date.now());
+    } catch (e) {
+      console.error('[company-detail] save failed:', e.message || e);
+      setCompanySaveError(e.message || 'Save failed');
+    } finally {
+      setCompanySaving(false);
+    }
+  }, [userId, cluster?.canonical, companyMeta]);
+  // Debounced auto-save 800ms after edit.
+  useEffect(() => {
+    if (!companyDirty) return;
+    clearTimeout(companySaveTimer.current);
+    companySaveTimer.current = setTimeout(() => { saveCompanyMeta(); }, 800);
+    return () => clearTimeout(companySaveTimer.current);
+  }, [companyDirty, saveCompanyMeta]);
+  const setMetaField = (key, value) => {
+    setCompanyMeta(m => ({ ...(m || {}), [key]: value }));
+    setCompanyDirty(true);
+  };
+
+  // Company-data lookup via Claude with web search. Returns up to 3
+  // candidates so the user can pick — names like "LaForce" are
+  // ambiguous (PR agency vs. hardware vs. architects). User picks,
+  // we fill-only merge into blank fields.
+  const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState(null);
+  const [enrichSources, setEnrichSources] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const handleLookup = async () => {
+    if (!cluster?.canonical) return;
+    setEnriching(true);
+    setEnrichError(null);
+    setCandidates([]);
+    try {
+      const { getSession } = await import('../lib/db.js');
+      const session = await getSession();
+      const res = await fetch('/api/company-enrich', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ company_name: cluster.canonical }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Lookup failed: ${res.status}`);
+      const list = Array.isArray(data.candidates) ? data.candidates : [];
+      if (!list.length) {
+        setEnrichError('No candidates found. Try refining the company name.');
+      } else {
+        setCandidates(list);
+      }
+      setEnrichSources(data.sources || []);
+    } catch (e) {
+      setEnrichError(e.message || 'Lookup failed');
+    } finally { setEnriching(false); }
+  };
+  // User explicitly chose this candidate, so overwrite whatever was
+  // there — including stale data from a previous wrong-match lookup.
+  // Only overwrite fields the candidate actually has; leave others
+  // (like billing_email) alone since the candidate doesn't speak to them.
+  const pickCandidate = (c) => {
+    setCompanyMeta(m => {
+      const next = { ...(m || {}) };
+      if (c.legal_name) next.legal_name = c.legal_name;
+      if (c.address)    next.address = c.address;
+      if (c.website)    next.website = c.website;
+      return next;
+    });
+    setCompanyDirty(true);
+    setCandidates([]);
+  };
+  // Aggregate linked projects across all contacts in this cluster.
+  // One round-trip per contact id, parallelized. Deduped by project
+  // id so a project linked by multiple contacts shows once.
+  const [linkedProjects, setLinkedProjects] = useState([]);
+  // Per-contact project counts for the "N awarded" badges on each
+  // contact row. Same fetch as linkedProjects above — we just
+  // keep the per-contact buckets instead of throwing them away.
+  const [projectsByContact, setProjectsByContact] = useState({});
+  useEffect(() => {
+    if (!cluster?.contacts?.length) { setLinkedProjects([]); setProjectsByContact({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const results = await Promise.all(
+          cluster.contacts.map(c => listProjectsForContact(c.id).catch(() => [])),
+        );
+        const perContact = {};
+        cluster.contacts.forEach((c, i) => { perContact[c.id] = results[i] || []; });
+        const seen = new Set();
+        const out = [];
+        results.flat().forEach(lp => {
+          const id = lp?.projects?.id;
+          if (!id || seen.has(id)) return;
+          seen.add(id);
+          out.push(lp);
+        });
+        if (!cancelled) {
+          setLinkedProjects(out);
+          setProjectsByContact(perContact);
+        }
+      } catch (e) { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [cluster?.id]);
+
   return (
     <div data-company-detail style={{
       marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
@@ -812,16 +1036,218 @@ function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDel
           }}>Close</button>
         </div>
       </div>
-      <div>
-        {cluster.contacts.map(c => (
-          <ContactRow
-            key={c.id} c={c}
-            onClick={() => onOpenContact?.(c.id)}
-            onRefresh={onRefreshContact}
-            refreshing={refreshingId === c.id}
-          />
-        ))}
+      {/* Company-level fields. Edits autopopulate the contract
+          editor's Client legal address / Billing fields for any
+          project where project.client matches this company. */}
+      <div style={{
+        padding: '14px 22px', borderBottom: `1px solid ${T.faintRule}`,
+        background: T.inkSoft3,
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, gap: 10, flexWrap: 'wrap',
+        }}>
+          <div style={{
+            fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.16em', textTransform: 'uppercase',
+          }}>
+            Company details
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleLookup}
+              disabled={enriching}
+              title="Use Claude with web search to find this company's legal name, address, and website. Fills blanks only."
+              style={{
+                padding: '4px 10px', borderRadius: 999, fontSize: 9, fontWeight: 700,
+                background: T.ink, color: T.paper, border: 'none',
+                cursor: enriching ? 'wait' : 'pointer', opacity: enriching ? .6 : 1,
+                textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: T.sans,
+              }}
+            >{enriching ? 'Looking up…' : '🪄 Look up online'}</button>
+            <button
+              type="button"
+              onClick={() => {
+                // Force a save — cancel any pending debounced run first
+                // so the click writes the latest state rather than
+                // racing with a 800ms-later autosave.
+                clearTimeout(companySaveTimer.current);
+                saveCompanyMeta();
+              }}
+              disabled={companySaving}
+              title="Save company details now"
+              style={{
+                padding: '4px 10px', borderRadius: 999, fontSize: 9, fontWeight: 700,
+                background: T.ink, color: T.paper, border: 'none',
+                cursor: companySaving ? 'wait' : 'pointer',
+                opacity: companySaving ? .6 : 1,
+                textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: T.sans,
+              }}
+            >{companySaving ? 'Saving…' : '💾 Save now'}</button>
+            <span style={{ fontSize: 10, color: companySaveError ? T.alert : T.fadedInk, fontStyle: 'italic' }}>
+              {companySaveError
+                ? companySaveError
+                : companyDirty
+                  ? 'Unsaved changes'
+                  : companyLastSavedAt
+                    ? `Saved ${new Date(companyLastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                    : 'Auto-fills into contracts'}
+            </span>
+          </div>
+        </div>
+        {enrichError && (
+          <div style={{ marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: T.alertSoft, color: T.alert, fontSize: 11, lineHeight: 1.45 }}>
+            {enrichError}
+          </div>
+        )}
+        {enrichSources.length > 0 && (
+          <div style={{ marginBottom: 8, fontSize: 10, color: T.fadedInk }}>
+            Sources: {enrichSources.slice(0, 3).map((s, i) => (
+              <span key={s.url}>
+                {i > 0 && ' · '}
+                <a href={s.url} target="_blank" rel="noopener" style={{ color: T.ink70 }}>{s.title || new URL(s.url).hostname}</a>
+              </span>
+            ))}
+          </div>
+        )}
+        {candidates.length > 0 && (
+          <div style={{
+            marginBottom: 10, padding: 10, background: T.paper,
+            border: `1px solid ${T.faintRule}`, borderRadius: 8,
+          }}>
+            <div style={{
+              fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.16em',
+              textTransform: 'uppercase', marginBottom: 8,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>Pick the right one · {candidates.length} match{candidates.length === 1 ? '' : 'es'}</span>
+              <button
+                type="button"
+                onClick={() => setCandidates([])}
+                style={{
+                  background: 'transparent', border: 'none', color: T.fadedInk,
+                  fontSize: 10, cursor: 'pointer', padding: 0, letterSpacing: '.08em',
+                }}
+              >Dismiss</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {candidates.map((c, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => pickCandidate(c)}
+                  style={{
+                    textAlign: 'left', padding: '10px 12px', borderRadius: 6,
+                    border: `1px solid ${T.faintRule}`, background: T.paper,
+                    cursor: 'pointer', fontFamily: T.sans, color: T.ink,
+                    display: 'flex', flexDirection: 'column', gap: 3,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.inkSoft3; e.currentTarget.style.borderColor = T.ink; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.paper; e.currentTarget.style.borderColor = T.faintRule; }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{c.legal_name || cluster.canonical}</div>
+                  {c.description && (
+                    <div style={{ fontSize: 11, color: T.ink70 }}>{c.description}</div>
+                  )}
+                  <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {c.website && <span>{c.website}</span>}
+                    {c.address && <span>· {c.address}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 8, fontStyle: 'italic' }}>
+              Picking overwrites legal name, address, and website. Edit any of them after.
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+          <CompanyMetaInput label="Legal entity name" value={companyMeta?.legal_name || ''} placeholder={cluster.canonical + ', Inc.'} onChange={v => setMetaField('legal_name', v)} onBlur={saveCompanyMeta}/>
+          <CompanyMetaInput label="Website" value={companyMeta?.website || ''} placeholder="example.com" onChange={v => setMetaField('website', v)} onBlur={saveCompanyMeta}/>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+          <CompanyMetaInput label="Legal address" value={companyMeta?.address || ''} placeholder="1010 Frontier Way, Nashville TN 37203" multiline onChange={v => setMetaField('address', v)} onBlur={saveCompanyMeta}/>
+          <CompanyMetaInput label="Billing email (AP)" value={companyMeta?.billing_email || ''} placeholder="ap@example.com" onChange={v => setMetaField('billing_email', v)} onBlur={saveCompanyMeta}/>
+        </div>
       </div>
+
+      {linkedProjects.length > 0 && (
+        <div style={{
+          padding: '14px 22px', borderBottom: `1px solid ${T.faintRule}`,
+          background: T.inkSoft3,
+        }}>
+          <div style={{
+            fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.16em',
+            textTransform: 'uppercase', marginBottom: 8,
+          }}>
+            Linked projects · {linkedProjects.length}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {linkedProjects.map(lp => {
+              const pid = lp.projects?.id;
+              const clickable = !!(pid && onOpenProject);
+              return (
+                <button
+                  key={pid}
+                  type="button"
+                  onClick={() => clickable && onOpenProject(pid)}
+                  disabled={!clickable}
+                  title={clickable ? 'Open project' : ''}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 600, fontFamily: T.sans,
+                    background: T.paper, color: T.ink, border: `1px solid ${T.faintRule}`,
+                    cursor: clickable ? 'pointer' : 'default',
+                  }}
+                  onMouseEnter={e => { if (clickable) e.currentTarget.style.borderColor = T.ink; }}
+                  onMouseLeave={e => { if (clickable) e.currentTarget.style.borderColor = T.faintRule; }}
+                >
+                  {lp.projects?.name || '(deleted)'}
+                  {clickable && <span style={{ color: T.fadedInk, fontSize: 10 }}>→</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div>
+        {cluster.contacts.map(c => {
+          const projs = projectsByContact[c.id] || [];
+          // "Awarded" in Morgan = both `awarded` and `current` per
+          // STAGE_LABELS. Count those for the badge.
+          const awarded = projs.filter(lp => lp.projects?.stage === 'awarded' || lp.projects?.stage === 'current').length;
+          const pitching = projs.filter(lp => lp.projects?.stage === 'pitching').length;
+          return (
+            <ContactRow
+              key={c.id} c={c}
+              awardedCount={awarded}
+              pitchingCount={pitching}
+              onClick={() => onOpenContact?.(c.id)}
+              onRefresh={onRefreshContact}
+              refreshing={refreshingId === c.id}
+              onSchedule={onScheduleMeeting}
+              canSchedule={canSchedule}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CompanyMetaInput({ label, value, placeholder, onChange, onBlur, multiline }) {
+  const inputStyle = {
+    width: '100%', padding: '6px 8px', borderRadius: 6,
+    border: `1px solid ${T.faintRule}`, background: T.paper,
+    fontSize: 12, fontFamily: T.sans, color: T.ink, outline: 'none',
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+      {multiline ? (
+        <textarea value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} style={{ ...inputStyle, minHeight: 50, resize: 'vertical', lineHeight: 1.5 }}/>
+      ) : (
+        <input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} style={inputStyle}/>
+      )}
     </div>
   );
 }
@@ -986,6 +1412,92 @@ function RefreshPreviewModal({ contact, patch, onCancel, onApply, applying }) {
 }
 
 // Stats / priorities panel — what to focus on right now.
+// Recent contacts horizontal strip — surfaces the 10 most
+// recently added contacts at the top of the page so newly
+// imported / Fireflies-auto-created people are immediately
+// visible. Click a card to open the drawer.
+function RecentContactsStrip({ contacts, onOpen }) {
+  const recent = (contacts || [])
+    .slice() // don't mutate
+    .sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tb - ta;
+    })
+    .slice(0, 10);
+  if (recent.length === 0) return null;
+  return (
+    <div style={{ marginTop: 18, marginBottom: 6 }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        marginBottom: 10,
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: T.ink, letterSpacing: '.10em',
+          textTransform: 'uppercase',
+        }}>
+          Recent · last {recent.length} added
+        </div>
+        <div style={{ fontSize: 10, color: T.fadedInk, fontStyle: 'italic' }}>
+          Newest first
+        </div>
+      </div>
+      <div style={{
+        display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6,
+        scrollbarWidth: 'thin',
+      }}>
+        {recent.map(c => {
+          const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || '(No name)';
+          const initials = ((c.first_name?.[0] || '') + (c.last_name?.[0] || '')).toUpperCase();
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onOpen?.(c.id)}
+              title={`Added ${c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'recently'}`}
+              style={{
+                flex: '0 0 auto', minWidth: 200, maxWidth: 240,
+                textAlign: 'left', cursor: 'pointer',
+                padding: '10px 12px', borderRadius: 10,
+                background: T.paper, border: `1px solid ${T.faintRule}`,
+                display: 'flex', alignItems: 'center', gap: 10,
+                fontFamily: T.sans, color: T.ink,
+                transition: 'border-color .15s, background .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = T.ink; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = T.faintRule; }}
+            >
+              {c.avatar_url ? (
+                <img src={c.avatar_url} alt="" style={{
+                  width: 32, height: 32, borderRadius: '50%', objectFit: 'cover',
+                  border: `1px solid ${T.faintRule}`, flexShrink: 0,
+                }}/>
+              ) : (
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`,
+                  flexShrink: 0,
+                }}>{initials || '?'}</div>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 600, color: T.ink,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{fullName}</div>
+                <div style={{
+                  fontSize: 10, color: T.fadedInk, marginTop: 1,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{c.company || c.title || c.email || ''}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // 1. Active pitches → list of pitching-status contacts with company
 // 2. Top companies → top 4 clusters by contact count
 // 3. Going cold → contacts not touched in 90+ days
@@ -1095,7 +1607,7 @@ function StatsCards({ contacts, clusters, onFilter, onPickCompany }) {
   );
 }
 
-function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOpenMeetings }) {
+function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOpenMeetings, onOpenPipeline, onOpenProject }) {
   const userId = user?.user_id || user?.id;
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1194,6 +1706,16 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
     } finally { setRefreshingId(null); }
   }, []);
 
+  // Drawer-initiated enrich. Same flow as the per-row ↻ button but
+  // accepts an override (e.g. a freshly-pasted LinkedIn URL) so
+  // sparse contacts — known only by email from a meeting attendee —
+  // can be hydrated without leaving the drawer. Throws so the drawer
+  // can surface lookup failures inline instead of via alert().
+  const onEnrichFromDrawer = useCallback(async (contact, override) => {
+    const { patch } = await previewReenrich(contact, override);
+    setRefreshPreview({ contact, patch });
+  }, []);
+
   const onApplyRefresh = useCallback(async (selectedPatch) => {
     if (!refreshPreview) return;
     const { contact, patch } = refreshPreview;
@@ -1246,25 +1768,65 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
     [clusters, selectedClusterId]
   );
 
-  // Pinned companies. Persisted in localStorage per browser for now —
-  // upgrade to a server-side user_preferences column if needed for
-  // cross-device sync. Pinned clusters jump to the top of every
-  // surface (default grid, A-Z view, search results).
+  // Pinned companies. Persisted in localStorage per browser.
+  //
+  // Pin identity is a multi-token problem. A cluster's canonical
+  // name can flip between renders (when contact counts tie, the
+  // tiebreaker is longest variant — unstable). Email domains can
+  // be missing. So we pin by ALL identifying tokens at once
+  // (domain + normalized canonical + every normalized alias), and
+  // match if ANY of the cluster's current tokens is in the set.
+  //
+  // This survives:
+  //   · canonical flipping between "Lonely Planet" and "lonelyplanet.com"
+  //   · new contacts joining the cluster
+  //   · merges/splits as the cluster evolves
   const PIN_KEY = `es_pinned_companies_${userId || 'anon'}`;
-  const [pinnedIds, setPinnedIds] = useState(() => {
+  const [pinnedKeys, setPinnedKeys] = useState(() => {
     try {
       const raw = localStorage.getItem(PIN_KEY);
       return new Set(raw ? JSON.parse(raw) : []);
     } catch (e) { return new Set(); }
   });
-  const togglePin = useCallback((id) => {
-    setPinnedIds(prev => {
+  const clusterTokens = useCallback((cluster) => {
+    if (!cluster) return [];
+    const tokens = [];
+    if (cluster.emailDomain) tokens.push(`domain:${cluster.emailDomain}`);
+    const variants = [cluster.canonical, ...(cluster.aliases || [])].filter(Boolean);
+    for (const v of variants) {
+      const norm = normalizeCompany(v);
+      if (norm) tokens.push(`name:${norm}`);
+    }
+    return tokens;
+  }, []);
+  const isPinned = useCallback((cluster) => {
+    const tokens = clusterTokens(cluster);
+    // Match new prefixed tokens
+    if (tokens.some(t => pinnedKeys.has(t))) return true;
+    // Backward-compat: earlier versions stored bare normalized names
+    // without the "name:" prefix. Match those too so legacy pins
+    // keep working until the user toggles them (which migrates).
+    const legacy = normalizeCompany(cluster?.canonical || '');
+    return !!legacy && pinnedKeys.has(legacy);
+  }, [clusterTokens, pinnedKeys]);
+  const togglePin = useCallback((cluster) => {
+    const tokens = clusterTokens(cluster);
+    if (!tokens.length) return;
+    setPinnedKeys(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      // Also clean up the legacy bare-name key if present
+      const legacy = normalizeCompany(cluster?.canonical || '');
+      const currentlyPinned = tokens.some(t => next.has(t)) || (legacy && next.has(legacy));
+      if (currentlyPinned) {
+        tokens.forEach(t => next.delete(t));
+        if (legacy) next.delete(legacy);
+      } else {
+        tokens.forEach(t => next.add(t));
+      }
       try { localStorage.setItem(PIN_KEY, JSON.stringify([...next])); } catch (e) {}
       return next;
     });
-  }, [PIN_KEY]);
+  }, [PIN_KEY, clusterTokens]);
   // 412 cards is too many to render or scan. Default to top 10 by
   // contact count (priorities), with a "Show all" toggle that expands
   // to the full A–Z list. A live search query bypasses the limit —
@@ -1275,9 +1837,15 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
   // Detail drawer state — open a contact by id, drawer reads/updates
   // and lifts changes back into the local list so the UI stays fresh.
   const [openContactId, setOpenContactId] = useState(null);
+  const [prepBriefContactId, setPrepBriefContactId] = useState(null);
+  const [scheduleContact, setScheduleContact] = useState(null);
   const openContact = useMemo(
     () => contacts.find(c => c.id === openContactId) || null,
     [contacts, openContactId]
+  );
+  const prepBriefContact = useMemo(
+    () => contacts.find(c => c.id === prepBriefContactId) || null,
+    [contacts, prepBriefContactId]
   );
 
   const counts = useMemo(() => {
@@ -1300,6 +1868,16 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
             <ESWordmark height={14} color={T.ink}/>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onOpenPipeline && (
+              <button onClick={onOpenPipeline} style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: 600, fontFamily: T.sans,
+                background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
+                color: T.ink, cursor: 'pointer', transition: 'all .18s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.background = T.inkSoft; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; }}
+              >Pipeline</button>
+            )}
             {onOpenMeetings && (
               <button onClick={onOpenMeetings} style={{
                 padding: '5px 12px', fontSize: 11, fontWeight: 600, fontFamily: T.sans,
@@ -1344,6 +1922,17 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 50);
             }}
+          />
+        )}
+
+        {/* Recent contacts strip — the 10 most recently added.
+            Sits above the company grid so freshly-imported or
+            -created contacts are immediately visible without
+            scrolling through the alphabetical company list. */}
+        {!loading && contacts.length > 0 && (
+          <RecentContactsStrip
+            contacts={contacts}
+            onOpen={(id) => setOpenContactId(id)}
           />
         )}
 
@@ -1396,15 +1985,15 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                 const searching = search.trim().length > 0;
                 const showingAll = showAllCompanies || searching;
                 // Pinned clusters always come first regardless of mode.
-                const pinned = clusters.filter(cl => pinnedIds.has(cl.id));
+                const pinned = clusters.filter(isPinned);
                 // Top 10 by count when collapsed — exclude independent
                 // (freelance, self-employed, etc.) AND internal (your
                 // own team) AND already-pinned clusters since we
                 // surface pinned ones first.
                 const topCompanies = clusters.filter(cl =>
-                  !cl.isIndependent && !cl.isInternal && !pinnedIds.has(cl.id)
+                  !cl.isIndependent && !cl.isInternal && !isPinned(cl)
                 );
-                const remainingAlpha = clustersAlpha.filter(cl => !pinnedIds.has(cl.id));
+                const remainingAlpha = clustersAlpha.filter(cl => !isPinned(cl));
                 const visible = showingAll
                   ? [...pinned, ...remainingAlpha]
                   : [...pinned, ...topCompanies.slice(0, TOP_COUNT)];
@@ -1424,7 +2013,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                           key={cl.id}
                           cluster={cl}
                           selected={selectedClusterId === cl.id}
-                          pinned={pinnedIds.has(cl.id)}
+                          pinned={isPinned(cl)}
                           onClick={() => setSelectedClusterId(selectedClusterId === cl.id ? null : cl.id)}
                         />
                       ))}
@@ -1460,12 +2049,16 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
           {selectedCluster && (
             <CompanyDetail
               cluster={selectedCluster}
+              userId={userId}
               onClose={() => setSelectedClusterId(null)}
               onRefreshContact={onRefreshContact}
               refreshingId={refreshingId}
               onOpenContact={(id) => setOpenContactId(id)}
-              pinned={pinnedIds.has(selectedCluster.id)}
-              onTogglePin={() => togglePin(selectedCluster.id)}
+              onOpenProject={onOpenProject}
+              pinned={isPinned(selectedCluster)}
+              onTogglePin={() => togglePin(selectedCluster)}
+              onScheduleMeeting={(c) => setScheduleContact(c)}
+              canSchedule={!!accessToken}
               deletingCompany={deletingCompany}
               onDeleteCompany={async () => {
                 const n = selectedCluster.contacts.length;
@@ -1528,6 +2121,27 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
           }}
           onDelete={(id) => {
             setContacts(prev => prev.filter(c => c.id !== id));
+          }}
+          onEnrich={onEnrichFromDrawer}
+          onOpenPrepBrief={(c) => setPrepBriefContactId(c.id)}
+          onOpenProject={onOpenProject}
+        />
+      )}
+      {prepBriefContact && (
+        <PrepBrief
+          contact={prepBriefContact}
+          accessToken={accessToken}
+          onClose={() => setPrepBriefContactId(null)}
+        />
+      )}
+      {scheduleContact && (
+        <ScheduleMeetingModal
+          contact={scheduleContact}
+          accessToken={accessToken}
+          onClose={() => setScheduleContact(null)}
+          onScheduled={() => {
+            const now = new Date().toISOString();
+            setContacts(prev => prev.map(c => c.id === scheduleContact.id ? { ...c, last_contacted_at: now } : c));
           }}
         />
       )}

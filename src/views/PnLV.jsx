@@ -6,6 +6,7 @@ import { DOC_TYPES, DOC_TYPE_COLORS } from '../constants/index.js';
 import { mkDoc, mkTxn } from '../data/factories.js';
 import { TrashI } from '../components/icons/index.js';
 import { Card, Metric, DatePick, VendorSelect } from '../components/primitives/index.js';
+import { toast } from '../lib/toast.js';
 
 function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorClick,accessToken}){
   const txns=project.txns||[];
@@ -16,6 +17,18 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
   // Transaction state
   const[nTy,setNTy]=useState("income");const[nDe,setNDe]=useState("");const[nAm,setNAm]=useState("");const[nDa,setNDa]=useState("");const[nCa,setNCa]=useState("");
   const[nVId,setNVId2]=useState("");const[matchDocId,setMatchDocId]=useState("");
+
+  // Client invoice (Accounts Receivable) state — separate from
+  // vendor invoices since these are SENT BY us TO the client.
+  // Stored on project.docs with type='client_invoice'.
+  const[showInvUpload,setShowInvUpload]=useState(false);
+  const[clInvNum,setClInvNum]=useState("");
+  const[clInvAmt,setClInvAmt]=useState("");
+  const[clInvSent,setClInvSent]=useState("");
+  const[clInvDue,setClInvDue]=useState("");
+  const[clInvFile,setClInvFile]=useState(null);    // base64 data URL
+  const[clInvFileName,setClInvFileName]=useState("");
+  const clInvFileRef=useRef(null);
 
   // Document state
   const[showDocAdd,setShowDocAdd]=useState(false);const[docFilter,setDocFilter]=useState("all");
@@ -72,9 +85,18 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
         content=[{type:"text",text:`Uploaded file: "${fileName}". Based on the filename, determine what you can. ${extractPrompt}`}];
       }
       const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
-      if(!res.ok){setAnalyzing(null);return}
+      if(!res.ok){
+        setAnalyzing(null);
+        toast.error(`Couldn't auto-analyze "${fileName}" (HTTP ${res.status}). The file uploaded fine — you can fill in amount/due date manually.`);
+        return;
+      }
       const data=await res.json();const text=data.content[0].text;
-      const match=text.match(/\{[\s\S]*\}/);if(!match){setAnalyzing(null);return}
+      const match=text.match(/\{[\s\S]*\}/);
+      if(!match){
+        setAnalyzing(null);
+        toast.error(`AI couldn't read "${fileName}" cleanly. The file is saved — fill in details manually.`);
+        return;
+      }
       const parsed=JSON.parse(match[0]);
       // Try to match vendor name to existing vendors
       let matchedVendorId="";
@@ -100,7 +122,10 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       setAnalysisResult({docId,...parsed,matchedVendorId});
       setAnalysisVendorId(matchedVendorId);
       setAnalyzing(null);
-    }catch(e){setAnalyzing(null)}
+    }catch(e){
+      setAnalyzing(null);
+      toast.error(`AI analysis failed: ${e?.message || 'unknown error'}`);
+    }
   };
 
   const confirmAnalysis=()=>{
@@ -206,6 +231,111 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       txns:[...txns,newTxn]
     });
   };
+
+  // ── Client invoice (AR) helpers ─────────────────────────────
+  // File → base64 data URL so it can live inline on the doc row,
+  // matching the existing vendor-invoice upload pattern.
+  const handleClientInvoiceFile=(e)=>{
+    const f=e.target.files?.[0];
+    e.target.value="";
+    if(!f) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      setClInvFile(ev.target.result);
+      setClInvFileName(f.name);
+      // Auto-fill the invoice number from filename if empty
+      if(!clInvNum) {
+        const base=f.name.replace(/\.[^/.]+$/, "");
+        setClInvNum(base);
+      }
+    };
+    reader.readAsDataURL(f);
+  };
+  const addClientInvoice=()=>{
+    if(!clInvNum.trim()||!parseFloat(clInvAmt)) return;
+    const amt=parseFloat(clInvAmt);
+    const sentDate=clInvSent || new Date().toLocaleDateString();
+    const doc={
+      id:crypto.randomUUID? crypto.randomUUID() : (Math.random().toString(36).slice(2)+Date.now()),
+      name:clInvNum.trim(),
+      type:'client_invoice',
+      amount:amt,
+      paidAmount:0,
+      sentDate,
+      dueDate:clInvDue||"",
+      status:'sent',
+      dateAdded:new Date().toLocaleDateString(),
+      fileData:clInvFile||null,
+      fileName:clInvFileName||null,
+    };
+    updateProject({docs:[...docs,doc]});
+    setClInvNum("");setClInvAmt("");setClInvSent("");setClInvDue("");
+    setClInvFile(null);setClInvFileName("");setShowInvUpload(false);
+  };
+  // Marking a client invoice paid creates an income txn AND flags
+  // the doc as paid. Mirrors the vendor markPaid flow. Also pings
+  // Slack so the team sees "money landed" in real time.
+  const markClientInvoicePaid=(docId)=>{
+    const doc=docs.find(d=>d.id===docId);
+    if(!doc) return;
+    const newTxn=mkTxn(
+      "income",
+      `Invoice ${doc.name} paid`,
+      doc.amount,
+      new Date().toLocaleDateString(),
+      "client_invoice",
+      "",
+      docId
+    );
+    updateProject({
+      docs:docs.map(d=>d.id===docId?{...d,status:"paid",paidAmount:d.amount,paidDate:new Date().toLocaleDateString()}:d),
+      txns:[...txns,newTxn],
+    });
+    // Fire-and-forget Slack ping. Failures are silent.
+    import('../lib/slack.js').then(({ notifySlack }) => {
+      notifySlack(`💰 *Client paid invoice* ${doc.name} for *${project?.name || 'a project'}* — $${Number(doc.amount).toLocaleString()}`);
+    }).catch(() => {});
+  };
+  const removeClientInvoice=(docId)=>{
+    if(!confirm("Delete this client invoice? Any linked payment transaction stays.")) return;
+    updateProject({docs:docs.filter(d=>d.id!==docId)});
+  };
+  // Send a collections reminder email to the project's billing
+  // contact (or client PM if no billing email is set). Server-side
+  // template — no arbitrary HTML — so this can't be used as a relay.
+  const sendReminder=async(doc)=>{
+    const recipient=project.client_billing_email||project.fields?.client_billing_email||project.client_pm_email||project.fields?.client_pm_email||'';
+    const to=window.prompt("Send reminder to:", recipient);
+    if(!to||!to.trim()) return;
+    try{
+      const{getSession}=await import('../lib/db.js');
+      const session=await getSession();
+      const res=await fetch('/api/invoice-reminder',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          ...(session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{}),
+        },
+        body:JSON.stringify({
+          to:to.trim(),
+          fromName:'Kamil',
+          invoice:{
+            number:doc.name,
+            amount:doc.amount,
+            dueDate:doc.dueDate,
+            sentDate:doc.sentDate,
+            projectName:project.name,
+            clientName:project.client,
+          },
+        }),
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data?.error||`HTTP ${res.status}`);
+      toast.success(`Reminder sent to ${to.trim()}`);
+    }catch(e){
+      toast.error(`Reminder failed: ${e.message||'unknown'}`);
+    }
+  };
   const filteredDocs=docFilter==="all"?docs:docs.filter(d=>d.type===docFilter||d.status===docFilter);
 
   const pillStyle=(active)=>({padding:"8px 18px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:active?600:400,fontFamily:T.sans,background:active?T.goldSoft:"transparent",color:active?T.gold:T.dim,transition:"all .15s"});
@@ -257,17 +387,70 @@ function PnLV({project,updateProject,comp,canEdit,vendors,onAddVendor,onVendorCl
       {/* ── Accounts Receivable (client payments) ── */}
       {(()=>{
         const clientPayments=txns.filter(t=>t.type==="income");
+        const clientInvoices=docs.filter(d=>d.type==="client_invoice");
+        const sentInvoices=clientInvoices.filter(d=>d.status!=="paid");
+        const paidInvoices=clientInvoices.filter(d=>d.status==="paid");
+        const invoicedUnpaidTotal=sentInvoices.reduce((a,d)=>a+(d.amount-(d.paidAmount||0)),0);
         const totalDue=comp.grandTotal;
         const arOutstanding=Math.max(0,totalDue-totalIncome);
         return<Card style={{padding:"18px 20px",marginBottom:12,borderLeft:`3px solid ${T.pos}`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:12,flexWrap:"wrap"}}>
             <div style={{fontSize:11,fontWeight:700,color:T.pos,textTransform:"uppercase",letterSpacing:".08em"}}>Accounts Receivable</div>
-            <div style={{display:"flex",gap:16,alignItems:"baseline"}}>
+            <div style={{display:"flex",gap:16,alignItems:"baseline",flexWrap:"wrap"}}>
               <span style={{fontSize:10,color:T.dim}}>Collected: <span className="num" style={{color:T.pos,fontFamily:T.mono,fontWeight:600}}>{f0(totalIncome)}</span></span>
+              {invoicedUnpaidTotal>0&&<span style={{fontSize:10,color:T.dim}}>Invoiced (unpaid): <span className="num" style={{color:T.gold,fontFamily:T.mono,fontWeight:600}}>{f0(invoicedUnpaidTotal)}</span></span>}
               <span style={{fontSize:10,color:T.dim}}>Outstanding: <span className="num" style={{color:arOutstanding>0?T.gold:T.pos,fontFamily:T.mono,fontWeight:600}}>{f0(arOutstanding)}</span></span>
               <span style={{fontSize:10,color:T.dim}}>Total: <span className="num" style={{color:T.cream,fontFamily:T.mono,fontWeight:600}}>{f0(totalDue)}</span></span>
+              {canEdit&&<button onClick={()=>setShowInvUpload(s=>!s)} style={{padding:"5px 12px",borderRadius:T.rS,background:showInvUpload?"transparent":T.goldSoft,color:showInvUpload?T.dim:T.gold,border:`1px solid ${showInvUpload?T.border:T.borderGlow}`,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans,textTransform:"uppercase",letterSpacing:".06em"}}>{showInvUpload?"Cancel":"+ Upload Invoice"}</button>}
             </div>
           </div>
+
+          {/* Upload form */}
+          {showInvUpload&&<div style={{padding:14,marginBottom:12,borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.dim,letterSpacing:".10em",textTransform:"uppercase",marginBottom:10}}>Upload invoice sent to client</div>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+              <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Invoice number / name</label><input value={clInvNum} onChange={e=>setClInvNum(e.target.value)} placeholder="INV-001 or Deposit invoice" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.bg||T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+              <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Amount</label><input value={clInvAmt} onChange={e=>setClInvAmt(e.target.value)} placeholder="105000" inputMode="decimal" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.bg||T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.mono,outline:"none"}}/></div>
+              <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Sent date</label><input type="date" value={clInvSent} onChange={e=>setClInvSent(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.bg||T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.mono,outline:"none"}}/></div>
+              <div><label style={{display:"block",fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Due date</label><input type="date" value={clInvDue} onChange={e=>setClInvDue(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.bg||T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.mono,outline:"none"}}/></div>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <input ref={clInvFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleClientInvoiceFile} style={{display:"none"}}/>
+              <button type="button" onClick={()=>clInvFileRef.current?.click()} style={{padding:"7px 14px",borderRadius:T.rS,background:"transparent",color:T.cream,border:`1px solid ${T.border}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>📎 {clInvFile?"Replace file":"Attach PDF / image"}</button>
+              {clInvFileName&&<span style={{fontSize:11,color:T.dim,fontStyle:"italic"}}>{clInvFileName}</span>}
+              <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+                <button onClick={addClientInvoice} disabled={!clInvNum.trim()||!parseFloat(clInvAmt)} style={{padding:"7px 16px",borderRadius:T.rS,background:(clInvNum.trim()&&parseFloat(clInvAmt))?T.ink:T.surface,color:(clInvNum.trim()&&parseFloat(clInvAmt))?T.paper:T.dim,border:"none",fontSize:11,fontWeight:700,cursor:(clInvNum.trim()&&parseFloat(clInvAmt))?"pointer":"default",fontFamily:T.sans,textTransform:"uppercase",letterSpacing:".06em"}}>Save invoice</button>
+              </div>
+            </div>
+            <div style={{marginTop:8,fontSize:10,color:T.dim,fontStyle:"italic"}}>
+              Marking this as Paid later will auto-create a client payment transaction.
+            </div>
+          </div>}
+
+          {/* Sent invoices list */}
+          {sentInvoices.length>0&&<div style={{marginBottom:12}}>
+            <div style={{fontSize:9,fontWeight:700,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Sent — awaiting payment</div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {sentInvoices.map(d=>{
+                const isOD=d.dueDate && (new Date(d.dueDate) < new Date());
+                return<div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:T.rS,background:isOD?"rgba(122,31,31,.06)":"transparent",border:`1px solid ${isOD?"rgba(122,31,31,.10)":T.border}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                    <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10,background:isOD?`${T.neg}18`:`${T.gold}18`,color:isOD?T.neg:T.gold,textTransform:"uppercase"}}>{isOD?"Overdue":"Sent"}</span>
+                    <span style={{fontSize:12,color:T.cream,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+                    {d.sentDate&&<span style={{fontSize:10,color:T.dim}}>· sent {d.sentDate}</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+                    {d.dueDate&&<span style={{fontSize:11,color:isOD?T.neg:T.dim,fontFamily:T.mono}}>due {d.dueDate}</span>}
+                    {d.fileData&&<button onClick={()=>setViewingDoc(d)} title="View attached file" style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:14}}>📎</button>}
+                    <span className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:700,color:isOD?T.neg:T.gold}}>{f$(d.amount)}</span>
+                    {canEdit&&<button onClick={()=>sendReminder(d)} title="Email a reminder to the client" style={{padding:"4px 10px",borderRadius:T.rS,background:"transparent",color:T.cream,border:`1px solid ${T.border}`,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.cream}}>✉ Remind</button>}
+                    {canEdit&&<button onClick={()=>markClientInvoicePaid(d.id)} style={{padding:"4px 10px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Mark Paid</button>}
+                    {canEdit&&<button onClick={()=>removeClientInvoice(d.id)} style={{background:"none",border:"none",cursor:"pointer",opacity:.2,padding:2}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.2}><TrashI size={11} color={T.neg}/></button>}
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>}
           {/* Progress bar */}
           <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden",marginBottom:clientPayments.length>0?12:0}}><div style={{height:"100%",width:`${Math.min(collected,100)}%`,background:T.ink,borderRadius:2,transition:"width .4s ease"}}/></div>
           {clientPayments.length>0?<div style={{display:"flex",flexDirection:"column",gap:3}}>

@@ -61,6 +61,14 @@ export function useSupabaseAuth() {
   // Forward ref so getOrCreateProfilesWithRetry's onGiveUp can call
   // forceSignOutAndReload (defined further down in this hook).
   const forceSignOutAndReloadRef = useRef(null);
+  // In-flight promise cache for initProfiles. Supabase fires SIGNED_IN
+  // during _initialize at roughly the same time as getSession() resolves,
+  // so both call paths invoke initProfiles concurrently. If profiles
+  // don't exist yet, both calls hit the "create fresh org" branch and
+  // each insert a separate org row — which is how the duplicate
+  // "Kamil Tyebally's Team" rows got created. Coalescing concurrent
+  // calls per user.id eliminates that race.
+  const initProfilesInflight = useRef(new Map());
 
   // Derive current profile from profiles + currentOrgId
   const currentProfile = useMemo(() => {
@@ -77,23 +85,40 @@ export function useSupabaseAuth() {
   // supabase-js client is most likely in a hung state — clear sb-* and
   // reload, which puts the user back on the login screen with a clean
   // session instead of trapping them on the loading spinner forever.
+  //
+  // Concurrent calls for the same user (getSession resolving + SIGNED_IN
+  // firing) coalesce onto the same in-flight promise. Without this,
+  // both paths could insert a duplicate org row.
   const initProfiles = useCallback(async (authUser) => {
-    const allProfiles = await getOrCreateProfilesWithRetry(
-      authUser,
-      null,
-      () => forceSignOutAndReloadRef.current?.('profile load failed after retries — likely stuck supabase-js client')
-    );
-    setProfiles(allProfiles);
-
-    if (allProfiles.length) {
-      // Try to restore last active org
-      const lastOrg = await getLastActiveOrg(authUser.id);
-      const validOrg = allProfiles.find(p => p.org_id === lastOrg);
-      const orgId = validOrg ? validOrg.org_id : allProfiles[0].org_id;
-      setCurrentOrgId(orgId);
+    const inflight = initProfilesInflight.current.get(authUser.id);
+    if (inflight) {
+      console.log('[auth] initProfiles already in flight for', authUser.email, '— awaiting existing');
+      return inflight;
     }
+    const promise = (async () => {
+      const allProfiles = await getOrCreateProfilesWithRetry(
+        authUser,
+        null,
+        () => forceSignOutAndReloadRef.current?.('profile load failed after retries — likely stuck supabase-js client')
+      );
+      setProfiles(allProfiles);
 
-    return allProfiles;
+      if (allProfiles.length) {
+        // Try to restore last active org
+        const lastOrg = await getLastActiveOrg(authUser.id);
+        const validOrg = allProfiles.find(p => p.org_id === lastOrg);
+        const orgId = validOrg ? validOrg.org_id : allProfiles[0].org_id;
+        setCurrentOrgId(orgId);
+      }
+
+      return allProfiles;
+    })();
+    initProfilesInflight.current.set(authUser.id, promise);
+    try {
+      return await promise;
+    } finally {
+      initProfilesInflight.current.delete(authUser.id);
+    }
   }, []);
 
   // Nuke all Supabase auth state and bounce to login. Used when a stale

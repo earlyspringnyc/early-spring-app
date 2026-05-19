@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0 } from '../utils/format.js';
 import { isOverdue } from '../utils/calc.js';
@@ -6,6 +6,8 @@ import { VENDOR_TYPES, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, INVOICE_KINDS, IN
 import { mkVendor, mkDoc } from '../data/factories.js';
 import { TrashI } from '../components/icons/index.js';
 import { Card, Metric, DatePick } from '../components/primitives/index.js';
+import { listContacts } from '../lib/contacts.js';
+import { toast } from '../lib/toast.js';
 
 /* Auto-detect doc type from filename */
 const detectDocType=(fileName)=>{
@@ -20,7 +22,12 @@ const DOC_TYPE_META={
   w9:{label:"W-9",color:"#22D3EE"},
 };
 
-function VendorsV({project,updateProject,canEdit,onVendorClick}){
+function VendorsV({project,updateProject,canEdit,onVendorClick,onAddVendor}){
+  // CRM vendor contacts — used to autofill the "Add vendor" form
+  // when the user starts typing a vendor name that already exists
+  // in the CRM. Lazy-loaded once when the form opens.
+  const [crmVendors, setCrmVendors] = useState([]);
+  const [crmVendorsLoaded, setCrmVendorsLoaded] = useState(false);
   const vendors=project.vendors||[];const docs=project.docs||[];const txns=project.txns||[];
   const[showAdd,setShowAdd]=useState(false);const[typeFilter,setTypeFilter]=useState("all");const[vendorSearch,setVendorSearch]=useState("");
   const[nN,setNN3]=useState("");const[nE,setNE2]=useState("");const[nP,setNP]=useState("");const[nNo,setNNo2]=useState("");const[nType,setNType]=useState("other");const[nContact,setNContact]=useState("");const[nFinName,setNFinName]=useState("");const[nFinEmail,setNFinEmail]=useState("");
@@ -40,18 +47,71 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       const content=isImage?[{type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},{type:"text",text:"Extract from this document: 1) document type (invoice/contract/w9), 2) total amount as a number, 3) due date in MM/DD/YYYY format, 4) invoice/document number, 5) vendor name. Return ONLY valid JSON like: {\"type\":\"invoice\",\"amount\":1234.56,\"dueDate\":\"03/15/2026\",\"number\":\"INV-001\",\"vendor\":\"ABC Co\"}"}]
       :[{type:"text",text:"The user uploaded a PDF named '"+fileName+"'. Based on the filename, determine: 1) document type (invoice/contract/w9), 2) any amount or date hints from the name. Return ONLY valid JSON like: {\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"number\":\"\",\"vendor\":\"\"}"}];
       const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
-      if(!res.ok){setAnalyzing(null);return null}
+      if(!res.ok){setAnalyzing(null);toast.error(`AI couldn't analyze "${fileName}" (HTTP ${res.status}). File is saved — fill in details manually.`);return null}
       const data=await res.json();
       const text=data.content[0].text;
       const jsonMatch=text.match(/\{[\s\S]*\}/);
-      if(!jsonMatch){setAnalyzing(null);return null}
+      if(!jsonMatch){setAnalyzing(null);toast.error(`AI couldn't read "${fileName}" cleanly. File is saved — fill in details manually.`);return null}
       const parsed=JSON.parse(jsonMatch[0]);
       setAnalyzing(null);
       return parsed;
-    }catch(e){setAnalyzing(null);return null}
+    }catch(e){setAnalyzing(null);toast.error(`AI analysis failed: ${e?.message || 'unknown error'}`);return null}
   };
   const totalOutstanding=vendors.reduce((a,v)=>{const vDocs=docs.filter(d=>d.vendorId===v.id&&d.type==="invoice"&&d.status!=="paid");return a+vDocs.reduce((s,d)=>s+(d.amount-(d.paidAmount||0)),0)},0);
-  const addVendor=()=>{if(!nN.trim())return;updateProject({vendors:[...vendors,{...mkVendor(nN.trim(),nE,nP,nNo,"pending",nType,nContact),financeContactName:nFinName,financeContactEmail:nFinEmail}]});setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setNContact("");setNFinName("");setNFinEmail("");setShowAdd(false)};
+  // Lazy-load CRM vendor contacts the first time the add form opens.
+  // Used to suggest existing vendors so the user doesn't re-create
+  // them (which would also re-sync to CRM and split the history).
+  useEffect(() => {
+    if (showAdd && !crmVendorsLoaded) {
+      listContacts({ contact_type: 'vendor', limit: 1000 })
+        .then(rows => setCrmVendors(rows || []))
+        .catch(() => {})
+        .finally(() => setCrmVendorsLoaded(true));
+    }
+  }, [showAdd, crmVendorsLoaded]);
+
+  // Dedup CRM vendor suggestions by company name + filter out those
+  // already on this project. Show up to 6 matches as pills above
+  // the input row.
+  const projectVendorNames = useMemo(
+    () => new Set(vendors.map(v => String(v.name||'').trim().toLowerCase())),
+    [vendors]
+  );
+  const suggestions = useMemo(() => {
+    const q = nN.trim().toLowerCase();
+    if (!q) return [];
+    const seen = new Set();
+    const out = [];
+    for (const c of crmVendors) {
+      const co = String(c.company || '').trim();
+      if (!co) continue;
+      const lc = co.toLowerCase();
+      if (seen.has(lc) || projectVendorNames.has(lc)) continue;
+      if (!lc.includes(q)) continue;
+      seen.add(lc);
+      out.push(c);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [crmVendors, nN, projectVendorNames]);
+
+  const applySuggestion = (c) => {
+    setNN3(c.company || '');
+    const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+    if (fullName) setNContact(fullName);
+    if (c.email) setNE2(c.email);
+    if (c.phone) setNP(c.phone);
+  };
+
+  const addVendor=()=>{
+    if(!nN.trim())return;
+    const v = {...mkVendor(nN.trim(),nE,nP,nNo,"pending",nType,nContact),financeContactName:nFinName,financeContactEmail:nFinEmail};
+    // Prefer the wrapped onAddVendor from ProjectView — it also
+    // writes to the CRM. Fall back to a direct project save for
+    // safety if the prop wasn't threaded through.
+    if (onAddVendor) onAddVendor(v); else updateProject({vendors:[...vendors,v]});
+    setNN3("");setNE2("");setNP("");setNNo2("");setNType("other");setNContact("");setNFinName("");setNFinEmail("");setShowAdd(false);
+  };
   const handleFileUpload=async(vendorId,e)=>{
     const file=e.target.files[0];if(!file)return;
     const detected=detectDocType(file.name);
@@ -117,6 +177,34 @@ function VendorsV({project,updateProject,canEdit,onVendorClick}){
       <Metric label="Outstanding" value={f0(totalOutstanding)} color={totalOutstanding>0?T.neg:T.dim} glow={totalOutstanding>0}/>
     </div>
     {showAdd&&<Card style={{padding:20,marginBottom:16}}>
+      {suggestions.length > 0 && (
+        <div style={{marginBottom:14,paddingBottom:12,borderBottom:`1px solid ${T.faintRule||T.border}`}}>
+          <div style={{fontSize:9,fontWeight:700,color:T.dim,letterSpacing:".10em",textTransform:"uppercase",marginBottom:8}}>
+            ✨ Existing vendors in CRM — click to autofill
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {suggestions.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={()=>applySuggestion(c)}
+                style={{
+                  padding:"5px 10px",borderRadius:999,border:`1px solid ${T.border}`,
+                  background:T.surface,color:T.cream,fontSize:11,cursor:"pointer",
+                  fontFamily:T.sans,display:"inline-flex",alignItems:"center",gap:6,
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.background=T.goldSoft}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surface}}
+              >
+                <span style={{fontWeight:600}}>{c.company}</span>
+                {(c.first_name || c.last_name) && (
+                  <span style={{color:T.dim,fontSize:10}}>· {[c.first_name,c.last_name].filter(Boolean).join(' ')}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:12,marginBottom:12}}>
         {[["Vendor Name",nN,setNN3,"ABC Productions"],["Contact Name",nContact,setNContact,"Jane Smith"],["Email",nE,setNE2,"vendor@co.com"],["Phone",nP,setNP,"(555) 000-0000"]].map(([l,v,fn,ph])=><div key={l}><label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>{l}</label><input autoFocus={l==="Vendor Name"} value={v} onChange={e=>fn(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&addVendor()} style={{width:"100%",padding:"9px 12px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>)}
       </div>

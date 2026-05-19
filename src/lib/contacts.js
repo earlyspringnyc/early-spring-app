@@ -88,17 +88,29 @@ export async function syncRocketReachContacts(userId, { onProgress, maxPages = 3
 // can see exactly what RocketReach would change and reject stale or
 // regressive updates.
 //
+// `override` accepts { linkedin_url } or { email } when the caller
+// wants to look up the contact by something different than what's
+// stored on the row (e.g., a freshly-pasted LinkedIn URL from the
+// drawer's enrich field). Default: use the contact's existing
+// identifiers.
+//
 // 1. previewReenrich → fetches the fresh profile + computes the
 //    overwrite patch. NOTHING is written.
 // 2. applyReenrichPatch → writes the user-approved patch.
-export async function previewReenrich(contact) {
+export async function previewReenrich(contact, override, { mode = 'overwrite' } = {}) {
   const query = {};
-  if (contact.linkedin_url) query.linkedin_url = contact.linkedin_url;
+  if (override?.linkedin_url) query.linkedin_url = override.linkedin_url;
+  else if (override?.email)   query.email = override.email;
+  else if (contact.linkedin_url) query.linkedin_url = contact.linkedin_url;
   else if (contact.email)    query.email = contact.email;
   else throw new Error('Cannot re-enrich a contact without LinkedIn URL or email');
   const { profile } = await rocketReachLookup(query);
   if (!profile) throw new Error('No profile returned');
-  const patch = mergePatch(contact, profile, { mode: 'overwrite' });
+  // 'overwrite' is right for explicit user-driven refresh (they're
+  // asking for the new values). 'fill-only' is right for the
+  // implicit auto-enrich on contact creation from a meeting attendee
+  // — the attendee email/name is canonical, fill in everything else.
+  const patch = mergePatch(contact, profile, { mode });
   return { profile, patch };
 }
 
@@ -120,9 +132,10 @@ const enc = encodeURIComponent;
 // ----------------------------------------------------------------
 // Read
 // ----------------------------------------------------------------
-export async function listContacts({ status, search, limit = 1000 } = {}) {
+export async function listContacts({ status, contact_type, search, limit = 1000 } = {}) {
   let path = `/contacts?select=*&order=last_contacted_at.desc.nullslast,created_at.desc&limit=${limit}`;
   if (status && status !== 'all') path += `&status=eq.${enc(status)}`;
+  if (contact_type) path += `&contact_type=eq.${enc(contact_type)}`;
   if (search) {
     const q = `%${search.trim()}%`;
     // PostgREST OR across multiple text columns
@@ -277,7 +290,11 @@ export async function importContacts(userId, normalizedRows, { onProgress } = {}
 // Project linking
 // ----------------------------------------------------------------
 export async function linkContactToProject(userId, contactId, projectId, role = 'point_of_contact') {
-  await restFetch('/contact_projects?select=*', {
+  // on_conflict tells PostgREST which unique constraint to merge on
+  // — without it, merge-duplicates only matches the primary key and
+  // a second link attempt with the same (contact, project, role)
+  // tuple raises 23505 instead of being a silent no-op.
+  await restFetch('/contact_projects?on_conflict=contact_id,project_id,role&select=*', {
     method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
     body: { user_id: userId, contact_id: contactId, project_id: projectId, role },
   });
@@ -290,8 +307,10 @@ export async function unlinkContactFromProject(contactId, projectId, role) {
 }
 
 export async function listProjectsForContact(contactId) {
+  // Embed `stage` so the consumer can show "N awarded" indicators
+  // and gate UI on project status without a second round-trip.
   return await restFetch(
-    `/contact_projects?select=role,created_at,projects(id,name)&contact_id=eq.${enc(contactId)}`
+    `/contact_projects?select=role,created_at,projects(id,name,stage)&contact_id=eq.${enc(contactId)}`
   ) || [];
 }
 

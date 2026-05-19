@@ -28,10 +28,11 @@ function DetailsInput({value,onChange,canEdit}){
   return<div style={{padding:"4px 0",fontSize:10,color:T.fadedInk,opacity:.4}}>—</div>;
 }
 
-function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs,vendors,onAddVendor,onVendorClick,isContingency,contBase,onReorder,accent,onSetCatMargin}){
+function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,onMoveCat,moveTargets,isAg,canEdit,docs,vendors,onAddVendor,onVendorClick,isContingency,contBase,onReorder,accent,onSetCatMargin}){
   const{items,totals}=comp;
   const[dragItem,setDragItem]=useState(null);const[overItem,setOverItem]=useState(null);
   const[catMargin,setCatMargin]=useState(()=>{if(!items.length)return 15;return Math.round((items[0].margin||0)*100)});
+  const[movePopupOpen,setMovePopupOpen]=useState(false);
   const applyCatMargin=()=>{if(onSetCatMargin)onSetCatMargin(catMargin/100)};
   const cols=isAg?"2.2fr .7fr .9fr .9fr .55fr .9fr .9fr":"1.6fr 1.2fr .8fr .7fr .45fr .7fr .7fr .5fr";
   const ac=accent||T.ink;
@@ -40,6 +41,15 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
       onMouseEnter={e=>{if(!open){e.currentTarget.style.background=T.inkSoft3;e.currentTarget.style.borderLeftColor=ac}}} onMouseLeave={e=>{if(!open){e.currentTarget.style.background=T.paper;e.currentTarget.style.borderLeftColor=T.faintRule}}}>
       <span style={{color:ac,marginRight:10,transition:"transform .2s ease",transform:open?"rotate(0)":"rotate(-90deg)",display:"flex"}}><Chev size={14}/></span>
       <span style={{flex:1,textAlign:"left",fontSize:11,fontWeight:700,letterSpacing:".10em",color:T.ink,textTransform:"uppercase"}}>{cat.name}</span>
+      {canEdit&&onMoveCat&&Array.isArray(moveTargets)&&moveTargets.length>0&&<span title="Move section to another budget" onClick={e=>{e.stopPropagation();setMovePopupOpen(v=>!v)}} style={{position:"relative",marginRight:10,opacity:movePopupOpen?1:.3,cursor:"pointer",display:"flex",alignItems:"center",fontSize:13,color:T.ink,transition:"opacity .15s ease",userSelect:"none"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>{if(!movePopupOpen)e.currentTarget.style.opacity=.3}}>
+        ⇆
+        {movePopupOpen&&<span onClick={e=>e.stopPropagation()} style={{position:"absolute",top:"100%",right:0,marginTop:6,minWidth:180,background:T.paper,border:`1px solid ${T.faintRule}`,borderRadius:8,boxShadow:"0 10px 30px rgba(15,82,186,.18)",padding:6,zIndex:50,display:"flex",flexDirection:"column",gap:2}}>
+          <span style={{fontSize:9,fontWeight:700,color:T.fadedInk,letterSpacing:".10em",textTransform:"uppercase",padding:"4px 8px"}}>Move to…</span>
+          {moveTargets.map(t=>(
+            <button key={t.id||"__primary"} type="button" onClick={ev=>{ev.stopPropagation();setMovePopupOpen(false);onMoveCat(t.id)}} style={{padding:"7px 10px",borderRadius:6,border:"none",background:"transparent",color:T.ink,fontFamily:T.sans,fontSize:12,fontWeight:500,textAlign:"left",cursor:"pointer",letterSpacing:"normal",textTransform:"none"}} onMouseEnter={e=>e.currentTarget.style.background=T.inkSoft} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{t.name}</button>
+          ))}
+        </span>}
+      </span>}
       {canEdit&&onRemoveCat&&<span title="Remove section" onClick={e=>{e.stopPropagation();if(confirm(`Remove "${cat.name}" section?`))onRemoveCat()}} style={{marginRight:10,opacity:.3,cursor:"pointer",display:"flex",transition:"opacity .15s ease"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3}><TrashI size={11} color={T.alert}/></span>}
       <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.fadedInk,width:88,textAlign:"right"}}>{f0(totals.actualCost)}</span>
       <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.ink,width:88,textAlign:"right",marginLeft:8,fontWeight:700}}>{f0(totals.clientPrice)}</span>
@@ -60,7 +70,23 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
           <div style={{display:"flex",gap:20,alignItems:"center"}}>
             <div><span style={{fontSize:10,color:T.fadedInk,textTransform:"uppercase",letterSpacing:".10em"}}>Based on </span><span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.ink}}>{f0(contBase)}</span><span style={{fontSize:10,color:T.fadedInk}}> production subtotal</span></div>
             <div style={{flex:1}}/>
-            <div><span style={{fontSize:10,color:T.fadedInk,textTransform:"uppercase",letterSpacing:".10em"}}>Amount </span><span className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:800,color:T.ink}}>{f0(it.actualCost)}</span></div>
+            <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+              <span style={{fontSize:10,color:T.fadedInk,textTransform:"uppercase",letterSpacing:".10em"}}>Amount</span>
+              {canEdit?<div style={{display:"inline-flex",alignItems:"baseline",borderBottom:`1px solid ${T.faintRule}`}}>
+                <span style={{fontSize:14,fontFamily:T.mono,color:T.ink,fontWeight:800,paddingRight:2}}>$</span>
+                <input
+                  key={Math.round(it.actualCost)}
+                  defaultValue={Math.round(it.actualCost).toLocaleString('en-US')}
+                  onBlur={e=>{const v=parseFloat(String(e.target.value).replace(/[$,\s]/g,''))||0;onUp(idx,{actualCost:Math.max(0,v),margin:0})}}
+                  onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur()}}
+                  onFocus={e=>{e.currentTarget.parentElement.style.borderBottomColor=T.ink;e.currentTarget.select()}}
+                  onBlurCapture={e=>{e.currentTarget.parentElement.style.borderBottomColor=T.faintRule}}
+                  title="Type a dollar amount to override; percentage will adjust"
+                  style={{width:110,padding:"2px 0",background:"transparent",border:"none",color:T.ink,fontSize:14,fontFamily:T.mono,fontWeight:800,textAlign:"right",outline:"none"}}
+                />
+              </div>
+              :<span className="num" style={{fontSize:14,fontFamily:T.mono,fontWeight:800,color:T.ink}}>{f0(it.actualCost)}</span>}
+            </div>
           </div>
         </div>})}
     </div>
@@ -98,7 +124,14 @@ function Cat({cat,comp,open,toggle,onUp,onAdd,onRm,onRemoveCat,isAg,canEdit,docs
         </div>
         :<NI value={it.actualCost} onChange={v=>onUp(idx,{actualCost:v})} disabled={!canEdit}/>}
         <NI value={it.margin} fmt="%" onChange={v=>onUp(idx,{margin:v>1?v/100:v})} disabled={!canEdit}/>
-        <NI value={it.clientPrice} onChange={v=>{const m=it.margin||0;const actual=m>0?v/(1+m):v;const upd={actualCost:actual};if(it.qxr&&it.qty>0){upd.rate=actual/it.qty}onUp(idx,upd)}} disabled={!canEdit} color={T.ink}/>
+        {/* Client price input — writes to clientPriceOverride so
+            it can be a true manual override that holds even when
+            cost or margin changes. Small × clears the override
+            and returns to cost × (1+margin). */}
+        {(()=>{const hasOverride=typeof it.clientPriceOverride==='number'&&isFinite(it.clientPriceOverride)&&it.clientPriceOverride>=0;return<div style={{display:'inline-flex',alignItems:'center',gap:4,position:'relative'}} title={hasOverride?'Manually overridden — click × to recompute from cost × margin':'Type to set a manual override that ignores cost × margin'}>
+          <NI value={it.clientPrice} onChange={v=>onUp(idx,{clientPriceOverride:v})} disabled={!canEdit} color={hasOverride?T.ink:T.ink}/>
+          {hasOverride&&canEdit&&<button onClick={()=>onUp(idx,{clientPriceOverride:null})} title="Clear override" style={{background:'transparent',border:'none',color:T.fadedInk,cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 4px',fontFamily:T.sans}}>×</button>}
+        </div>})()}
         <div className="num" style={{textAlign:"right",fontSize:13,fontFamily:T.mono,color:it.variance>0?T.ink:T.fadedInk,fontWeight:600}}>{f$(it.variance)}</div>
         {!isAg&&(()=>{const ps=getPayStatus(it.id,docs);return<div style={{textAlign:"right"}}><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:999,background:"transparent",color:PAYMENT_COLORS[ps]||T.fadedInk,border:`1px solid ${PAYMENT_COLORS[ps]||T.faintRule}`,textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap"}}>{PAYMENT_LABELS[ps]}</span></div>})()}
       </div>})}

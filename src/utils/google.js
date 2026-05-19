@@ -73,6 +73,24 @@ export async function createCalendarEvent(accessToken, meeting) {
   return await res.json();
 }
 
+// List upcoming Google Calendar events. Goes through the
+// /api/calendar-list proxy so the user's Google token doesn't
+// need to be exposed beyond the request body.
+export async function listUpcomingEvents(accessToken, { days = 7, maxResults = 25 } = {}) {
+  if (!accessToken) return { events: [] };
+  const authToken = await getAuthToken();
+  const res = await fetch('/api/calendar-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+    body: JSON.stringify({ accessToken, days, maxResults }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Calendar list failed: ${res.status}`);
+  }
+  return await res.json();
+}
+
 // Search contacts (people you've emailed)
 export async function searchContacts(accessToken, query) {
   try {
@@ -104,5 +122,31 @@ export async function sendEmail(accessToken, to, subject, htmlBody) {
     throw new Error(err.error || 'Failed to send email');
   }
 
+  return await res.json();
+}
+
+// Send an email via Gmail API WITH a file attachment.
+//   attachment: { filename, mimeType, dataBase64 }  (dataBase64 is
+//   raw base64, no data: prefix)
+//
+// Builds a multipart/mixed MIME message client-side and posts via
+// the /api/email-attachment proxy. Capped at 24MB raw → ~32MB
+// base64-encoded so we stay under Gmail's 35MB request limit.
+export async function sendEmailWithAttachment(accessToken, to, subject, htmlBody, attachment) {
+  if (!attachment?.dataBase64) throw new Error('attachment.dataBase64 required');
+  const rawBytes = Math.floor(attachment.dataBase64.length * 0.75);
+  if (rawBytes > 24 * 1024 * 1024) {
+    throw new Error(`Attachment too large (${(rawBytes / 1024 / 1024).toFixed(1)}MB). Gmail caps at ~25MB.`);
+  }
+  const authToken = await getAuthToken();
+  const res = await fetch('/api/email-attachment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+    body: JSON.stringify({ accessToken, to, subject, htmlBody, attachment }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to send email with attachment');
+  }
   return await res.json();
 }

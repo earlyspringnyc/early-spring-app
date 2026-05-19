@@ -7,33 +7,41 @@ import {
 import { listMeetingsForContact, effectiveClassification } from '../lib/meetings.js';
 import { uploadAvatar } from '../lib/avatarUpload.js';
 import { listGmailThreadsForEmail } from '../utils/gmail.js';
+import ScheduleMeetingModal from './ScheduleMeetingModal.jsx';
+import ConceptMenuBuilder from './ConceptMenuBuilder.jsx';
 
+// Status = pipeline stage. Four states; `vendor` and `press`
+// previously lived here but overlapped with type — moved out.
 const STATUS_OPTIONS = [
   { id: 'prospect', label: 'Prospect' },
   { id: 'pitching', label: 'Pitching' },
   { id: 'active',   label: 'Active' },
   { id: 'past',     label: 'Past' },
-  { id: 'vendor',   label: 'Vendor' },
-  { id: 'press',    label: 'Press' },
 ];
 
+// Type = what they are in their org. Four kinds. `agent` was
+// effectively one person (Louisa) so handled via tag instead;
+// `press` is rare enough to also use a tag.
 const TYPE_OPTIONS = [
   { id: 'brand',    label: 'Brand', icon: '◆' },
   { id: 'agency',   label: 'Agency', icon: '◇' },
   { id: 'vendor',   label: 'Vendor', icon: '▣' },
-  { id: 'agent',    label: 'Agent', icon: '◍' },
-  { id: 'press',    label: 'Press', icon: '✎' },
   { id: 'internal', label: 'Internal', icon: '●' },
 ];
 
+// Per-project roles. `agent` lives here (not as a contact type)
+// because it's a relationship to a specific project — Louisa is
+// the agent on the Braun project, but a regular intro source
+// elsewhere. Project-scoped, not contact-scoped.
 const PROJECT_ROLES = [
   { id: 'rfp_sender',       label: 'RFP sender' },
   { id: 'champion',         label: 'Champion' },
   { id: 'point_of_contact', label: 'Point of contact' },
+  { id: 'agent',            label: 'Agent' },
   { id: 'team_member',      label: 'Team member' },
 ];
 
-function ContactDetailDrawer({ contact: initialContact, projects = [], userId, accessToken, onClose, onUpdate, onDelete }) {
+function ContactDetailDrawer({ contact: initialContact, projects = [], userId, accessToken, onClose, onUpdate, onDelete, onEnrich, onOpenPrepBrief, onOpenProject }) {
   const [contact, setContact] = useState(initialContact);
   // `dirty` holds in-progress edits keyed by field name. The contact
   // state above is the union of (saved data) + (dirty edits) for
@@ -52,12 +60,59 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
   const [linkRole, setLinkRole] = useState('point_of_contact');
   const [deleting, setDeleting] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [enrichInput, setEnrichInput] = useState('');
+  const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showConceptMenu, setShowConceptMenu] = useState(false);
   const fileInputRef = useRef(null);
 
   const hasUnsavedChanges = Object.keys(dirty).length > 0;
+  const dirtyRef = useRef(dirty);
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   // Reset state when a different contact is opened
-  useEffect(() => { setContact(initialContact); setDirty({}); }, [initialContact?.id]);
+  useEffect(() => {
+    setContact(initialContact);
+    setDirty({});
+    setEnrichInput('');
+    setEnrichError(null);
+  }, [initialContact?.id]);
+
+  // When the same contact gets patched externally (e.g. the enrich
+  // modal applied a RocketReach diff while the drawer was open), the
+  // parent passes a new `initialContact` reference. Merge it in
+  // without clobbering any in-progress dirty edits, so the drawer
+  // reflects the new values immediately.
+  useEffect(() => {
+    if (!initialContact) return;
+    setContact({ ...initialContact, ...dirtyRef.current });
+  }, [initialContact]);
+
+  const runEnrich = useCallback(async () => {
+    if (!onEnrich) return;
+    const raw = enrichInput.trim();
+    let override;
+    if (raw) {
+      override = raw.includes('@') ? { email: raw } : { linkedin_url: raw };
+    } else if (contact.linkedin_url) {
+      override = { linkedin_url: contact.linkedin_url };
+    } else if (contact.email) {
+      override = { email: contact.email };
+    } else {
+      setEnrichError('Paste a LinkedIn URL or email to look up.');
+      return;
+    }
+    setEnriching(true);
+    setEnrichError(null);
+    try {
+      await onEnrich(contact, override);
+    } catch (e) {
+      setEnrichError(e.message || 'Lookup failed');
+    } finally {
+      setEnriching(false);
+    }
+  }, [onEnrich, enrichInput, contact]);
 
   // Load linked projects + meetings whenever contact id changes
   useEffect(() => {
@@ -292,14 +347,58 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
                 <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: T.ink, letterSpacing: '-0.012em', wordBreak: 'break-word' }}>
                   {fullName}
                 </h2>
-                <div style={{ fontSize: 12, color: T.fadedInk, marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: T.fadedInk, marginTop: 4, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
                   {contact.title && <span>{contact.title}</span>}
-                  {contact.title && contact.company && <span> · </span>}
+                  {contact.title && contact.company && <span>·</span>}
                   {contact.company && <span>{contact.company}</span>}
+                  {(() => {
+                    // Live count of awarded / pitching project links — bumps as
+                    // project stages change without reopening the drawer.
+                    const awarded = linkedProjects.filter(lp => lp.projects?.stage === 'awarded' || lp.projects?.stage === 'current').length;
+                    const pitching = linkedProjects.filter(lp => lp.projects?.stage === 'pitching').length;
+                    return (
+                      <>
+                        {awarded > 0 && (
+                          <span title={`${awarded} awarded project${awarded === 1 ? '' : 's'} with this contact`} style={{
+                            fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                            background: T.ink, color: T.paper, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                          }}>✓ {awarded} awarded</span>
+                        )}
+                        {pitching > 0 && (
+                          <span title={`${pitching} project${pitching === 1 ? '' : 's'} pitching with this contact`} style={{
+                            fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                            background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`,
+                            letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                          }}>◐ {pitching} pitching</span>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
-            <button onClick={safeClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {accessToken && contact.email && (
+                <button onClick={() => setShowScheduleModal(true)} title="Send a Google Calendar invite to this contact" style={{
+                  padding: '6px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                  background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`, cursor: 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '.08em',
+                }}>📅 Schedule</button>
+              )}
+              {onOpenPrepBrief && (
+                <button onClick={() => onOpenPrepBrief(contact)} title="Open a printable brief for your next call with this contact" style={{
+                  padding: '6px 12px', borderRadius: 999, fontSize: 10, fontWeight: 700, fontFamily: T.sans,
+                  background: T.ink, color: T.paper, border: 'none', cursor: 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '.08em',
+                }}>✦ Prep next meeting</button>
+              )}
+              <button onClick={() => setShowConceptMenu(true)} title="Build a 3-tier concept menu to send before formal budget" style={{
+                padding: '6px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`, cursor: 'pointer',
+                textTransform: 'uppercase', letterSpacing: '.08em',
+              }}>✦ Concept menu</button>
+              <button onClick={safeClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
+            </div>
           </div>
 
           {/* Status pills */}
@@ -370,6 +469,56 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
         <div style={{ padding: '24px 28px 80px' }}>
           {tab === 'overview' && (
             <>
+              {/* Sparse-contact heuristic: shows the enrich affordance
+                  only when there's something obvious to fill in.
+                  Contacts created from a Fireflies attendee land here
+                  (just email + name); fully synced contacts hide it. */}
+              {onEnrich && (!contact.title || !contact.company) && (
+                <div style={{
+                  marginBottom: 22, padding: '12px 14px', borderRadius: 8,
+                  background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.ink, letterSpacing: '-0.005em' }}>
+                        🚀 Enrich from RocketReach
+                      </div>
+                      <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2, lineHeight: 1.5 }}>
+                        Paste a LinkedIn URL or email to pull fresh data. You'll see a per-field preview before anything saves.
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      value={enrichInput}
+                      onChange={e => setEnrichInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !enriching) { e.preventDefault(); runEnrich(); } }}
+                      placeholder={contact.linkedin_url || contact.email || 'https://linkedin.com/in/… or name@company.com'}
+                      style={{
+                        flex: 1, padding: '8px 10px', borderRadius: 6,
+                        border: `1px solid ${T.faintRule}`, background: T.paper,
+                        fontSize: 12, fontFamily: T.sans, color: T.ink, outline: 'none',
+                      }}
+                    />
+                    <button onClick={runEnrich} disabled={enriching} style={{
+                      padding: '8px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
+                      background: T.ink, color: T.paper, border: 'none',
+                      cursor: enriching ? 'wait' : 'pointer', opacity: enriching ? .6 : 1, whiteSpace: 'nowrap',
+                    }}>{enriching ? 'Looking up…' : 'Lookup'}</button>
+                  </div>
+                  {enrichError && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: T.alert, lineHeight: 1.5 }}>
+                      {enrichError}
+                    </div>
+                  )}
+                  {!enrichError && !enrichInput && !contact.linkedin_url && contact.email && (
+                    <div style={{ marginTop: 8, fontSize: 10, color: T.fadedInk, lineHeight: 1.5 }}>
+                      Will look up by <b style={{ color: T.ink70 }}>{contact.email}</b>. Paste a LinkedIn URL above for a more accurate match.
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 24px' }}>
                 <EditableField label="First name" value={contact.first_name || ''} onChange={v => updateField('first_name', v)}/>
                 <EditableField label="Last name" value={contact.last_name || ''} onChange={v => updateField('last_name', v)}/>
@@ -380,7 +529,6 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
                 <EditableField label="Location" value={contact.location || ''} onChange={v => updateField('location', v || null)}/>
                 <EditableField label="LinkedIn URL" value={contact.linkedin_url || ''} onChange={v => updateField('linkedin_url', v || null)}/>
                 <EditableField label="Company URL" value={contact.company_url || ''} onChange={v => updateField('company_url', v || null)}/>
-                <EditableField label="Photo URL" value={contact.avatar_url || ''} onChange={v => updateField('avatar_url', v || null)}/>
               </div>
 
               {contact.bio && (
@@ -452,24 +600,43 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
                 </div>
               ) : (
                 <div style={{ marginBottom: 18 }}>
-                  {linkedProjects.map(lp => (
-                    <div key={`${lp.projects?.id}-${lp.role}`} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '12px 14px', border: `1px solid ${T.faintRule}`, borderRadius: 8, marginBottom: 6,
-                    }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{lp.projects?.name || '(deleted project)'}</div>
-                        <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>
-                          {PROJECT_ROLES.find(r => r.id === lp.role)?.label || lp.role}
-                          {lp.projects?.stage && <span> · {lp.projects.stage}</span>}
-                        </div>
+                  {linkedProjects.map(lp => {
+                    const pid = lp.projects?.id;
+                    const clickable = !!(pid && onOpenProject);
+                    return (
+                      <div key={`${pid}-${lp.role}`} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '12px 14px', border: `1px solid ${T.faintRule}`, borderRadius: 8, marginBottom: 6,
+                        background: T.paper,
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => clickable && onOpenProject(pid)}
+                          disabled={!clickable}
+                          style={{
+                            flex: 1, minWidth: 0, textAlign: 'left',
+                            background: 'transparent', border: 'none', padding: 0,
+                            cursor: clickable ? 'pointer' : 'default', fontFamily: T.sans,
+                          }}
+                          title={clickable ? 'Open project' : ''}
+                        >
+                          <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            {lp.projects?.name || '(deleted project)'}
+                            {clickable && <span style={{ color: T.fadedInk, fontSize: 11 }}>→</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>
+                            {PROJECT_ROLES.find(r => r.id === lp.role)?.label || lp.role}
+                            {lp.projects?.stage && <span> · {lp.projects.stage}</span>}
+                          </div>
+                        </button>
+                        <button onClick={() => onRemoveProjectLink(pid, lp.role)} style={{
+                          padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                          background: 'transparent', border: `1px solid ${T.faintRule}`, color: T.fadedInk, cursor: 'pointer',
+                          marginLeft: 10,
+                        }}>Unlink</button>
                       </div>
-                      <button onClick={() => onRemoveProjectLink(lp.projects?.id, lp.role)} style={{
-                        padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
-                        background: 'transparent', border: `1px solid ${T.faintRule}`, color: T.fadedInk, cursor: 'pointer',
-                      }}>Unlink</button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -650,6 +817,26 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
           </div>
         )}
       </div>
+      {showScheduleModal && (
+        <ScheduleMeetingModal
+          contact={contact}
+          accessToken={accessToken}
+          userName={null /* drawer doesn't know user name; modal will fall back */}
+          onClose={() => setShowScheduleModal(false)}
+          onScheduled={() => {
+            // Scheduling counts as a touchpoint — bump last_contacted_at
+            // so the follow-up engine doesn't immediately flag them.
+            const now = new Date().toISOString();
+            updateImmediate({ last_contacted_at: now });
+          }}
+        />
+      )}
+      {showConceptMenu && (
+        <ConceptMenuBuilder
+          contact={contact}
+          onClose={() => setShowConceptMenu(false)}
+        />
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   listProjectsForMeeting, linkMeetingToProject, unlinkMeetingFromProject,
   linkContactToMeeting, unlinkContactFromMeeting,
 } from '../lib/meetings.js';
-import { listContacts, createContact } from '../lib/contacts.js';
+import { listContacts, createContact, previewReenrich, applyReenrichPatch } from '../lib/contacts.js';
 import { addProjectNote, meetingAlreadySavedToProject } from '../lib/projectNotes.js';
 
 // Title-case a name string. Fireflies sometimes returns attendee
@@ -188,7 +188,7 @@ function MeetingRow({ m, onClick }) {
 function ContactLinkSection({
   meeting, contacts, linkedContacts, linkableContacts,
   contactSearch, setContactSearch,
-  onLinkContact, onUnlinkContact, onCreateFromAttendee, creatingAttendeeEmail,
+  onLinkContact, onUnlinkContact, onCreateFromAttendee, creatingAttendeeEmail, enrichingAttendeeEmail,
 }) {
   // Attendees that aren't already linked to a CRM contact via email
   const linkedEmails = new Set(
@@ -250,7 +250,11 @@ function ContactLinkSection({
           <div style={{ fontSize: 10, fontWeight: 600, color: T.ink70, marginBottom: 6 }}>From this meeting's attendees</div>
           <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 8, overflow: 'hidden' }}>
             {suggestionsByAttendee.map(({ att, suggestions }, i) => {
-              const isCreating = creatingAttendeeEmail === (att.email || att.name);
+              const key = att.email || att.name;
+              const isCreating = creatingAttendeeEmail === key;
+              const isEnriching = enrichingAttendeeEmail === key;
+              const busy = isCreating || isEnriching;
+              const buttonLabel = isEnriching ? 'Enriching…' : isCreating ? 'Adding…' : '+ Add & enrich';
               return (
                 <div key={i} style={{
                   padding: '10px 12px',
@@ -271,14 +275,15 @@ function ContactLinkSection({
                     {att.email && (
                       <button
                         onClick={() => onCreateFromAttendee(att)}
-                        disabled={isCreating}
+                        disabled={busy}
+                        title="Creates the contact, links it to this meeting, and pulls title/company/photo from RocketReach"
                         style={{
                           padding: '4px 10px', borderRadius: 999, border: `1px solid ${T.faintRule}`,
                           background: 'transparent', color: T.ink, fontSize: 10, fontWeight: 600,
-                          cursor: isCreating ? 'wait' : 'pointer', fontFamily: T.sans, opacity: isCreating ? .5 : 1,
+                          cursor: busy ? 'wait' : 'pointer', fontFamily: T.sans, opacity: busy ? .55 : 1,
                           whiteSpace: 'nowrap',
                         }}
-                      >{isCreating ? 'Adding…' : '+ Add as new'}</button>
+                      >{buttonLabel}</button>
                     )}
                   </div>
                   {suggestions.length > 0 ? (
@@ -349,7 +354,7 @@ function ContactLinkSection({
   );
 }
 
-function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreateProject, onClose, onReclassify, onSaveNotes, onLinksChanged }) {
+function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreateProject, onClose, onReclassify, onSaveNotes, onLinksChanged, onOpenProject }) {
   const [tab, setTab] = useState('summary');
   const [notesDraft, setNotesDraft] = useState(meeting?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -357,6 +362,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
   const [linkProjectId, setLinkProjectId] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [creatingAttendeeEmail, setCreatingAttendeeEmail] = useState(null);
+  const [enrichingAttendeeEmail, setEnrichingAttendeeEmail] = useState(null);
   // Inline-create-project state. User types a name, clicks Create,
   // we make the project and immediately link this meeting to it.
   const [newProjectName, setNewProjectName] = useState('');
@@ -485,12 +491,18 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
   };
 
   // Create a new contact from a meeting attendee in one click, then
-  // auto-link it. Names are split first-word vs rest; status defaults
-  // to 'prospect' (since they're external to your team) but the user
-  // can change it from the contact detail drawer afterward.
+  // auto-link it AND auto-enrich from RocketReach. Names split into
+  // first-word vs rest; status defaults to 'prospect' (external to
+  // your team); user can change it from the contact drawer later.
+  //
+  // Enrich is fill-only — the meeting's email + name are canonical
+  // and shouldn't be clobbered. We only fill blanks (title, company,
+  // photo, linkedin_url, bio, etc.). RocketReach misses are silent;
+  // the bare contact still gets created and linked.
   const onCreateFromAttendee = async (att) => {
     if (!att?.email && !att?.name) return;
-    setCreatingAttendeeEmail(att.email || att.name);
+    const key = att.email || att.name;
+    setCreatingAttendeeEmail(key);
     try {
       const nameParts = (att.name || '').trim().split(/\s+/);
       const newContact = await createContact(userId, {
@@ -500,10 +512,30 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
         status: 'prospect',
         sources: ['meeting'],
       });
-      if (newContact?.id) {
-        await linkContactToMeeting(userId, meeting.id, newContact.id);
-        onLinksChanged?.();
+      if (!newContact?.id) return;
+      await linkContactToMeeting(userId, meeting.id, newContact.id);
+
+      // Best-effort enrich. RocketReach 404s and timeouts shouldn't
+      // block the link — the contact is already created.
+      if (att.email) {
+        setEnrichingAttendeeEmail(key);
+        try {
+          const { patch } = await previewReenrich(
+            newContact,
+            { email: att.email },
+            { mode: 'fill-only' },
+          );
+          if (Object.keys(patch).length) {
+            await applyReenrichPatch(newContact.id, patch);
+          }
+        } catch (e) {
+          console.warn('[meeting] enrich on create failed:', e.message || e);
+        } finally {
+          setEnrichingAttendeeEmail(null);
+        }
       }
+
+      onLinksChanged?.();
     } catch (e) {
       alert('Could not add contact: ' + (e.message || 'unknown'));
     } finally {
@@ -599,6 +631,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
                 onUnlinkContact={onUnlinkContact}
                 onCreateFromAttendee={onCreateFromAttendee}
                 creatingAttendeeEmail={creatingAttendeeEmail}
+                enrichingAttendeeEmail={enrichingAttendeeEmail}
               />
 
               {/* Section: projects */}
@@ -617,9 +650,26 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
                           background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {lp.projects?.name || '(deleted)'}
-                            </span>
+                            {onOpenProject && pid ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenProject(pid)}
+                                title="Open project"
+                                style={{
+                                  background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                                  fontSize: 12, fontWeight: 600, color: T.ink, fontFamily: T.sans,
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
+                                }}
+                              >
+                                {lp.projects?.name || '(deleted)'}
+                                <span style={{ color: T.fadedInk, fontSize: 11 }}>→</span>
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 12, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {lp.projects?.name || '(deleted)'}
+                              </span>
+                            )}
                             {lp.match_type === 'auto-contact' && <span style={{ opacity: .55, fontSize: 9, color: T.ink70 }}>auto</span>}
                           </div>
                           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -847,7 +897,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
   );
 }
 
-function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCreateProject, onOpenContacts }) {
+function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCreateProject, onOpenContacts, onOpenProject }) {
   const userId = user?.user_id || user?.id;
   const [meetings, setMeetings] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -1019,6 +1069,7 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
           onClose={() => setSelected(null)}
           onReclassify={onReclassify}
           onSaveNotes={onSaveNotes}
+          onOpenProject={onOpenProject}
           onLinksChanged={async () => {
             // Re-fetch the affected meeting so meeting_contacts updates
             try {

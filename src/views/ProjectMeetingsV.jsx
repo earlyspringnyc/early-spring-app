@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import T from '../theme/tokens.js';
 import {
   listMeetingsForProject, linkMeetingToProject, unlinkMeetingFromProject,
@@ -6,6 +6,7 @@ import {
 } from '../lib/meetings.js';
 import { listProjectNotes, addProjectNote, deleteProjectNote } from '../lib/projectNotes.js';
 import { listContactsForProject, linkContactToProject, unlinkContactFromProject, listContacts } from '../lib/contacts.js';
+import ScheduleProjectMeetingModal from '../components/ScheduleProjectMeetingModal.jsx';
 
 function ProjectContactLinker({ allContacts, linkedContacts, contactSearch, setContactSearch, contactRole, setContactRole, onLink }) {
   const linkedIds = new Set(linkedContacts.map(lc => lc.contacts?.id).filter(Boolean));
@@ -87,6 +88,16 @@ function ProjectMeetingsV({ project, user, accessToken }) {
   const [linking, setLinking] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [pickMeetingId, setPickMeetingId] = useState('');
+  // Modal open state for the new project-scoped meeting scheduler.
+  // The modal handles attendee suggestion + Google Calendar creation
+  // entirely on its own; we just toggle visibility here.
+  const [showScheduler, setShowScheduler] = useState(false);
+  // Whether to include auto-linked meetings that don't seem to be
+  // about this project (title doesn't mention project / client name).
+  // These exist because the Fireflies cron auto-links by attendee
+  // overlap — a shared contact triggers a link even if the meeting
+  // was about something else. Hidden by default; user can opt in.
+  const [showOffTopic, setShowOffTopic] = useState(false);
 
   const reload = useCallback(async () => {
     if (!project?.id) return;
@@ -111,6 +122,48 @@ function ProjectMeetingsV({ project, user, accessToken }) {
 
   const linkedIds = new Set(linked.map(m => m.id));
   const linkable = allMeetings.filter(m => !linkedIds.has(m.id));
+
+  // Per-meeting metadata: is this meeting actually about this
+  // project, and which CRM contact triggered the auto-link?
+  //
+  //   - manual links → always relevant.
+  //   - auto-contact links → relevant only if the title/summary
+  //     mentions the project name OR the client name. Otherwise
+  //     it's a false positive (cross-project attendee overlap)
+  //     and should be hidden by default.
+  //
+  // sharedAttendee names which CRM contact appears on both the
+  // project and the meeting — surfaced in the badge so the user
+  // can see WHY the meeting was linked.
+  const projectContactIds = useMemo(
+    () => new Set(linkedContacts.map(lc => lc.contacts?.id).filter(Boolean)),
+    [linkedContacts]
+  );
+  const relevanceTerms = useMemo(() => {
+    const terms = [];
+    if (project?.name && project.name.length >= 3) terms.push(project.name.toLowerCase());
+    if (project?.client && project.client.length >= 3) terms.push(project.client.toLowerCase());
+    return terms;
+  }, [project?.name, project?.client]);
+  const annotated = useMemo(() => linked.map(m => {
+    const haystack = `${m.title || ''} ${m.summary || ''}`.toLowerCase();
+    const titleMatches = relevanceTerms.some(t => haystack.includes(t));
+    const mcs = Array.isArray(m.meeting_contacts) ? m.meeting_contacts : [];
+    const shared = mcs.find(mc => mc.contacts && projectContactIds.has(mc.contacts.id));
+    const sharedAttendee = shared?.contacts
+      ? `${shared.contacts.first_name || ''} ${shared.contacts.last_name || ''}`.trim() || shared.contacts.email
+      : null;
+    const isManual = m._match_type === 'manual';
+    return {
+      ...m,
+      _titleMatches: titleMatches,
+      _sharedAttendee: sharedAttendee,
+      _isRelevant: isManual || titleMatches,
+    };
+  }), [linked, relevanceTerms, projectContactIds]);
+  const relevantMeetings = annotated.filter(m => m._isRelevant);
+  const offTopicMeetings = annotated.filter(m => !m._isRelevant);
+  const visibleMeetings = showOffTopic ? annotated : relevantMeetings;
 
   const onLink = async () => {
     if (!pickMeetingId) return;
@@ -169,17 +222,40 @@ function ProjectMeetingsV({ project, user, accessToken }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 8px 80px', fontFamily: T.sans }}>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: T.ink, marginBottom: 10 }}>
-          {project?.name || 'Project'} · Activity
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: T.ink, marginBottom: 10 }}>
+            {project?.name || 'Project'} · Activity
+          </div>
+          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: T.ink, letterSpacing: '-0.012em' }}>
+            Notes &amp; conversations
+          </h1>
+          <div style={{ fontSize: 13, color: T.fadedInk, marginTop: 6 }}>
+            {loading ? 'Loading…' : `${notes.length} note${notes.length === 1 ? '' : 's'} · ${linked.length} meeting${linked.length === 1 ? '' : 's'}`}
+          </div>
         </div>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: T.ink, letterSpacing: '-0.012em' }}>
-          Notes &amp; conversations
-        </h1>
-        <div style={{ fontSize: 13, color: T.fadedInk, marginTop: 6 }}>
-          {loading ? 'Loading…' : `${notes.length} note${notes.length === 1 ? '' : 's'} · ${linked.length} meeting${linked.length === 1 ? '' : 's'}`}
-        </div>
+        <button
+          onClick={() => setShowScheduler(true)}
+          disabled={!accessToken}
+          title={accessToken ? 'Create a Google Calendar event with the project team' : 'Sign in with Google first'}
+          style={{
+            padding: '10px 18px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+            fontFamily: T.sans, background: T.ink, color: T.paper, border: 'none',
+            cursor: accessToken ? 'pointer' : 'not-allowed', opacity: accessToken ? 1 : 0.5,
+            textTransform: 'uppercase', letterSpacing: '.06em',
+          }}
+        >📅 Schedule meeting</button>
       </div>
+
+      {showScheduler && (
+        <ScheduleProjectMeetingModal
+          project={project}
+          accessToken={accessToken}
+          userName={user?.name}
+          onClose={() => setShowScheduler(false)}
+          onScheduled={() => { /* Optional: refresh meetings list later when Calendar sync lands */ }}
+        />
+      )}
 
       {/* Linked contacts — who's on this project from your CRM */}
       <div style={{ marginTop: 24 }}>
@@ -336,11 +412,37 @@ function ProjectMeetingsV({ project, user, accessToken }) {
           </div>
         ) : (
           <div>
-            {linked.map(m => {
+            {/* Off-topic banner — auto-linked meetings whose title
+                doesn't mention this project / client. Cross-project
+                attendee overlap usually causes these. */}
+            {offTopicMeetings.length > 0 && (
+              <div style={{
+                marginBottom: 12, padding: '10px 14px', borderRadius: 8,
+                background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+              }}>
+                <div style={{ fontSize: 11, color: T.ink70, lineHeight: 1.5 }}>
+                  <strong style={{ color: T.ink }}>{offTopicMeetings.length}</strong> auto-linked meeting{offTopicMeetings.length === 1 ? '' : 's'} hidden — the title doesn't mention <strong style={{ color: T.ink }}>{project?.name || 'this project'}</strong>{project?.client ? <> or <strong style={{ color: T.ink }}>{project.client}</strong></> : null}. Probably linked because a shared CRM contact attended.
+                </div>
+                <button
+                  onClick={() => setShowOffTopic(s => !s)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                    background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`,
+                    cursor: 'pointer', fontFamily: T.sans,
+                  }}
+                >{showOffTopic ? 'Hide' : 'Show'}</button>
+              </div>
+            )}
+            {visibleMeetings.map(m => {
               const cls = effectiveClassification(m);
+              const isOffTopic = !m._isRelevant;
               return (
                 <div key={m.id} style={{
-                  padding: '14px 18px', border: `1px solid ${T.faintRule}`, borderRadius: 10, marginBottom: 8, background: T.paper,
+                  padding: '14px 18px',
+                  border: `1px solid ${isOffTopic ? T.alert + '33' : T.faintRule}`,
+                  borderRadius: 10, marginBottom: 8,
+                  background: isOffTopic ? T.alertSoft : T.paper,
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: T.ink, minWidth: 0 }}>
@@ -352,7 +454,13 @@ function ProjectMeetingsV({ project, user, accessToken }) {
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 4 }}>
-                    {cls} · {m._match_type === 'manual' ? 'manually linked' : 'auto-linked via contact'}
+                    {cls}
+                    {' · '}
+                    {m._match_type === 'manual'
+                      ? 'manually linked'
+                      : m._sharedAttendee
+                        ? <span>auto-linked because <strong style={{ color: T.ink70 }}>{m._sharedAttendee}</strong> attended{isOffTopic ? ' — likely not about this project' : ''}</span>
+                        : 'auto-linked via shared contact'}
                   </div>
                   {m.summary && (
                     <div style={{ fontSize: 12, color: T.ink70, marginTop: 10, lineHeight: 1.55 }}>

@@ -8,6 +8,10 @@ import { mkClientFile } from '../data/factories.js';
 import { PlusI, DlI, TrashI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
+import { listContactsForProject, listContacts } from '../lib/contacts.js';
+import { listMeetingsForProject } from '../lib/meetings.js';
+import { normalizeCompany } from '../utils/companyDedup.js';
+import { restFetch } from '../lib/db.js';
 import CalendarView from './CalendarView.jsx';
 import GanttChart from './GanttChart.jsx';
 import { syncFirefliesMeetings } from '../utils/fireflies.js';
@@ -195,7 +199,81 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const[deckEmail,setDeckEmail]=useState("");const[deckSending,setDeckSending]=useState(false);const[deckSent,setDeckSent]=useState("");
   const[figmaUrl,setFigmaUrl]=useState(project.figmaDeckUrl||"");
   const deck=project.pitchDeck||null;
-  const clientContacts=project.clientContacts||[];
+  // Legacy "manually entered client contacts" stored on the project's
+  // JSONB blob. Pre-CRM model. Merged below with CRM-resolved contacts
+  // so the Client Contacts card on the Client View pulls from both
+  // sources without losing legacy data.
+  const legacyClientContacts=project.clientContacts||[];
+
+  // CRM contacts + meetings linked to this project. Mirrors the
+  // hardwire pattern in DashV: explicit contact_projects links
+  // PLUS contacts whose company matches project.client.
+  const[crmContacts,setCrmContacts]=useState([]);
+  const[crmMeetings,setCrmMeetings]=useState([]);
+  useEffect(()=>{
+    if(!project?.id)return;
+    let cancelled=false;
+    (async()=>{
+      const targetNorm=normalizeCompany(project.client||"");
+      let byCompany=[];
+      if(targetNorm){
+        try{
+          const rows=await listContacts({search:project.client,limit:200});
+          byCompany=(rows||[]).filter(c=>normalizeCompany(c.company||"")===targetNorm);
+        }catch(e){console.warn("[expv] company-contacts load failed:",e.message||e)}
+      }
+      let explicit=[];
+      try{explicit=await listContactsForProject(project.id)||[]}
+      catch(e){console.warn("[expv] contact_projects load failed:",e.message||e)}
+      const seenIds=new Set(explicit.map(lp=>lp.contacts?.id).filter(Boolean));
+      const merged=[
+        ...explicit.map(lp=>({...lp.contacts,_role:lp.role})),
+        ...byCompany.filter(c=>!seenIds.has(c.id)).map(c=>({...c,_role:"client_team"})),
+      ];
+      if(!cancelled)setCrmContacts(merged);
+
+      // Meetings: explicit meeting_projects + meetings linked to any
+      // of the company contacts. Batched query keeps DB load minimal.
+      let explicitM=[];
+      try{explicitM=await listMeetingsForProject(project.id)||[]}
+      catch(e){console.warn("[expv] meeting_projects load failed:",e.message||e)}
+      const mById=new Map(explicitM.map(m=>[m.id,m]));
+      const allContactIds=[...seenIds,...byCompany.map(c=>c.id)].filter(Boolean);
+      if(allContactIds.length){
+        try{
+          const enc=encodeURIComponent;
+          const path=`/meeting_contacts?select=meetings(*)&contact_id=in.(${allContactIds.map(enc).join(',')})&limit=200`;
+          const rows=await restFetch(path);
+          for(const r of (rows||[])){
+            const m=r?.meetings;
+            if(m?.id&&!mById.has(m.id))mById.set(m.id,m);
+          }
+        }catch(e){console.warn("[expv] meeting batch load failed:",e.message||e)}
+      }
+      const all=[...mById.values()].sort((a,b)=>new Date(b.occurred_at||0)-new Date(a.occurred_at||0));
+      if(!cancelled)setCrmMeetings(all);
+    })();
+    return()=>{cancelled=true};
+  },[project?.id,project?.client]);
+
+  // Shape CRM contacts into the same { id, name, role, email } the
+  // existing UI expects, then merge with legacy.
+  const ROLE_LABEL={rfp_sender:"RFP sender",champion:"Champion",point_of_contact:"Point of contact",agent:"Agent",team_member:"Team member",client_team:"Client team"};
+  const crmAsClientContacts=crmContacts.map(c=>({
+    id:c.id,
+    name:`${c.first_name||""} ${c.last_name||""}`.trim()||c.email||"(No name)",
+    email:c.email||"",
+    role:ROLE_LABEL[c._role]||c._role||"",
+    phone:c.phone||"",
+    title:c.title||"",
+    _crm:true,
+  }));
+  // Dedupe by email — legacy entries with matching email get replaced.
+  const seenEmails=new Set(crmAsClientContacts.map(c=>c.email?.toLowerCase()).filter(Boolean));
+  const clientContacts=[
+    ...crmAsClientContacts,
+    ...legacyClientContacts.filter(c=>!c.email||!seenEmails.has(c.email.toLowerCase())),
+  ];
   const[editingContacts,setEditingContacts]=useState(false);
   const[newContactName,setNewContactName]=useState("");const[newContactEmail,setNewContactEmail]=useState("");const[newContactRole,setNewContactRole]=useState("");const[newContactPhone,setNewContactPhone]=useState("");
   const[showExportMenu,setShowExportMenu]=useState(false);
@@ -334,6 +412,72 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   };
   const removeFile=id=>updateProject({clientFiles:clientFiles.filter(f=>f.id!==id)});
   const updateFileCategory=(id,cat)=>updateProject({clientFiles:clientFiles.map(f=>f.id===id?{...f,category:cat}:f)});
+
+  // ── Share-a-file via email state. The user clicks "Send" on a
+  // file card → modal opens prefilled with project client emails +
+  // a default subject. Gmail-sent so the email arrives FROM the
+  // signed-in user.
+  const [shareFile, setShareFile] = useState(null);
+  const [shareTo, setShareTo] = useState('');
+  const [shareMessage, setShareMessage] = useState('');
+  const [shareSending, setShareSending] = useState(false);
+  const [shareError, setShareError] = useState(null);
+  const [shareSentTo, setShareSentTo] = useState('');
+  const openShareFileModal = (f) => {
+    setShareFile(f);
+    setShareError(null);
+    setShareSentTo('');
+    setShareMessage('');
+    if (!shareTo) setShareTo(clientEmails);
+  };
+  const closeShareFileModal = () => { setShareFile(null); setShareError(null); };
+  // Resolve fileData from the doc, localStorage, or null. Same
+  // fallback chain the FileViewerModal uses.
+  const resolveFileData = (f) => {
+    if (f?.fileData) return f.fileData;
+    try { return localStorage.getItem(`es_file_${f?.id}`) || null; } catch { return null; }
+  };
+  const sendFileViaEmail = async () => {
+    if (!shareFile) return;
+    if (!shareTo.trim()) { setShareError('Recipient email is required.'); return; }
+    let token = accessToken;
+    if (!token) { try { token = localStorage.getItem('es_google_token'); } catch {} }
+    if (!token) { setShareError('Sign in with Google first — Morgan emails via your Gmail account.'); return; }
+    const dataUrl = resolveFileData(shareFile);
+    if (!dataUrl || !dataUrl.includes(',')) {
+      setShareError("Couldn't load the file content. Try re-uploading and sending again.");
+      return;
+    }
+    setShareSending(true);
+    setShareError(null);
+    try {
+      const [meta, raw] = dataUrl.split(',');
+      const mimeMatch = /data:([^;]+);base64/.exec(meta);
+      const mimeType = mimeMatch?.[1] || 'application/octet-stream';
+      const filename = shareFile.fileName || `${shareFile.name || 'attachment'}`;
+      const subject = `${shareFile.name || 'File'} — ${project.name || 'Early Spring'}`;
+      const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; color: #0F52BA;">
+          <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
+            Hi — attaching <strong>${esc(shareFile.name || filename)}</strong> for <strong>${esc(project.name || 'our project')}</strong>.
+          </p>
+          ${shareMessage.trim() ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px; white-space: pre-wrap;">${esc(shareMessage.trim())}</p>` : ''}
+          <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">Let me know if anything's blocked or you need a re-send.</p>
+          <p style="font-size: 11px; color: rgba(15,82,186,.55); margin: 24px 0 0;">
+            Early Spring NYC · earlyspring.nyc
+          </p>
+        </div>
+      `;
+      const { sendEmailWithAttachment } = await import('../utils/google.js');
+      await sendEmailWithAttachment(token, shareTo.trim(), subject, html, {
+        filename, mimeType, dataBase64: raw,
+      });
+      setShareSentTo(shareTo.trim());
+    } catch (e) {
+      setShareError(e.message || 'Send failed');
+    } finally { setShareSending(false); }
+  };
   const filteredFiles=(fileFilter==="all"?clientFiles:clientFiles.filter(f=>f.category===fileFilter)).filter(f=>!fileSearch||f.name.toLowerCase().includes(fileSearch.toLowerCase())||((f.fileName||"").toLowerCase().includes(fileSearch.toLowerCase())));
   const fileCounts=CLIENT_FILE_CATS.reduce((a,c)=>{a[c]=clientFiles.filter(f=>f.category===c).length;return a},{});
 
@@ -621,7 +765,24 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       </div>
 
       {/* ── Meeting Notes ── */}
-      {(()=>{const allMtgs=project.meetings||[];const cEmails=(project.clientContacts||[]).map(c=>(c.email||"").toLowerCase()).filter(Boolean);const clientMtgs=allMtgs.filter(m=>m.isClientMeeting||(cEmails.length>0&&(m.attendees||[]).some(a=>cEmails.includes((a||"").toLowerCase()))));return<div onClick={()=>setActiveView("meetings")} style={cardStyle("#06B6D4")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
+      {(()=>{
+        // Three sources of client meetings, merged:
+        //   1. Legacy project.meetings flagged isClientMeeting
+        //   2. Legacy meetings with an attendee email matching a legacy client contact
+        //   3. CRM meetings resolved via contact_projects + hardwire-by-company
+        const allMtgs=project.meetings||[];
+        const cEmails=(project.clientContacts||[]).map(c=>(c.email||"").toLowerCase()).filter(Boolean);
+        const legacyClientMtgs=allMtgs.filter(m=>m.isClientMeeting||(cEmails.length>0&&(m.attendees||[]).some(a=>cEmails.includes((a||"").toLowerCase()))));
+        // Normalize CRM meetings to the {title,date,id} shape the
+        // card already renders.
+        const crmAsClient=crmMeetings.map(m=>({
+          id:m.id,
+          title:m.title||"Untitled",
+          date:m.occurred_at?new Date(m.occurred_at).toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"numeric"}):"",
+          _crm:true,
+        }));
+        const clientMtgs=[...crmAsClient,...legacyClientMtgs];
+        return<div onClick={()=>setActiveView("meetings")} style={cardStyle("#06B6D4")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
         <div style={{padding:"24px 26px"}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Meeting Notes</div>
           <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:14}}>
@@ -686,6 +847,13 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
     const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";a.download=(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
   };
+  const exportEstimatePNG=async()=>{
+    const bd=getSelectedBudgetData();
+    const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
+    const activeBudgetName=label||"Primary Budget";
+    const{exportClientBudgetPNG}=await import('../utils/clientBudgetPNG.js');
+    await exportClientBudgetPNG(project,{cats:bd.cats,ag:bd.ag,comp:bd.comp,feeP:bd.feeP,activeBudgetName},{filename:(project.name||"estimate")+(label?`-${label}`:"")+"-client-summary.png"});
+  };
   /* ══ ESTIMATE VIEW ══ */
   if(activeView==="budget"){
   // Resolve which budget to display
@@ -710,7 +878,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <div style={{position:"relative"}}>
           <button onClick={()=>{setShowExportMenu(!showExportMenu);setShowShareMenu(false)}} style={{padding:"8px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Export &#9662;</button>
           {showExportMenu&&<div className="fc-panel" style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:60,minWidth:200,padding:4,borderRadius:12,overflow:"hidden"}}>
-            {[["PDF",()=>{exportEstimatePDF();setShowExportMenu(false)},"Download PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"]].map(([label,fn,sub])=>
+            {[["PDF",()=>{exportEstimatePDF();setShowExportMenu(false)},"Download PDF"],["XLSX",()=>{exportEstimateXLSX();setShowExportMenu(false)},"Spreadsheet"],["CSV",()=>{exportEstimateCSV();setShowExportMenu(false)},"Comma-separated"],["Client PNG",()=>{exportEstimatePNG();setShowExportMenu(false)},"Section totals · landscape for decks"]].map(([label,fn,sub])=>
               <button key={label} onClick={fn} style={{width:"100%",display:"flex",flexDirection:"column",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer",textAlign:"left",fontFamily:T.sans}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:12,fontWeight:600,color:T.cream}}>{label}</span>
                 <span style={{fontSize:10,color:T.dim,marginTop:1}}>{sub}</span>
@@ -898,6 +1066,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <div style={{fontSize:9,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:8}}>{f.fileName} · {f.dateAdded}</div>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
               <select value={f.category} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();updateFileCategory(f.id,e.target.value)}} style={{flex:1,padding:"3px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>{CLIENT_FILE_CATS.map(c=><option key={c} value={c}>{CLIENT_FILE_LABELS[c]}</option>)}</select>
+              <button onClick={e=>{e.stopPropagation();openShareFileModal(f)}} title="Send this file via email" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:4,cursor:"pointer",padding:"3px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.cream}}>✉</button>
               <button onClick={e=>{e.stopPropagation();removeFile(f.id)}} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.18)",borderRadius:4,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={10} color={T.neg}/></button>
             </div>
           </div>
@@ -909,6 +1078,41 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       <p style={{fontSize:12,color:T.dim}}>Upload RFPs, briefs, design files, contracts, decks</p>
     </div>}
     {viewingFile&&<FileViewerModal file={viewingFile} onClose={()=>setViewingFile(null)}/>}
+    {shareFile&&<div onClick={closeShareFileModal} style={{position:"fixed",inset:0,zIndex:220,background:"rgba(15,82,186,.22)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:520,maxWidth:"100%",background:T.paper,borderRadius:12,border:`1px solid ${T.faintRule}`,boxShadow:"0 20px 60px rgba(15,82,186,.18)",padding:"22px 24px",fontFamily:T.sans}}>
+        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:14}}>
+          <h2 style={{margin:0,fontSize:17,fontWeight:700,color:T.ink,letterSpacing:"-0.012em"}}>✉ Send file via email</h2>
+          <button type="button" onClick={closeShareFileModal} style={{background:"transparent",border:"none",color:T.fadedInk,cursor:"pointer",fontSize:18}}>×</button>
+        </div>
+        <div style={{padding:"10px 12px",borderRadius:8,background:T.inkSoft2,border:`1px solid ${T.faintRule}`,marginBottom:14,fontSize:12,color:T.ink,lineHeight:1.5}}>
+          <div style={{fontWeight:600,marginBottom:2}}>{shareFile.name}</div>
+          <div style={{fontSize:10,color:T.fadedInk}}>{shareFile.fileName} · {shareFile.category}</div>
+        </div>
+        {shareSentTo?<>
+          <div style={{padding:14,borderRadius:8,background:T.inkSoft,border:`1px solid ${T.faintRule}`,fontSize:13,color:T.ink,lineHeight:1.5,marginBottom:14}}>
+            ✓ Sent to <strong>{shareSentTo}</strong> from your Gmail. They'll see the file as an attachment.
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end"}}>
+            <button onClick={closeShareFileModal} style={{padding:"8px 16px",borderRadius:6,fontSize:12,fontWeight:700,fontFamily:T.sans,background:T.ink,color:T.paper,border:"none",cursor:"pointer",letterSpacing:".04em"}}>Done</button>
+          </div>
+        </>:<>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:9,fontWeight:700,color:T.fadedInk,letterSpacing:".12em",textTransform:"uppercase",marginBottom:4}}>Recipient email</div>
+            <input type="email" value={shareTo} onChange={e=>setShareTo(e.target.value)} placeholder={clientEmails||"name@company.com"} style={{width:"100%",padding:"8px 10px",borderRadius:6,border:`1px solid ${T.faintRule}`,background:T.paper,fontSize:13,fontFamily:T.sans,color:T.ink,outline:"none"}}/>
+            <div style={{marginTop:4,fontSize:10,color:T.fadedInk,fontStyle:"italic"}}>Defaults to the client contacts on this project. Override for one-offs.</div>
+          </div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:9,fontWeight:700,color:T.fadedInk,letterSpacing:".12em",textTransform:"uppercase",marginBottom:4}}>Short message · optional</div>
+            <textarea value={shareMessage} onChange={e=>setShareMessage(e.target.value)} placeholder="As discussed, here's the deck. Let me know any thoughts." style={{width:"100%",padding:"8px 10px",borderRadius:6,minHeight:60,border:`1px solid ${T.faintRule}`,background:T.paper,fontSize:13,fontFamily:T.sans,color:T.ink,outline:"none",resize:"vertical",lineHeight:1.5}}/>
+          </div>
+          {shareError&&<div style={{marginTop:6,padding:"10px 12px",borderRadius:8,background:T.alertSoft,border:`1px solid ${T.alert}33`,color:T.alert,fontSize:11,lineHeight:1.5,marginBottom:10}}>{shareError}</div>}
+          <div style={{marginTop:8,display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button onClick={closeShareFileModal} style={{padding:"8px 16px",borderRadius:6,fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",color:T.ink70,border:`1px solid ${T.faintRule}`,cursor:"pointer"}}>Cancel</button>
+            <button onClick={sendFileViaEmail} disabled={shareSending||!shareTo.trim()} style={{padding:"8px 16px",borderRadius:6,fontSize:12,fontWeight:700,fontFamily:T.sans,background:T.ink,color:T.paper,border:"none",cursor:shareSending?"wait":(shareTo.trim()?"pointer":"not-allowed"),opacity:shareSending||!shareTo.trim()?.6:1,letterSpacing:".04em"}}>{shareSending?"Sending…":"📤 Send"}</button>
+          </div>
+        </>}
+      </div>
+    </div>}
   </div>;
 
   /* ══ MEETINGS VIEW ══ */

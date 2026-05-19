@@ -5,7 +5,6 @@ import { GOOGLE_CLIENT_ID } from './constants/index.js';
 import { useSupabaseAuth } from './hooks/useSupabaseAuth.js';
 import { useGoogleAuth } from './hooks/useGoogleAuth.js';
 import { useProjects } from './hooks/useProjects.js';
-import { useVendors } from './hooks/useVendors.js';
 import { isSupabaseConfigured } from './lib/supabase.js';
 import Login from './views/Login.jsx';
 import LandingPage from './views/LandingPage.jsx';
@@ -14,6 +13,10 @@ import EPDashboard from './views/EPDashboard.jsx';
 import ProjectView from './views/ProjectView.jsx';
 import ContactsView from './views/ContactsView.jsx';
 import MeetingsView from './views/MeetingsView.jsx';
+import PipelineView from './views/PipelineView.jsx';
+import BooksView from './views/BooksView.jsx';
+import ActivityView from './views/ActivityView.jsx';
+import HelpView from './views/HelpView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
 import SharedClientView from './views/SharedClientView.jsx';
 
@@ -180,28 +183,45 @@ function App(){
   const switchOrgSafe = useCallback(async (nextOrgId) => {
     try { await flushPending?.(); } catch (e) { console.warn('[app] flushPending before org switch failed:', e); }
     setActiveIdRaw(null);
-    try { sessionStorage.removeItem('es_activeProject'); } catch (e) {}
+    try { localStorage.removeItem('es_activeProject'); } catch (e) {}
     return sbAuth.switchOrg?.(nextOrgId);
   }, [flushPending, sbAuth]);
-  const { vendors: sharedVendors, addVendor: addSharedVendor, updateVendor: updateSharedVendor, removeVendor: removeSharedVendor } = useVendors(orgId);
   const[saving,setSaving]=useState(false);
   const[lastSaved,setLastSaved]=useState(null);
 
   const[showLogin,setShowLogin]=useState(false);
-  const[activeId,setActiveIdRaw]=useState(()=>{try{return sessionStorage.getItem("es_activeProject")||null}catch(e){return null}});
-  const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id)sessionStorage.setItem("es_activeProject",id);else sessionStorage.removeItem("es_activeProject")}catch(e){}},[]);
+  const[activeId,setActiveIdRaw]=useState(()=>{try{return localStorage.getItem("es_activeProject")||null}catch(e){return null}});
+  const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id){localStorage.setItem("es_activeProject",id);/* Reset the per-project view so clicking a project always lands on its dashboard. Refresh persistence still works — it just stores again the moment the user navigates within the project. */ localStorage.removeItem(`es_view_${id}`)}else localStorage.removeItem("es_activeProject")}catch(e){}},[]);
   const[showNew,setShowNew]=useState(false);
   // Top-level view: 'dashboard' (home) or 'contacts' (CRM). Project view
   // is owned by activeId; setting it to a non-null value supersedes both.
   // Persisted in sessionStorage so a page refresh keeps you on the same
   // top-level surface — refreshing on /contacts no longer kicks back to
   // the dashboard.
-  const[topView,setTopViewRaw]=useState(()=>{try{return sessionStorage.getItem("es_topView")||"dashboard"}catch(e){return"dashboard"}});
+  const[topView,setTopViewRaw]=useState(()=>{
+    // URL takes precedence so /help works as a deep link even
+    // without sign-in (the help view doesn't need auth state).
+    try{
+      if(typeof window!=='undefined'&&window.location.pathname==='/help')return 'help';
+    }catch(e){}
+    try{return localStorage.getItem("es_topView")||"dashboard"}catch(e){return"dashboard"}
+  });
   const setTopView=useCallback(v=>{
     setTopViewRaw(v);
     try{
-      if(v&&v!=="dashboard")sessionStorage.setItem("es_topView",v);
-      else sessionStorage.removeItem("es_topView");
+      if(v&&v!=="dashboard")localStorage.setItem("es_topView",v);
+      else localStorage.removeItem("es_topView");
+    }catch(e){}
+    // Keep the URL in sync so /help is a stable bookmarkable URL,
+    // and other top views show clean paths (without polluting
+    // browser history for in-app navigation).
+    try{
+      if(typeof window!=='undefined'){
+        const path=v==='help'?'/help':'/';
+        if(window.location.pathname!==path){
+          window.history.replaceState(null,'',path);
+        }
+      }
     }catch(e){}
   },[]);
   const[toasts,setToasts]=useState([]);
@@ -229,7 +249,7 @@ function App(){
     if(!projects.find(p=>p.id===activeId)){
       console.warn('[app] active project not found in current list — clearing');
       setActiveIdRaw(null);
-      try{sessionStorage.removeItem('es_activeProject')}catch(e){}
+      try{localStorage.removeItem('es_activeProject')}catch(e){}
     }
   },[loaded,activeId,projects]);
 
@@ -327,24 +347,45 @@ function App(){
     </div>
   </div>;
 
+  // Help is accessible without auth — it's a public documentation page.
+  if(topView==="help")return<HelpView onBack={user?()=>setTopView("dashboard"):null}/>;
+
   if(!user){
     if(showLogin)return<Login onLogin={setUser} googleClientId={GOOGLE_CLIENT_ID} onGoogleLogin={loginWithGoogle} onEmailLogin={usesSupa?sbAuth.loginWithEmail:null} onEmailSignUp={usesSupa?sbAuth.signUp:null} isSupabase={usesSupa}/>;
     return<LandingPage onGetStarted={()=>setShowLogin(true)}/>;
   }
 
-  if(topView==="contacts"&&!activeProject)return<><ContactsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenMeetings={()=>setTopView("meetings")}/>
+  if(topView==="contacts"&&!activeProject)return<><ContactsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenMeetings={()=>setTopView("meetings")} onOpenPipeline={()=>setTopView("pipeline")} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
   </>;
 
-  if(topView==="meetings"&&!activeProject)return<><MeetingsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onCreateProject={createProjectQuietly} onOpenContacts={()=>setTopView("contacts")}/>
+  if(topView==="pipeline"&&!activeProject)return<><PipelineView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
   </>;
 
-  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} sharedVendors={sharedVendors} addSharedVendor={addSharedVendor} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  if(topView==="books"&&!activeProject)return<><BooksView user={user} onBack={()=>setTopView("dashboard")} projects={projects} onOpenProject={setActiveId}/>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+    </div>
+  </>;
+
+  if(topView==="activity"&&!activeProject)return<><ActivityView onBack={()=>setTopView("dashboard")}/>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+    </div>
+  </>;
+
+  if(topView==="meetings"&&!activeProject)return<><MeetingsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onCreateProject={createProjectQuietly} onOpenContacts={()=>setTopView("contacts")} onOpenProject={setActiveId}/>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+    </div>
+  </>;
+
+  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{
         const isErr=t.type==='error';
@@ -354,7 +395,16 @@ function App(){
     </div>
   </>;
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
-  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} onOpenContacts={()=>setTopView("contacts")} onOpenMeetings={()=>setTopView("meetings")} user={user} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  // If a finance/accounts user signs in with no active project,
+  // land them on Books by default — that's their primary surface.
+  if(!activeProject && topView==="dashboard" && (user?.role==='finance' || user?.role==='accounts')) {
+    return<><BooksView user={user} onBack={doLogout} projects={projects} onOpenProject={setActiveId}/>
+      <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+        {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+      </div>
+    </>;
+  }
+  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} onOpenContacts={()=>setTopView("contacts")} onOpenMeetings={()=>setTopView("meetings")} onOpenPipeline={()=>setTopView("pipeline")} onOpenBooks={()=>setTopView("books")} onOpenActivity={()=>setTopView("activity")} onOpenHelp={()=>setTopView("help")} user={user} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {(conflicts||[]).map(c=><div key={c.projectId} className="slide-in" style={{padding:"12px 18px",borderRadius:T.rS,background:T.alertSoft,border:`1px solid ${T.alert}`,color:T.alert,fontSize:12,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>
         <div style={{fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:4}}>Refreshed from server</div>

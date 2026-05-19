@@ -477,9 +477,62 @@ export function useProjects(orgId) {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
       const updates = typeof updatesOrFn === 'function' ? updatesOrFn(p) : updatesOrFn;
+      // Detect budget-shape changes so we can snapshot the
+      // post-save state into the budget_snapshots table. Throttled
+      // to one snapshot per 30s of editing so a long typing burst
+      // doesn't create dozens of rows. Insert happens fire-and-
+      // forget after the in-memory update so the UI stays snappy.
+      const BUDGET_KEYS = ['cats', 'ag', 'feeP', 'clientBudget', 'budgets'];
+      const budgetChanged = BUDGET_KEYS.some(k =>
+        k in updates && JSON.stringify(updates[k]) !== JSON.stringify(p[k])
+      );
       const updated = { ...p, ...updates };
+      if (budgetChanged) {
+        const sinceLast = (typeof window !== 'undefined' && window.__lastBudgetSnap?.[projectId])
+          ? Date.now() - window.__lastBudgetSnap[projectId]
+          : Infinity;
+        if (sinceLast > 30_000) {
+          if (typeof window !== 'undefined') {
+            window.__lastBudgetSnap = window.__lastBudgetSnap || {};
+            window.__lastBudgetSnap[projectId] = Date.now();
+          }
+          // Fire the snapshot insert in the background. Failures
+          // are logged but don't block editing.
+          (async () => {
+            try {
+              const { createBudgetSnapshot } = await import('../lib/budgetSnapshots.js');
+              const { getSession } = await import('../lib/db.js');
+              const session = await getSession().catch(() => null);
+              const meta = session?.user?.user_metadata || {};
+              const userName = meta.full_name || meta.name || session?.user?.email || null;
+              const userEmail = session?.user?.email || null;
+              const userId = session?.user?.id || null;
+              await createBudgetSnapshot(projectId, {
+                userId, userName, userEmail,
+                auto: true,
+                label: null,
+                data: {
+                  cats: updated.cats || [],
+                  ag: updated.ag || [],
+                  feeP: updated.feeP,
+                  clientBudget: updated.clientBudget,
+                  budgets: updated.budgets || [],
+                },
+              });
+            } catch (e) { console.warn('[budget-snap] save failed:', e?.message); }
+          })();
+        }
+      }
       cleanupFileCache(p, updated);
       saveToSupabase(projectId, updated);
+      // Slack notification on stage transitions to 'awarded' or
+      // 'current' (i.e., we won the work). Fire-and-forget.
+      if (updates?.stage && updates.stage !== p.stage && (updates.stage === 'awarded' || updates.stage === 'current')) {
+        import('../lib/slack.js').then(({ notifySlack }) => {
+          const fee = updated.clientBudget ? `$${Number(updated.clientBudget).toLocaleString()}` : '—';
+          notifySlack(`🎉 *Project ${updates.stage}*: *${updated.name}* (${updated.client || 'no client set'}) · target ${fee}`);
+        }).catch(() => {});
+      }
       return updated;
     }));
   }, [saveToSupabase]);

@@ -145,6 +145,26 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
   .file-grid{grid-template-columns:1fr 1fr!important}
   .num{word-break:break-all}
   .chart-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* ── Mobile: Books / Activity / Help ── */
+  /* Books header: stack the metric row under the title */
+  .books-header{flex-direction:column!important;align-items:flex-start!important}
+  .books-header-metrics{flex-wrap:wrap!important;gap:14px!important}
+  /* Books / Activity tables: horizontal scroll instead of squeezing */
+  .scroll-table{overflow-x:auto!important;-webkit-overflow-scrolling:touch;border-radius:8px;}
+  .scroll-table > div{min-width:680px}
+  /* Help page: drop the TOC entirely on small screens — it's
+     too cramped to be useful. The sections render full-width
+     and the user scrolls naturally. */
+  .help-grid{grid-template-columns:1fr!important;padding:24px 16px!important}
+  .help-toc{display:none!important}
+  .help-body{font-size:15px!important;line-height:1.7!important}
+  .help-body h2{font-size:20px!important}
+  .help-body table{font-size:12px!important}
+  /* Contacts: stack cluster header rows */
+  .contacts-cluster-header{flex-direction:column!important;align-items:flex-start!important;gap:8px!important}
+  /* Generic tap target boost for sapphire pill buttons */
+  .btn-pill{min-height:38px}
 }
 @media(min-width:769px){
   .mobile-nav{display:none!important}

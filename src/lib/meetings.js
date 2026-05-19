@@ -101,9 +101,12 @@ export async function unlinkMeetingFromProject(meetingId, projectId) {
 }
 
 // All meetings linked to a given project — used by the project view.
+// Fetches the embedded meeting_contacts so callers can show which
+// CRM contact triggered the auto-link (the source of cross-project
+// false positives).
 export async function listMeetingsForProject(projectId) {
   const rows = await restFetch(
-    `/meeting_projects?select=match_type,meetings(*)&project_id=eq.${enc(projectId)}`
+    `/meeting_projects?select=match_type,meetings(*,meeting_contacts(contact_id,match_type,contacts(id,first_name,last_name,company,email)))&project_id=eq.${enc(projectId)}`
   );
   if (!Array.isArray(rows)) return [];
   return rows

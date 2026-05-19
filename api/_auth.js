@@ -23,21 +23,34 @@ export async function verifyAuth(req) {
   }
 }
 
-// Simple in-memory rate limiter (per Vercel serverless instance)
+// Simple in-memory rate limiter (per Vercel serverless instance).
+// Tracks per-IP AND per-bearer-token. Failing either limit returns
+// false. Different limits per kind so a logged-in user can be more
+// permissive than anonymous traffic.
 const rateLimits = {};
 const WINDOW_MS = 60000; // 1 minute
-const MAX_REQUESTS = 30; // per minute per IP
+const MAX_IP_REQUESTS = 30;     // per minute per IP (anonymous baseline)
+const MAX_USER_REQUESTS = 120;  // per minute per signed-in user
+
+function bumpAndCheck(key, max) {
+  const now = Date.now();
+  const slot = rateLimits[key];
+  if (!slot || now - slot.start > WINDOW_MS) {
+    rateLimits[key] = { start: now, count: 1 };
+    return true;
+  }
+  slot.count++;
+  return slot.count <= max;
+}
 
 export function rateLimit(req) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  const now = Date.now();
+  // Bucket by JWT (first 16 chars) too so the same user across IPs
+  // is bounded, and rotating IPs doesn't bypass the limit.
+  const auth = req.headers.authorization || req.headers.Authorization || '';
+  const tokenKey = auth.replace('Bearer ', '').slice(0, 16) || null;
 
-  if (!rateLimits[ip] || now - rateLimits[ip].start > WINDOW_MS) {
-    rateLimits[ip] = { start: now, count: 1 };
-    return true;
-  }
-
-  rateLimits[ip].count++;
-  if (rateLimits[ip].count > MAX_REQUESTS) return false;
+  if (!bumpAndCheck(`ip:${ip}`, MAX_IP_REQUESTS)) return false;
+  if (tokenKey && !bumpAndCheck(`tok:${tokenKey}`, MAX_USER_REQUESTS)) return false;
   return true;
 }

@@ -48,9 +48,110 @@ export default async function handler(req, res) {
     }
 
     const d = project.data || {};
+    const clientName = d.client || project.client || null;
+
+    // ── Pull linked CRM contacts (project's "client team")
+    // Two sources merged, same as the internal project dashboard:
+    //   1. Explicit contact_projects links
+    //   2. Implicit: contacts whose company matches project.client
+    // Service role bypasses RLS — careful to only return safe fields.
+    const safeContact = c => ({
+      id: c.id,
+      first_name: c.first_name,
+      last_name: c.last_name,
+      title: c.title,
+      company: c.company,
+      avatar_url: c.avatar_url,
+      // intentionally omit: email, phone, notes, bio, brief_data,
+      // last_contacted_at, status — these are internal-only.
+    });
+    let contacts = [];
+    try {
+      const { data: explicit } = await supabase
+        .from('contact_projects')
+        .select('role, contacts:contact_id(*)')
+        .eq('project_id', shareRow.project_id);
+      const seenIds = new Set();
+      for (const row of explicit || []) {
+        const c = row?.contacts;
+        if (c && !seenIds.has(c.id)) {
+          seenIds.add(c.id);
+          contacts.push({ ...safeContact(c), role: row.role });
+        }
+      }
+      if (clientName) {
+        // Normalize via lowercase + suffix strip (mirrors
+        // companyDedup.normalizeCompany) so "Lonely Planet" matches
+        // "Lonely Planet, Inc." etc. ilike with the raw name catches
+        // most real-world variants; we don't need full normalization
+        // here since the data is small.
+        const { data: byCompany } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', project.user_id || project.created_by)
+          .ilike('company', `%${clientName}%`);
+        for (const c of byCompany || []) {
+          if (seenIds.has(c.id)) continue;
+          seenIds.add(c.id);
+          contacts.push({ ...safeContact(c), role: 'client_team' });
+        }
+      }
+    } catch (e) {
+      console.warn('[share] contacts load failed:', e.message);
+    }
+
+    // ── Pull linked CRM meetings — client-safe summary only
+    const safeMeeting = m => ({
+      title: m.title,
+      occurred_at: m.occurred_at,
+      duration_minutes: m.duration_minutes,
+      summary: m.summary,
+    });
+    let crmMeetings = [];
+    try {
+      const { data: explicit } = await supabase
+        .from('meeting_projects')
+        .select('meetings:meeting_id(*)')
+        .eq('project_id', shareRow.project_id);
+      const seenMeetingIds = new Set();
+      for (const row of explicit || []) {
+        const m = row?.meetings;
+        if (m && !seenMeetingIds.has(m.id)) {
+          seenMeetingIds.add(m.id);
+          crmMeetings.push(safeMeeting(m));
+        }
+      }
+      // Also pull meetings via contact_id chain — any meeting with
+      // an attendee in our resolved contacts list.
+      const contactIds = contacts.map(c => c.id);
+      if (contactIds.length) {
+        const { data: viaContacts } = await supabase
+          .from('meeting_contacts')
+          .select('meetings:meeting_id(*)')
+          .in('contact_id', contactIds);
+        for (const row of viaContacts || []) {
+          const m = row?.meetings;
+          if (m && !seenMeetingIds.has(m.id)) {
+            seenMeetingIds.add(m.id);
+            crmMeetings.push(safeMeeting(m));
+          }
+        }
+      }
+      crmMeetings.sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0));
+    } catch (e) {
+      console.warn('[share] meetings load failed:', e.message);
+    }
+
+    // Legacy JSONB-blob meetings (the pre-CRM "Add meeting" form
+    // entries with isClientMeeting flag). Merged with CRM meetings
+    // so old client links don't lose data.
+    const legacyMeetings = (d.meetings || []).filter(m => m.isClientMeeting).map(m => ({
+      title: m.title, date: m.date, time: m.time, location: m.location, summary: m.summary,
+    }));
+
     const clientData = {
       name: d.name || project.name,
-      client: d.client || project.client,
+      client: clientName,
       eventDate: d.eventDate,
       logo: d.logo,
       stage: d.stage,
@@ -66,9 +167,9 @@ export default async function handler(req, res) {
         startDate: t.startDate, endDate: t.endDate,
       })),
       clientFiles: d.clientFiles || [],
-      meetings: (d.meetings || []).filter(m => m.isClientMeeting).map(m => ({
-        title: m.title, date: m.date, time: m.time, location: m.location, summary: m.summary,
-      })),
+      meetings: legacyMeetings,
+      crmMeetings,
+      contacts,
       creativeAssets: (d.creativeAssets || []).filter(a => a.approvalStatus === 'sent-to-client').map(a => ({
         name: a.name, category: a.category, fileData: a.fileData, fileName: a.fileName,
       })),

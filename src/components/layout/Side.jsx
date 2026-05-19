@@ -11,6 +11,18 @@ function OrgAvatar({org,size=20}){
   return<div style={{width:size,height:size,borderRadius:size/2,background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.5,fontWeight:700,color:T.ink,flexShrink:0}}>{initial}</div>;
 }
 
+// Project-level views each role can see. ep / admin / producer
+// aren't listed — they see everything. For a bookkeeper (finance
+// role), restrict to budget, vendors, P&L, and contract (read-only
+// elsewhere).
+const ROLE_ALLOWED_VIEWS={
+  finance:    new Set(['dashboard','budget','vendors','pnl','contract','time']),
+  accounts:   new Set(['dashboard','budget','vendors','pnl','time']),
+  creative:   new Set(['dashboard','creative','timeline','meetings','ai','time']),
+  production: new Set(['dashboard','timeline','vendors','ros','meetings','time']),
+  client:     new Set([]),
+};
+
 function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLogout,saving,lastSaved,profiles=[],organizations=[],currentOrgId,switchOrg}){
   const[expanded,setExpanded]=useState(false);
   const[toolsOpen,setToolsOpen]=useState(false);
@@ -20,6 +32,11 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
   const currentOrg=organizations.find(o=>o.id===currentOrgId)||organizations[0]||null;
   const hasMultipleOrgs=profiles.length>1;
 
+  // Role-aware filter. ep / admin / producer fall through to full
+  // nav. Bookkeeper, creative, etc. only see their permitted tabs.
+  const allowedViews=ROLE_ALLOWED_VIEWS[user?.role]||null;
+  const allow=(id)=>!allowedViews||allowedViews.has(id);
+
   const mainNav=[
     {id:"dashboard",label:"Dashboard",icon:"\u25D0"},
     {id:"budget",label:"Budget",icon:"\u25C8"},
@@ -28,18 +45,20 @@ function Side({view,setView,comp,user,project,onBack,toggleTheme,themeMode,onLog
     {id:"creative",label:"Creative",icon:"\u25A8"},
     {id:"meetings",label:"Meetings",icon:"\u25CB"},
     {id:"ai",label:"ES AI",icon:"\u25C9"},
-  ];
+  ].filter(n=>allow(n.id));
 
   const clientNav={id:"export",label:`Client: ${clientName}`,icon:"\u25CE"};
 
   const toolItems=[
+    {id:"contract",label:"Contract",icon:"\u270D"},
     {id:"pnl",label:"Finance",icon:"\u25C7"},
     {id:"ros",label:"Run of Show",icon:"\u25B6"},
     {id:"reporting",label:"Reporting",icon:"\u25A3"},
-  ];
+    {id:"time",label:"Time",icon:"\u29D6"},
+  ].filter(n=>allow(n.id));
 
   const bottomItems=[
-    ...(user.role!=="client"?[{id:"settings",label:"Settings",icon:"\u25CE"}]:[]),
+    ...((user?.role==='admin'||user?.role==='ep'||user?.role==='producer')?[{id:"settings",label:"Settings",icon:"\u25CE"}]:[]),
     {id:"profile",label:"Profile",icon:"\uD83D\uDC64"},
   ];
 

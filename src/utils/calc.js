@@ -2,7 +2,13 @@ import { f$ } from './format.js';
 
 export function ci(item) {
   if (item.excluded) return { ...item, clientPrice: 0, variance: 0, _originalCost: item.actualCost * (1 + item.margin) };
-  const cp = item.actualCost === 0 ? 0 : item.actualCost * (1 + item.margin);
+  // Override takes precedence over the cost × margin calc. Set
+  // by editing the Client column directly; cleared via the × that
+  // appears next to overridden amounts.
+  const hasOverride = typeof item.clientPriceOverride === 'number' && isFinite(item.clientPriceOverride) && item.clientPriceOverride >= 0;
+  const cp = hasOverride
+    ? item.clientPriceOverride
+    : (item.actualCost === 0 ? 0 : item.actualCost * (1 + item.margin));
   return { ...item, clientPrice: cp, variance: cp - item.actualCost };
 }
 
@@ -17,9 +23,14 @@ export function calcProject(p) {
   const agT = p.ag.reduce((a, it) => { const c = ci(it); return { actualCost: a.actualCost + c.actualCost, clientPrice: a.clientPrice + c.clientPrice, variance: a.variance + c.variance }; }, { actualCost: 0, clientPrice: 0, variance: 0 });
   const fA = (prod.actualCost + agT.actualCost) * p.feeP, fC = (prod.clientPrice + agT.clientPrice) * p.feeP;
   const fee = { actualCost: fA, clientPrice: fC, variance: fC - fA };
-  const repFeeAmt = p.repFeeEnabled ? fA * (p.repFeeP || 0.10) : 0;
+  const grandTotal = fee.clientPrice + prod.clientPrice + agT.clientPrice;
+  // Rep fee is a % of the FINAL client spend (the number on the
+  // invoice), not the agency fee cost. So a 10% rep fee on a
+  // $250K client total is $25K — the rep gets paid against what
+  // the client actually pays you.
+  const repFeeAmt = p.repFeeEnabled ? grandTotal * (p.repFeeP || 0.10) : 0;
   const netProfit = prod.variance + agT.variance + fee.clientPrice - repFeeAmt;
-  return { productionSubtotal: prod, agencyCostsSubtotal: agT, agencyFee: fee, repFee: repFeeAmt, grandTotal: fee.clientPrice + prod.clientPrice + agT.clientPrice, netProfit };
+  return { productionSubtotal: prod, agencyCostsSubtotal: agT, agencyFee: fee, repFee: repFeeAmt, grandTotal, netProfit };
 }
 
 export function isOverdue(doc) {

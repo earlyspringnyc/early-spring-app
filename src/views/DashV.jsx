@@ -3,6 +3,23 @@ import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, daysBetween } from '../utils/date.js';
 import { ct, isOverdue, getVendorName } from '../utils/calc.js';
+import { listContactsForProject, listContacts } from '../lib/contacts.js';
+import { listMeetingsForProject } from '../lib/meetings.js';
+import { normalizeCompany } from '../utils/companyDedup.js';
+import { restFetch } from '../lib/db.js';
+
+// Batch-fetch meetings linked to any of a list of contact IDs in
+// one round-trip. Replaces the N+1 listMeetingsForContact loop.
+async function listMeetingsByContactIds(ids) {
+  if (!ids?.length) return [];
+  const enc = encodeURIComponent;
+  const path = `/meeting_contacts?select=match_type,meetings(*)&contact_id=in.(${ids.map(enc).join(',')})&limit=200`;
+  const rows = await restFetch(path);
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map(r => ({ ...r.meetings, _match_type: r.match_type }))
+    .filter(m => m && m.id);
+}
 import { INVOICE_KIND_COLORS, INVOICE_KIND_LABELS } from '../constants/index.js';
 import { Card, Metric, DonutChart, DatePick } from '../components/primitives/index.js';
 import { PlusI } from '../components/icons/index.js';
@@ -29,9 +46,11 @@ const ALL_CARDS={
   weather:{label:"Event Weather",size:1,nav:null},
   timezone:{label:"Time & Timezone",size:1,nav:null},
   clientcontact:{label:"Key Client Contact",size:1,nav:null},
+  clientteam:{label:"Client Team (CRM)",size:2,nav:"meetings"},
+  meetingnotes:{label:"Recent Meeting Notes",size:2,nav:"meetings"},
 };
 
-const DEFAULT_ORDER=["budget","spend","owed","client","tasks","prod","margin","blended","profit","donut","comp"];
+const DEFAULT_ORDER=["budget","spend","owed","client","clientteam","meetingnotes","tasks","prod","margin","blended","profit","donut","comp"];
 
 const TZ_LIST=["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Anchorage","Pacific/Honolulu","America/Phoenix","America/Toronto","America/Vancouver","America/Mexico_City","America/Bogota","America/Sao_Paulo","America/Buenos_Aires","America/Lima","Europe/London","Europe/Paris","Europe/Berlin","Europe/Amsterdam","Europe/Madrid","Europe/Rome","Europe/Zurich","Europe/Stockholm","Europe/Moscow","Europe/Istanbul","Europe/Athens","Africa/Cairo","Africa/Lagos","Africa/Johannesburg","Africa/Nairobi","Asia/Dubai","Asia/Riyadh","Asia/Kolkata","Asia/Bangkok","Asia/Singapore","Asia/Hong_Kong","Asia/Shanghai","Asia/Tokyo","Asia/Seoul","Asia/Jakarta","Australia/Sydney","Australia/Melbourne","Australia/Perth","Pacific/Auckland","Pacific/Fiji"];
 
@@ -80,7 +99,18 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
   const hasAlerts=overdueDocs.length>0||unpaidInvoices.length>0||allUpcoming.length>0||overdueTasks.length>0;
 
   /* ── Layout state ── */
-  const initOrder=()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k]))return saved;return DEFAULT_ORDER};
+  // initOrder: use saved layout if present, but also append any
+  // cards from DEFAULT_ORDER that aren't in the saved layout —
+  // otherwise newly-added cards (like clientteam, meetingnotes)
+  // never appear on projects with an older saved layout.
+  const initOrder=()=>{
+    const saved=project?.dashLayout;
+    if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){
+      const missing=DEFAULT_ORDER.filter(k=>!saved.includes(k)&&ALL_CARDS[k]);
+      return [...saved, ...missing];
+    }
+    return DEFAULT_ORDER;
+  };
   const[order,setOrder]=useState(initOrder);
   const[editing,setEditing]=useState(false);
   const[showAddMenu,setShowAddMenu]=useState(false);
@@ -124,6 +154,75 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
   // Live clock
   useEffect(()=>{const t=setInterval(()=>setClockTime(new Date()),60000);return()=>clearInterval(t)},[]);
 
+  // Client team / meetings: TWO sources merged.
+  //   1. Explicit links via contact_projects / meeting_projects
+  //      (the user manually linked a contact or meeting)
+  //   2. Implicit via project.client field: every CRM contact
+  //      whose company (normalized) matches project.client, plus
+  //      every meeting attended by one of them.
+  //
+  // The implicit source means once a project's client field is
+  // set to a CRM company name, the dashboard auto-populates with
+  // no further plumbing. That's the "hardwire client → CRM"
+  // behavior — the project's client field IS the link.
+  const[clientTeam,setClientTeam]=useState([]);
+  const[projectMeetings,setProjectMeetings]=useState([]);
+  const[hardwireStatus,setHardwireStatus]=useState({ company:null, matched:0 });
+
+  // Stable deps only — order changes (e.g. drag-rearrange) shouldn't
+  // re-fire the heavy fetches. Gate by `wantTeam`/`wantMeetings`
+  // booleans derived from order so we still skip when the panels
+  // aren't shown.
+  const wantTeam=order.includes("clientteam");
+  const wantMeetings=order.includes("meetingnotes");
+  useEffect(()=>{
+    if(!project?.id||(!wantTeam&&!wantMeetings))return;
+    let cancelled=false;
+    (async()=>{
+      const targetNorm=normalizeCompany(project.client||"");
+      let companyContacts=[];
+      if(targetNorm){
+        try{
+          const rows=await listContacts({search:project.client,limit:200});
+          companyContacts=(rows||[]).filter(c=>normalizeCompany(c.company||"")===targetNorm);
+        }catch(e){console.warn("[dashv] company-contacts load failed:",e.message||e)}
+      }
+      let explicit=[];
+      try{explicit=await listContactsForProject(project.id)||[]}
+      catch(e){console.warn("[dashv] contact_projects load failed:",e.message||e)}
+      const seenIds=new Set(explicit.map(lp=>lp.contacts?.id).filter(Boolean));
+      const implicit=companyContacts
+        .filter(c=>!seenIds.has(c.id))
+        .map(c=>({contacts:c,role:"client_team",match_type:"company-match"}));
+      const merged=[...explicit,...implicit];
+      if(!cancelled){
+        setClientTeam(merged);
+        setHardwireStatus({company:project.client||null,matched:companyContacts.length});
+      }
+
+      if(wantMeetings){
+        let explicitM=[];
+        try{explicitM=await listMeetingsForProject(project.id)||[]}
+        catch(e){console.warn("[dashv] meeting_projects load failed:",e.message||e)}
+        const mById=new Map(explicitM.map(m=>[m.id,m]));
+        const allContactIds=[...seenIds,...companyContacts.map(c=>c.id)].filter(Boolean);
+        // One batched query instead of N parallel ones — cut DB load
+        // significantly on projects with many client contacts.
+        if(allContactIds.length){
+          try{
+            const meetings=await listMeetingsByContactIds(allContactIds);
+            for(const m of meetings){
+              if(m?.id&&!mById.has(m.id))mById.set(m.id,m);
+            }
+          }catch(e){console.warn("[dashv] meetings-by-contact-ids load failed:",e.message||e)}
+        }
+        const all=[...mById.values()].sort((a,b)=>new Date(b.occurred_at||0)-new Date(a.occurred_at||0));
+        if(!cancelled)setProjectMeetings(all);
+      }
+    })();
+    return()=>{cancelled=true};
+  },[project?.id,project?.client,wantTeam,wantMeetings]);
+
   // Fetch weather based on venue address or event location
   useEffect(()=>{
     if(!order.includes("weather"))return;
@@ -149,7 +248,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
     geocodeAndFetch();
   },[order,weather,weatherLoading,project?.vendors,project?.eventCity]);
 
-  useEffect(()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){setOrder(saved)}},[project?.dashLayout]);
+  useEffect(()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){const missing=DEFAULT_ORDER.filter(k=>!saved.includes(k)&&ALL_CARDS[k]);setOrder([...saved,...missing])}},[project?.dashLayout]);
 
   const saveOrder=useCallback(next=>{setOrder(next);if(updateProject)updateProject({dashLayout:next})},[updateProject]);
 
@@ -285,6 +384,82 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       <div style={{fontSize:11,color:T.dim,marginTop:10,fontFamily:T.mono}}>{vendorList.length===1?"vendor":"vendors"} on this project</div>
       {vendorList.length>0&&<div style={{display:"flex",gap:4,marginTop:10,flexWrap:"wrap"}}>{vendorList.slice(0,4).map((v,i)=><span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:`${T.cyan}12`,color:T.dim}}>{v.name}</span>)}{vendorList.length>4&&<span style={{fontSize:10,color:T.dim}}>+{vendorList.length-4}</span>}</div>}
     </>,
+    meetingnotes:()=>{
+      // Last few meetings tied to this project. Summary line +
+      // top action items so you can scan what's been discussed
+      // without leaving the dashboard.
+      const recent=projectMeetings.slice(0,4);
+      return<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+          <Label>Recent Meeting Notes</Label>
+          <span style={{fontSize:10,color:T.dim}}>{projectMeetings.length} linked</span>
+        </div>
+        {recent.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim,lineHeight:1.55}}>
+          No Fireflies meetings linked to this project yet. They'll auto-attach when an attendee email matches a CRM contact also linked to this project.
+        </div>:<div style={{marginTop:12,display:"grid",gap:10}}>
+          {recent.map(m=>{
+            const date=m.occurred_at?new Date(m.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+            const dur=m.duration_minutes?`${m.duration_minutes}m`:"";
+            return<div key={m.id} style={{padding:"10px 12px",borderRadius:8,background:T.surface,border:`1px solid ${T.faintRule}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0,flex:1}}>
+                  {m.title||"Untitled"}
+                </div>
+                <div style={{fontSize:10,color:T.dim,whiteSpace:"nowrap"}}>{date}{dur?` · ${dur}`:""}</div>
+              </div>
+              {m.summary&&<div style={{marginTop:6,fontSize:11,color:T.dim,lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
+                {String(m.summary).replace(/\*+/g,"").split("\n").filter(Boolean).slice(0,2).join(" · ")}
+              </div>}
+              {m.external_url&&<a href={m.external_url} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{display:"inline-block",marginTop:6,fontSize:10,color:T.ink,textDecoration:"underline",textDecorationColor:T.faintRule}}>Open in Fireflies ↗</a>}
+            </div>;
+          })}
+          {projectMeetings.length>4&&<div style={{fontSize:10,color:T.dim,fontStyle:"italic"}}>+ {projectMeetings.length-4} more on the Meetings tab</div>}
+        </div>}
+      </>;
+    },
+    clientteam:()=>{
+      // Linked CRM contacts. Two sources merged: explicit
+      // contact_projects rows AND any CRM contact whose company
+      // matches project.client (the "hardwire" path).
+      const ROLE_LABEL={rfp_sender:"RFP",champion:"Champ",point_of_contact:"POC",agent:"Agent",team_member:"Team",client_team:"Auto"};
+      const hardwired=hardwireStatus.company&&hardwireStatus.matched>0;
+      return<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+          <Label>Client Team · CRM</Label>
+          <span style={{fontSize:10,color:T.dim}}>{clientTeam.length} linked</span>
+        </div>
+        {hardwired&&<div style={{marginTop:6,fontSize:10,color:T.ink,opacity:.72,lineHeight:1.5}}>
+          🔗 Hardwired to CRM company <b style={{color:T.cream}}>{hardwireStatus.company}</b> — {hardwireStatus.matched} contact{hardwireStatus.matched===1?"":"s"} matched automatically.
+        </div>}
+        {!hardwired&&project?.client&&<div style={{marginTop:6,fontSize:10,color:T.dim,fontStyle:"italic",lineHeight:1.5}}>
+          No CRM contact with company "{project.client}" — set it on a contact to auto-link.
+        </div>}
+        {clientTeam.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim,lineHeight:1.55}}>
+          No CRM contacts linked yet. Open a contact, set company to "{project?.client||'…'}" or link them to this project explicitly.
+        </div>:<div style={{marginTop:12,display:"grid",gap:6}}>
+          {clientTeam.slice(0,5).map((lc,i)=>{
+            const c=lc.contacts;if(!c)return null;
+            const name=`${c.first_name||""} ${c.last_name||""}`.trim()||c.email||"(No name)";
+            const initials=((c.first_name?.[0]||"")+(c.last_name?.[0]||"")).toUpperCase();
+            return<div key={c.id+lc.role} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:i<clientTeam.length-1&&i<4?`1px solid ${T.faintRule}`:"none"}}>
+              {c.avatar_url?<img src={c.avatar_url} alt="" style={{width:24,height:24,borderRadius:"50%",objectFit:"cover",border:`1px solid ${T.faintRule}`,flexShrink:0}}/>:<div style={{width:24,height:24,borderRadius:"50%",background:T.inkSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:T.ink,border:`1px solid ${T.faintRule}`,flexShrink:0}}>{initials||"?"}</div>}
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {name}{c.title&&<span style={{color:T.dim,fontWeight:400}}>, {c.title}</span>}
+                </div>
+                <div style={{fontSize:10,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {c.company||c.email||""}
+                </div>
+              </div>
+              <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${T.ink}18`,color:T.ink,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+                {ROLE_LABEL[lc.role]||lc.role}
+              </span>
+            </div>;
+          })}
+          {clientTeam.length>5&&<div style={{fontSize:10,color:T.dim,fontStyle:"italic",marginTop:4}}>+{clientTeam.length-5} more — see Meetings tab</div>}
+        </div>}
+      </>;
+    },
     cashflow:()=>{
       const net=totalIncome-totalExpensesPaid;
       return<>
