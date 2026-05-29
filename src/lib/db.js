@@ -648,6 +648,49 @@ export async function uploadFile(orgId, projectId, file) {
 }
 
 // Upload base64 data URL to Supabase Storage (private bucket)
+// Upload a raw File/Blob to Supabase Storage with upload-progress
+// callbacks. Uses XHR because fetch() can't expose `upload.onprogress`.
+// Used by the new "upload before save" flow in CreativeV so the file
+// is safely in Storage before we add it to project.creativeAssets —
+// which means an optimistic-lock conflict can't lose the file ref.
+export function uploadFileBlobWithProgress(orgId, projectId, fileId, fileName, blob, onProgress) {
+  return new Promise((resolve, reject) => {
+    if (!isSupabaseConfigured()) return reject(new Error('Supabase not configured'));
+    const safeName = String(fileName || 'file').replace(/[^A-Za-z0-9._\-() ]/g, '_').slice(0, 180);
+    const path = `${orgId}/${projectId}/${fileId}_${safeName}`;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    let token = null;
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      for (const k of keys) {
+        const raw = JSON.parse(localStorage.getItem(k));
+        if (raw?.access_token) { token = raw.access_token; break; }
+      }
+    } catch (e) {}
+    if (!token) return reject(new Error('No auth token'));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${supabaseUrl}/storage/v1/object/files/${encodeURIComponent(path)}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('apikey', anonKey);
+    xhr.setRequestHeader('Content-Type', blob.type || 'application/octet-stream');
+    xhr.setRequestHeader('x-upsert', 'true');
+    xhr.upload.onprogress = (e) => {
+      if (!onProgress) return;
+      const pct = e.lengthComputable ? Math.round((e.loaded / e.total) * 100) : null;
+      onProgress({ loaded: e.loaded, total: e.total, pct });
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve({ storagePath: path });
+      else reject(new Error(`Upload failed ${xhr.status}: ${xhr.responseText?.slice(0, 200) || ''}`));
+    };
+    xhr.onerror = () => reject(new Error('Upload network error'));
+    xhr.onabort = () => reject(new Error('Upload aborted'));
+    xhr.send(blob);
+  });
+}
+
 export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl) {
   if (!isSupabaseConfigured() || !dataUrl) return null;
   try {

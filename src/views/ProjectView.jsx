@@ -245,7 +245,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={primaryComp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} accessToken={accessToken}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId} onAddVendor={addVendor}/>}
-      {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} user={user}/>}
+      {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} user={user} orgId={currentOrgId}/>}
       {view==="meetings"&&<ProjectMeetingsV project={project} user={user} accessToken={accessToken}/>}
       {view==="contract"&&<ContractEditor project={project} user={user}/>}
       {view==="reporting"&&<ReportingV project={project} updateProject={updateProject} canEdit={canEdit} comp={primaryComp}/>}

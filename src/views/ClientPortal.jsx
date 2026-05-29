@@ -1003,6 +1003,11 @@ function ClientPortalDashboard({ user, onSignOut }) {
   const [clientUploads, setClientUploads] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(null);   // current upload progress label
   const [uploadError, setUploadError] = useState('');
+  // The client's own approve/reject/comment per asset. Map keyed by
+  // asset_id so the Files view can render the current state inline.
+  const [decisions, setDecisions] = useState({});
+  // Per-asset draft comment state so typing doesn't spam the server.
+  const [commentDrafts, setCommentDrafts] = useState({});
   // Fireflies-synced meetings linked to this project. Separate from
   // project.data.meetings (legacy) — RLS gates these to meetings
   // auto-classified as 'client' so internal/vendor meetings stay
@@ -1034,7 +1039,7 @@ function ClientPortalDashboard({ user, onSignOut }) {
 
       // 2) Fetch contributions in parallel — RLS makes these
       //    naturally scoped to the same project.
-      const [n, a, ts, ups, mps] = await Promise.all([
+      const [n, a, ts, ups, mps, dec] = await Promise.all([
         restFetch(`/client_notes?project_id=eq.${proj.id}&order=created_at.desc&limit=200`),
         restFetch(`/client_asset_links?project_id=eq.${proj.id}&order=added_at.desc&limit=200`),
         restFetch(`/client_task_status?project_id=eq.${proj.id}&done=eq.true&limit=500`),
@@ -1043,12 +1048,18 @@ function ClientPortalDashboard({ user, onSignOut }) {
         // classification='client' by the meetings_client_select RLS
         // policy. Embedded join via PostgREST.
         restFetch(`/meeting_projects?select=meeting:meetings(id,title,occurred_at,duration_minutes,summary,action_items,attendees,external_url,classification)&project_id=eq.${proj.id}&limit=200`).catch(() => []),
+        // This client's own decisions on shared assets
+        restFetch(`/client_asset_decisions?project_id=eq.${proj.id}&user_id=eq.${user.id}&limit=500`).catch(() => []),
       ]);
       setProject(proj);
       setNotes(n || []);
       setAssetLinks(a || []);
       setCompletedTaskIds(new Set((ts || []).map((row) => row.task_id)));
       setClientUploads(ups || []);
+      // Index decisions by asset_id for O(1) lookup in the Files render
+      const decisionMap = {};
+      (dec || []).forEach(d => { if (d?.asset_id) decisionMap[d.asset_id] = d; });
+      setDecisions(decisionMap);
       // Flatten the join + drop any nulls (PostgREST returns null when
       // the joined row is filtered out by its own RLS).
       const meetings = (mps || []).map((r) => r?.meeting).filter(Boolean);
@@ -1146,6 +1157,39 @@ function ClientPortalDashboard({ user, onSignOut }) {
     if (deckIdSet.has(a.id)) return false;  // already shown as a deck
     return a.status === 'approved' || a.status === 'sent' || a.clientVisible;
   });
+
+  // Section label resolution. The staff side has DEFAULT_SECTIONS plus
+  // project.customCreativeSections. We mirror those here so client
+  // cards carry the same label even when staff renamed a built-in.
+  const DEFAULT_PORTAL_SECTION_LABELS = {
+    'decks': 'Decks & Presentations',
+    'graphic': 'Graphic Design',
+    '3d': '3D & Environmental',
+    'photo-video': 'Photo & Video',
+    'documents': 'Documents',
+    'wardrobe': 'Talent Wardrobe',
+    'other': 'Other Files',
+  };
+  const sectionLabelFor = (sectionId) => {
+    if (!sectionId) return 'Other Files';
+    const overrides = pickArr('customCreativeSections') || [];
+    const custom = overrides.find(s => s?.id === sectionId);
+    if (custom?.label) return custom.label;
+    return DEFAULT_PORTAL_SECTION_LABELS[sectionId] || sectionId;
+  };
+
+  // Group sent assets by their staff section so the client sees one
+  // sub-card per section name (the user's mental model).
+  const sentAssetsBySection = (() => {
+    const out = new Map();
+    visibleAssets.forEach(a => {
+      if (a.status !== 'sent') return;  // only sent assets get the per-section grouping treatment
+      const sid = a.section || 'other';
+      if (!out.has(sid)) out.set(sid, []);
+      out.get(sid).push(a);
+    });
+    return out;
+  })();
   // Files: client-visible by default, but exclude items we're already
   // surfacing in the Decks card.
   const visibleFiles = clientFiles.filter((f) => f && f.clientVisible !== false && !deckIdSet.has(f.id));
@@ -1326,6 +1370,25 @@ function ClientPortalDashboard({ user, onSignOut }) {
   const publicUploadUrl = (storagePath) => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     return `${supabaseUrl}/storage/v1/object/public/client-uploads/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
+  };
+
+  // Upsert an approve/reject/comment decision for an asset. The unique
+  // index on (project_id, user_id, asset_id) makes PostgREST's
+  // resolution=merge-duplicates upsert do the right thing.
+  const upsertDecision = async (assetId, patch) => {
+    if (!project || !user?.id) return;
+    const prior = decisions[assetId];
+    const next = { ...(prior || { project_id: project.id, user_id: user.id, asset_id: assetId }), ...patch };
+    setDecisions(prev => ({ ...prev, [assetId]: { ...next, asset_id: assetId } }));
+    try {
+      await restFetch('/client_asset_decisions', {
+        method: 'POST',
+        body: next,
+        prefer: 'return=minimal,resolution=merge-duplicates',
+      });
+    } catch (e) {
+      console.error('[client-portal] save decision failed:', e?.message || e);
+    }
   };
 
   // ── Weather fetch for the event-day forecast card. Open-Meteo,
@@ -1808,7 +1871,52 @@ function ClientPortalDashboard({ user, onSignOut }) {
             PAPER={PAPER} INK={INK} RULE={RULE} FADED={FADED} GOLD={GOLD}
           />
 
-          {visibleFiles.length === 0 && clientUploads.length === 0 ? (
+          {/* Sent-assets section cards. One sub-card per staff section
+              that has shared items. Each item gets approve / reject /
+              comment controls that persist via client_asset_decisions. */}
+          {sentAssetsBySection.size > 0 && (
+            <div style={{ marginTop: 20, display: 'grid', gap: 16 }}>
+              {Array.from(sentAssetsBySection.entries()).map(([sectionId, items]) => (
+                <div key={sectionId} style={{ background: PAPER, border: `1px solid ${RULE}`, borderRadius: 6, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: INK, letterSpacing: '.08em', textTransform: 'uppercase' }}>{sectionLabelFor(sectionId)}</div>
+                    <div style={{ fontSize: 10, color: FADED, fontFamily: T.mono }}>{items.length} {items.length === 1 ? 'item' : 'items'}</div>
+                  </div>
+                  <div style={{ display: 'grid', gap: 0 }}>
+                    {items.map((a, idx) => {
+                      const d = decisions[a.id] || {};
+                      const isApproved = d.decision === 'approved';
+                      const isRejected = d.decision === 'rejected';
+                      const draftKey = a.id;
+                      const draft = commentDrafts[draftKey] !== undefined ? commentDrafts[draftKey] : (d.comment || '');
+                      const fileUrl = a.fileData || (a.storagePath ? publicFileUrl(a.storagePath) : null) || a.driveLink;
+                      return (
+                        <div key={a.id} style={{ padding: '14px 0', borderTop: idx === 0 ? 'none' : `1px solid ${RULE}` }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 14, alignItems: 'start' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 13, color: INK, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name || a.fileName || 'Untitled'}</div>
+                              {a.fileName && a.name && a.fileName !== a.name && <div style={{ fontSize: 10, color: FADED, fontFamily: T.mono, marginTop: 2 }}>{a.fileName}</div>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                              {fileUrl && <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 12px', border: `1px solid ${RULE}`, borderRadius: 4, background: PAPER, color: INK, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', textDecoration: 'none', fontFamily: T.sans }}>View</a>}
+                              <button onClick={() => upsertDecision(a.id, { decision: isApproved ? null : 'approved' })} title={isApproved ? 'Approved' : 'Approve'} style={{ width: 30, height: 28, padding: 0, border: `1px solid ${isApproved ? '#1F7A4F' : RULE}`, borderRadius: 4, background: isApproved ? '#1F7A4F' : PAPER, color: isApproved ? '#fff' : '#1F7A4F', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: T.sans, lineHeight: 1 }}>✓</button>
+                              <button onClick={() => upsertDecision(a.id, { decision: isRejected ? null : 'rejected' })} title={isRejected ? 'Rejected' : 'Reject'} style={{ width: 30, height: 28, padding: 0, border: `1px solid ${isRejected ? '#7A1F1F' : RULE}`, borderRadius: 4, background: isRejected ? '#7A1F1F' : PAPER, color: isRejected ? '#fff' : '#7A1F1F', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: T.sans, lineHeight: 1 }}>×</button>
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 10 }}>
+                            <textarea value={draft} onChange={(e) => setCommentDrafts(prev => ({ ...prev, [draftKey]: e.target.value }))} onBlur={() => { if ((draft || '') !== (d.comment || '')) upsertDecision(a.id, { comment: draft }); }} placeholder="Comment or feedback (optional)" rows={2} style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 4, border: `1px solid ${RULE}`, background: PAPER, color: INK, fontSize: 12, fontFamily: T.sans, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
+                          </div>
+                          {(isApproved || isRejected) && <div style={{ fontSize: 10, color: isApproved ? '#1F7A4F' : '#7A1F1F', fontWeight: 600, marginTop: 4, letterSpacing: '.04em', textTransform: 'uppercase' }}>{isApproved ? '✓ You approved this' : '× You rejected this'}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {visibleFiles.length === 0 && clientUploads.length === 0 && sentAssetsBySection.size === 0 ? (
             <div style={{ color: FADED, fontSize: 14, lineHeight: 1.6, marginTop: 18 }}>No files yet. Drop something in above, or wait for Early Spring to share assets here.</div>
           ) : (
             <div style={{ display: 'grid', gap: 0, marginTop: 18 }}>

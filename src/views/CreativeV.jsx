@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
 import WardrobeTable from '../components/WardrobeTable.jsx';
-import { restFetch, publicFileUrl } from '../lib/db.js';
+import { restFetch, publicFileUrl, uploadFileBlobWithProgress } from '../lib/db.js';
 
 // Resolve an asset to a usable URL for img/video/iframe src + download.
 // Order of preference: inline base64 fileData → Storage public URL via
@@ -87,7 +88,7 @@ function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
 // not in project.creativeAssets. Rendered with a dedicated card view
 // so staff can copy/open the links without polluting the regular
 // section flows.
-const SECTIONS=[
+const DEFAULT_SECTIONS=[
   {id:"decks",label:"Decks & Presentations",color:T.ink,icon:"\uD83D\uDCCA",desc:"Pitch decks, mood boards, client presentations"},
   {id:"graphic",label:"Graphic Design",color:T.ink70,icon:"\uD83C\uDFA8",desc:"Signage, branding, collateral, print files"},
   {id:"3d",label:"3D & Environmental",color:T.ink60,icon:"\uD83D\uDDBC\uFE0F",desc:"Renderings, floor plans, CAD, scenic design"},
@@ -97,6 +98,31 @@ const SECTIONS=[
   {id:"wardrobe",label:"Talent Wardrobe",color:T.ink,icon:"\uD83D\uDC54",desc:"Sizes, addresses, what's been purchased per person. Import from a StaffConnect link."},
   {id:"other",label:"Other Files",color:T.dim,icon:"\uD83D\uDCC1",desc:"Anything else"},
 ];
+
+// Resolve the visible section list for a project:
+//   1. Start from DEFAULT_SECTIONS in order
+//   2. Drop any whose id appears in project.deletedSectionIds
+//   3. Apply field overrides from project.customCreativeSections (same id) \u2014 lets users rename a built-in
+//   4. Append any custom sections that don't match a default id
+// "from-client" and "wardrobe" have special data sources (client_asset_links
+// + project_wardrobe), so even when the user renames them the special
+// rendering branches still trigger off the id.
+function resolveSections(project){
+  const deleted=new Set(project?.deletedSectionIds||[]);
+  const customsById=new Map();
+  (project?.customCreativeSections||[]).forEach(s=>{ if(s?.id) customsById.set(s.id,s); });
+  const out=[];
+  DEFAULT_SECTIONS.forEach(d=>{
+    if(deleted.has(d.id))return;
+    const override=customsById.get(d.id);
+    if(override){ out.push({...d,...override}); customsById.delete(d.id); }
+    else out.push(d);
+  });
+  customsById.forEach(c=>out.push({color:T.ink60,icon:"\uD83D\uDCC1",desc:"",...c}));
+  return out;
+}
+
+const DEFAULT_SECTION_IDS=new Set(DEFAULT_SECTIONS.map(s=>s.id));
 
 const STATUS_META={draft:{label:"Draft",color:T.fadedInk},review:{label:"In Review",color:T.ink70},approved:{label:"Approved",color:T.ink},sent:{label:"Sent to Client",color:T.ink40}};
 const Pill=({children,color=T.gold,size="sm"})=><span style={{fontSize:size==="xs"?9:10,fontWeight:700,padding:size==="xs"?"2px 7px":"3px 10px",borderRadius:20,background:`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
@@ -119,8 +145,11 @@ const getFileType=(file)=>{
   return"other";
 };
 
-function CreativeV({project,updateProject,canEdit,accessToken,user}){
+function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
   const assets=project.creativeAssets||[];
+  // Resolved section list (defaults minus deletions, plus customs).
+  // Recomputed when any of the relevant project fields change.
+  const sections=useMemo(()=>resolveSections(project),[project?.customCreativeSections,project?.deletedSectionIds]);
   const[activeSection,setActiveSection]=useState(null);
   // ── Client-shared asset links (Drive/Dropbox/Figma URLs the client
   // pasted into their portal). Loaded once on mount + refreshed when
@@ -164,10 +193,126 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
   useEffect(()=>{loadWardrobeStats()},[loadWardrobeStats]);
   useEffect(()=>{if(activeSection===null)loadWardrobeStats()},[activeSection,loadWardrobeStats]);
   const[dragging,setDragging]=useState(false);
+  // Map of active uploads → { id, name, status, pct }. Drives the
+  // progress overlay so users actually see what's happening instead
+  // of staring at a stuck thumbnail.
+  const[uploads,setUploads]=useState({});
+  const upsertUpload=useCallback((id,patch)=>{
+    setUploads(prev=>({...prev,[id]:{...(prev[id]||{}),...patch,id}}));
+  },[]);
+  const removeUpload=useCallback((id)=>{
+    setUploads(prev=>{const n={...prev};delete n[id];return n});
+  },[]);
   const[viewingAsset,setViewingAsset]=useState(null);
   const[deckPage,setDeckPage]=useState(0);
   const[commentText,setCommentText]=useState("");
   const[commentFilter,setCommentFilter]=useState("page");
+  // Section editing state: hovered card shows pencil/trash; clicking
+  // pencil flips that card into inline rename mode.
+  const[hoveredSectionId,setHoveredSectionId]=useState(null);
+  const[editingSectionId,setEditingSectionId]=useState(null);
+  const[editingLabel,setEditingLabel]=useState("");
+  // Add-section sheet (small inline form, not a modal — keeps the
+  // user in the section grid)
+  const[addingSection,setAddingSection]=useState(false);
+  const[newSectionName,setNewSectionName]=useState("");
+  const[newSectionIcon,setNewSectionIcon]=useState("📁");
+  // Notify-client sheet (opens from section detail view header)
+  const[notifyOpen,setNotifyOpen]=useState(false);
+  const[notifyMessage,setNotifyMessage]=useState("");
+  const[notifyState,setNotifyState]=useState("idle"); // idle | sending | sent | error
+  const[notifyError,setNotifyError]=useState("");
+  // Aggregated client decisions per asset id. Loaded once per project
+  // load + refreshed when entering a section detail view so badges
+  // reflect any feedback a client left while staff was elsewhere.
+  // Shape: { [assetId]: { approvals, rejections, comments } }
+  const[clientDecisions,setClientDecisions]=useState({});
+  const loadClientDecisions=useCallback(async()=>{
+    if(!project?.id)return;
+    try{
+      const rows=await restFetch(`/client_asset_decisions?select=asset_id,decision,comment&project_id=eq.${project.id}&limit=500`);
+      const agg={};
+      (rows||[]).forEach(r=>{
+        if(!r?.asset_id)return;
+        if(!agg[r.asset_id])agg[r.asset_id]={approvals:0,rejections:0,comments:0};
+        if(r.decision==='approved')agg[r.asset_id].approvals++;
+        else if(r.decision==='rejected')agg[r.asset_id].rejections++;
+        if(r.comment&&String(r.comment).trim())agg[r.asset_id].comments++;
+      });
+      setClientDecisions(agg);
+    }catch(e){/* table may not exist; ignore */}
+  },[project?.id]);
+  useEffect(()=>{loadClientDecisions()},[loadClientDecisions]);
+  useEffect(()=>{if(activeSection)loadClientDecisions()},[activeSection,loadClientDecisions]);
+
+  // ─── Section CRUD helpers ─────────────────────────────────────
+  // All three persist via updateProject so the change autosaves like
+  // any other project edit.
+  const renameSection=useCallback((id,nextLabel)=>{
+    const trimmed=(nextLabel||"").trim();
+    if(!trimmed)return;
+    const customs=Array.isArray(project?.customCreativeSections)?[...project.customCreativeSections]:[];
+    const idx=customs.findIndex(s=>s.id===id);
+    if(idx>=0)customs[idx]={...customs[idx],label:trimmed};
+    else customs.push({id,label:trimmed});
+    updateProject({customCreativeSections:customs});
+  },[project?.customCreativeSections,updateProject]);
+
+  const deleteSection=useCallback((id)=>{
+    if(!confirm(`Delete the "${sections.find(s=>s.id===id)?.label||'section'}" card?\n\nThis hides it from the grid. Default sections can be restored via Reset.`))return;
+    if(DEFAULT_SECTION_IDS.has(id)){
+      const deleted=Array.from(new Set([...(project?.deletedSectionIds||[]),id]));
+      updateProject({deletedSectionIds:deleted});
+    }else{
+      const customs=(project?.customCreativeSections||[]).filter(s=>s.id!==id);
+      updateProject({customCreativeSections:customs});
+    }
+  },[project?.deletedSectionIds,project?.customCreativeSections,sections,updateProject]);
+
+  const addCustomSection=useCallback(()=>{
+    const name=newSectionName.trim();
+    if(!name)return;
+    const id=`custom-${uid()}`;
+    const next={id,label:name,icon:newSectionIcon||"📁",color:T.ink60,desc:""};
+    const customs=[...(project?.customCreativeSections||[]),next];
+    updateProject({customCreativeSections:customs});
+    setNewSectionName("");
+    setNewSectionIcon("📁");
+    setAddingSection(false);
+  },[newSectionName,newSectionIcon,project?.customCreativeSections,updateProject]);
+
+  const resetSectionsToDefault=useCallback(()=>{
+    if(!confirm("Reset section list?\n\nRemoves any sections you added and restores all default cards. Files inside don't get touched."))return;
+    updateProject({customCreativeSections:[],deletedSectionIds:[]});
+  },[updateProject]);
+
+  // Fire a Mailgun notification to all clients on the project that
+  // a section is ready for review. Sharing is implicit (asset.status
+  // === 'sent'); this is the manual "look at this now" ping.
+  const sendNotifyClient=useCallback(async(sectionLabel,sentCount)=>{
+    if(!project?.id&&!project?._dbId)return;
+    setNotifyState("sending"); setNotifyError("");
+    try{
+      const{getSession}=await import('../lib/db.js');
+      const session=await getSession().catch(()=>null);
+      const res=await fetch('/api/notify-client-of-section',{
+        method:'POST',
+        headers:{'Content-Type':'application/json',...(session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{})},
+        body:JSON.stringify({
+          projectId:project.id||project._dbId,
+          sectionLabel,
+          assetCount:sentCount||0,
+          customMessage:notifyMessage.trim()||null,
+        }),
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error||`HTTP ${res.status}`));
+      setNotifyState("sent");
+      setTimeout(()=>{setNotifyOpen(false);setNotifyState("idle");setNotifyMessage("")},1600);
+    }catch(e){
+      setNotifyError(e.message||"Failed to send"); setNotifyState("error");
+    }
+  },[project?.id,project?._dbId,notifyMessage]);
 
   // Arrow-key navigation between assets while the viewer is open.
   // Walks the section the user was browsing if there is one, otherwise
@@ -200,74 +345,76 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
 
   const sectionAssets=(sectionId)=>assets.filter(a=>(a.section||a.category||"other")===sectionId);
 
-  const handleFiles=useCallback((files,targetSection)=>{
+  // Upload-first flow: push each file to Supabase Storage with live
+  // progress, THEN add the asset to project.creativeAssets with the
+  // resulting storagePath. The previous flow added inline base64 to
+  // React state first and let the debounced save handle the upload;
+  // when the save hit a conflict the file ref could be lost, leaving
+  // a broken asset card.
+  const handleFiles=useCallback(async(files,targetSection)=>{
     const fileList=Array.from(files);
-    const total=fileList.length;
+    if(fileList.length===0)return;
+    const projectId=project?.id||project?._dbId;
+    if(!projectId||!orgId){
+      import('../lib/toast.js').then(({toast})=>toast.error('Project not ready — try again in a moment.'));
+      return;
+    }
     const newAssets=[];
-    let errored=0;
-    fileList.forEach(file=>{
-      const reader=new FileReader();
-      reader.onerror=err=>{
-        console.error('[creative] FileReader error for',file.name,err);
-        errored++;
-        import('../lib/toast.js').then(({toast})=>toast.error(`Could not read ${file.name}: ${reader.error?.message||'unknown error'}`));
-        // Still count this toward completion so the batch doesn't hang
-        if(newAssets.length+errored===total&&newAssets.length>0){
-          commitAssets();
-        }
-      };
-      reader.onload=ev=>{
-        const section=targetSection||autoSection(file.name);
-        const ft=getFileType(file);
-        const ext=(file.name||"").split(".").pop().toLowerCase();
-        const sizeKB=Math.round(file.size/1024);
+    const completedIds=[];
+    for(const file of fileList){
+      const assetId=uid();
+      const ext=(file.name||"").split(".").pop().toLowerCase();
+      const sizeKB=Math.round(file.size/1024);
+      const ft=getFileType(file);
+      upsertUpload(assetId,{name:file.name,size:sizeKB,status:'uploading',pct:0});
+      try{
+        const{storagePath}=await uploadFileBlobWithProgress(orgId,projectId,assetId,file.name,file,p=>{
+          upsertUpload(assetId,{pct:p.pct??0,loaded:p.loaded,total:p.total});
+        });
+        upsertUpload(assetId,{status:'saving',pct:100});
         newAssets.push({
-          id:uid(),name:file.name.replace(/\.[^/.]+$/,""),fileName:file.name,
-          section,fileData:ev.target.result,
-          fileType:ft,fileExt:ext,
+          id:assetId,
+          name:file.name.replace(/\.[^/.]+$/,""),
+          fileName:file.name,
+          section:targetSection||autoSection(file.name),
+          storagePath,                  // file lives in Storage; no inline base64
+          fileType:ft,
+          fileExt:ext,
           fileSize:sizeKB>1024?`${(sizeKB/1024).toFixed(1)} MB`:`${sizeKB} KB`,
-          isImage:ft==="image",isVideo:ft==="video",isPdf:ft==="pdf",
+          isImage:ft==="image",
+          isVideo:ft==="video",
+          isPdf:ft==="pdf",
           isFigma:false,isCanva:false,linkUrl:"",
           notes:"",status:"draft",
           comments:[],
           dateAdded:new Date().toLocaleDateString(),
-          versions:[{id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()}],
         });
-        if(newAssets.length+errored===total){
-          commitAssets();
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-
-    function commitAssets(){
-      if(newAssets.length===0)return;
-      try{
-        updateProject(prev=>({creativeAssets:[...(prev.creativeAssets||[]),...newAssets]}));
-        import('../lib/toast.js').then(({toast})=>{
-          toast.success(`Added ${newAssets.length} file${newAssets.length===1?'':'s'}${errored>0?` (${errored} failed)`:''}`);
-        });
+        completedIds.push(assetId);
       }catch(e){
-        console.error('[creative] updateProject threw:',e);
-        import('../lib/toast.js').then(({toast})=>toast.error(`Could not save files: ${e.message||e}`));
-      }
-      // Background upload to Google Drive — functional updater so
-      // parallel completions don't clobber each other.
-      if(accessToken&&project.driveFolders){
-        import('../utils/drive.js').then(({uploadToDrive})=>{
-          newAssets.forEach(async(a)=>{
-            if(!a.fileData)return;
-            try{
-              const result=await uploadToDrive(accessToken,a.fileData,a.fileName,project.driveFolders,null,"creative");
-              if(result){
-                updateProject(prev=>({creativeAssets:(prev.creativeAssets||[]).map(x=>x.id===a.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)}));
-              }
-            }catch(e){console.error('[creative] drive upload failed for',a.fileName,e)}
-          });
-        });
+        console.error('[creative] upload failed for',file.name,e);
+        upsertUpload(assetId,{status:'error',error:e?.message||'failed'});
+        // Auto-clear errored uploads after 6s so the panel doesn't fill up
+        setTimeout(()=>removeUpload(assetId),6000);
       }
     }
-  },[assets,updateProject,accessToken,project.driveFolders]);
+    if(newAssets.length===0)return;
+    // Commit all successful uploads in one project update so the
+    // save fires once, not N times.
+    try{
+      updateProject(prev=>({creativeAssets:[...(prev.creativeAssets||[]),...newAssets]}));
+      import('../lib/toast.js').then(({toast})=>{
+        toast.success(`Uploaded ${newAssets.length} file${newAssets.length===1?'':'s'}`);
+      });
+    }catch(e){
+      console.error('[creative] updateProject threw:',e);
+      import('../lib/toast.js').then(({toast})=>toast.error(`Could not save: ${e.message||e}`));
+    }
+    // Brief 'done' state then remove from the progress panel
+    completedIds.forEach(id=>{
+      upsertUpload(id,{status:'done'});
+      setTimeout(()=>removeUpload(id),1500);
+    });
+  },[updateProject,project?.id,project?._dbId,orgId,upsertUpload,removeUpload]);
 
   // Per-provider URL → iframe-embeddable URL. Most platforms ship
   // a distinct embed/preview endpoint (X-Frame-Options blocks the
@@ -400,7 +547,7 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
     const visibleComments=a.isPdf&&commentFilter==="page"?comments.filter(c=>c.page===deckPage):comments;
     const statusM=STATUS_META[a.status||"draft"];
 
-    return<div style={{position:"fixed",top:0,right:0,bottom:0,left:0,width:"100vw",height:"100vh",zIndex:200,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    return createPortal(<div style={{position:"fixed",top:0,right:0,bottom:0,left:0,width:"100vw",height:"100vh",zIndex:9999,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {/* Header — flex constraints + wrap so long titles and status pills
            don't push action buttons offscreen. */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0,gap:12,flexWrap:"wrap"}}>
@@ -417,8 +564,37 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
       </div>
 
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
-        {/* Main content */}
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24,background:"rgba(0,0,0,.3)"}}>
+        {/* Main content — wrapped so the prev/next arrows can be
+            absolutely positioned over the preview without scrolling
+            out of view with the image. */}
+        <div style={{flex:1,position:"relative",display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24,background:"#FFFFFF"}}>
+          {(() => {
+            const list = activeSection ? sectionAssets(activeSection) : assets;
+            if (!list || list.length <= 1) return null;
+            const idx = list.findIndex(x => x.id === viewingAsset);
+            if (idx === -1) return null;
+            const go = (delta) => {
+              const next = list[(idx + delta + list.length) % list.length];
+              if (next?.id) { setViewingAsset(next.id); setDeckPage(0); }
+            };
+            const btnStyle = {
+              position: "absolute", top: "50%", transform: "translateY(-50%)",
+              width: 44, height: 44, borderRadius: 22,
+              border: `1px solid ${T.border}`, background: "rgba(255,255,255,.92)",
+              color: T.ink, cursor: "pointer", fontFamily: T.sans,
+              fontSize: 20, fontWeight: 600, lineHeight: 1,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 14px rgba(15,82,186,.12)",
+              zIndex: 5, userSelect: "none",
+            };
+            return (<>
+              <button onClick={() => go(-1)} title="Previous (←)" aria-label="Previous" style={{ ...btnStyle, left: 16 }}>‹</button>
+              <button onClick={() => go(1)} title="Next (→)" aria-label="Next" style={{ ...btnStyle, right: 16 }}>›</button>
+              <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", fontSize: 11, color: T.fadedInk, fontFamily: T.mono, background: "rgba(255,255,255,.92)", border: `1px solid ${T.border}`, borderRadius: 999, padding: "3px 10px" }}>
+                {idx + 1} / {list.length}
+              </div>
+            </>);
+          })()}
           {(() => {
             const url = assetUrl(a);
             if (a.isPdf && url) return <PdfViewer fileData={a.fileData} driveLink={a.fileData?null:url} currentPage={deckPage} onPageChange={setDeckPage} onTotalPages={n=>setTotalPdfPages(n)}/>;
@@ -464,7 +640,7 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
           </div>
         </div>
       </div>
-    </div>;
+    </div>, document.body);
   }
 
   /* ══ FROM-THE-CLIENT detail view ══
@@ -472,7 +648,7 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
      client_asset_links. No upload UI — these are read-only references
      populated by the client portal. */
   if(activeSection==='from-client'){
-    const sec=SECTIONS.find(s=>s.id==='from-client');
+    const sec=sections.find(s=>s.id==='from-client');
     const providerLabel=(p)=>{
       const m={dropbox:'Dropbox',drive:'Google Drive',figma:'Figma',notion:'Notion',miro:'Miro',other:'Link',link:'Link'};
       return m[p]||'Link';
@@ -534,11 +710,13 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
 
   /* ══ SECTION DETAIL VIEW ══ */
   if(activeSection){
-    const sec=SECTIONS.find(s=>s.id===activeSection);
+    const sec=sections.find(s=>s.id===activeSection);
     const sAssets=sectionAssets(activeSection);
     const reviewInSection=sAssets.filter(a=>a.status==="review").length;
+    const sentCount=sAssets.filter(a=>a.status==="sent").length;
 
     return<div onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={e=>{e.preventDefault();e.stopPropagation();setDragging(false);dragCounter.current=0;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,activeSection)}} style={{position:"relative",minHeight:"50vh"}}>
+      <UploadProgressPanel uploads={uploads}/>
       {dragging&&<div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(8,8,12,.85)",backdropFilter:"blur(8px)",borderRadius:T.r,border:`3px dashed ${sec.color}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
         <div style={{fontSize:40,opacity:.6}}>&#8593;</div>
         <div style={{fontSize:18,fontWeight:600,color:sec.color}}>Drop files here</div>
@@ -546,16 +724,32 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
       </div>}
       <BackBtn/>
       <input ref={fileRef} type="file" multiple accept="*" onChange={e=>{if(e.target.files?.length)handleFiles(e.target.files,activeSection);e.target.value=""}} style={{display:"none"}}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,gap:12,flexWrap:"wrap"}}>
         <div>
           <h2 style={{fontSize:18,fontWeight:700,color:T.cream}}>{sec.label}</h2>
-          <p style={{fontSize:12,color:T.dim,marginTop:4}}>{sAssets.length} files{reviewInSection>0?` · ${reviewInSection} awaiting review`:""}</p>
+          <p style={{fontSize:12,color:T.dim,marginTop:4}}>{sAssets.length} files{reviewInSection>0?` · ${reviewInSection} awaiting review`:""}{sentCount>0?` · ${sentCount} sent to client`:""}</p>
         </div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {sentCount>0&&canEdit&&<button onClick={()=>setNotifyOpen(true)} title="Email the client(s) on this project that this section is ready for review" style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:T.ink,color:T.paper,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,letterSpacing:".02em"}}>✉ Notify client</button>}
           <button onClick={()=>setShowLinkInput(!showLinkInput)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:showLinkInput?T.inkSoft:T.cyan+"18",border:`1px solid ${showLinkInput?T.ink:T.cyan+"40"}`,color:showLinkInput?T.ink:T.cyan,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color="currentColor"/> Paste Link</button>
           <button onClick={()=>fileRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload File</button>
         </div>
       </div>
+
+      {/* Notify-client sheet: small inline form below the toolbar so
+          we don't need yet another modal layer. Only renders while
+          notifyOpen is true. */}
+      {notifyOpen&&<Card style={{padding:16,marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Notify client about {sec.label}</div>
+        <textarea value={notifyMessage} onChange={e=>setNotifyMessage(e.target.value)} placeholder="Optional note — anything you want the client to know before they review." rows={2} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none",resize:"vertical",marginBottom:10,boxSizing:"border-box"}}/>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={()=>sendNotifyClient(sec.label,sentCount)} disabled={notifyState==='sending'||notifyState==='sent'} style={{padding:"8px 16px",borderRadius:T.rS,border:"none",background:notifyState==='sent'?T.pos:T.ink,color:T.paper,fontSize:11,fontWeight:700,letterSpacing:".04em",cursor:notifyState==='sending'?"wait":"pointer",fontFamily:T.sans,opacity:notifyState==='sending'?.6:1}}>
+            {notifyState==='sending'?'Sending…':notifyState==='sent'?'✓ Sent':notifyState==='error'?'Try again':'Send notification'}
+          </button>
+          <button onClick={()=>{setNotifyOpen(false);setNotifyState('idle');setNotifyError('');setNotifyMessage('')}} style={{padding:"8px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+          {notifyError&&<span style={{fontSize:11,color:T.neg,flex:1}}>{notifyError}</span>}
+        </div>
+      </Card>}
 
       {showLinkInput&&<Card style={{padding:16,marginBottom:16}}>
         <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Paste a link — Google Docs / Sheets / Slides, Drive, Figma, Canva, Notion, Dropbox, Miro</div>
@@ -583,6 +777,13 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
               <div style={{fontSize:10,color:T.dim,marginTop:2}}>{a.fileSize||a.fileName} · {a.dateAdded}</div>
             </div>
             {commentCount>0&&<span style={{fontSize:10,color:T.cyan,fontFamily:T.mono}}>{commentCount} comment{commentCount>1?"s":""}</span>}
+            {/* Client decision badges — surface back what the client
+                said on the portal: ✓ approved, × rejected, 💬 comments */}
+            {(()=>{const d=clientDecisions[a.id];if(!d)return null;return<div style={{display:"flex",gap:4,alignItems:"center"}}>
+              {d.approvals>0&&<span title="Client approved" style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(31,122,79,.12)",color:"#1F7A4F",letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}}>✓ Approved</span>}
+              {d.rejections>0&&<span title="Client rejected" style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(122,31,31,.12)",color:"#7A1F1F",letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}}>× Rejected</span>}
+              {d.comments>0&&<span title={`${d.comments} client comment${d.comments>1?'s':''}`} style={{fontSize:10,color:T.gold,fontFamily:T.mono,fontWeight:600}}>💬 {d.comments}</span>}
+            </div>;})()}
             <Pill color={statusM.color} size="xs">{statusM.label}</Pill>
             {canEdit&&<select value={a.status||"draft"} onChange={e=>{e.stopPropagation();updateAsset(a.id,{status:e.target.value})}} onClick={e=>e.stopPropagation()} style={{padding:"3px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer",appearance:"none",WebkitAppearance:"none"}}>
               {Object.entries(STATUS_META).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
@@ -605,6 +806,7 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
   const cardLeave=e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=T.border};
 
   return<div>
+    <UploadProgressPanel uploads={uploads}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Creative & Design</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>{totalAssets} assets{reviewCount>0?` · ${reviewCount} awaiting review`:""}{approvedCount>0?` · ${approvedCount} approved`:""}</p></div>
     </div>
@@ -620,7 +822,7 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
 
     {/* Section cards */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-      {SECTIONS.map(sec=>{
+      {sections.map(sec=>{
         // "From the Client" is sourced from client_asset_links rather
         // than project.creativeAssets, so the count uses the loaded
         // rows. It also doesn't accept file drops.
@@ -631,14 +833,26 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
         const review=(isClient||isWardrobe)?0:sAssets.filter(a=>a.status==="review").length;
         const approved=(isClient||isWardrobe)?0:sAssets.filter(a=>a.status==="approved").length;
         const noDrop=isClient||isWardrobe;
-        return<div key={sec.id} onClick={()=>setActiveSection(sec.id)} style={cardStyle(sec.color)} onMouseEnter={cardHover} onMouseLeave={cardLeave}
+        const isEditing=editingSectionId===sec.id;
+        const isHovered=hoveredSectionId===sec.id;
+        return<div key={sec.id} onClick={()=>{if(!isEditing)setActiveSection(sec.id)}} style={{...cardStyle(sec.color),position:"relative"}} onMouseEnter={(e)=>{cardHover(e);setHoveredSectionId(sec.id)}} onMouseLeave={(e)=>{cardLeave(e);setHoveredSectionId(null)}}
           onDragEnter={e=>{if(noDrop)return;e.preventDefault();e.currentTarget.style.borderColor=sec.color;e.currentTarget.style.background=`${sec.color}08`}}
           onDragLeave={e=>{if(noDrop)return;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}
           onDragOver={e=>{if(!noDrop)e.preventDefault()}}
           onDrop={e=>{if(noDrop)return;e.preventDefault();e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,sec.id)}}>
+          {/* Edit + delete buttons (hover-revealed). Edit puts the
+              card label into inline rename mode; trash confirms + drops. */}
+          {canEdit&&isHovered&&!isEditing&&<div style={{position:"absolute",top:10,right:10,display:"flex",gap:4,zIndex:2}} onClick={e=>e.stopPropagation()}>
+            <button onClick={e=>{e.stopPropagation();setEditingSectionId(sec.id);setEditingLabel(sec.label)}} title="Rename" style={{width:24,height:24,borderRadius:12,border:`1px solid ${T.border}`,background:T.bg,color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>✎</button>
+            <button onClick={e=>{e.stopPropagation();deleteSection(sec.id)}} title="Delete" style={{width:24,height:24,borderRadius:12,border:`1px solid ${T.border}`,background:T.bg,color:T.neg,fontSize:12,cursor:"pointer",fontFamily:T.sans,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>
+          </div>}
           <div style={{padding:"24px 26px"}}>
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>{sec.label}</div>
+              {isEditing?<div style={{display:"flex",gap:6,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
+                <input autoFocus value={editingLabel} onChange={e=>setEditingLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){renameSection(sec.id,editingLabel);setEditingSectionId(null)} else if(e.key==='Escape'){setEditingSectionId(null)}}} style={{flex:1,minWidth:0,padding:"4px 8px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surface,color:T.cream,fontSize:11,fontFamily:T.sans,outline:"none",textTransform:"uppercase",letterSpacing:".08em",fontWeight:600}}/>
+                <button onClick={()=>{renameSection(sec.id,editingLabel);setEditingSectionId(null)}} style={{padding:"4px 10px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>Save</button>
+                <button onClick={()=>setEditingSectionId(null)} style={{padding:"4px 8px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+              </div>:<div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>{sec.label}</div>}
             </div>
             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:10}}>
               <span className="num" style={{fontSize:32,fontWeight:700,color:sec.color,fontFamily:T.mono}}>{count}</span>
@@ -654,8 +868,56 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
           </div>
         </div>
       })}
+      {/* Add-section tile. Inline form expands within the tile so
+          the grid layout stays predictable. */}
+      {canEdit&&<div style={{borderRadius:T.r,border:`2px dashed ${T.border}`,background:"transparent",cursor:addingSection?"default":"pointer",padding:"24px 26px",display:"flex",flexDirection:"column",justifyContent:"center",minHeight:140}} onClick={()=>{if(!addingSection)setAddingSection(true)}}>
+        {addingSection?<div onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>New section</div>
+          <div style={{display:"flex",gap:6,marginBottom:8}}>
+            <input value={newSectionIcon} onChange={e=>setNewSectionIcon(e.target.value.slice(0,2))} placeholder="🧥" style={{width:36,padding:"6px 8px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surface,color:T.cream,fontSize:14,fontFamily:T.sans,outline:"none",textAlign:"center"}}/>
+            <input autoFocus value={newSectionName} onChange={e=>setNewSectionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCustomSection();else if(e.key==='Escape')setAddingSection(false)}} placeholder="Outfits / Uniforms" style={{flex:1,minWidth:0,padding:"6px 10px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surface,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={addCustomSection} disabled={!newSectionName.trim()} style={{flex:1,padding:"6px 10px",borderRadius:T.rS,border:"none",background:newSectionName.trim()?T.ink:T.inkSoft2,color:newSectionName.trim()?T.paper:T.fadedInk,fontSize:11,fontWeight:700,cursor:newSectionName.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+            <button onClick={()=>{setAddingSection(false);setNewSectionName("")}} style={{padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+          </div>
+        </div>:<div style={{textAlign:"center",color:T.dim}}>
+          <div style={{fontSize:28,marginBottom:6,opacity:.4}}>+</div>
+          <div style={{fontSize:12,fontWeight:600,color:T.cream}}>Add section</div>
+          <div style={{fontSize:11,color:T.dim,marginTop:2}}>Outfits, Music, anything you want</div>
+        </div>}
+      </div>}
     </div>
+    {canEdit&&(project?.customCreativeSections?.length>0||project?.deletedSectionIds?.length>0)&&<div style={{marginTop:14,textAlign:"right"}}>
+      <button onClick={resetSectionsToDefault} style={{background:"none",border:"none",color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans,textDecoration:"underline"}}>Reset sections to default</button>
+    </div>}
   </div>;
+}
+
+// Fixed-position upload progress panel. Portals into body so it
+// surfaces over modals and isn't affected by transformed ancestors.
+function UploadProgressPanel({uploads}){
+  const list=Object.values(uploads||{});
+  if(list.length===0)return null;
+  return createPortal(<div style={{position:"fixed",bottom:20,right:20,zIndex:10000,display:"flex",flexDirection:"column",gap:8,maxWidth:360,fontFamily:T.sans}}>
+    {list.map(u=>{
+      const isDone=u.status==='done';
+      const isError=u.status==='error';
+      const pct=Math.max(0,Math.min(100,u.pct||0));
+      return<div key={u.id} style={{background:"#FFFFFF",border:`1px solid ${isError?'#7A1F1F':'#CDD7EB'}`,borderRadius:8,padding:"10px 14px",boxShadow:"0 2px 10px rgba(15,82,186,.10)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#0F52BA",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{u.name}</div>
+          <div style={{fontSize:10,color:isError?'#7A1F1F':'#7791C5',fontFamily:"monospace",whiteSpace:"nowrap"}}>
+            {isError?'failed':isDone?'done':u.status==='saving'?'saving…':`${pct}%`}
+          </div>
+        </div>
+        <div style={{height:4,background:"#E2EAF6",borderRadius:2,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${isDone?100:pct}%`,background:isError?'#7A1F1F':'#0F52BA',transition:"width .15s linear"}}/>
+        </div>
+        {isError&&u.error&&<div style={{fontSize:10,color:'#7A1F1F',marginTop:6}}>{u.error}</div>}
+      </div>;
+    })}
+  </div>,document.body);
 }
 
 export default CreativeV;
