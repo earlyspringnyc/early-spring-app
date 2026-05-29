@@ -168,6 +168,29 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
   const[deckPage,setDeckPage]=useState(0);
   const[commentText,setCommentText]=useState("");
   const[commentFilter,setCommentFilter]=useState("page");
+
+  // Arrow-key navigation between assets while the viewer is open.
+  // Walks the section the user was browsing if there is one, otherwise
+  // the whole creative-assets list. Ignored when focus is in a text
+  // input so users can still type in the comment box.
+  useEffect(()=>{
+    if(!viewingAsset)return;
+    const onKey=(e)=>{
+      if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+      const tag=(e.target?.tagName||'').toUpperCase();
+      if(tag==='INPUT'||tag==='TEXTAREA'||e.target?.isContentEditable)return;
+      const list=activeSection?sectionAssets(activeSection):assets;
+      if(!list.length)return;
+      const idx=list.findIndex(a=>a.id===viewingAsset);
+      if(idx===-1)return;
+      const next=e.key==='ArrowRight'
+        ?list[(idx+1)%list.length]
+        :list[(idx-1+list.length)%list.length];
+      if(next?.id){setViewingAsset(next.id);setDeckPage(0)}
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[viewingAsset,activeSection,assets]);
   const[totalPdfPages,setTotalPdfPages]=useState(0);
   const[showLinkInput,setShowLinkInput]=useState(false);
   const[linkUrl,setLinkUrl]=useState("");
@@ -378,17 +401,18 @@ function CreativeV({project,updateProject,canEdit,accessToken,user}){
     const statusM=STATUS_META[a.status||"draft"];
 
     return<div style={{position:"fixed",top:0,right:0,bottom:0,left:0,width:"100vw",height:"100vh",zIndex:200,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      {/* Header */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setViewingAsset(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16}}>&times;</button>
-          <span style={{fontSize:14,fontWeight:600,color:T.cream}}>{a.name}</span>
-          <Pill color={statusM.color} size="xs">{statusM.label}</Pill>
+      {/* Header — flex constraints + wrap so long titles and status pills
+           don't push action buttons offscreen. */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0,gap:12,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0,flex:"1 1 auto"}}>
+          <button onClick={()=>setViewingAsset(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:16,flexShrink:0}}>&times;</button>
+          <span style={{fontSize:14,fontWeight:600,color:T.cream,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{a.name}</span>
+          <span style={{flexShrink:0}}><Pill color={statusM.color} size="xs">{statusM.label}</Pill></span>
         </div>
-        <div style={{display:"flex",gap:6}}>
-          {canEdit&&Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>updateAsset(a.id,{status:k})} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${(a.status||"draft")===k?v.color+"40":T.border}`,background:(a.status||"draft")===k?`${v.color}12`:"transparent",color:(a.status||"draft")===k?v.color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{v.label}</button>)}
-          {a.linkUrl&&<button onClick={()=>window.open(a.linkUrl,"_blank")} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Open Link</button>}
-          {assetUrl(a)&&<a href={assetUrl(a)} download={a.fileName||a.name||"file"} target="_blank" rel="noopener noreferrer" style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4}}>↓ Download</a>}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",flexShrink:0}}>
+          {canEdit&&Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>updateAsset(a.id,{status:k})} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${(a.status||"draft")===k?v.color+"40":T.border}`,background:(a.status||"draft")===k?`${v.color}12`:"transparent",color:(a.status||"draft")===k?v.color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}>{v.label}</button>)}
+          {a.linkUrl&&<button onClick={()=>window.open(a.linkUrl,"_blank")} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap"}}>Open Link</button>}
+          {assetUrl(a)&&<a href={assetUrl(a)} download={a.fileName||a.name||"file"} target="_blank" rel="noopener noreferrer" style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4,whiteSpace:"nowrap"}}>↓ Download</a>}
         </div>
       </div>
 
