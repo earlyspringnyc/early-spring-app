@@ -1,321 +1,28 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import T from '../theme/tokens.js';
 import { ESWordmark } from '../components/brand/index.js';
-import { LogOutI, PlusI } from '../components/icons/index.js';
+import { LogOutI } from '../components/icons/index.js';
 import {
-  listContacts, createContact, updateContact, deleteContact, importContacts,
-  rocketReachLookup, previewReenrich, applyReenrichPatch, syncRocketReachContacts,
-  backfillAvatarsFromRocketReach, listProjectsForContact,
+  listContacts, deleteContact,
+  previewReenrich, applyReenrichPatch, syncRocketReachContacts,
+  backfillAvatarsFromRocketReach,
 } from '../lib/contacts.js';
-import { getCompanyByName, upsertCompany } from '../lib/companies.js';
-import { parseContactsCSV } from '../utils/csvImport.js';
 import { clusterByCompany, normalizeCompany } from '../utils/companyDedup.js';
 import ContactDetailDrawer from '../components/ContactDetailDrawer.jsx';
 import PrepBrief from '../components/PrepBrief.jsx';
 import ScheduleMeetingModal from '../components/ScheduleMeetingModal.jsx';
 
-const STATUS_OPTIONS = [
-  { id: 'all',      label: 'All' },
-  { id: 'prospect', label: 'Prospects' },
-  { id: 'pitching', label: 'Pitching' },
-  { id: 'active',   label: 'Active' },
-  { id: 'past',     label: 'Past' },
-  { id: 'vendor',   label: 'Vendors' },
-  { id: 'press',    label: 'Press' },
-];
-const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map(s => [s.id, s.label]));
-
-function StatusBadge({ status }) {
-  const map = {
-    prospect: { color: T.ink70, bg: 'transparent', border: T.faintRule },
-    pitching: { color: T.paper, bg: T.ink, border: T.ink },
-    active:   { color: T.ink, bg: T.inkSoft, border: T.ink },
-    past:     { color: T.fadedInk, bg: 'transparent', border: T.faintRule },
-    vendor:   { color: T.ink70, bg: T.inkSoft2, border: T.faintRule },
-    press:    { color: T.ink70, bg: 'transparent', border: T.faintRule },
-  };
-  const s = map[status] || map.prospect;
-  return <span style={{
-    display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: 999,
-    fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-    color: s.color, background: s.bg, border: `1px solid ${s.border}`,
-  }}>{STATUS_LABEL[status] || status}</span>;
-}
-
-function ContactAvatar({ c, size = 32 }) {
-  const initials = ((c.first_name?.[0] || '') + (c.last_name?.[0] || '')).toUpperCase();
-  const [errored, setErrored] = useState(false);
-  if (c.avatar_url && !errored) {
-    return <img
-      src={c.avatar_url}
-      alt=""
-      onError={() => setErrored(true)}
-      style={{
-        width: size, height: size, borderRadius: '50%',
-        objectFit: 'cover',
-        border: `1px solid ${T.faintRule}`, background: T.inkSoft, flexShrink: 0,
-      }}
-    />;
-  }
-  return <div style={{
-    width: size, height: size, borderRadius: '50%', background: T.inkSoft,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: size < 36 ? 11 : 14, fontWeight: 700, color: T.ink,
-    border: `1px solid ${T.faintRule}`, flexShrink: 0,
-  }}>{initials || '?'}</div>;
-}
-
-function ContactRow({ c, onClick, onRefresh, refreshing, onSchedule, canSchedule, awardedCount = 0, pitchingCount = 0 }) {
-  const [hover, setHover] = useState(false);
-  const canRefresh = !!(c.linkedin_url || c.email);
-  return (
-    <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '32px 2fr 1.6fr 1.4fr 1.2fr 1fr 56px',
-      gap: 16, alignItems: 'center', padding: '12px 18px',
-      borderBottom: `1px solid ${T.faintRule}`, cursor: 'pointer',
-      transition: 'background .15s',
-      background: hover ? T.inkSoft : 'transparent',
-    }}
-    onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-    >
-      <ContactAvatar c={c} size={32}/>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-            {(c.first_name || '') + ' ' + (c.last_name || '')}
-          </div>
-          {awardedCount > 0 && (
-            <span title={`${awardedCount} awarded project${awardedCount === 1 ? '' : 's'}`} style={{
-              flexShrink: 0, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
-              background: T.ink, color: T.paper, letterSpacing: '.06em', textTransform: 'uppercase',
-              fontFamily: T.sans, whiteSpace: 'nowrap',
-            }}>✓ {awardedCount} awarded</span>
-          )}
-          {pitchingCount > 0 && (
-            <span title={`${pitchingCount} project${pitchingCount === 1 ? '' : 's'} pitching`} style={{
-              flexShrink: 0, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
-              background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`,
-              letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: T.sans, whiteSpace: 'nowrap',
-            }}>◐ {pitchingCount} pitching</span>
-          )}
-        </div>
-        <div style={{ fontSize: 11, color: T.fadedInk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {c.email || <i style={{ opacity: .55 }}>no email on file</i>}
-        </div>
-      </div>
-      <div style={{ fontSize: 12, color: T.ink70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company || '—'}</div>
-      <div style={{ fontSize: 12, color: T.fadedInk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '—'}</div>
-      <div style={{ fontSize: 12, color: T.fadedInk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.location || '—'}</div>
-      <div><StatusBadge status={c.status || 'prospect'}/></div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-        {canSchedule && c.email && (
-          <button
-            onClick={e => { e.stopPropagation(); onSchedule?.(c); }}
-            title="Schedule a meeting with this contact"
-            style={{
-              opacity: hover ? 1 : 0,
-              transition: 'opacity .15s',
-              width: 22, height: 22, borderRadius: '50%',
-              background: 'transparent',
-              border: `1px solid ${T.faintRule}`,
-              color: T.ink70,
-              fontSize: 11, fontFamily: T.sans, fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >📅</button>
-        )}
-        {canRefresh && (
-          <button
-            onClick={e => { e.stopPropagation(); onRefresh?.(c); }}
-            title="Refresh from RocketReach"
-            disabled={refreshing}
-            style={{
-              opacity: hover || refreshing ? 1 : 0,
-              transition: 'opacity .15s',
-              width: 22, height: 22, borderRadius: '50%',
-              background: refreshing ? T.ink : 'transparent',
-              border: `1px solid ${T.faintRule}`,
-              color: refreshing ? T.paper : T.ink70,
-              fontSize: 11, fontFamily: T.sans, fontWeight: 600,
-              cursor: refreshing ? 'wait' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >↻</button>
-        )}
-        <span style={{ fontSize: 11, color: T.fadedInk }}>›</span>
-      </div>
-    </div>
-  );
-}
-
-function ImportWizard({ userId, onClose, onComplete }) {
-  const [step, setStep] = useState(1);
-  const [parsed, setParsed] = useState(null);
-  const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [result, setResult] = useState(null);
-  const fileInputRef = useRef(null);
-
-  const onFile = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const out = parseContactsCSV(e.target.result);
-        setParsed({ ...out, fileName: file.name });
-        setStep(2);
-      } catch (err) { alert('Could not parse CSV: ' + err.message); }
-    };
-    reader.readAsText(file);
-  };
-
-  const runImport = async () => {
-    if (!parsed?.contacts?.length) return;
-    setImporting(true);
-    try {
-      const res = await importContacts(userId, parsed.contacts, {
-        onProgress: (done, total) => setProgress({ done, total }),
-      });
-      setResult(res);
-      setStep(3);
-    } catch (e) {
-      alert('Import failed: ' + (e.message || e));
-    } finally { setImporting(false); }
-  };
-
-  const finish = () => {
-    onComplete?.();
-    onClose();
-  };
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
-        width: 600, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto',
-        background: T.paper, borderRadius: 12, padding: 28,
-        border: `1px solid ${T.faintRule}`, boxShadow: T.shadow,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.01em' }}>Import contacts</h2>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk,
-            cursor: 'pointer', width: 28, height: 28, borderRadius: '50%',
-          }}>×</button>
-        </div>
-
-        <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: `1px solid ${T.faintRule}` }}>
-          {[1,2,3].map(n => {
-            const active = step === n;
-            const done = step > n;
-            return <div key={n} style={{
-              flex: 1, padding: '10px 0', textAlign: 'center',
-              fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase',
-              color: active ? T.ink : done ? T.ink70 : T.fadedInk,
-              borderBottom: active ? `2px solid ${T.ink}` : 'none',
-              marginBottom: -1,
-            }}>
-              <span style={{
-                display: 'inline-block', width: 18, height: 18, borderRadius: '50%',
-                background: active ? T.ink : done ? T.ink70 : T.inkSoft,
-                color: active || done ? T.paper : T.ink70,
-                fontSize: 10, fontWeight: 700, lineHeight: '18px', marginRight: 8,
-              }}>{n}</span>
-              {n === 1 ? 'Upload' : n === 2 ? 'Review' : 'Done'}
-            </div>;
-          })}
-        </div>
-
-        {step === 1 && (
-          <div>
-            <div onClick={() => fileInputRef.current?.click()}
-              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.background = T.inkSoft2; }}
-              onDragLeave={e => { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; }}
-              onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; onFile(e.dataTransfer.files?.[0]); }}
-              style={{
-                border: `2px dashed ${T.faintRule}`, borderRadius: 10, padding: '40px 20px',
-                textAlign: 'center', cursor: 'pointer', transition: 'all .15s',
-              }}
-            >
-              <div style={{ fontSize: 28, color: T.fadedInk, marginBottom: 12 }}>↑</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.ink, marginBottom: 4 }}>Drop your CSV or click to choose</div>
-              <div style={{ fontSize: 11, color: T.fadedInk }}>RocketReach and LinkedIn Connections exports detected automatically.</div>
-            </div>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }}
-              onChange={e => onFile(e.target.files?.[0])}/>
-          </div>
-        )}
-
-        {step === 2 && parsed && (
-          <div>
-            <div style={{ marginBottom: 16, fontSize: 12, color: T.ink70 }}>
-              Detected <b style={{ color: T.ink }}>{parsed.source === 'rocketreach' ? 'RocketReach' : parsed.source === 'linkedin' ? 'LinkedIn' : 'generic CSV'}</b> format —
-              <b style={{ color: T.ink }}> {parsed.count} rows</b> in <i>{parsed.fileName}</i>.
-            </div>
-            <div style={{ background: T.inkSoft2, borderRadius: 8, padding: '12px 14px', marginBottom: 16, fontSize: 12, color: T.ink70, lineHeight: 1.55 }}>
-              We'll match against existing contacts by <b>LinkedIn URL</b> first, then by <b>email</b>. Matches are merged (your notes/tags/status are never overwritten). Brand-new rows get status <b>prospect</b>.
-            </div>
-            {parsed.warnings?.length > 0 && (
-              <div style={{ background: T.alertSoft, border: `1px solid ${T.alert}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 11, color: T.alert }}>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>{parsed.warnings.length} duplicates within the file</div>
-                <div style={{ opacity: .8, maxHeight: 80, overflow: 'auto' }}>{parsed.warnings.slice(0, 6).join(' · ')}{parsed.warnings.length > 6 ? ' …' : ''}</div>
-              </div>
-            )}
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.ink70, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Preview · first 3 rows</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 20 }}>
-              {parsed.contacts.slice(0, 3).map((c, i) => (
-                <div key={i} style={{ padding: 12, border: `1px solid ${T.faintRule}`, borderRadius: 8, background: T.inkSoft2 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.ink }}>{(c.first_name || '') + ' ' + (c.last_name || '')}</div>
-                  <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{c.email || '—'}</div>
-                  <div style={{ fontSize: 11, color: T.ink70, marginTop: 6 }}>{c.title || '—'}</div>
-                  <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 2 }}>{c.company || '—'}</div>
-                </div>
-              ))}
-            </div>
-            {importing && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: T.ink70, marginBottom: 6 }}>Importing… {progress.done} of {progress.total}</div>
-                <div style={{ height: 4, borderRadius: 2, background: T.inkSoft, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${progress.total ? (progress.done / progress.total * 100) : 0}%`, background: T.ink, transition: 'width .2s' }}/>
-                </div>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <button onClick={() => setStep(1)} disabled={importing} style={btnGhost}>← Back</button>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={onClose} disabled={importing} style={btnGhost}>Cancel</button>
-                <button onClick={runImport} disabled={importing} style={{ ...btnSolid, opacity: importing ? .5 : 1 }}>
-                  {importing ? 'Importing…' : `Import ${parsed.count} contacts →`}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && result && (
-          <div>
-            <div style={{ fontSize: 14, color: T.ink, marginBottom: 16 }}>
-              Done. <b>{result.created}</b> created, <b>{result.merged}</b> merged into existing contacts
-              {result.skipped.length > 0 ? `, ${result.skipped.length} skipped` : ''}.
-            </div>
-            {result.errors.length > 0 && (
-              <div style={{ background: T.alertSoft, border: `1px solid ${T.alert}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 11, color: T.alert }}>
-                <b>{result.errors.length} errors:</b> {result.errors.slice(0, 3).map(e => e.message).join(' · ')}
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={finish} style={btnSolid}>View contacts</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// CRM sub-components — extracted from this view for legibility.
+import { STATUS_OPTIONS } from '../components/contacts/primitives.jsx';
+import CompanyCard from '../components/contacts/CompanyCard.jsx';
+import CompanyDetail from '../components/contacts/CompanyDetail.jsx';
+import ImportWizard from '../components/contacts/ImportWizard.jsx';
+import NewContactModal from '../components/contacts/NewContactModal.jsx';
+import RefreshPreviewModal from '../components/contacts/RefreshPreviewModal.jsx';
+import RecentContactsStrip from '../components/contacts/RecentContactsStrip.jsx';
+import StatsCards from '../components/contacts/StatsCards.jsx';
+import ToolbarMenu from '../components/contacts/ToolbarMenu.jsx';
+import CommandPalette from '../components/contacts/CommandPalette.jsx';
 
 const btnSolid = {
   padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
@@ -327,1285 +34,6 @@ const btnGhost = {
   fontSize: 12, fontWeight: 600, fontFamily: T.sans,
   background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`,
 };
-
-const NEW_TYPE_OPTIONS = [
-  { id: '',         label: 'Type…' },
-  { id: 'brand',    label: 'Brand' },
-  { id: 'agency',   label: 'Agency' },
-  { id: 'vendor',   label: 'Vendor' },
-  { id: 'agent',    label: 'Agent' },
-  { id: 'press',    label: 'Press' },
-  { id: 'internal', label: 'Internal (me / team)' },
-];
-const NEW_STATUS_OPTIONS = [
-  { id: 'prospect', label: 'Prospect' },
-  { id: 'pitching', label: 'Pitching' },
-  { id: 'active',   label: 'Active' },
-  { id: 'past',     label: 'Past' },
-  { id: 'vendor',   label: 'Vendor' },
-  { id: 'press',    label: 'Press' },
-];
-
-// Free / personal email providers — domain from one of these is NOT
-// the contact's company website. Lowercase, no trailing dot.
-const PERSONAL_EMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com',
-  'yahoo.com', 'yahoo.co.uk', 'ymail.com', 'rocketmail.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'icloud.com', 'me.com', 'mac.com',
-  'aol.com',
-  'protonmail.com', 'proton.me', 'pm.me',
-  'fastmail.com', 'zoho.com',
-  'yandex.com', 'yandex.ru',
-  'mail.com', 'gmx.com', 'gmx.net',
-  'hey.com', 'duck.com',
-]);
-function deriveCompanyWebsiteFromEmail(email) {
-  if (!email || typeof email !== 'string') return null;
-  const at = email.indexOf('@');
-  if (at < 0) return null;
-  const domain = email.slice(at + 1).trim().toLowerCase();
-  if (!domain || !domain.includes('.')) return null;
-  if (PERSONAL_EMAIL_DOMAINS.has(domain)) return null;
-  return domain;
-}
-
-// Hoisted outside NewContactModal so its identity is stable across
-// re-renders. Defining it inside the parent made React remount every
-// <input> on each keystroke, which stole focus back to the autoFocus
-// field — the cursor would jump out of email into first name.
-function NCField({ label, children }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase' }}>{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function NewContactModal({ userId, onClose, onCreated }) {
-  const [form, setForm] = useState({
-    first_name: '', last_name: '', email: '', phone: '',
-    title: '', company: '', location: '', linkedin_url: '',
-    contact_type: '', status: 'prospect',
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [lookupUrl, setLookupUrl] = useState('');
-  const [lookingUp, setLookingUp] = useState(false);
-  const [lookupNote, setLookupNote] = useState(null);
-  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const onLookup = async () => {
-    const url = lookupUrl.trim();
-    if (!url) return;
-    setLookingUp(true); setError(null); setLookupNote(null);
-    try {
-      // RocketReach accepts a LinkedIn URL or an email
-      const isUrl = url.includes('linkedin.com') || url.startsWith('http');
-      const isEmail = url.includes('@') && !isUrl;
-      const body = isUrl ? { linkedin_url: url } : isEmail ? { email: url } : { name: url };
-      const { profile, status } = await rocketReachLookup(body);
-      if (!profile || (!profile.first_name && !profile.email && !profile.linkedin_url)) {
-        setLookupNote(status === 'queued' || status === 'searching'
-          ? 'RocketReach is still searching — wait a moment and try again.'
-          : 'No matching profile found. Fill in the fields manually.');
-        return;
-      }
-      // Pre-fill empty form fields from the looked-up profile
-      setForm(prev => ({
-        first_name: prev.first_name || profile.first_name || '',
-        last_name:  prev.last_name  || profile.last_name  || '',
-        email:      prev.email      || profile.email      || '',
-        phone:      prev.phone      || profile.phone      || '',
-        title:      prev.title      || profile.title      || '',
-        company:    prev.company    || profile.company    || '',
-        location:   prev.location   || profile.location   || '',
-        linkedin_url: prev.linkedin_url || profile.linkedin_url || '',
-        contact_type: prev.contact_type,
-        status: prev.status,
-        // Attach the RocketReach profile_id so dedup picks it up
-        rocketreach_profile_id: profile.rocketreach_profile_id || null,
-        avatar_url: profile.avatar_url || null,
-        bio: profile.bio || null,
-      }));
-      setLookupNote('Pre-filled from RocketReach. Edit anything before saving.');
-    } catch (e) {
-      setError(e.message || 'Lookup failed');
-    } finally { setLookingUp(false); }
-  };
-
-  const canSave = (form.first_name.trim() || form.last_name.trim() || form.email.trim()) && !saving;
-
-  const onSave = async () => {
-    setSaving(true); setError(null);
-    try {
-      const body = { ...form, sources: ['manual'] };
-      // Trim + null-out empty strings so DB doesn't store ""
-      Object.keys(body).forEach(k => {
-        if (typeof body[k] === 'string') {
-          const t = body[k].trim();
-          body[k] = t === '' ? null : t;
-        }
-      });
-      // Lowercase email for unique-index match
-      if (body.email) body.email = body.email.toLowerCase();
-      // Lowercase linkedin url for the same reason
-      if (body.linkedin_url) body.linkedin_url = body.linkedin_url.toLowerCase().split('?')[0].replace(/\/$/, '');
-      const created = await createContact(userId, body);
-      if (!created) throw new Error('No contact returned');
-
-      // Best-effort: create/refresh the companies row so the new
-      // contact's company gets a metadata card. Website is filled
-      // from the email domain (skipping personal providers like
-      // gmail) but only if no existing row already has a website,
-      // so we never clobber something the user set by hand.
-      if (body.company) {
-        try {
-          const existing = await getCompanyByName(body.company);
-          const derivedWebsite = deriveCompanyWebsiteFromEmail(body.email);
-          const patch = {};
-          if (derivedWebsite && !existing?.website) patch.website = derivedWebsite;
-          await upsertCompany(userId, body.company, patch);
-        } catch (companyErr) {
-          // Don't fail the contact creation — log and move on.
-          console.warn('[new-contact] auto-create company failed:', companyErr?.message);
-        }
-      }
-
-      onCreated?.(created);
-      onClose();
-    } catch (e) {
-      setError(e.message || 'Could not create');
-    } finally { setSaving(false); }
-  };
-
-  const inp = {
-    width: '100%', padding: '8px 10px', borderRadius: 6,
-    border: `1px solid ${T.faintRule}`, background: T.paper,
-    fontSize: 13, fontFamily: T.sans, color: T.ink, outline: 'none',
-  };
-  const Field = NCField;
-
-  return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        width: 600, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto',
-        background: T.paper, borderRadius: 12, padding: 28,
-        border: `1px solid ${T.faintRule}`, boxShadow: T.shadow, fontFamily: T.sans,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.01em' }}>New contact</h2>
-          <button onClick={onClose} disabled={saving} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: saving ? 'wait' : 'pointer', width: 28, height: 28 }}>×</button>
-        </div>
-
-        {/* Quick-lookup from LinkedIn URL (or email / name) — pre-fills
-            the form via RocketReach. Skips this row if you already
-            know everything and want to type manually. */}
-        <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 8, background: T.inkSoft2, border: `1px solid ${T.faintRule}` }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: T.ink, marginBottom: 6 }}>
-            🚀 Paste a LinkedIn URL to autofill
-          </div>
-          <div style={{ fontSize: 10, color: T.fadedInk, marginBottom: 8, lineHeight: 1.45 }}>
-            Pulls name, email, title, company, location, photo via RocketReach. Email or just a name also work.
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              value={lookupUrl}
-              onChange={e => setLookupUrl(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && lookupUrl.trim() && !lookingUp) onLookup(); }}
-              placeholder="https://linkedin.com/in/… (or email, or name)"
-              autoFocus
-              style={{ ...inp, flex: 1 }}
-            />
-            <button onClick={onLookup} disabled={!lookupUrl.trim() || lookingUp} style={{
-              padding: '8px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
-              background: T.ink, color: T.paper, border: 'none',
-              cursor: (lookupUrl.trim() && !lookingUp) ? 'pointer' : 'default',
-              opacity: (lookupUrl.trim() && !lookingUp) ? 1 : .4,
-            }}>{lookingUp ? 'Looking up…' : 'Lookup'}</button>
-          </div>
-          {lookupNote && (
-            <div style={{ marginTop: 8, fontSize: 10, color: T.ink70, lineHeight: 1.4 }}>{lookupNote}</div>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
-          <Field label="First name"><input value={form.first_name} onChange={e => update('first_name', e.target.value)} style={inp}/></Field>
-          <Field label="Last name"><input value={form.last_name} onChange={e => update('last_name', e.target.value)} style={inp}/></Field>
-          <Field label="Email"><input value={form.email} onChange={e => update('email', e.target.value)} placeholder="name@company.com" style={inp}/></Field>
-          <Field label="Phone"><input value={form.phone} onChange={e => update('phone', e.target.value)} style={inp}/></Field>
-          <Field label="Title"><input value={form.title} onChange={e => update('title', e.target.value)} style={inp}/></Field>
-          <Field label="Company"><input value={form.company} onChange={e => update('company', e.target.value)} style={inp}/></Field>
-          <Field label="Location"><input value={form.location} onChange={e => update('location', e.target.value)} style={inp}/></Field>
-          <Field label="LinkedIn URL"><input value={form.linkedin_url} onChange={e => update('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/…" style={inp}/></Field>
-          <Field label="Type">
-            <select value={form.contact_type} onChange={e => update('contact_type', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-              {NEW_TYPE_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-          </Field>
-          <Field label="Status">
-            <select value={form.status} onChange={e => update('status', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-              {NEW_STATUS_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-          </Field>
-        </div>
-
-        {error && (
-          <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 8, background: T.alertSoft, border: `1px solid ${T.alert}33`, color: T.alert, fontSize: 12 }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ marginTop: 18, fontSize: 11, color: T.fadedInk, lineHeight: 1.55 }}>
-          At least one of first name, last name, or email is required. Anything else is optional — add later from the contact detail drawer.
-        </div>
-
-        <div style={{ marginTop: 18, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} disabled={saving} style={btnGhost}>Cancel</button>
-          <button onClick={onSave} disabled={!canSave} style={{ ...btnSolid, opacity: canSave ? 1 : .4, cursor: canSave ? 'pointer' : 'default' }}>
-            {saving ? 'Saving…' : 'Add contact'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LookupModal({ userId, onClose, onCreated }) {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState(null);
-  const [error, setError] = useState(null);
-
-  const lookup = async () => {
-    const q = query.trim();
-    if (!q) return;
-    setLoading(true); setError(null); setProfile(null);
-    try {
-      const isLinkedIn = q.includes('linkedin.com');
-      const isEmail = q.includes('@') && !isLinkedIn;
-      const body = isLinkedIn ? { linkedin_url: q } : isEmail ? { email: q } : { name: q };
-      const { profile, status } = await rocketReachLookup(body);
-      if (!profile || (!profile.first_name && !profile.email && !profile.linkedin_url)) {
-        setError(status === 'queued' || status === 'searching'
-          ? 'RocketReach is still searching — try again in a minute.'
-          : 'No matching profile found.');
-      } else {
-        setProfile(profile);
-      }
-    } catch (e) {
-      setError(e.message || 'Lookup failed');
-    } finally { setLoading(false); }
-  };
-
-  const save = async () => {
-    if (!profile) return;
-    setLoading(true);
-    try {
-      const created = await createContact(userId, { ...profile, status: 'prospect' });
-      onCreated?.(created);
-      onClose();
-    } catch (e) {
-      setError(e.message || 'Could not save');
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        width: 560, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto',
-        background: T.paper, borderRadius: 12, padding: 28,
-        border: `1px solid ${T.faintRule}`, boxShadow: T.shadow, fontFamily: T.sans,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.01em' }}>Lookup a contact</h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
-        </div>
-
-        <div style={{ fontSize: 12, color: T.ink70, lineHeight: 1.5, marginBottom: 14 }}>
-          Paste a <b>LinkedIn URL</b>, an <b>email</b>, or a <b>name</b> — RocketReach finds the rest.
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') lookup(); }}
-            placeholder="https://linkedin.com/in/… or sarah@brand.com"
-            autoFocus
-            style={{
-              flex: 1, padding: '10px 12px', borderRadius: 8,
-              border: `1px solid ${T.faintRule}`, background: T.inkSoft2,
-              color: T.ink, fontSize: 13, fontFamily: T.sans, outline: 'none',
-            }}
-          />
-          <button onClick={lookup} disabled={loading || !query.trim()} style={{
-            ...btnSolid, opacity: loading || !query.trim() ? .5 : 1,
-            cursor: loading || !query.trim() ? 'default' : 'pointer',
-          }}>{loading ? 'Looking up…' : 'Lookup'}</button>
-        </div>
-
-        {error && (
-          <div style={{ padding: '10px 14px', background: T.alertSoft, border: `1px solid ${T.alert}33`, borderRadius: 8, color: T.alert, fontSize: 12, marginBottom: 14 }}>
-            {error}
-          </div>
-        )}
-
-        {profile && (
-          <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 10, padding: 18, background: T.inkSoft2, marginBottom: 14 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 4 }}>
-              {(profile.first_name || '') + ' ' + (profile.last_name || '')}
-            </div>
-            <div style={{ fontSize: 12, color: T.ink70, marginBottom: 12 }}>
-              {profile.title ? <b>{profile.title}</b> : null}{profile.title && profile.company ? ' · ' : ''}{profile.company || ''}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 12 }}>
-              {profile.email && <Field label="Email" value={profile.email}/>}
-              {profile.phone && <Field label="Phone" value={profile.phone}/>}
-              {profile.location && <Field label="Location" value={profile.location}/>}
-              {profile.linkedin_url && <Field label="LinkedIn" value={profile.linkedin_url.replace(/^https?:\/\/(www\.)?/, '')}/>}
-              {profile.company_url && <Field label="Company URL" value={profile.company_url.replace(/^https?:\/\/(www\.)?/, '')}/>}
-            </div>
-            {profile.bio && (
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.faintRule}`, fontSize: 12, color: T.ink70, lineHeight: 1.55 }}>
-                {profile.bio.length > 280 ? profile.bio.slice(0, 280) + '…' : profile.bio}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} disabled={loading} style={btnGhost}>Cancel</button>
-          {profile && (
-            <button onClick={save} disabled={loading} style={{ ...btnSolid, opacity: loading ? .5 : 1 }}>
-              {loading ? 'Saving…' : 'Add to CRM →'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ToolbarMenu({ syncing, backfillingAvatars, onSyncRocketReach, onBackfillAvatars, onImportCSV }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  const item = (label, onClick, opts = {}) => (
-    <button onClick={() => { setOpen(false); onClick(); }} disabled={opts.disabled} style={{
-      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-      padding: '10px 14px', textAlign: 'left',
-      background: 'transparent', border: 'none', cursor: opts.disabled ? 'wait' : 'pointer',
-      fontSize: 12, fontWeight: 500, fontFamily: T.sans, color: T.ink,
-      opacity: opts.disabled ? .5 : 1,
-    }}
-    onMouseEnter={e => { if (!opts.disabled) e.currentTarget.style.background = T.inkSoft; }}
-    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-    >
-      <span style={{ fontSize: 13 }}>{opts.icon}</span>
-      <span>{label}</span>
-      {opts.desc && <span style={{ marginLeft: 'auto', fontSize: 10, color: T.fadedInk, fontWeight: 400 }}>{opts.desc}</span>}
-    </button>
-  );
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(o => !o)} style={{
-        ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6,
-        opacity: (syncing || backfillingAvatars) ? .85 : 1,
-      }}>
-        {syncing ? 'Syncing…' : backfillingAvatars ? 'Backfilling…' : '⋯ More'}
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
-          minWidth: 240,
-          background: T.paper, border: `1px solid ${T.faintRule}`, borderRadius: 8,
-          boxShadow: '0 8px 24px rgba(15,82,186,.15)',
-          padding: '4px 0', overflow: 'hidden',
-        }}>
-          {item('Sync RocketReach now', onSyncRocketReach, { icon: '↻', desc: syncing ? 'running' : 'auto every 2 min', disabled: syncing })}
-          {item('Backfill missing photos', onBackfillAvatars, { icon: '📷', desc: 'from RocketReach', disabled: backfillingAvatars })}
-          <div style={{ height: 1, background: T.faintRule, margin: '4px 0' }}/>
-          {item('Import CSV', onImportCSV, { icon: '↑' })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, value }) {
-  return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 12, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
-    </div>
-  );
-}
-
-// Company logo via Google's favicon service. Free, no auth, returns
-// a square favicon at the requested size. Falls back to a sapphire
-// initial-letter tile when the favicon doesn't exist for the domain.
-function CompanyLogo({ cluster, size = 36 }) {
-  const domain = cluster.emailDomain || (cluster.contacts[0]?.company_url || '')
-    .replace(/^https?:\/\/(www\.)?/, '').split('/')[0].toLowerCase() || null;
-  const [errored, setErrored] = useState(false);
-  const letter = (cluster.canonical || '?').charAt(0).toUpperCase();
-
-  if (!domain || errored) {
-    return (
-      <div style={{
-        width: size, height: size, borderRadius: 6, background: T.inkSoft,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: size < 32 ? 13 : 16, fontWeight: 700, color: T.ink,
-        border: `1px solid ${T.faintRule}`, flexShrink: 0,
-      }}>{letter}</div>
-    );
-  }
-  return (
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
-      alt=""
-      onError={() => setErrored(true)}
-      style={{
-        width: size, height: size, borderRadius: 6, objectFit: 'cover',
-        border: `1px solid ${T.faintRule}`, background: T.paper, flexShrink: 0,
-      }}
-    />
-  );
-}
-
-function CompanyCard({ cluster, selected, onClick, pinned }) {
-  const STAGE_ORDER = ['active', 'pitching', 'prospect', 'vendor', 'press', 'past'];
-  const orderedStages = STAGE_ORDER.filter(s => cluster.stages.includes(s));
-  const lastSeen = cluster.lastContactedAt
-    ? relativeDays(cluster.lastContactedAt)
-    : null;
-  return (
-    <div onClick={onClick} style={{
-      padding: '16px 18px',
-      border: `1px solid ${selected ? T.ink : T.faintRule}`,
-      background: selected ? T.inkSoft2 : T.paper,
-      borderRadius: 10, cursor: 'pointer',
-      transition: 'all .18s',
-      display: 'flex', flexDirection: 'column', gap: 10,
-      fontFamily: T.sans,
-    }}
-    onMouseEnter={e => { if (!selected) { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(15,82,186,.08)'; } }}
-    onMouseLeave={e => { if (!selected) { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; } }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <CompanyLogo cluster={cluster} size={36}/>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-            {pinned && <span title="Pinned to top" style={{ fontSize: 12, lineHeight: 1, color: T.ink }}>📌</span>}
-            <span style={{ fontSize: 14, fontWeight: 700, color: T.ink, letterSpacing: '-.003em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
-            </span>
-          </div>
-          {cluster.aliases.length > 0 && (
-            <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`Also: ${cluster.aliases.join(' · ')}`}>
-              also: {cluster.aliases.join(' · ')}
-            </div>
-          )}
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: T.ink70, whiteSpace: 'nowrap', flexShrink: 0 }}>
-          {cluster.count}
-        </div>
-      </div>
-
-      {orderedStages.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {orderedStages.map(s => <StatusBadge key={s} status={s}/>)}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.fadedInk }}>
-        <span>{cluster.count} contact{cluster.count === 1 ? '' : 's'}</span>
-        <span>{lastSeen || '—'}</span>
-      </div>
-    </div>
-  );
-}
-
-function relativeDays(iso) {
-  if (!iso) return null;
-  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (diff <= 0) return 'today';
-  if (diff === 1) return 'yesterday';
-  if (diff < 7) return diff + 'd ago';
-  if (diff < 30) return Math.round(diff / 7) + 'w ago';
-  if (diff < 365) return Math.round(diff / 30) + 'mo ago';
-  return Math.round(diff / 365) + 'y ago';
-}
-
-function CompanyDetail({ cluster, onClose, onRefreshContact, refreshingId, onDeleteCompany, deletingCompany, onOpenContact, pinned, onTogglePin, onOpenProject, onScheduleMeeting, canSchedule, userId }) {
-  // Company-level metadata stored in the companies table. Edits
-  // propagate to the contract editor + any other surface that
-  // reads getCompanyByName(project.client). Autosave on blur.
-  const [companyMeta, setCompanyMeta] = useState(null);
-  const [companyDirty, setCompanyDirty] = useState(false);
-  const [companySaving, setCompanySaving] = useState(false);
-  const [companySaveError, setCompanySaveError] = useState(null);
-  const [companyLastSavedAt, setCompanyLastSavedAt] = useState(null);
-  const companySaveTimer = useRef(null);
-  useEffect(() => {
-    if (!cluster?.canonical) return;
-    let cancelled = false;
-    getCompanyByName(cluster.canonical)
-      .then(row => { if (!cancelled) setCompanyMeta(row || { name_canonical: cluster.canonical, address: '', website: '', legal_name: '', billing_email: '' }); })
-      .catch(() => { if (!cancelled) setCompanyMeta({ name_canonical: cluster.canonical, address: '', website: '', legal_name: '', billing_email: '' }); });
-    return () => { cancelled = true; };
-  }, [cluster?.canonical]);
-  const saveCompanyMeta = useCallback(async () => {
-    if (!userId || !cluster?.canonical || !companyMeta) return;
-    setCompanySaving(true);
-    setCompanySaveError(null);
-    try {
-      const saved = await upsertCompany(userId, cluster.canonical, {
-        legal_name: companyMeta.legal_name || null,
-        address: companyMeta.address || null,
-        website: companyMeta.website || null,
-        billing_email: companyMeta.billing_email || null,
-      });
-      if (saved) setCompanyMeta(saved);
-      setCompanyDirty(false);
-      setCompanyLastSavedAt(Date.now());
-    } catch (e) {
-      console.error('[company-detail] save failed:', e.message || e);
-      setCompanySaveError(e.message || 'Save failed');
-    } finally {
-      setCompanySaving(false);
-    }
-  }, [userId, cluster?.canonical, companyMeta]);
-  // Debounced auto-save 800ms after edit.
-  useEffect(() => {
-    if (!companyDirty) return;
-    clearTimeout(companySaveTimer.current);
-    companySaveTimer.current = setTimeout(() => { saveCompanyMeta(); }, 800);
-    return () => clearTimeout(companySaveTimer.current);
-  }, [companyDirty, saveCompanyMeta]);
-  const setMetaField = (key, value) => {
-    setCompanyMeta(m => ({ ...(m || {}), [key]: value }));
-    setCompanyDirty(true);
-  };
-
-  // Company-data lookup via Claude with web search. Returns up to 3
-  // candidates so the user can pick — names like "LaForce" are
-  // ambiguous (PR agency vs. hardware vs. architects). User picks,
-  // we fill-only merge into blank fields.
-  const [enriching, setEnriching] = useState(false);
-  const [enrichError, setEnrichError] = useState(null);
-  const [enrichSources, setEnrichSources] = useState([]);
-  const [candidates, setCandidates] = useState([]);
-  const handleLookup = async () => {
-    if (!cluster?.canonical) return;
-    setEnriching(true);
-    setEnrichError(null);
-    setCandidates([]);
-    try {
-      const { getSession } = await import('../lib/db.js');
-      const session = await getSession();
-      const res = await fetch('/api/company-enrich', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({ company_name: cluster.canonical }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `Lookup failed: ${res.status}`);
-      const list = Array.isArray(data.candidates) ? data.candidates : [];
-      if (!list.length) {
-        setEnrichError('No candidates found. Try refining the company name.');
-      } else {
-        setCandidates(list);
-      }
-      setEnrichSources(data.sources || []);
-    } catch (e) {
-      setEnrichError(e.message || 'Lookup failed');
-    } finally { setEnriching(false); }
-  };
-  // User explicitly chose this candidate, so overwrite whatever was
-  // there — including stale data from a previous wrong-match lookup.
-  // Only overwrite fields the candidate actually has; leave others
-  // (like billing_email) alone since the candidate doesn't speak to them.
-  const pickCandidate = (c) => {
-    setCompanyMeta(m => {
-      const next = { ...(m || {}) };
-      if (c.legal_name) next.legal_name = c.legal_name;
-      if (c.address)    next.address = c.address;
-      if (c.website)    next.website = c.website;
-      return next;
-    });
-    setCompanyDirty(true);
-    setCandidates([]);
-  };
-  // Aggregate linked projects across all contacts in this cluster.
-  // One round-trip per contact id, parallelized. Deduped by project
-  // id so a project linked by multiple contacts shows once.
-  const [linkedProjects, setLinkedProjects] = useState([]);
-  // Per-contact project counts for the "N awarded" badges on each
-  // contact row. Same fetch as linkedProjects above — we just
-  // keep the per-contact buckets instead of throwing them away.
-  const [projectsByContact, setProjectsByContact] = useState({});
-  useEffect(() => {
-    if (!cluster?.contacts?.length) { setLinkedProjects([]); setProjectsByContact({}); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const results = await Promise.all(
-          cluster.contacts.map(c => listProjectsForContact(c.id).catch(() => [])),
-        );
-        const perContact = {};
-        cluster.contacts.forEach((c, i) => { perContact[c.id] = results[i] || []; });
-        const seen = new Set();
-        const out = [];
-        results.flat().forEach(lp => {
-          const id = lp?.projects?.id;
-          if (!id || seen.has(id)) return;
-          seen.add(id);
-          out.push(lp);
-        });
-        if (!cancelled) {
-          setLinkedProjects(out);
-          setProjectsByContact(perContact);
-        }
-      } catch (e) { /* silent */ }
-    })();
-    return () => { cancelled = true; };
-  }, [cluster?.id]);
-
-  return (
-    <div data-company-detail style={{
-      marginTop: 24, border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden', background: T.paper,
-    }}>
-      <div style={{
-        padding: '16px 22px', background: T.inkSoft2, borderBottom: `1px solid ${T.faintRule}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <CompanyLogo cluster={cluster} size={44}/>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, letterSpacing: '-.008em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {cluster.canonical || <i style={{ opacity: .55, fontWeight: 400 }}>No company</i>}
-            </div>
-            <div style={{ fontSize: 11, color: T.fadedInk, marginTop: 3 }}>
-              {cluster.count} contact{cluster.count === 1 ? '' : 's'}
-              {cluster.aliases.length > 0 ? ' · includes ' + cluster.aliases.join(', ') : ''}
-              {cluster.emailDomain ? ' · @' + cluster.emailDomain : ''}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          {onTogglePin && (
-            <button onClick={onTogglePin} title={pinned ? 'Unpin from top' : 'Pin to top'} style={{
-              background: pinned ? T.ink : 'transparent', border: `1px solid ${pinned ? T.ink : T.faintRule}`, borderRadius: 999,
-              padding: '6px 12px', fontSize: 11, fontWeight: 600,
-              color: pinned ? T.paper : T.ink70, cursor: 'pointer', fontFamily: T.sans,
-            }}>{pinned ? '📌 Pinned' : '📌 Pin to top'}</button>
-          )}
-          {onDeleteCompany && (
-            <button onClick={onDeleteCompany} disabled={deletingCompany} title={`Delete all ${cluster.count} contact${cluster.count === 1 ? '' : 's'} in this company`} style={{
-              background: 'transparent', border: `1px solid ${T.alert}33`, borderRadius: 999,
-              padding: '6px 12px', fontSize: 11, fontWeight: 600, color: T.alert, cursor: deletingCompany ? 'wait' : 'pointer',
-              fontFamily: T.sans, opacity: deletingCompany ? .5 : 1,
-            }}>{deletingCompany ? 'Deleting…' : 'Delete company'}</button>
-          )}
-          <button onClick={onClose} style={{
-            background: 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
-            padding: '6px 12px', fontSize: 11, fontWeight: 600, color: T.ink70, cursor: 'pointer', fontFamily: T.sans,
-          }}>Close</button>
-        </div>
-      </div>
-      {/* Company-level fields. Edits autopopulate the contract
-          editor's Client legal address / Billing fields for any
-          project where project.client matches this company. */}
-      <div style={{
-        padding: '14px 22px', borderBottom: `1px solid ${T.faintRule}`,
-        background: T.inkSoft3,
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, gap: 10, flexWrap: 'wrap',
-        }}>
-          <div style={{
-            fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.16em', textTransform: 'uppercase',
-          }}>
-            Company details
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              type="button"
-              onClick={handleLookup}
-              disabled={enriching}
-              title="Use Claude with web search to find this company's legal name, address, and website. Fills blanks only."
-              style={{
-                padding: '4px 10px', borderRadius: 999, fontSize: 9, fontWeight: 700,
-                background: T.ink, color: T.paper, border: 'none',
-                cursor: enriching ? 'wait' : 'pointer', opacity: enriching ? .6 : 1,
-                textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: T.sans,
-              }}
-            >{enriching ? 'Looking up…' : '🪄 Look up online'}</button>
-            <button
-              type="button"
-              onClick={() => {
-                // Force a save — cancel any pending debounced run first
-                // so the click writes the latest state rather than
-                // racing with a 800ms-later autosave.
-                clearTimeout(companySaveTimer.current);
-                saveCompanyMeta();
-              }}
-              disabled={companySaving}
-              title="Save company details now"
-              style={{
-                padding: '4px 10px', borderRadius: 999, fontSize: 9, fontWeight: 700,
-                background: T.ink, color: T.paper, border: 'none',
-                cursor: companySaving ? 'wait' : 'pointer',
-                opacity: companySaving ? .6 : 1,
-                textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: T.sans,
-              }}
-            >{companySaving ? 'Saving…' : '💾 Save now'}</button>
-            <span style={{ fontSize: 10, color: companySaveError ? T.alert : T.fadedInk, fontStyle: 'italic' }}>
-              {companySaveError
-                ? companySaveError
-                : companyDirty
-                  ? 'Unsaved changes'
-                  : companyLastSavedAt
-                    ? `Saved ${new Date(companyLastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-                    : 'Auto-fills into contracts'}
-            </span>
-          </div>
-        </div>
-        {enrichError && (
-          <div style={{ marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: T.alertSoft, color: T.alert, fontSize: 11, lineHeight: 1.45 }}>
-            {enrichError}
-          </div>
-        )}
-        {enrichSources.length > 0 && (
-          <div style={{ marginBottom: 8, fontSize: 10, color: T.fadedInk }}>
-            Sources: {enrichSources.slice(0, 3).map((s, i) => (
-              <span key={s.url}>
-                {i > 0 && ' · '}
-                <a href={s.url} target="_blank" rel="noopener" style={{ color: T.ink70 }}>{s.title || new URL(s.url).hostname}</a>
-              </span>
-            ))}
-          </div>
-        )}
-        {candidates.length > 0 && (
-          <div style={{
-            marginBottom: 10, padding: 10, background: T.paper,
-            border: `1px solid ${T.faintRule}`, borderRadius: 8,
-          }}>
-            <div style={{
-              fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.16em',
-              textTransform: 'uppercase', marginBottom: 8,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <span>Pick the right one · {candidates.length} match{candidates.length === 1 ? '' : 'es'}</span>
-              <button
-                type="button"
-                onClick={() => setCandidates([])}
-                style={{
-                  background: 'transparent', border: 'none', color: T.fadedInk,
-                  fontSize: 10, cursor: 'pointer', padding: 0, letterSpacing: '.08em',
-                }}
-              >Dismiss</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {candidates.map((c, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => pickCandidate(c)}
-                  style={{
-                    textAlign: 'left', padding: '10px 12px', borderRadius: 6,
-                    border: `1px solid ${T.faintRule}`, background: T.paper,
-                    cursor: 'pointer', fontFamily: T.sans, color: T.ink,
-                    display: 'flex', flexDirection: 'column', gap: 3,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.inkSoft3; e.currentTarget.style.borderColor = T.ink; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.paper; e.currentTarget.style.borderColor = T.faintRule; }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{c.legal_name || cluster.canonical}</div>
-                  {c.description && (
-                    <div style={{ fontSize: 11, color: T.ink70 }}>{c.description}</div>
-                  )}
-                  <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {c.website && <span>{c.website}</span>}
-                    {c.address && <span>· {c.address}</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 8, fontStyle: 'italic' }}>
-              Picking overwrites legal name, address, and website. Edit any of them after.
-            </div>
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
-          <CompanyMetaInput label="Legal entity name" value={companyMeta?.legal_name || ''} placeholder={cluster.canonical + ', Inc.'} onChange={v => setMetaField('legal_name', v)} onBlur={saveCompanyMeta}/>
-          <CompanyMetaInput label="Website" value={companyMeta?.website || ''} placeholder="example.com" onChange={v => setMetaField('website', v)} onBlur={saveCompanyMeta}/>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
-          <CompanyMetaInput label="Legal address" value={companyMeta?.address || ''} placeholder="1010 Frontier Way, Nashville TN 37203" multiline onChange={v => setMetaField('address', v)} onBlur={saveCompanyMeta}/>
-          <CompanyMetaInput label="Billing email (AP)" value={companyMeta?.billing_email || ''} placeholder="ap@example.com" onChange={v => setMetaField('billing_email', v)} onBlur={saveCompanyMeta}/>
-        </div>
-      </div>
-
-      {linkedProjects.length > 0 && (
-        <div style={{
-          padding: '14px 22px', borderBottom: `1px solid ${T.faintRule}`,
-          background: T.inkSoft3,
-        }}>
-          <div style={{
-            fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.16em',
-            textTransform: 'uppercase', marginBottom: 8,
-          }}>
-            Linked projects · {linkedProjects.length}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {linkedProjects.map(lp => {
-              const pid = lp.projects?.id;
-              const clickable = !!(pid && onOpenProject);
-              return (
-                <button
-                  key={pid}
-                  type="button"
-                  onClick={() => clickable && onOpenProject(pid)}
-                  disabled={!clickable}
-                  title={clickable ? 'Open project' : ''}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 600, fontFamily: T.sans,
-                    background: T.paper, color: T.ink, border: `1px solid ${T.faintRule}`,
-                    cursor: clickable ? 'pointer' : 'default',
-                  }}
-                  onMouseEnter={e => { if (clickable) e.currentTarget.style.borderColor = T.ink; }}
-                  onMouseLeave={e => { if (clickable) e.currentTarget.style.borderColor = T.faintRule; }}
-                >
-                  {lp.projects?.name || '(deleted)'}
-                  {clickable && <span style={{ color: T.fadedInk, fontSize: 10 }}>→</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <div>
-        {cluster.contacts.map(c => {
-          const projs = projectsByContact[c.id] || [];
-          // "Awarded" in Morgan = both `awarded` and `current` per
-          // STAGE_LABELS. Count those for the badge.
-          const awarded = projs.filter(lp => lp.projects?.stage === 'awarded' || lp.projects?.stage === 'current').length;
-          const pitching = projs.filter(lp => lp.projects?.stage === 'pitching').length;
-          return (
-            <ContactRow
-              key={c.id} c={c}
-              awardedCount={awarded}
-              pitchingCount={pitching}
-              onClick={() => onOpenContact?.(c.id)}
-              onRefresh={onRefreshContact}
-              refreshing={refreshingId === c.id}
-              onSchedule={onScheduleMeeting}
-              canSchedule={canSchedule}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function CompanyMetaInput({ label, value, placeholder, onChange, onBlur, multiline }) {
-  const inputStyle = {
-    width: '100%', padding: '6px 8px', borderRadius: 6,
-    border: `1px solid ${T.faintRule}`, background: T.paper,
-    fontSize: 12, fontFamily: T.sans, color: T.ink, outline: 'none',
-  };
-  return (
-    <div>
-      <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
-      {multiline ? (
-        <textarea value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} style={{ ...inputStyle, minHeight: 50, resize: 'vertical', lineHeight: 1.5 }}/>
-      ) : (
-        <input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} style={inputStyle}/>
-      )}
-    </div>
-  );
-}
-
-const FIELD_LABELS = {
-  first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Phone',
-  title: 'Title', company: 'Company', company_url: 'Company URL',
-  location: 'Location', linkedin_url: 'LinkedIn', avatar_url: 'Photo',
-};
-
-function RefreshPreviewModal({ contact, patch, onCancel, onApply, applying }) {
-  const fields = Object.keys(FIELD_LABELS).filter(k => k in patch);
-  const noChanges = fields.length === 0;
-  // Per-row selection: default = all checked. User can uncheck a row
-  // to keep that field's current value.
-  const [selected, setSelected] = useState(() => new Set(fields));
-  // Reset selection when patch changes (re-opening the modal on a new contact)
-  useEffect(() => { setSelected(new Set(fields)); /* eslint-disable-next-line */ }, [Object.keys(patch).sort().join(',')]);
-
-  const toggleField = (k) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k); else next.add(k);
-      return next;
-    });
-  };
-  const setAll = (on) => setSelected(on ? new Set(fields) : new Set());
-  const selectedCount = selected.size;
-
-  // Render the value cell — image thumbnail for photo, text otherwise
-  const renderValue = (k, value, isCurrent) => {
-    if (k === 'avatar_url' && value) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src={value} alt="" style={{
-            width: 36, height: 36, borderRadius: '50%', objectFit: 'cover',
-            border: `1px solid ${T.faintRule}`,
-            opacity: isCurrent ? .5 : 1, filter: isCurrent ? 'grayscale(1)' : 'none',
-          }}/>
-          <span style={{ fontSize: 10, color: isCurrent ? T.fadedInk : T.ink70, wordBreak: 'break-all' }}>
-            {value.length > 40 ? value.slice(0, 40) + '…' : value}
-          </span>
-        </div>
-      );
-    }
-    if (!value) return <i style={{ opacity: .55, fontWeight: 400 }}>empty</i>;
-    return value;
-  };
-
-  const buildFilteredPatch = () => {
-    const out = {};
-    for (const k of selected) out[k] = patch[k];
-    return out;
-  };
-
-  return (
-    <div onClick={onCancel} style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(15,82,186,.18)', backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        width: 720, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto',
-        background: T.paper, borderRadius: 12, padding: 28,
-        border: `1px solid ${T.faintRule}`, boxShadow: T.shadow, fontFamily: T.sans,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: T.ink, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 6 }}>Review refresh</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: T.ink, letterSpacing: '-0.012em' }}>
-              {(contact.first_name || '') + ' ' + (contact.last_name || '')}
-            </h2>
-            <div style={{ fontSize: 12, color: T.fadedInk, marginTop: 2 }}>
-              From RocketReach. Tick only the fields you want to update — others stay as they are.
-            </div>
-          </div>
-          <button onClick={onCancel} disabled={applying} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: applying ? 'wait' : 'pointer', width: 28, height: 28 }}>×</button>
-        </div>
-
-        {noChanges ? (
-          <div style={{
-            marginTop: 18, padding: '18px 16px', borderRadius: 10,
-            background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
-            fontSize: 13, color: T.ink, lineHeight: 1.55,
-          }}>
-            <b>Nothing to update.</b> RocketReach's data matches what you already have in Morgan.
-          </div>
-        ) : (
-          <>
-            <div style={{ marginTop: 18, marginBottom: 6, display: 'flex', gap: 8 }}>
-              <button onClick={() => setAll(true)} disabled={applying} style={{
-                padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
-                background: 'transparent', border: `1px solid ${T.faintRule}`, color: T.ink70, cursor: 'pointer',
-              }}>Select all</button>
-              <button onClick={() => setAll(false)} disabled={applying} style={{
-                padding: '4px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
-                background: 'transparent', border: `1px solid ${T.faintRule}`, color: T.ink70, cursor: 'pointer',
-              }}>Clear all</button>
-            </div>
-            <div style={{ border: `1px solid ${T.faintRule}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{
-                display: 'grid', gridTemplateColumns: '28px 110px 1fr 1fr',
-                gap: 16, padding: '10px 14px',
-                background: T.inkSoft2, borderBottom: `1px solid ${T.faintRule}`,
-                fontSize: 9, fontWeight: 700, color: T.ink70, letterSpacing: '.10em', textTransform: 'uppercase',
-              }}>
-                <div></div><div>Field</div><div>Current</div><div>New</div>
-              </div>
-              {fields.map(k => {
-                const checked = selected.has(k);
-                return (
-                  <label key={k} style={{
-                    display: 'grid', gridTemplateColumns: '28px 110px 1fr 1fr',
-                    gap: 16, padding: '12px 14px',
-                    borderBottom: `1px solid ${T.faintRule}`, alignItems: 'center',
-                    cursor: 'pointer', background: checked ? T.paper : T.inkSoft2,
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleField(k)}
-                      disabled={applying}
-                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#0F52BA' }}
-                    />
-                    <div style={{ fontSize: 11, fontWeight: 600, color: checked ? T.ink70 : T.fadedInk }}>{FIELD_LABELS[k]}</div>
-                    <div style={{ fontSize: 12, color: contact[k] ? T.fadedInk : T.ink25, textDecoration: (contact[k] && checked) ? 'line-through' : 'none', wordBreak: 'break-word' }}>
-                      {renderValue(k, contact[k], true)}
-                    </div>
-                    <div style={{ fontSize: 12, color: checked ? T.ink : T.fadedInk, fontWeight: checked ? 500 : 400, wordBreak: 'break-word' }}>
-                      {renderValue(k, patch[k], false)}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        <div style={{
-          marginTop: 16, padding: '10px 14px', borderRadius: 8,
-          background: T.inkSoft2, border: `1px solid ${T.faintRule}`,
-          fontSize: 11, color: T.ink70, lineHeight: 1.6,
-        }}>
-          <b style={{ color: T.ink }}>Untouched no matter what you pick:</b> your notes, tags, status, and any field not listed above. Only the ticked rows would change.
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-          <button onClick={onCancel} disabled={applying} style={{ ...btnGhost, opacity: applying ? .5 : 1 }}>Cancel</button>
-          {!noChanges && (
-            <button onClick={() => onApply(buildFilteredPatch())} disabled={applying || selectedCount === 0} style={{
-              ...btnSolid,
-              opacity: (applying || selectedCount === 0) ? .5 : 1,
-              cursor: (applying || selectedCount === 0) ? 'default' : 'pointer',
-            }}>
-              {applying ? 'Applying…' : `Apply ${selectedCount} change${selectedCount === 1 ? '' : 's'} →`}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Stats / priorities panel — what to focus on right now.
-// Recent contacts horizontal strip — surfaces the 10 most
-// recently added contacts at the top of the page so newly
-// imported / Fireflies-auto-created people are immediately
-// visible. Click a card to open the drawer.
-function RecentContactsStrip({ contacts, onOpen }) {
-  const recent = (contacts || [])
-    .slice() // don't mutate
-    .sort((a, b) => {
-      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return tb - ta;
-    })
-    .slice(0, 10);
-  if (recent.length === 0) return null;
-  return (
-    <div style={{ marginTop: 18, marginBottom: 6 }}>
-      <div style={{
-        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-        marginBottom: 10,
-      }}>
-        <div style={{
-          fontSize: 11, fontWeight: 700, color: T.ink, letterSpacing: '.10em',
-          textTransform: 'uppercase',
-        }}>
-          Recent · last {recent.length} added
-        </div>
-        <div style={{ fontSize: 10, color: T.fadedInk, fontStyle: 'italic' }}>
-          Newest first
-        </div>
-      </div>
-      <div style={{
-        display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6,
-        scrollbarWidth: 'thin',
-      }}>
-        {recent.map(c => {
-          const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || '(No name)';
-          const initials = ((c.first_name?.[0] || '') + (c.last_name?.[0] || '')).toUpperCase();
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onOpen?.(c.id)}
-              title={`Added ${c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'recently'}`}
-              style={{
-                flex: '0 0 auto', minWidth: 200, maxWidth: 240,
-                textAlign: 'left', cursor: 'pointer',
-                padding: '10px 12px', borderRadius: 10,
-                background: T.paper, border: `1px solid ${T.faintRule}`,
-                display: 'flex', alignItems: 'center', gap: 10,
-                fontFamily: T.sans, color: T.ink,
-                transition: 'border-color .15s, background .15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = T.ink; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = T.faintRule; }}
-            >
-              {c.avatar_url ? (
-                <img src={c.avatar_url} alt="" style={{
-                  width: 32, height: 32, borderRadius: '50%', objectFit: 'cover',
-                  border: `1px solid ${T.faintRule}`, flexShrink: 0,
-                }}/>
-              ) : (
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', background: T.inkSoft,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, color: T.ink, border: `1px solid ${T.faintRule}`,
-                  flexShrink: 0,
-                }}>{initials || '?'}</div>
-              )}
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{
-                  fontSize: 12, fontWeight: 600, color: T.ink,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{fullName}</div>
-                <div style={{
-                  fontSize: 10, color: T.fadedInk, marginTop: 1,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{c.company || c.title || c.email || ''}</div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// 1. Active pitches → list of pitching-status contacts with company
-// 2. Top companies → top 4 clusters by contact count
-// 3. Going cold → contacts not touched in 90+ days
-// 4. Total → quick orientation
-function StatsCards({ contacts, clusters, onFilter, onPickCompany }) {
-  const stats = useMemo(() => {
-    const pitching = contacts.filter(c => (c.status || 'prospect') === 'pitching');
-    const active = contacts.filter(c => (c.status || 'prospect') === 'active');
-    const ninetyDaysAgo = Date.now() - 90 * 86400000;
-    const goingCold = contacts.filter(c => {
-      const stage = c.status || 'prospect';
-      if (stage === 'past' || stage === 'vendor') return false;
-      if (!c.last_contacted_at) return false; // no signal — don't count
-      return new Date(c.last_contacted_at).getTime() < ninetyDaysAgo;
-    });
-    // Filter out "Freelance" / "Self-Employed" / "Consultant" etc. from
-    // priority surfaces — they're not real prospects, just labels on
-    // independent contacts.
-    // Filter out independent (Freelance / Self-Employed) AND internal
-    // (your own team) contacts from priority surfaces — neither are
-    // real prospects.
-    const realContacts = contacts.filter(c => c.contact_type !== 'internal');
-    return {
-      total: realContacts.length,
-      companyCount: clusters.filter(cl => !cl.isInternal).length,
-      pitching: pitching.slice(0, 4),
-      pitchingTotal: pitching.length,
-      active: active.length,
-      topCompanies: clusters.filter(cl => !cl.isIndependent && !cl.isInternal).slice(0, 4),
-      goingCold: goingCold.length,
-    };
-  }, [contacts, clusters]);
-
-  const baseCard = {
-    padding: '14px 16px', borderRadius: 10,
-    border: `1px solid ${T.faintRule}`, background: T.paper,
-    transition: 'all .18s', cursor: 'pointer', fontFamily: T.sans,
-    minHeight: 132, display: 'flex', flexDirection: 'column',
-  };
-  const label = { fontSize: 9, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: T.ink70, marginBottom: 8 };
-  const bigValue = { fontSize: 28, fontWeight: 800, color: T.ink, letterSpacing: '-.018em', lineHeight: 1 };
-  const sub = { fontSize: 11, color: T.fadedInk, marginTop: 6 };
-  const listRow = { display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8, padding: '2px 0' };
-
-  const hover = on => e => {
-    e.currentTarget.style.borderColor = on ? T.ink : T.faintRule;
-    e.currentTarget.style.transform = on ? 'translateY(-1px)' : 'none';
-    e.currentTarget.style.boxShadow = on ? '0 6px 18px rgba(15,82,186,.06)' : 'none';
-  };
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 20, marginBottom: 4 }}>
-      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)} onClick={() => onFilter('all')}>
-        <div style={label}>Total</div>
-        <div style={bigValue}>{stats.total}</div>
-        <div style={sub}>across {stats.companyCount} compan{stats.companyCount === 1 ? 'y' : 'ies'}</div>
-      </div>
-
-      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)} onClick={() => onFilter('pitching')}>
-        <div style={label}>Active pitches <span style={{ color: T.ink, fontWeight: 800 }}>{stats.pitchingTotal}</span></div>
-        {stats.pitching.length === 0 ? (
-          <div style={{ ...sub, marginTop: 4 }}>No active pitches.</div>
-        ) : (
-          <div style={{ marginTop: 4 }}>
-            {stats.pitching.map(c => (
-              <div key={c.id} style={listRow}>
-                <span style={{ color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                  {c.company || '—'}
-                </span>
-                <span style={{ color: T.fadedInk, whiteSpace: 'nowrap' }}>
-                  {(c.first_name || '') + (c.last_name ? ' ' + c.last_name[0] + '.' : '')}
-                </span>
-              </div>
-            ))}
-            {stats.pitchingTotal > stats.pitching.length && (
-              <div style={{ ...sub, marginTop: 6 }}>+ {stats.pitchingTotal - stats.pitching.length} more</div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)}>
-        <div style={label}>Top companies</div>
-        {stats.topCompanies.length === 0 ? (
-          <div style={{ ...sub, marginTop: 4 }}>No companies yet.</div>
-        ) : (
-          <div style={{ marginTop: 4 }}>
-            {stats.topCompanies.map(cl => (
-              <div key={cl.canonical} style={listRow}
-                onClick={e => { e.stopPropagation(); onPickCompany(cl.canonical); }}>
-                <span style={{ color: T.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                  {cl.canonical || <i style={{ opacity: .55 }}>No company</i>}
-                </span>
-                <span style={{ color: T.fadedInk, fontWeight: 600, whiteSpace: 'nowrap' }}>{cl.count}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={baseCard} onMouseEnter={hover(true)} onMouseLeave={hover(false)}>
-        <div style={label}>Going cold</div>
-        <div style={bigValue}>{stats.goingCold}</div>
-        <div style={sub}>no contact in 90+ days{stats.goingCold === 0 ? '' : ' · follow up'}</div>
-      </div>
-    </div>
-  );
-}
 
 function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOpenMeetings, onOpenPipeline, onOpenProject }) {
   const userId = user?.user_id || user?.id;
@@ -1623,6 +51,24 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
   const [applyingRefresh, setApplyingRefresh] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Cmd/Ctrl+K opens the global search palette. Capture phase so we
+  // beat Chrome's built-in tab-search / address-bar shortcut, which
+  // otherwise intercepts the keypress before our listener sees it.
+  // Match by both `key` and `code` so non-US keyboard layouts work.
+  useEffect(() => {
+    const onKey = (e) => {
+      const isK = e.key === 'k' || e.key === 'K' || e.code === 'KeyK';
+      if ((e.metaKey || e.ctrlKey) && isK && !e.altKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPaletteOpen(o => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -1736,7 +182,8 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
     return contacts.filter(c => {
       if (filter !== 'all' && (c.status || 'prospect') !== filter) return false;
       if (!q) return true;
-      const hay = `${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.company || ''} ${c.title || ''}`.toLowerCase();
+      const tags = Array.isArray(c.tags) ? c.tags.join(' ') : '';
+      const hay = `${c.first_name || ''} ${c.last_name || ''} ${c.email || ''} ${c.company || ''} ${c.title || ''} ${c.location || ''} ${tags}`.toLowerCase();
       return hay.includes(q);
     });
   }, [contacts, filter, search]);
@@ -1751,9 +198,11 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
   // who you're looking for. Stats panel still highlights priorities
   // (top by count, active pitches, going cold) above the grid.
   const clustersAlpha = useMemo(() =>
-    [...clusters].sort((a, b) =>
-      (a.canonical || '').toLowerCase().localeCompare((b.canonical || '').toLowerCase())
-    ),
+    [...clusters].sort((a, b) => {
+      // Push the Unassigned catch-all to the end of the A–Z list too.
+      if (a.isUnassigned !== b.isUnassigned) return a.isUnassigned ? 1 : -1;
+      return (a.canonical || '').toLowerCase().localeCompare((b.canonical || '').toLowerCase());
+    }),
     [clusters]
   );
 
@@ -1944,8 +393,18 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
           <div style={{ flex: 1, minWidth: 240, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: T.inkSoft2 }}>
             <span style={{ fontSize: 12, color: T.fadedInk }}>⌕</span>
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, company, email, title…"
+              placeholder="Filter the grid by name, company, email, title…"
               style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 13, color: T.ink, fontFamily: T.sans }}/>
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              title="Open global search (⌘K / Ctrl+K)"
+              style={{
+                fontSize: 10, color: T.fadedInk, padding: '3px 8px', borderRadius: 4,
+                background: T.paper, border: `1px solid ${T.faintRule}`, cursor: 'pointer',
+                fontFamily: T.sans, letterSpacing: '.04em',
+              }}
+            >⌘K</button>
           </div>
           {STATUS_OPTIONS.map(s => {
             const active = filter === s.id;
@@ -1991,7 +450,7 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                 // own team) AND already-pinned clusters since we
                 // surface pinned ones first.
                 const topCompanies = clusters.filter(cl =>
-                  !cl.isIndependent && !cl.isInternal && !isPinned(cl)
+                  !cl.isIndependent && !cl.isInternal && !cl.isUnassigned && !isPinned(cl)
                 );
                 const remainingAlpha = clustersAlpha.filter(cl => !isPinned(cl));
                 const visible = showingAll
@@ -2008,15 +467,63 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
                         : <>Top {visible.length} of {topCompanies.length} compan{topCompanies.length === 1 ? 'y' : 'ies'} · ranked by contact count{independentCount > 0 ? ` · ${independentCount} independent contact${independentCount === 1 ? '' : 's'} hidden` : ''}</>}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-                      {visible.map(cl => (
-                        <CompanyCard
-                          key={cl.id}
-                          cluster={cl}
-                          selected={selectedClusterId === cl.id}
-                          pinned={isPinned(cl)}
-                          onClick={() => setSelectedClusterId(selectedClusterId === cl.id ? null : cl.id)}
-                        />
-                      ))}
+                      {visible.map(cl => {
+                        const isSelected = selectedClusterId === cl.id;
+                        return (
+                          <Fragment key={cl.id}>
+                            <CompanyCard
+                              cluster={cl}
+                              selected={isSelected}
+                              pinned={isPinned(cl)}
+                              onClick={() => {
+                                const nextId = isSelected ? null : cl.id;
+                                setSelectedClusterId(nextId);
+                                if (nextId) {
+                                  // Inline detail renders on the row right
+                                  // below this card; scroll only if it
+                                  // ends up off-screen.
+                                  setTimeout(() => {
+                                    const el = document.querySelector('[data-company-detail]');
+                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                  }, 50);
+                                }
+                              }}
+                            />
+                            {isSelected && selectedCluster && (
+                              <div style={{ gridColumn: '1 / -1' }}>
+                                <CompanyDetail
+                                  cluster={selectedCluster}
+                                  userId={userId}
+                                  onClose={() => setSelectedClusterId(null)}
+                                  onRefreshContact={onRefreshContact}
+                                  refreshingId={refreshingId}
+                                  onOpenContact={(id) => setOpenContactId(id)}
+                                  onOpenProject={onOpenProject}
+                                  pinned={isPinned(selectedCluster)}
+                                  onTogglePin={() => togglePin(selectedCluster)}
+                                  onScheduleMeeting={(c) => setScheduleContact(c)}
+                                  canSchedule={!!accessToken}
+                                  deletingCompany={deletingCompany}
+                                  onDeleteCompany={async () => {
+                                    const n = selectedCluster.contacts.length;
+                                    const name = selectedCluster.canonical || 'No company';
+                                    if (!confirm(`Delete all ${n} contact${n === 1 ? '' : 's'} at "${name}"? This can't be undone.`)) return;
+                                    setDeletingCompany(true);
+                                    try {
+                                      await Promise.all(selectedCluster.contacts.map(c => deleteContact(c.id)));
+                                      const idsToRemove = new Set(selectedCluster.contacts.map(c => c.id));
+                                      setContacts(prev => prev.filter(c => !idsToRemove.has(c.id)));
+                                      setSelectedClusterId(null);
+                                    } catch (e) {
+                                      alert('Delete failed: ' + (e.message || 'unknown'));
+                                    } finally { setDeletingCompany(false); }
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </div>
                     {!showingAll && hidden > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
@@ -2046,37 +553,6 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
             </>
           )}
 
-          {selectedCluster && (
-            <CompanyDetail
-              cluster={selectedCluster}
-              userId={userId}
-              onClose={() => setSelectedClusterId(null)}
-              onRefreshContact={onRefreshContact}
-              refreshingId={refreshingId}
-              onOpenContact={(id) => setOpenContactId(id)}
-              onOpenProject={onOpenProject}
-              pinned={isPinned(selectedCluster)}
-              onTogglePin={() => togglePin(selectedCluster)}
-              onScheduleMeeting={(c) => setScheduleContact(c)}
-              canSchedule={!!accessToken}
-              deletingCompany={deletingCompany}
-              onDeleteCompany={async () => {
-                const n = selectedCluster.contacts.length;
-                const name = selectedCluster.canonical || 'No company';
-                if (!confirm(`Delete all ${n} contact${n === 1 ? '' : 's'} at "${name}"? This can't be undone.`)) return;
-                setDeletingCompany(true);
-                try {
-                  // Parallel delete; restFetch handles auth + RLS.
-                  await Promise.all(selectedCluster.contacts.map(c => deleteContact(c.id)));
-                  const idsToRemove = new Set(selectedCluster.contacts.map(c => c.id));
-                  setContacts(prev => prev.filter(c => !idsToRemove.has(c.id)));
-                  setSelectedClusterId(null);
-                } catch (e) {
-                  alert('Delete failed: ' + (e.message || 'unknown'));
-                } finally { setDeletingCompany(false); }
-              }}
-            />
-          )}
         </div>
 
         {syncStatus && (
@@ -2088,6 +564,27 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
           <b style={{ color: T.ink }}>Company dedup.</b> Variants like "Volvo Cars" / "Volvo Car USA" and "Mattel" / "Mattel, Inc." merge automatically based on name normalization + email-domain matching. New contacts join the right cluster on the next render — no manual cleanup needed.
         </div>
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        contacts={contacts}
+        clusters={clusters}
+        onOpenContact={(c) => setOpenContactId(c.id)}
+        onOpenCluster={(cl) => {
+          // Make sure the picked cluster is actually visible in the
+          // grid (so the inline detail renders): clear search/filter
+          // and expand to the full A–Z list.
+          setSearch('');
+          setFilter('all');
+          setShowAllCompanies(true);
+          setSelectedClusterId(cl.id);
+          setTimeout(() => {
+            const el = document.querySelector('[data-company-detail]');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 80);
+        }}
+      />
 
       {showImport && <ImportWizard userId={userId} onClose={() => setShowImport(false)} onComplete={reload}/>}
       {showNewContact && (
@@ -2113,7 +610,9 @@ function ContactsView({ user, onBack, onLogout, accessToken, projects = [], onOp
         <ContactDetailDrawer
           contact={openContact}
           projects={projects}
+          allContacts={contacts}
           userId={userId}
+          userName={user?.name || user?.email}
           accessToken={accessToken}
           onClose={() => setOpenContactId(null)}
           onUpdate={(updated) => {

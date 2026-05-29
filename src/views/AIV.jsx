@@ -4,7 +4,7 @@ import T from '../theme/tokens.js';
 import { mkTask, mkDoc, mkTxn, mkROS, mkI, mkA } from '../data/factories.js';
 import { isOverdue } from '../utils/calc.js';
 import { Card } from '../components/primitives/index.js';
-import { serializeProject, AI_SYSTEM } from '../ai/serialize.js';
+import { serializeProject, serializeRemoteContext, fetchProjectAIContext, AI_SYSTEM } from '../ai/serialize.js';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -246,7 +246,14 @@ function AIV({project,updateProject,comp,accessToken}){
     const newMsgs=[...messages,userMsg];
     setMessages(newMsgs);setInput("");setLoading(true);
 
-    const projectContext=serializeProject(project,comp);
+    // In-memory project blob (budget, timeline, files, etc.) plus the
+    // Supabase-sourced context (meetings + transcripts, notes, contract,
+    // time entries, client chat). Fetched on every send so anything
+    // edited in another tab is reflected immediately.
+    let remoteContext='';
+    try{const remote=await fetchProjectAIContext(project.id,{accessToken,project});remoteContext=serializeRemoteContext(remote)}
+    catch(e){console.warn('[ai] remote context fetch failed:',e)}
+    const projectContext=serializeProject(project,comp)+remoteContext;
 
     // Build API messages — attach visuals to the latest user message if relevant
     let apiMessages=newMsgs.map(m=>({role:m.role,content:m.content}));

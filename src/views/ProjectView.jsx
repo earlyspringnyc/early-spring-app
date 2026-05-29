@@ -240,17 +240,17 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
           updateProject({cats:alt.cats,ag:alt.ag,feeP:alt.feeP,clientBudget:alt.clientBudget||0,budgets:[oldPrimary,...altBudgets.filter(b=>b.id!==id)]});
           setActiveBudgetId(null);
         }}/>}
-      {view==="dashboard"&&<DashV cats={project.cats} comp={primaryComp} feeP={project.feeP} project={project} onNavigate={setView} updateProject={updateProject} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
-      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
+      {view==="dashboard"&&<DashV cats={project.cats} comp={primaryComp} feeP={project.feeP} project={project} onNavigate={setView} updateProject={updateProject} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user}/>}
+      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={primaryComp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} accessToken={accessToken}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId} onAddVendor={addVendor}/>}
-      {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
+      {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} user={user}/>}
       {view==="meetings"&&<ProjectMeetingsV project={project} user={user} accessToken={accessToken}/>}
       {view==="contract"&&<ContractEditor project={project} user={user}/>}
       {view==="reporting"&&<ReportingV project={project} updateProject={updateProject} canEdit={canEdit} comp={primaryComp}/>}
       {view==="time"&&<TimeV project={project} user={user} canEdit={canEdit}/>}
-      {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={primaryComp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken} budgets={project.budgets||[]} requestCalendarAccess={requestCalendarAccess}/>}
+      {view==="export"&&<ExpV cats={project.cats} ag={project.ag} comp={primaryComp} feeP={project.feeP} project={project} updateProject={updateProject} accessToken={accessToken} budgets={project.budgets||[]} requestCalendarAccess={requestCalendarAccess} user={user}/>}
       {view==="ai"&&<AIV project={project} updateProject={updateProject} comp={primaryComp} accessToken={accessToken}/>}
       {view==="profile"&&<ProfileV user={user} updateProject={updateProject} project={project} onUpdateUser={onUpdateUser} orgId={currentOrgId}/>}
       {view==="settings"&&<SetV project={project} updateProject={updateProject} onDelete={handleDelete} user={user} accessToken={accessToken} orgId={currentOrgId}/>}

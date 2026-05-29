@@ -174,6 +174,142 @@ const STATUS = {
   roadblocked: { label: 'Blocked' },
 };
 
+// ─────────────────────────────────────────────────────────────────────
+// Client portal invitation email
+// ─────────────────────────────────────────────────────────────────────
+export function clientInviteEmailHtml(project, email, password, portalUrl, message) {
+  const body = `
+    <div style="margin-bottom:28px">
+      <p style="font-size:14px;color:${INK};line-height:1.6;margin:0 0 12px">
+        You've been invited to view and collaborate on <strong>${project.name || 'this project'}</strong>
+        in Morgan — Early Spring's production portal.
+      </p>
+      <p style="font-size:14px;color:${INK};line-height:1.6;margin:0 0 12px">
+        Sign in to review the estimate and timeline, leave notes for the team,
+        share asset links, and check off tasks as we go.
+      </p>
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${INK};border-bottom:1px solid ${INK};margin:28px 0;background:transparent">
+      <tr>
+        <td style="padding:18px 0;width:160px;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Portal URL</div>
+        </td>
+        <td style="padding:18px 0;vertical-align:top">
+          <a href="${portalUrl}" style="font-size:14px;color:${INK};font-weight:600;text-decoration:underline">${portalUrl}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 18px;width:160px;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Email</div>
+        </td>
+        <td style="padding:0 0 18px;vertical-align:top">
+          <div style="font-size:14px;color:${INK};font-family:${FONT};font-weight:600">${email}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 18px;width:160px;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Password</div>
+        </td>
+        <td style="padding:0 0 18px;vertical-align:top">
+          <div style="font-size:14px;color:${INK};font-family:${FONT};font-weight:600">${password}</div>
+        </td>
+      </tr>
+    </table>
+
+    <p style="font-size:12px;color:${FADED};line-height:1.6;margin:0 0 24px">
+      Bookmark the portal link — it's where we'll keep our shared production view.
+      If anything looks off, reply to this email and we'll sort it.
+    </p>
+  `;
+
+  return shell({ kicker: 'Client Portal', title: `Welcome to ${project.name || 'your project'}`, project, message, body });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Team invitation email — for staff teammates added via Settings.
+// projectList is an optional array of project names so the invitee
+// knows what they have access to up front.
+// ─────────────────────────────────────────────────────────────────────
+export function teamInviteEmailHtml({ orgName, recipientName, roleLabel, email, password, loginUrl, projectList = [], inviterName, message }) {
+  const projectRows = projectList.length
+    ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;background:transparent">
+        <tr>
+          <td style="padding:0 0 8px;vertical-align:top">
+            <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Projects you'll see</div>
+          </td>
+        </tr>
+        ${projectList.map(name => `
+        <tr>
+          <td style="padding:6px 0;border-top:1px solid ${RULE}">
+            <div style="font-size:13px;color:${INK};font-weight:600">${name}</div>
+          </td>
+        </tr>`).join('')}
+      </table>
+    `
+    : '';
+
+  const body = `
+    <div style="margin-bottom:24px">
+      <p style="font-size:14px;color:${INK};line-height:1.6;margin:0 0 12px">
+        ${recipientName ? `Hi ${recipientName},` : 'Hi,'}
+      </p>
+      <p style="font-size:14px;color:${INK};line-height:1.6;margin:0 0 12px">
+        ${inviterName ? `${inviterName} added you` : "You've been added"} to <strong>${orgName || 'Early Spring'}</strong>'s
+        Morgan workspace as a <strong>${roleLabel || 'Teammate'}</strong>.
+      </p>
+      <p style="font-size:14px;color:${INK};line-height:1.6;margin:0">
+        Use the credentials below to sign in — no Google account required.
+      </p>
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${INK};border-bottom:1px solid ${INK};margin:24px 0;background:transparent">
+      <tr>
+        <td style="padding:16px 0;width:140px;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Login URL</div>
+        </td>
+        <td style="padding:16px 0;vertical-align:top">
+          <a href="${loginUrl}" style="font-size:14px;color:${INK};font-weight:600;text-decoration:underline">${loginUrl}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 16px;width:140px;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Email</div>
+        </td>
+        <td style="padding:0 0 16px;vertical-align:top">
+          <div style="font-size:14px;color:${INK};font-family:${FONT};font-weight:600">${email}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 16px;width:140px;vertical-align:top">
+          <div style="font-size:10px;font-weight:700;color:${FADED};letter-spacing:.10em;text-transform:uppercase">Password</div>
+        </td>
+        <td style="padding:0 0 16px;vertical-align:top">
+          <div style="font-size:14px;color:${INK};font-family:${FONT};font-weight:600">${password}</div>
+        </td>
+      </tr>
+    </table>
+
+    ${projectRows}
+
+    <p style="font-size:12px;color:${FADED};line-height:1.6;margin:0 0 18px">
+      First time in Morgan? Click around — the sidebar is the map. Hit reply if anything looks off.
+    </p>
+  `;
+
+  return shell({
+    kicker: 'Workspace Invitation',
+    title: `Welcome to ${orgName || 'Early Spring'}`,
+    project: { name: orgName || 'Early Spring', client: '', date: new Date().toLocaleDateString() },
+    message,
+    body,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Project Timeline email
+// ─────────────────────────────────────────────────────────────────────
 export function timelineEmailHtml(project, tasks, message) {
   const dated = tasks.filter(t => t.startDate).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 

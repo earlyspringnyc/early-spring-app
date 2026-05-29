@@ -3,7 +3,7 @@ import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, daysBetween } from '../utils/date.js';
 import { ct, isOverdue, getVendorName } from '../utils/calc.js';
-import { listContactsForProject, listContacts } from '../lib/contacts.js';
+import { listContactsForProject, listContacts, linkContactToProject, unlinkContactFromProject } from '../lib/contacts.js';
 import { listMeetingsForProject } from '../lib/meetings.js';
 import { normalizeCompany } from '../utils/companyDedup.js';
 import { restFetch } from '../lib/db.js';
@@ -21,6 +21,7 @@ async function listMeetingsByContactIds(ids) {
     .filter(m => m && m.id);
 }
 import { INVOICE_KIND_COLORS, INVOICE_KIND_LABELS } from '../constants/index.js';
+import ProjectTeamPicker from '../components/modals/ProjectTeamPicker.jsx';
 import { Card, Metric, DonutChart, DatePick } from '../components/primitives/index.js';
 import { PlusI } from '../components/icons/index.js';
 
@@ -73,7 +74,7 @@ const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontS
 const Slash=({children})=><span style={{fontSize:14,fontWeight:400,color:T.dim,fontFamily:T.mono,marginLeft:6}}>/ {children}</span>;
 const Pill=({children,color=T.gold,bg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
-function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requestCalendarAccess}){
+function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requestCalendarAccess,user}){
   const docs=project?.docs||[];const tasks=project?.timeline||[];
   const overdueDocs=docs.filter(d=>(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))&&d.type==="invoice");
   const upcomingDocs=docs.filter(d=>{if(d.status==="paid"||!d.dueDate)return false;const p=d.dueDate.split("/");if(p.length!==3)return false;const due=new Date(p[2],p[0]-1,p[1]);const now=new Date();const diff=daysBetween(now,due);return diff>=0&&diff<=14&&d.status!=="paid"}).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
@@ -168,6 +169,47 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
   const[clientTeam,setClientTeam]=useState([]);
   const[projectMeetings,setProjectMeetings]=useState([]);
   const[hardwireStatus,setHardwireStatus]=useState({ company:null, matched:0 });
+  const[teamPickerOpen,setTeamPickerOpen]=useState(false);
+  const[teamReloadKey,setTeamReloadKey]=useState(0);
+  // Inline role editor — change a team member's role (or remove)
+  // without opening the full Manage modal. Handles both explicit
+  // contact_projects rows AND the implicit "client_team" pseudo-
+  // role we surface for unaffiliated company contacts.
+  const userId=user?.user_id||user?.id;
+  const ROLE_OPTIONS=[
+    {id:'point_of_contact',label:'Point of contact'},
+    {id:'champion',label:'Champion'},
+    {id:'rfp_sender',label:'RFP sender'},
+    {id:'team_member',label:'Team member'},
+  ];
+  const changeContactRole=async(contactId,oldRole,newRole)=>{
+    try{
+      if(newRole==='__remove__'){
+        // Implicit (client_team) entries have no actual row to drop —
+        // just hide them by adding an explicit team_member then immediately
+        // removing? Simpler: only do unlink if the row was explicit.
+        if(oldRole&&oldRole!=='client_team'){
+          await unlinkContactFromProject(contactId,project.id,oldRole);
+        }else{
+          // For implicit entries, switching them to "remove" needs an
+          // explicit row to mark exclusion. Easier path: create an
+          // explicit team_member row, then immediately delete it —
+          // which is effectively a no-op. The right UX here is to use
+          // the Manage modal to mark "Not on this project". Show a hint.
+          alert("Use the 'Manage' button to remove auto-added contacts (they don't have an explicit role yet).");
+          return;
+        }
+      }else if(oldRole&&oldRole!=='client_team'&&oldRole!==newRole){
+        await unlinkContactFromProject(contactId,project.id,oldRole);
+        await linkContactToProject(userId,contactId,project.id,newRole);
+      }else if(!oldRole||oldRole==='client_team'){
+        await linkContactToProject(userId,contactId,project.id,newRole);
+      }else{
+        return; // No change
+      }
+      setTeamReloadKey(k=>k+1);
+    }catch(e){alert('Could not update role: '+(e.message||e))}
+  };
 
   // Stable deps only — order changes (e.g. drag-rearrange) shouldn't
   // re-fire the heavy fetches. Gate by `wantTeam`/`wantMeetings`
@@ -190,14 +232,20 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       let explicit=[];
       try{explicit=await listContactsForProject(project.id)||[]}
       catch(e){console.warn("[dashv] contact_projects load failed:",e.message||e)}
+      // Curation rule: as soon as the user has any explicit
+      // contact_projects rows, treat the team as curated and skip
+      // the company-match auto-include. Otherwise (zero explicit
+      // rows) fall back to showing all CRM contacts at the client's
+      // company as a discovery default. The "Manage" button on the
+      // card sets explicit rows.
       const seenIds=new Set(explicit.map(lp=>lp.contacts?.id).filter(Boolean));
-      const implicit=companyContacts
+      const implicit=explicit.length>0?[]:companyContacts
         .filter(c=>!seenIds.has(c.id))
         .map(c=>({contacts:c,role:"client_team",match_type:"company-match"}));
       const merged=[...explicit,...implicit];
       if(!cancelled){
         setClientTeam(merged);
-        setHardwireStatus({company:project.client||null,matched:companyContacts.length});
+        setHardwireStatus({company:project.client||null,matched:companyContacts.length,curated:explicit.length>0});
       }
 
       if(wantMeetings){
@@ -205,7 +253,11 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
         try{explicitM=await listMeetingsForProject(project.id)||[]}
         catch(e){console.warn("[dashv] meeting_projects load failed:",e.message||e)}
         const mById=new Map(explicitM.map(m=>[m.id,m]));
-        const allContactIds=[...seenIds,...companyContacts.map(c=>c.id)].filter(Boolean);
+        // When the team is curated (≥1 explicit contact_projects row),
+        // restrict meeting-contact lookups to those explicit contacts.
+        // Otherwise a curated team for project A still pulls in meetings
+        // for project B via shared company colleagues.
+        const allContactIds=(explicit.length>0?[...seenIds]:[...seenIds,...companyContacts.map(c=>c.id)]).filter(Boolean);
         // One batched query instead of N parallel ones — cut DB load
         // significantly on projects with many client contacts.
         if(allContactIds.length){
@@ -221,7 +273,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       }
     })();
     return()=>{cancelled=true};
-  },[project?.id,project?.client,wantTeam,wantMeetings]);
+  },[project?.id,project?.client,wantTeam,wantMeetings,teamReloadKey]);
 
   // Fetch weather based on venue address or event location
   useEffect(()=>{
@@ -426,14 +478,18 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       return<>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
           <Label>Client Team · CRM</Label>
-          <span style={{fontSize:10,color:T.dim}}>{clientTeam.length} linked</span>
+          <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+            <span style={{fontSize:10,color:T.dim}}>{clientTeam.length} linked</span>
+            <button onClick={e=>{e.stopPropagation();setTeamPickerOpen(true)}} style={{padding:"3px 9px",borderRadius:999,border:`1px solid ${T.border}`,background:"transparent",color:T.ink,fontSize:9,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Manage</button>
+          </div>
         </div>
-        {hardwired&&<div style={{marginTop:6,fontSize:10,color:T.ink,opacity:.72,lineHeight:1.5}}>
-          🔗 Hardwired to CRM company <b style={{color:T.cream}}>{hardwireStatus.company}</b> — {hardwireStatus.matched} contact{hardwireStatus.matched===1?"":"s"} matched automatically.
-        </div>}
-        {!hardwired&&project?.client&&<div style={{marginTop:6,fontSize:10,color:T.dim,fontStyle:"italic",lineHeight:1.5}}>
-          No CRM contact with company "{project.client}" — set it on a contact to auto-link.
-        </div>}
+        {hardwireStatus.curated?<div style={{marginTop:6,fontSize:10,color:T.ink,opacity:.72,lineHeight:1.5}}>
+          ✓ Curated team — only people you've explicitly added. Click <b style={{color:T.cream}}>Manage</b> to adjust.
+        </div>:hardwired?<div style={{marginTop:6,fontSize:10,color:T.ink,opacity:.72,lineHeight:1.5}}>
+          🔗 Auto-showing all {hardwireStatus.matched} contact{hardwireStatus.matched===1?"":"s"} at <b style={{color:T.cream}}>{hardwireStatus.company}</b>. Click <b style={{color:T.cream}}>Manage</b> to pick only the ones on this project.
+        </div>:project?.client?<div style={{marginTop:6,fontSize:10,color:T.dim,fontStyle:"italic",lineHeight:1.5}}>
+          No CRM contact with company "{project.client}" — set it on a contact to auto-link, or use <b style={{color:T.cream}}>Manage</b>.
+        </div>:null}
         {clientTeam.length===0?<div style={{marginTop:12,fontSize:12,color:T.dim,lineHeight:1.55}}>
           No CRM contacts linked yet. Open a contact, set company to "{project?.client||'…'}" or link them to this project explicitly.
         </div>:<div style={{marginTop:12,display:"grid",gap:6}}>
@@ -451,9 +507,11 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
                   {c.company||c.email||""}
                 </div>
               </div>
-              <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${T.ink}18`,color:T.ink,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}}>
-                {ROLE_LABEL[lc.role]||lc.role}
-              </span>
+              <select value={lc.role||"client_team"} onChange={e=>{e.stopPropagation();changeContactRole(c.id,lc.role,e.target.value)}} onClick={e=>e.stopPropagation()} title="Change role" style={{fontSize:9,fontWeight:700,padding:"3px 18px 3px 8px",borderRadius:10,background:`${T.ink}18`,color:T.ink,letterSpacing:".04em",textTransform:"uppercase",border:"none",cursor:"pointer",fontFamily:T.sans,appearance:"none",WebkitAppearance:"none",backgroundImage:`linear-gradient(45deg, transparent 50%, ${T.ink} 50%), linear-gradient(135deg, ${T.ink} 50%, transparent 50%)`,backgroundPosition:`calc(100% - 9px) 50%, calc(100% - 5px) 50%`,backgroundSize:"4px 4px, 4px 4px",backgroundRepeat:"no-repeat"}}>
+                {lc.role==='client_team'&&<option value="client_team">Auto · Click to set role</option>}
+                {ROLE_OPTIONS.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+                <option value="__remove__">— Remove from project</option>
+              </select>
             </div>;
           })}
           {clientTeam.length>5&&<div style={{fontSize:10,color:T.dim,fontStyle:"italic",marginTop:4}}>+{clientTeam.length-5} more — see Meetings tab</div>}
@@ -547,7 +605,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       const tempC=tempF!=null?Math.round((tempF-32)*5/9):null;
       const displayTemp=tempUnit==="C"?tempC:tempF;
       const toggleUnit=e=>{e.stopPropagation();const u=tempUnit==="F"?"C":"F";setTempUnit(u);try{localStorage.setItem("es_temp_unit",u)}catch(e){}};
-      return<div style={{margin:"-24px -28px",padding:"24px 28px",borderRadius:"inherit",background:weather?getAtmosphere(weather.code):"none",minHeight:120,display:"flex",flexDirection:"column",justifyContent:"space-between",position:"relative",overflow:"hidden"}}>
+      return<div style={{margin:"-24px -28px",padding:"24px 28px",borderRadius:"inherit",background:weather?getAtmosphere(weather.code):"none",backgroundSize:"160% 160%",animation:weather?"es-weather-drift 22s ease-in-out infinite alternate":undefined,minHeight:120,display:"flex",flexDirection:"column",justifyContent:"space-between",position:"relative",overflow:"hidden"}}>
         {/* subtle noise overlay */}
         {weather&&<div style={{position:"absolute",inset:0,opacity:.06,background:"url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"n\"><feTurbulence baseFrequency=\".65\" numOctaves=\"3\" stitchTiles=\"stitch\"/></filter><rect width=\"100%25\" height=\"100%25\" filter=\"url(%23n)\" opacity=\".5\"/></svg>')",borderRadius:"inherit",pointerEvents:"none"}}/>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative"}}>
@@ -735,6 +793,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       </div>
       <button onClick={resetLayout} style={{padding:"8px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Reset Layout</button>
     </div>}
+    {teamPickerOpen&&<ProjectTeamPicker project={project} userId={user?.user_id||user?.id} onClose={()=>setTeamPickerOpen(false)} onSaved={()=>setTeamReloadKey(k=>k+1)}/>}
   </div>;
 }
 

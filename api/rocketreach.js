@@ -1,4 +1,5 @@
 import { verifyAuth, rateLimit } from './_auth.js';
+import { verifyAddonJwt } from './addon-auth/_util.js';
 
 // Server-side proxy for RocketReach lookups so the API key never
 // leaves Vercel. Single endpoint that handles both first-time lookup
@@ -27,11 +28,19 @@ export default async function handler(req, res) {
   if (!rateLimit(req)) {
     return res.status(429).json({ error: 'Too many requests' });
   }
-  // Auth-gate (skip when Supabase isn't configured locally)
+  // Auth-gate. Accept either a Supabase-issued JWT (the existing
+  // path for Morgan's web frontend) or an add-on JWT (the new path
+  // for the Gmail Add-on, signed by us). Skip entirely if Supabase
+  // env isn't configured (local dev).
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   if (supabaseUrl) {
-    const user = await verifyAuth(req);
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const authHeader = req.headers.authorization || req.headers.Authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const addonClaims = token ? verifyAddonJwt(token) : null;
+    if (!addonClaims) {
+      const user = await verifyAuth(req);
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    }
   }
 
   const apiKey = process.env.ROCKETREACH_API_KEY;

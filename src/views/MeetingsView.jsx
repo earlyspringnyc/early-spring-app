@@ -10,6 +10,7 @@ import {
 } from '../lib/meetings.js';
 import { listContacts, createContact, previewReenrich, applyReenrichPatch } from '../lib/contacts.js';
 import { addProjectNote, meetingAlreadySavedToProject } from '../lib/projectNotes.js';
+import { listMembers as listOOOMembers, linkMeetingToMember, unlinkMeetingFromMember, listMembersForMeeting } from '../lib/oneOnOnes.js';
 
 // Title-case a name string. Fireflies sometimes returns attendee
 // names as lowercase usernames (e.g. "kamil") because the user's
@@ -354,7 +355,7 @@ function ContactLinkSection({
   );
 }
 
-function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreateProject, onClose, onReclassify, onSaveNotes, onLinksChanged, onOpenProject }) {
+function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreateProject, onClose, onReclassify, onSaveNotes, onLinksChanged, onOpenProject, onToggleShare }) {
   const [tab, setTab] = useState('summary');
   const [notesDraft, setNotesDraft] = useState(meeting?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -362,6 +363,7 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
   const [linkProjectId, setLinkProjectId] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [creatingAttendeeEmail, setCreatingAttendeeEmail] = useState(null);
+  const [savingShare, setSavingShare] = useState(false);
   const [enrichingAttendeeEmail, setEnrichingAttendeeEmail] = useState(null);
   // Inline-create-project state. User types a name, clicks Create,
   // we make the project and immediately link this meeting to it.
@@ -371,6 +373,25 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
   // a note + which ones are mid-save (for button state).
   const [savedToProjects, setSavedToProjects] = useState(new Set());
   const [savingProjectId, setSavingProjectId] = useState(null);
+
+  // 1:1 folder integration — show which folders this meeting is in
+  // (auto-linked or manually) and let the user add/remove links.
+  const [oooMembers, setOooMembers] = useState([]);
+  const [oooLinks, setOooLinks] = useState([]); // [{ id, source, one_on_one_members: {...} }]
+  const reloadOoo = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const [members, links] = await Promise.all([
+        listOOOMembers(userId),
+        meeting?.id ? listMembersForMeeting(meeting.id) : Promise.resolve([]),
+      ]);
+      setOooMembers(members);
+      setOooLinks(links);
+    } catch (e) { console.warn('[meeting-detail] 1:1 load failed:', e); }
+  }, [userId, meeting?.id]);
+  useEffect(() => { reloadOoo(); }, [reloadOoo]);
+  const linkedMemberIds = new Set(oooLinks.map((l) => l.one_on_one_members?.id).filter(Boolean));
+  const unlinkedMembers = oooMembers.filter((m) => !linkedMemberIds.has(m.id));
 
   useEffect(() => { setNotesDraft(meeting?.notes || ''); }, [meeting?.id]);
   useEffect(() => {
@@ -569,8 +590,8 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
           </div>
 
-          {/* Classification toggle */}
-          <div style={{ marginTop: 14, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {/* Classification toggle + client-share override */}
+          <div style={{ marginTop: 14, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             {['client','internal','uncategorized'].map(c => {
               const active = cls === c;
               return <button key={c} onClick={() => onReclassify(c)} style={{
@@ -581,6 +602,32 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
                 border: `1px solid ${active ? T.ink : T.faintRule}`,
               }}>{CLASS_LABEL[c]}</button>;
             })}
+            {/* Divider */}
+            <div style={{ width: 1, height: 16, background: T.faintRule, margin: '0 4px' }}/>
+            {/* Share-with-client override. Even if the classifier picked
+                'internal', flipping this on exposes the meeting to any
+                client linked to a project this meeting is attached to. */}
+            <button
+              onClick={async () => {
+                if (!onToggleShare || savingShare) return;
+                setSavingShare(true);
+                try { await onToggleShare(!meeting.share_with_clients); }
+                finally { setSavingShare(false); }
+              }}
+              title={meeting.share_with_clients ? 'Visible in linked clients\' portals' : 'Hidden from clients (unless classification = client)'}
+              style={{
+                padding: '5px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                cursor: savingShare ? 'wait' : 'pointer', textTransform: 'uppercase', letterSpacing: '.06em',
+                background: meeting.share_with_clients ? '#F0B849' : 'transparent',
+                color: meeting.share_with_clients ? '#0F52BA' : T.ink70,
+                border: `1px solid ${meeting.share_with_clients ? '#F0B849' : T.faintRule}`,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                opacity: savingShare ? .6 : 1,
+              }}
+            >
+              <span style={{ fontSize: 11 }}>{meeting.share_with_clients ? '✓' : '○'}</span>
+              Share with client
+            </button>
           </div>
         </div>
 
@@ -724,6 +771,38 @@ function MeetingDetail({ meeting, projects = [], contacts = [], userId, onCreate
                     }}>{creatingProject ? 'Creating…' : '＋ Create'}</button>
                   </div>
                 )}
+              </div>
+
+              {/* Section: 1:1 folders (Louisa, Jennifer, etc.) */}
+              <SectionHeader icon="🪶" title="1:1 folders" subtitle={`${oooLinks.length} folder${oooLinks.length === 1 ? '' : 's'}`}/>
+              <div style={{ marginBottom: 24 }}>
+                {oooLinks.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {oooLinks.map((l) => {
+                      const m = l.one_on_one_members; if (!m) return null;
+                      const isAuto = l.source === 'auto-email';
+                      return (
+                        <span key={l.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 999, fontSize: 11, background: T.inkSoft2, border: `1px solid ${T.faintRule}`, color: T.ink, fontFamily: T.sans }}>
+                          <span style={{ fontWeight: 600 }}>{m.name}</span>
+                          {isAuto && <span style={{ fontSize: 9, color: T.fadedInk, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>auto</span>}
+                          <button onClick={async () => { await unlinkMeetingFromMember(m.id, meeting.id); reloadOoo(); }} title="Remove from this folder" style={{ background: 'transparent', border: 'none', color: T.fadedInk, fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {unlinkedMembers.length > 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: T.fadedInk }}>Assign to:</span>
+                    {unlinkedMembers.map((m) => (
+                      <button key={m.id} onClick={async () => { await linkMeetingToMember(userId, m.id, meeting.id); reloadOoo(); onLinksChanged?.(); }} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, fontFamily: T.sans, background: 'transparent', border: `1px dashed ${T.faintRule}`, color: T.ink, cursor: 'pointer' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.background = T.inkSoft; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; }}>＋ {m.name}</button>
+                    ))}
+                  </div>
+                ) : oooLinks.length === 0 ? (
+                  <div style={{ fontSize: 11, color: T.fadedInk, lineHeight: 1.5 }}>
+                    No 1:1 folders yet. Add one in the <strong>1-1s</strong> tab (top-right of the dashboard), then come back here to assign meetings.
+                  </div>
+                ) : null}
               </div>
 
               {/* Section: summary */}
@@ -905,6 +984,42 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
+
+  // Manually trigger the cron handler. The 5-min schedule should
+  // normally cover this, but staff want a "pull new transcripts
+  // right now" button — e.g. right after a call wraps and they
+  // want the meeting on the project before the next tick.
+  const triggerSync = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true); setSyncStatus('Syncing…');
+    try {
+      let jwt = null;
+      try {
+        const { getSession } = await import('../lib/db.js');
+        const s = await getSession();
+        jwt = s?.access_token || null;
+      } catch (e) {}
+      const headers = { 'Content-Type': 'application/json' };
+      if (jwt) headers.Authorization = `Bearer ${jwt}`;
+      const res = await fetch('/api/cron/sync-fireflies', { method: 'POST', headers });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+      const created = body.created || 0;
+      const merged = body.merged || 0;
+      setSyncStatus(`Synced — ${created} new, ${merged} updated`);
+      await reload();
+    } catch (e) {
+      setSyncStatus(`Sync failed: ${e.message || e}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncStatus(''), 5000);
+    }
+    // reload is declared below; closure captures the latest version
+    // on each render so this is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncing]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -966,6 +1081,13 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
     setMeetings(prev => prev.map(m => m.id === selected.id ? { ...m, notes } : m));
   }, [selected]);
 
+  const onToggleShare = useCallback(async (next) => {
+    if (!selected) return;
+    await updateMeeting(selected.id, { share_with_clients: !!next });
+    setSelected(s => s ? { ...s, share_with_clients: !!next } : s);
+    setMeetings(prev => prev.map(m => m.id === selected.id ? { ...m, share_with_clients: !!next } : m));
+  }, [selected]);
+
   return (
     <div style={{ height: '100vh', background: T.bg, fontFamily: T.sans, overflow: 'auto' }}>
       <div style={{ height: 1, background: T.faintRule }}/>
@@ -977,6 +1099,19 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
             <ESWordmark height={14} color={T.ink}/>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {syncStatus && (
+              <span style={{ fontSize: 10, color: syncStatus.startsWith('Sync failed') ? '#c53030' : T.fadedInk, fontFamily: T.sans }}>
+                {syncStatus}
+              </span>
+            )}
+            <button onClick={triggerSync} disabled={syncing} style={{
+              padding: '5px 12px', fontSize: 11, fontWeight: 600, fontFamily: T.sans,
+              background: syncing ? T.inkSoft : 'transparent', border: `1px solid ${T.faintRule}`, borderRadius: 999,
+              color: syncing ? T.fadedInk : T.ink, cursor: syncing ? 'default' : 'pointer', transition: 'all .18s',
+            }}
+            onMouseEnter={e => { if (!syncing) { e.currentTarget.style.borderColor = T.ink; e.currentTarget.style.background = T.inkSoft; } }}
+            onMouseLeave={e => { if (!syncing) { e.currentTarget.style.borderColor = T.faintRule; e.currentTarget.style.background = 'transparent'; } }}
+            >{syncing ? 'Syncing…' : 'Sync Fireflies'}</button>
             {onOpenContacts && (
               <button onClick={onOpenContacts} style={{
                 padding: '5px 12px', fontSize: 11, fontWeight: 600, fontFamily: T.sans,
@@ -1069,6 +1204,7 @@ function MeetingsView({ user, onBack, onLogout, accessToken, projects = [], onCr
           onClose={() => setSelected(null)}
           onReclassify={onReclassify}
           onSaveNotes={onSaveNotes}
+          onToggleShare={onToggleShare}
           onOpenProject={onOpenProject}
           onLinksChanged={async () => {
             // Re-fetch the affected meeting so meeting_contacts updates

@@ -172,6 +172,18 @@ export function useSupabaseAuth() {
         console.log('[auth] Existing session found for:', session.user.email);
         setUser(session.user);
         setAccessToken(session.provider_token || null);
+        // First-time-seen refresh token: persist it server-side so we
+        // can mint fresh access tokens later via /api/google-refresh.
+        // Google only sends provider_refresh_token on initial consent
+        // (access_type=offline + prompt=consent in signInWithGoogle).
+        if (session.provider_refresh_token) {
+          try { localStorage.setItem('es_google_refresh_seeded', '1'); } catch (e) {}
+          fetch('/api/google-refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ refresh_token: session.provider_refresh_token }),
+          }).catch(() => {});
+        }
         // Don't await — render the loading screen while profiles load, but
         // never let the timeout fall through into a broken signed-in state.
         initProfiles(session.user).catch(e => console.error('[auth] initProfiles error:', e));
@@ -192,6 +204,16 @@ export function useSupabaseAuth() {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         setAccessToken(session.provider_token || null);
+        // Same persist-on-sign-in flow as the initial getSession path
+        // above. Without this, refresh tokens received during a fresh
+        // OAuth round-trip (rather than a returning session) get lost.
+        if (session.provider_refresh_token) {
+          fetch('/api/google-refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ refresh_token: session.provider_refresh_token }),
+          }).catch(() => {});
+        }
         // CRITICAL: do NOT await here. supabase-js fires SIGNED_IN from
         // inside _initialize → _acquireLock — awaiting work in this
         // callback keeps the auth lock held, and every subsequent
@@ -262,11 +284,51 @@ export function useSupabaseAuth() {
     }
   }, [user]);
 
-  // Refresh Google token
+  // Refresh Google token. Path:
+  //   1. supabase session.provider_token (still valid → use it)
+  //   2. POST /api/google-refresh — exchanges the user's stored
+  //      refresh_token for a fresh access_token. Sidesteps Supabase's
+  //      lack of automatic Google-token refresh.
+  //   3. Server replies 'reauth_required' → trigger OAuth re-consent
+  //      so we get a fresh refresh_token.
   const refreshToken = useCallback(async () => {
-    const token = await getGoogleAccessToken();
-    if(token){setAccessToken(token);return token}
-    try{const stored=localStorage.getItem("es_google_token");if(stored)return stored}catch(e){}
+    try {
+      const supaToken = await getGoogleAccessToken();
+      if (supaToken) { setAccessToken(supaToken); return supaToken; }
+    } catch (e) {}
+
+    // Need a Supabase JWT to authenticate against /api/google-refresh.
+    let supaJwt = null;
+    try {
+      const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (sbKey) supaJwt = JSON.parse(localStorage.getItem(sbKey))?.access_token || null;
+    } catch (e) {}
+    if (!supaJwt) return null;
+
+    try {
+      const res = await fetch('/api/google-refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supaJwt}` },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body.access_token) { setAccessToken(body.access_token); return body.access_token; }
+      } else if (res.status === 401) {
+        const body = await res.json().catch(() => ({}));
+        if (body.error === 'reauth_required') {
+          // No refresh token on file, or Google revoked it. Bounce
+          // through OAuth so the user re-grants offline access.
+          console.warn('[auth] Google refresh failed; reauthenticating');
+          await login();
+          return null;
+        }
+      }
+    } catch (e) { console.warn('[auth] /api/google-refresh failed:', e?.message); }
+
+    // Last resort — return whatever stale token we have in case the
+    // caller can use it for a non-critical operation.
+    try { const stored = localStorage.getItem('es_google_token'); if (stored) return stored; } catch (e) {}
     return null;
   }, []);
 

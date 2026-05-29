@@ -9,7 +9,7 @@
         { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https: https://earlyspring.nyc; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://accounts.google.com https://api.fireflies.ai https://api.rocketreach.co; frame-src https://accounts.google.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https: https://earlyspring.nyc; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://accounts.google.com https://api.fireflies.ai https://api.rocketreach.co https://api.open-meteo.com https://geocoding-api.open-meteo.com; frame-src 'self' blob: https://accounts.google.com https://docs.google.com https://drive.google.com https://www.figma.com https://www.canva.com https://www.youtube.com https://player.vimeo.com https://www.loom.com https://miro.com https://www.dropbox.com https://www.notion.so https://*.notion.site; frame-ancestors 'self'; object-src 'none'; base-uri 'self'" }
       ]
     }
   ],
@@ -25,7 +25,7 @@
   ],
   "crons": [
     { "path": "/api/notify", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/sync-rocketreach", "schedule": "*/2 * * * *" },
-    { "path": "/api/cron/sync-fireflies", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/sync-fireflies", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/sync-rocketreach", "schedule": "*/10 * * * *" }
   ]
 }

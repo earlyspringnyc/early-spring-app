@@ -7,6 +7,7 @@ import {
 import { listProjectNotes, addProjectNote, deleteProjectNote } from '../lib/projectNotes.js';
 import { listContactsForProject, linkContactToProject, unlinkContactFromProject, listContacts } from '../lib/contacts.js';
 import ScheduleProjectMeetingModal from '../components/ScheduleProjectMeetingModal.jsx';
+import { canDo } from '../constants/index.js';
 
 function ProjectContactLinker({ allContacts, linkedContacts, contactSearch, setContactSearch, contactRole, setContactRole, onLink }) {
   const linkedIds = new Set(linkedContacts.map(lc => lc.contacts?.id).filter(Boolean));
@@ -234,7 +235,7 @@ function ProjectMeetingsV({ project, user, accessToken }) {
             {loading ? 'Loading…' : `${notes.length} note${notes.length === 1 ? '' : 's'} · ${linked.length} meeting${linked.length === 1 ? '' : 's'}`}
           </div>
         </div>
-        <button
+        {canDo(user, 'create_meeting') && (<button
           onClick={() => setShowScheduler(true)}
           disabled={!accessToken}
           title={accessToken ? 'Create a Google Calendar event with the project team' : 'Sign in with Google first'}
@@ -244,7 +245,7 @@ function ProjectMeetingsV({ project, user, accessToken }) {
             cursor: accessToken ? 'pointer' : 'not-allowed', opacity: accessToken ? 1 : 0.5,
             textTransform: 'uppercase', letterSpacing: '.06em',
           }}
-        >📅 Schedule meeting</button>
+        >📅 Schedule meeting</button>)}
       </div>
 
       {showScheduler && (

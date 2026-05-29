@@ -55,6 +55,38 @@ export function emailDomain(email) {
   return d;
 }
 
+// Broader personal-email set used only for URL derivation. We're
+// stricter here than in clustering — including providers like
+// zoho/gmx/hey/proton aliases — because a wrong "company URL"
+// (e.g. "hey.com" for someone with a @hey.com email) is louder
+// than a missed cluster merge.
+const PERSONAL_DOMAINS_FOR_URL = new Set([
+  'gmail.com', 'googlemail.com',
+  'yahoo.com', 'yahoo.co.uk', 'ymail.com', 'rocketmail.com',
+  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com',
+  'aol.com',
+  'protonmail.com', 'proton.me', 'pm.me',
+  'fastmail.com', 'zoho.com',
+  'yandex.com', 'yandex.ru',
+  'mail.com', 'gmx.com', 'gmx.net',
+  'hey.com', 'duck.com',
+  'comcast.net',
+]);
+
+// Given an email, return the bare company website (e.g. "netflix.com")
+// or null when it's a personal provider or there's no usable domain.
+// Used to auto-fill company_url on the contact drawer + NewContactModal.
+export function deriveCompanyWebsiteFromEmail(email) {
+  if (!email || typeof email !== 'string') return null;
+  const at = email.indexOf('@');
+  if (at < 0) return null;
+  const domain = email.slice(at + 1).trim().toLowerCase();
+  if (!domain || !domain.includes('.')) return null;
+  if (PERSONAL_DOMAINS_FOR_URL.has(domain)) return null;
+  return domain;
+}
+
 // Group contacts into company clusters.
 // Returns: [{ canonical, aliases[], contacts[], count, stages[], emailDomain, lastContactedAt }]
 // Sorted by count descending, then last-contacted descending.
@@ -84,9 +116,17 @@ export function clusterByCompany(contacts) {
   for (const c of contacts) {
     const norm = normalizeCompany(c.company);
     const dom = emailDomain(c.email);
-    // If neither key is available, treat as its own cluster (e.g.,
-    // contacts with no company AND only a personal email)
-    const nameKey = norm || `__nocompany_${c.id}`;
+    // Bucketing key:
+    //   · has company → normalized name (existing behavior)
+    //   · no company, has usable email domain → unique per contact;
+    //     domain bridging below will group them by domain
+    //   · no company, no usable domain → shared "__unassigned__" key
+    //     so all such orphans collapse into ONE cluster the user
+    //     can then triage instead of seeing dozens of empty cards
+    let nameKey;
+    if (norm) nameKey = norm;
+    else if (dom) nameKey = `__nocompany_dom_${c.id}`;
+    else nameKey = '__unassigned__';
 
     let bucketId = byName.get(nameKey);
     if (!bucketId && dom && byDomain.has(dom)) bucketId = byDomain.get(dom);
@@ -110,11 +150,17 @@ export function clusterByCompany(contacts) {
     const group = contacts.filter(c => contactIds.has(c.id));
     if (!group.length) continue;
 
-    // Canonical name: most-common raw company, tie-break by longest
+    // Canonical name: most-common raw company, tie-break by longest.
+    // No company AND no domain in the entire group → "Unassigned"
+    // (the catch-all bucket); has a domain but no company name → keep
+    // the legacy "(No company)" label so the user knows it's a known
+    // org with missing metadata, not a fully orphaned set of contacts.
     const variants = [...new Set(group.map(c => c.company).filter(Boolean))];
     const counts = variants.map(v => ({ v, n: group.filter(c => c.company === v).length }));
     counts.sort((a, b) => b.n - a.n || b.v.length - a.v.length);
-    const canonical = counts[0]?.v || '(No company)';
+    const hasAnyDomain = group.some(c => emailDomain(c.email));
+    const isUnassigned = variants.length === 0 && !hasAnyDomain;
+    const canonical = counts[0]?.v || (isUnassigned ? 'Unassigned' : '(No company)');
     const aliases = variants.filter(v => v !== canonical);
 
     const stages = [...new Set(group.map(c => c.status || 'prospect'))];
@@ -147,9 +193,16 @@ export function clusterByCompany(contacts) {
       lastContactedAt,
       isIndependent: isIndependentCompany(canonical),
       isInternal: allInternal,
+      isUnassigned,
     });
   }
 
-  out.sort((a, b) => b.count - a.count || ((new Date(b.lastContactedAt || 0)) - (new Date(a.lastContactedAt || 0))));
+  // Sort by count desc, then last-contacted desc — but push the
+  // Unassigned catch-all to the very end regardless of size. It's a
+  // triage queue, not a priority.
+  out.sort((a, b) => {
+    if (a.isUnassigned !== b.isUnassigned) return a.isUnassigned ? 1 : -1;
+    return (b.count - a.count) || ((new Date(b.lastContactedAt || 0)) - (new Date(a.lastContactedAt || 0)));
+  });
   return out;
 }

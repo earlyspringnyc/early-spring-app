@@ -56,6 +56,13 @@ export async function signInWithGoogle() {
     options: {
       scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets',
       redirectTo: window.location.origin,
+      // access_type=offline + prompt=consent are what makes Google
+      // return a refresh_token. Without them, you only get a short-
+      // lived access token and the user is bounced back to consent
+      // every ~hour. The first sign-in will show the consent screen
+      // once more to grant offline access; subsequent sign-ins are
+      // silent and tokens refresh in the background.
+      queryParams: { access_type: 'offline', prompt: 'consent' },
     },
   });
   return { data, error };
@@ -424,6 +431,20 @@ export async function createProject(orgId, projectData) {
     throw error;
   }
   if (!data) throw new Error('Insert returned no data');
+  // Auto-add the creator as a project_member with full access so
+  // producers (and other non-admin/ep roles) don't lose visibility
+  // of projects they just created under the new RLS rules.
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) {
+      await supabase.from('project_members').insert({
+        project_id: data.id,
+        user_id: user.id,
+        sections: null,  // null = all sections
+        added_by: user.id,
+      });
+    }
+  } catch (e) { console.warn('[db] auto-add creator to project_members failed:', e?.message); }
   return { ...data.data, id: data.id, _dbId: data.id };
 }
 
@@ -680,6 +701,18 @@ export async function uploadFileData(orgId, projectId, fileId, fileName, dataUrl
     console.error('[storage] Upload error:', e);
     return null;
   }
+}
+
+// Public URL for a file in the 'files' bucket. Bucket is public-read,
+// so this URL is directly usable as <img src>, <video src>, <iframe src>,
+// or an anchor href for downloads. Path segments are URI-encoded so
+// spaces and special characters in filenames don't break the URL.
+export function publicFileUrl(storagePath) {
+  if (!storagePath) return null;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  if (!supabaseUrl) return null;
+  const encoded = String(storagePath).split('/').map(encodeURIComponent).join('/');
+  return `${supabaseUrl}/storage/v1/object/public/files/${encoded}`;
 }
 
 // Download file from Supabase Storage as base64 data URL

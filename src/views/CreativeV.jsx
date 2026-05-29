@@ -3,6 +3,19 @@ import T from '../theme/tokens.js';
 import { uid } from '../utils/uid.js';
 import { PlusI, TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
+import WardrobeTable from '../components/WardrobeTable.jsx';
+import { restFetch, publicFileUrl } from '../lib/db.js';
+
+// Resolve an asset to a usable URL for img/video/iframe src + download.
+// Order of preference: inline base64 fileData → Storage public URL via
+// storagePath → Google Drive link. Falls back to null when none exist.
+function assetUrl(a) {
+  if (!a) return null;
+  if (a.fileData) return a.fileData;
+  if (a.storagePath) return publicFileUrl(a.storagePath);
+  if (a.driveLink) return a.driveLink;
+  return null;
+}
 
 /* ── PDF page renderer using pdf.js ── */
 import * as pdfjsLib from 'pdfjs-dist';
@@ -69,11 +82,19 @@ function PdfViewer({fileData,driveLink,currentPage,onPageChange,onTotalPages}){
 }
 
 /* ── Categories ── */
+// "from-client" is a virtual section \u2014 its contents live in the
+// client_asset_links table (URLs the client pasted into their portal),
+// not in project.creativeAssets. Rendered with a dedicated card view
+// so staff can copy/open the links without polluting the regular
+// section flows.
 const SECTIONS=[
   {id:"decks",label:"Decks & Presentations",color:T.ink,icon:"\uD83D\uDCCA",desc:"Pitch decks, mood boards, client presentations"},
   {id:"graphic",label:"Graphic Design",color:T.ink70,icon:"\uD83C\uDFA8",desc:"Signage, branding, collateral, print files"},
   {id:"3d",label:"3D & Environmental",color:T.ink60,icon:"\uD83D\uDDBC\uFE0F",desc:"Renderings, floor plans, CAD, scenic design"},
   {id:"photo-video",label:"Photo & Video",color:T.ink40,icon:"\uD83C\uDFA5",desc:"Photography, videography, edits, social content"},
+  {id:"from-client",label:"From the Client",color:T.gold,icon:"\u2197",desc:"Drive, Dropbox & Figma links shared via the client portal"},
+  {id:"documents",label:"Documents",color:T.cyan,icon:"\uD83D\uDCDD",desc:"Working docs \u2014 briefs, scripts, treatments, run-of-show. Paste Google Docs / Notion links."},
+  {id:"wardrobe",label:"Talent Wardrobe",color:T.ink,icon:"\uD83D\uDC54",desc:"Sizes, addresses, what's been purchased per person. Import from a StaffConnect link."},
   {id:"other",label:"Other Files",color:T.dim,icon:"\uD83D\uDCC1",desc:"Anything else"},
 ];
 
@@ -98,9 +119,50 @@ const getFileType=(file)=>{
   return"other";
 };
 
-function CreativeV({project,updateProject,canEdit,accessToken}){
+function CreativeV({project,updateProject,canEdit,accessToken,user}){
   const assets=project.creativeAssets||[];
   const[activeSection,setActiveSection]=useState(null);
+  // ── Client-shared asset links (Drive/Dropbox/Figma URLs the client
+  // pasted into their portal). Loaded once on mount + refreshed when
+  // the user navigates into the "From the Client" section so we see
+  // newly-shared links without a full page refresh. ──
+  const[clientLinks,setClientLinks]=useState([]);
+  const[clientUploads,setClientUploads]=useState([]);
+  const[clientLinksLoading,setClientLinksLoading]=useState(false);
+  const loadClientLinks=useCallback(async()=>{
+    if(!project?.id)return;
+    setClientLinksLoading(true);
+    try{
+      const{restFetch}=await import('../lib/db.js');
+      const[links,uploads]=await Promise.all([
+        restFetch(`/client_asset_links?project_id=eq.${project.id}&order=added_at.desc&limit=200`),
+        restFetch(`/client_file_uploads?project_id=eq.${project.id}&order=created_at.desc&limit=200`).catch(()=>[]),
+      ]);
+      setClientLinks(links||[]);
+      setClientUploads(uploads||[]);
+    }catch(e){console.warn('[creative] client contributions load failed:',e?.message)}
+    finally{setClientLinksLoading(false)}
+  },[project?.id]);
+  useEffect(()=>{loadClientLinks()},[loadClientLinks]);
+  useEffect(()=>{if(activeSection==='from-client')loadClientLinks()},[activeSection,loadClientLinks]);
+
+  // ── Wardrobe row count for the section grid card. Light fetch
+  // (just id + the 5 purchase booleans) so we can show "X talent ·
+  // Y/Z items". Refreshed when the user comes back from the table.
+  const[wardrobeStats,setWardrobeStats]=useState({total:0,done:0,checks:0});
+  const loadWardrobeStats=useCallback(async()=>{
+    if(!project?.id)return;
+    try{
+      const rows=await restFetch(`/project_wardrobe?select=id,purchased_shorts,purchased_shirt,purchased_sunglasses,purchased_scarf,purchased_shoes&project_id=eq.${project.id}`);
+      const list=rows||[];
+      const gKeys=['purchased_shorts','purchased_shirt','purchased_sunglasses','purchased_scarf','purchased_shoes'];
+      const checks=list.length*gKeys.length;
+      const done=list.reduce((acc,r)=>acc+gKeys.filter(k=>r[k]).length,0);
+      setWardrobeStats({total:list.length,done,checks});
+    }catch(e){/* table may not exist yet; ignore */}
+  },[project?.id]);
+  useEffect(()=>{loadWardrobeStats()},[loadWardrobeStats]);
+  useEffect(()=>{if(activeSection===null)loadWardrobeStats()},[activeSection,loadWardrobeStats]);
   const[dragging,setDragging]=useState(false);
   const[viewingAsset,setViewingAsset]=useState(null);
   const[deckPage,setDeckPage]=useState(0);
@@ -116,9 +178,21 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
   const sectionAssets=(sectionId)=>assets.filter(a=>(a.section||a.category||"other")===sectionId);
 
   const handleFiles=useCallback((files,targetSection)=>{
+    const fileList=Array.from(files);
+    const total=fileList.length;
     const newAssets=[];
-    Array.from(files).forEach(file=>{
+    let errored=0;
+    fileList.forEach(file=>{
       const reader=new FileReader();
+      reader.onerror=err=>{
+        console.error('[creative] FileReader error for',file.name,err);
+        errored++;
+        import('../lib/toast.js').then(({toast})=>toast.error(`Could not read ${file.name}: ${reader.error?.message||'unknown error'}`));
+        // Still count this toward completion so the batch doesn't hang
+        if(newAssets.length+errored===total&&newAssets.length>0){
+          commitAssets();
+        }
+      };
       reader.onload=ev=>{
         const section=targetSection||autoSection(file.name);
         const ft=getFileType(file);
@@ -136,39 +210,131 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
           dateAdded:new Date().toLocaleDateString(),
           versions:[{id:uid(),fileName:file.name,fileData:ev.target.result,date:new Date().toLocaleDateString()}],
         });
-        if(newAssets.length===files.length){
-          updateProject(prev=>({creativeAssets:[...(prev.creativeAssets||[]),...newAssets]}));
-          // Background upload to Google Drive — functional updater so
-          // parallel completions don't clobber each other.
-          if(accessToken&&project.driveFolders){
-            import('../utils/drive.js').then(({uploadToDrive})=>{
-              newAssets.forEach(async(a)=>{
-                if(!a.fileData)return;
-                const result=await uploadToDrive(accessToken,a.fileData,a.fileName,project.driveFolders,null,"creative");
-                if(result){
-                  updateProject(prev=>({creativeAssets:(prev.creativeAssets||[]).map(x=>x.id===a.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)}));
-                }
-              });
-            });
-          }
+        if(newAssets.length+errored===total){
+          commitAssets();
         }
       };
       reader.readAsDataURL(file);
     });
+
+    function commitAssets(){
+      if(newAssets.length===0)return;
+      try{
+        updateProject(prev=>({creativeAssets:[...(prev.creativeAssets||[]),...newAssets]}));
+        import('../lib/toast.js').then(({toast})=>{
+          toast.success(`Added ${newAssets.length} file${newAssets.length===1?'':'s'}${errored>0?` (${errored} failed)`:''}`);
+        });
+      }catch(e){
+        console.error('[creative] updateProject threw:',e);
+        import('../lib/toast.js').then(({toast})=>toast.error(`Could not save files: ${e.message||e}`));
+      }
+      // Background upload to Google Drive — functional updater so
+      // parallel completions don't clobber each other.
+      if(accessToken&&project.driveFolders){
+        import('../utils/drive.js').then(({uploadToDrive})=>{
+          newAssets.forEach(async(a)=>{
+            if(!a.fileData)return;
+            try{
+              const result=await uploadToDrive(accessToken,a.fileData,a.fileName,project.driveFolders,null,"creative");
+              if(result){
+                updateProject(prev=>({creativeAssets:(prev.creativeAssets||[]).map(x=>x.id===a.id?{...x,driveId:result.driveId,driveLink:result.webViewLink}:x)}));
+              }
+            }catch(e){console.error('[creative] drive upload failed for',a.fileName,e)}
+          });
+        });
+      }
+    }
   },[assets,updateProject,accessToken,project.driveFolders]);
 
-  const addLink=(targetSection)=>{
+  // Per-provider URL → iframe-embeddable URL. Most platforms ship
+  // a distinct embed/preview endpoint (X-Frame-Options blocks the
+  // canonical /edit or /watch URLs). Falls back to the raw URL for
+  // unknown providers — the iframe will just show a blank page
+  // when the target blocks framing, and the user can fall back to
+  // the existing "Open Link" button.
+  const toEmbedUrl = (url, provider) => {
+    if (!url) return url;
+    try {
+      switch (provider) {
+        case 'drive':
+          // Docs / Sheets / Slides / Drive — /preview is embeddable.
+          return url.replace(/\/(edit|view|viewform)(\?[^#]*)?(#.*)?$/, '/preview');
+        case 'figma':
+          return `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(url)}`;
+        case 'canva': {
+          // Canva share URLs accept ?embed appended to /view.
+          const u = url.replace(/\/(edit|view)(\?[^#]*)?(#.*)?$/, '/view');
+          return u.includes('?embed') ? u : `${u}?embed`;
+        }
+        case 'youtube': {
+          // youtu.be/<id>, youtube.com/watch?v=<id>, /shorts/<id> → /embed/<id>
+          const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/);
+          return m ? `https://www.youtube.com/embed/${m[1]}` : url;
+        }
+        case 'vimeo': {
+          const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+          return m ? `https://player.vimeo.com/video/${m[1]}` : url;
+        }
+        case 'loom': {
+          // loom.com/share/<id> → loom.com/embed/<id>
+          return url.replace('/share/', '/embed/');
+        }
+        case 'miro': {
+          // miro.com/app/board/<id>/ → miro.com/app/live-embed/<id>/
+          const m = url.match(/miro\.com\/app\/board\/([\w-]+=?)/);
+          return m ? `https://miro.com/app/live-embed/${m[1]}/?embedAutoplay=true` : url;
+        }
+        case 'dropbox':
+          // ?raw=1 forces a direct preview where supported.
+          return url.includes('?') ? url.replace(/[?&]dl=\d/, '') + '&raw=1' : url + '?raw=1';
+        case 'notion':
+          // Public Notion pages embed directly. Private ones won't.
+          return url;
+        default:
+          return url;
+      }
+    } catch (e) { return url; }
+  };
+  const detectLinkProvider = (url) => {
+    const u = (url || '').toLowerCase();
+    if (u.includes('figma.com')) return { provider: 'figma', label: 'Figma', ext: 'fig' };
+    if (u.includes('canva.com')) return { provider: 'canva', label: 'Canva', ext: 'canva' };
+    if (u.includes('dropbox.com')) return { provider: 'dropbox', label: 'Dropbox', ext: 'dropbox' };
+    if (u.includes('drive.google.com') || u.includes('docs.google.com')) return { provider: 'drive', label: 'Google Drive', ext: 'drive' };
+    if (u.includes('notion.so') || u.includes('notion.site')) return { provider: 'notion', label: 'Notion', ext: 'notion' };
+    if (u.includes('miro.com')) return { provider: 'miro', label: 'Miro', ext: 'miro' };
+    if (u.includes('youtube.com') || u.includes('youtu.be')) return { provider: 'youtube', label: 'YouTube', ext: 'yt' };
+    if (u.includes('vimeo.com')) return { provider: 'vimeo', label: 'Vimeo', ext: 'vimeo' };
+    if (u.includes('loom.com')) return { provider: 'loom', label: 'Loom', ext: 'loom' };
+    return { provider: 'link', label: 'Link', ext: 'link' };
+  };
+
+  const addLink=async(targetSection)=>{
     if(!linkUrl.trim())return;
-    const isFigma=linkUrl.includes("figma.com");
-    const isCanva=linkUrl.includes("canva.com");
-    const name=linkName.trim()||(isFigma?"Figma Design":isCanva?"Canva Design":"Design Link");
+    const meta = detectLinkProvider(linkUrl);
+    let name = linkName.trim();
+    if (!name) {
+      try {
+        const { deriveLinkName } = await import('../utils/linkMeta.js');
+        name = (await deriveLinkName(linkUrl, accessToken)) || '';
+      } catch (e) {}
+    }
+    if (!name) name = `${meta.label} ${targetSection ? targetSection.charAt(0).toUpperCase()+targetSection.slice(1) : 'Asset'}`;
     const asset={
       id:uid(),name,fileName:linkUrl,section:targetSection||"decks",
       fileData:null,linkUrl:linkUrl.trim(),
-      fileType:"link",fileExt:isFigma?"fig":isCanva?"canva":"link",
+      fileType:"link",fileExt:meta.ext,
       fileSize:"",isImage:false,isVideo:false,isPdf:false,
-      isFigma,isCanva,
-      notes:"",status:"draft",comments:[],
+      // Keep legacy boolean flags so existing render paths still work,
+      // while linkProvider is the canonical identifier going forward.
+      isFigma: meta.provider === 'figma',
+      isCanva: meta.provider === 'canva',
+      linkProvider: meta.provider,
+      // Linked assets are intentional client-facing references — mark
+      // them client-visible so they surface in the portal without a
+      // separate approval step.
+      clientVisible: true,
+      notes:"",status:"approved",comments:[],
       dateAdded:new Date().toLocaleDateString(),versions:[],
     };
     updateProject({creativeAssets:[...assets,asset]});
@@ -211,7 +377,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
     const visibleComments=a.isPdf&&commentFilter==="page"?comments.filter(c=>c.page===deckPage):comments;
     const statusM=STATUS_META[a.status||"draft"];
 
-    return<div style={{position:"fixed",inset:0,zIndex:200,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    return<div style={{position:"fixed",top:0,right:0,bottom:0,left:0,width:"100vw",height:"100vh",zIndex:200,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 24px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -222,17 +388,22 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
         <div style={{display:"flex",gap:6}}>
           {canEdit&&Object.entries(STATUS_META).map(([k,v])=><button key={k} onClick={()=>updateAsset(a.id,{status:k})} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${(a.status||"draft")===k?v.color+"40":T.border}`,background:(a.status||"draft")===k?`${v.color}12`:"transparent",color:(a.status||"draft")===k?v.color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{v.label}</button>)}
           {a.linkUrl&&<button onClick={()=>window.open(a.linkUrl,"_blank")} style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Open Link</button>}
+          {assetUrl(a)&&<a href={assetUrl(a)} download={a.fileName||a.name||"file"} target="_blank" rel="noopener noreferrer" style={{padding:"5px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.cyan,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4}}>↓ Download</a>}
         </div>
       </div>
 
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* Main content */}
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24,background:"rgba(0,0,0,.3)"}}>
-          {a.isPdf&&(a.fileData||a.driveLink)?<PdfViewer fileData={a.fileData} driveLink={a.driveLink} currentPage={deckPage} onPageChange={setDeckPage} onTotalPages={n=>setTotalPdfPages(n)}/>
-          :a.isImage&&a.fileData?<img src={a.fileData} alt={a.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>
-          :a.isVideo&&a.fileData?<video src={a.fileData} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:8}}/>
-          :a.isFigma&&a.linkUrl?<iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(a.linkUrl)}`} style={{width:"100%",height:"100%",border:"none",borderRadius:8}} title={a.name} allowFullScreen/>
-          :<div style={{textAlign:"center",color:T.dim}}><div style={{fontSize:48,marginBottom:12,opacity:.2}}>{a.fileExt?.toUpperCase()||"FILE"}</div><div style={{fontSize:13}}>Preview not available</div>{a.linkUrl&&<button onClick={()=>window.open(a.linkUrl,"_blank")} style={{marginTop:12,padding:"8px 16px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Open Link</button>}</div>}
+          {(() => {
+            const url = assetUrl(a);
+            if (a.isPdf && url) return <PdfViewer fileData={a.fileData} driveLink={a.fileData?null:url} currentPage={deckPage} onPageChange={setDeckPage} onTotalPages={n=>setTotalPdfPages(n)}/>;
+            if (a.isImage && url) return <img src={url} alt={a.name} onError={(e)=>{console.error('[creative-viewer] image failed to load:',url);e.currentTarget.alt='Image failed to load — try Download in the header.'}} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>;
+            if (a.isVideo && url) return <video src={url} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:8}}/>;
+            if (a.linkUrl) return <iframe src={toEmbedUrl(a.linkUrl,a.linkProvider)} style={{width:"100%",height:"100%",border:"none",borderRadius:8,background:"#fff"}} title={a.name} allow="autoplay; fullscreen; clipboard-write" allowFullScreen sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"/>;
+            if (url) return <div style={{textAlign:"center",color:T.dim}}><div style={{fontSize:48,marginBottom:12,opacity:.2}}>{a.fileExt?.toUpperCase()||"FILE"}</div><div style={{fontSize:13,marginBottom:14}}>No inline preview for .{a.fileExt||'this'} files</div><a href={url} download={a.fileName||a.name||"file"} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:T.rS,background:T.ink,color:T.paper,fontSize:11,fontWeight:700,letterSpacing:".04em",textDecoration:"none",fontFamily:T.sans}}>Download</a></div>;
+            return <div style={{textAlign:"center",color:T.dim}}><div style={{fontSize:48,marginBottom:12,opacity:.2}}>{a.fileExt?.toUpperCase()||"FILE"}</div><div style={{fontSize:13}}>Preview not available</div></div>;
+          })()}
         </div>
 
         {/* Comments sidebar */}
@@ -272,6 +443,71 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
     </div>;
   }
 
+  /* ══ FROM-THE-CLIENT detail view ══
+     Renders client-supplied Drive/Dropbox/Figma URLs from
+     client_asset_links. No upload UI — these are read-only references
+     populated by the client portal. */
+  if(activeSection==='from-client'){
+    const sec=SECTIONS.find(s=>s.id==='from-client');
+    const providerLabel=(p)=>{
+      const m={dropbox:'Dropbox',drive:'Google Drive',figma:'Figma',notion:'Notion',miro:'Miro',other:'Link',link:'Link'};
+      return m[p]||'Link';
+    };
+    return<div>
+      <BackBtn/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:18,flexWrap:"wrap",gap:12}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",margin:0}}>From the Client</h1>
+          <div style={{fontSize:12,color:T.dim,marginTop:4}}>Drive, Dropbox &amp; Figma links shared via the client portal.</div>
+        </div>
+        <button onClick={loadClientLinks} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{clientLinksLoading?'Refreshing…':'Refresh'}</button>
+      </div>
+
+      {clientLinks.length===0&&clientUploads.length===0?<div style={{padding:"40px 20px",textAlign:"center",color:T.dim,fontSize:13,border:`1px dashed ${T.border}`,borderRadius:T.r}}>
+        Nothing yet. When the client uploads a file or pastes a link in their portal, it shows up here.
+      </div>:<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:12}}>
+        {clientUploads.map(up=>{
+          const publicUrl=`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/client-uploads/${up.storage_path.split('/').map(encodeURIComponent).join('/')}`;
+          return<div key={`u-${up.id}`} style={{padding:"16px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.gold}40`,display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
+              <span style={{fontSize:10,fontWeight:700,color:T.gold,letterSpacing:".08em",textTransform:"uppercase"}}>Upload</span>
+              <span style={{fontSize:10,color:T.dim,fontFamily:T.mono,whiteSpace:"nowrap"}}>{new Date(up.created_at).toLocaleDateString()}</span>
+            </div>
+            <div style={{fontSize:13,fontWeight:600,color:T.cream,lineHeight:1.4,wordBreak:"break-all"}}>{up.file_name}</div>
+            {up.file_size&&<div style={{fontSize:10,color:T.dim,fontFamily:T.mono}}>{(up.file_size/1024).toFixed(1)} KB · {up.content_type||'file'}</div>}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={()=>window.open(publicUrl,'_blank','noopener')} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Open</button>
+              <a href={publicUrl} download={up.file_name} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans,textDecoration:"none"}}>Download</a>
+            </div>
+          </div>;
+        })}
+        {clientLinks.map(link=>{
+          const provider=link.provider||'link';
+          return<div key={link.id} style={{padding:"16px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
+              <span style={{fontSize:10,fontWeight:700,color:T.gold,letterSpacing:".08em",textTransform:"uppercase"}}>{providerLabel(provider)}</span>
+              <span style={{fontSize:10,color:T.dim,fontFamily:T.mono,whiteSpace:"nowrap"}}>{new Date(link.added_at).toLocaleDateString()}</span>
+            </div>
+            {link.label&&<div style={{fontSize:13,fontWeight:600,color:T.cream,lineHeight:1.4}}>{link.label}</div>}
+            <a href={link.url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:T.cyan,wordBreak:"break-all",textDecoration:"underline",lineHeight:1.5}}>{link.url}</a>
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={()=>window.open(link.url,'_blank','noopener')} style={{padding:"6px 14px",borderRadius:T.rS,border:"none",background:T.ink,color:T.paper,fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Open</button>
+              <button onClick={()=>{navigator.clipboard?.writeText(link.url)}} style={{padding:"6px 14px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Copy URL</button>
+            </div>
+          </div>;
+        })}
+      </div>}
+    </div>;
+  }
+
+  /* ══ TALENT WARDROBE detail view ══
+     Structured-data section: a table of talent w/ sizes, addresses,
+     purchase checkboxes. Not file-based, so it bypasses the asset
+     pipeline entirely. */
+  if(activeSection==='wardrobe'){
+    return <WardrobeTable project={project} updateProject={updateProject} user={user} onBack={()=>setActiveSection(null)}/>;
+  }
+
   /* ══ SECTION DETAIL VIEW ══ */
   if(activeSection){
     const sec=SECTIONS.find(s=>s.id===activeSection);
@@ -292,15 +528,15 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
           <p style={{fontSize:12,color:T.dim,marginTop:4}}>{sAssets.length} files{reviewInSection>0?` · ${reviewInSection} awaiting review`:""}</p>
         </div>
         <div style={{display:"flex",gap:8}}>
-          {activeSection==="decks"&&<button onClick={()=>setShowLinkInput(!showLinkInput)} style={{padding:"8px 14px",borderRadius:T.rS,background:"transparent",border:`1px solid ${T.border}`,color:T.dim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>+ Figma / Link</button>}
-          <button onClick={()=>fileRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload</button>
+          <button onClick={()=>setShowLinkInput(!showLinkInput)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:showLinkInput?T.inkSoft:T.cyan+"18",border:`1px solid ${showLinkInput?T.ink:T.cyan+"40"}`,color:showLinkInput?T.ink:T.cyan,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color="currentColor"/> Paste Link</button>
+          <button onClick={()=>fileRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload File</button>
         </div>
       </div>
 
       {showLinkInput&&<Card style={{padding:16,marginBottom:16}}>
-        <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Add Figma, Canva, or URL</div>
+        <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Paste a link — Google Docs / Sheets / Slides, Drive, Figma, Canva, Notion, Dropbox, Miro</div>
         <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
-          <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://figma.com/..." onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+          <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="https://docs.google.com/document/d/... or any URL" onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
           <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>Name</div><input value={linkName} onChange={e=>setLinkName(e.target.value)} placeholder="Mood Board v2" onKeyDown={e=>e.key==="Enter"&&addLink(activeSection)} style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
           <button onClick={()=>addLink(activeSection)} disabled={!linkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:linkUrl.trim()?T.goldSoft:T.inkSoft2,color:linkUrl.trim()?T.gold:T.fadedInk,border:`1px solid ${linkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:linkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
         </div>
@@ -314,7 +550,7 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
           return<div key={a.id} onClick={()=>{setViewingAsset(a.id);setDeckPage(0)}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px",borderBottom:idx<sAssets.length-1?`1px solid ${T.border}`:"none",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             {/* Thumbnail */}
             <div style={{width:48,height:48,borderRadius:T.rS,background:"rgba(0,0,0,.2)",overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {a.isImage&&a.fileData?<img src={a.fileData} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              {a.isImage&&assetUrl(a)?<img src={assetUrl(a)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
               :a.isFigma?<span style={{fontSize:10,fontWeight:800,color:T.ink,fontFamily:T.mono}}>FIG</span>
               :<span style={{fontSize:10,fontWeight:700,color:T.dim,fontFamily:T.mono}}>{(a.fileExt||"?").toUpperCase()}</span>}
             </div>
@@ -361,26 +597,35 @@ function CreativeV({project,updateProject,canEdit,accessToken}){
     {/* Section cards */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
       {SECTIONS.map(sec=>{
-        const sAssets=sectionAssets(sec.id);
-        const review=sAssets.filter(a=>a.status==="review").length;
-        const approved=sAssets.filter(a=>a.status==="approved").length;
+        // "From the Client" is sourced from client_asset_links rather
+        // than project.creativeAssets, so the count uses the loaded
+        // rows. It also doesn't accept file drops.
+        const isClient=sec.id==='from-client';
+        const isWardrobe=sec.id==='wardrobe';
+        const sAssets=(isClient||isWardrobe)?[]:sectionAssets(sec.id);
+        const count=isClient?(clientLinks.length+clientUploads.length):isWardrobe?wardrobeStats.total:sAssets.length;
+        const review=(isClient||isWardrobe)?0:sAssets.filter(a=>a.status==="review").length;
+        const approved=(isClient||isWardrobe)?0:sAssets.filter(a=>a.status==="approved").length;
+        const noDrop=isClient||isWardrobe;
         return<div key={sec.id} onClick={()=>setActiveSection(sec.id)} style={cardStyle(sec.color)} onMouseEnter={cardHover} onMouseLeave={cardLeave}
-          onDragEnter={e=>{e.preventDefault();e.currentTarget.style.borderColor=sec.color;e.currentTarget.style.background=`${sec.color}08`}}
-          onDragLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}
-          onDragOver={e=>e.preventDefault()}
-          onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,sec.id)}}>
+          onDragEnter={e=>{if(noDrop)return;e.preventDefault();e.currentTarget.style.borderColor=sec.color;e.currentTarget.style.background=`${sec.color}08`}}
+          onDragLeave={e=>{if(noDrop)return;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}
+          onDragOver={e=>{if(!noDrop)e.preventDefault()}}
+          onDrop={e=>{if(noDrop)return;e.preventDefault();e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,sec.id)}}>
           <div style={{padding:"24px 26px"}}>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em"}}>{sec.label}</div>
             </div>
             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:10}}>
-              <span className="num" style={{fontSize:32,fontWeight:700,color:sec.color,fontFamily:T.mono}}>{sAssets.length}</span>
-              <span style={{fontSize:12,color:T.dim}}>files</span>
+              <span className="num" style={{fontSize:32,fontWeight:700,color:sec.color,fontFamily:T.mono}}>{count}</span>
+              <span style={{fontSize:12,color:T.dim}}>{isClient?(count===1?'item':'items'):isWardrobe?(count===1?'person':'people'):'files'}</span>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {review>0&&<Pill color="#F59E0B" size="xs">{review} in review</Pill>}
               {approved>0&&<Pill color={T.pos} size="xs">{approved} approved</Pill>}
-              {sAssets.length===0&&<span style={{fontSize:11,color:T.dim}}>{sec.desc}</span>}
+              {isClient&&count>0&&<Pill color={T.gold} size="xs">From client</Pill>}
+              {isWardrobe&&wardrobeStats.total>0&&<Pill color={T.ink} size="xs">{wardrobeStats.done}/{wardrobeStats.checks} items</Pill>}
+              {count===0&&<span style={{fontSize:11,color:T.dim}}>{sec.desc}</span>}
             </div>
           </div>
         </div>

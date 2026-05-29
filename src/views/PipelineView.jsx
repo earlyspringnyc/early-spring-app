@@ -24,6 +24,14 @@ const COLUMNS = [
 
 const TYPE_ICON = { brand: '◆', agency: '◇', vendor: '▣', internal: '●' };
 
+// Pipeline-relevant types only. `internal` (your team) and `vendor`
+// are intentionally excluded — they don't live in the sales funnel.
+const TYPE_FILTERS = [
+  { id: 'all',    label: 'All' },
+  { id: 'brand',  label: 'Brand',  icon: '◆' },
+  { id: 'agency', label: 'Agency', icon: '◇' },
+];
+
 function daysAgo(iso) {
   if (!iso) return Infinity;
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
@@ -36,6 +44,8 @@ function PipelineView({ user, onBack, onLogout, accessToken, projects = [] }) {
   const [openContactId, setOpenContactId] = useState(null);
   const [prepBriefContact, setPrepBriefContact] = useState(null);
   const [scheduleContact, setScheduleContact] = useState(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all'); // all | brand | agency
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,12 +55,23 @@ function PipelineView({ user, onBack, onLogout, accessToken, projects = [] }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // Group contacts by status. Skip internal team + vendors —
-  // they're not in the sales funnel.
+  // Apply search + type filter first. Skip internal + vendor types
+  // (not part of the sales funnel) regardless of filter selection.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return contacts.filter(c => {
+      if (c.contact_type === 'internal' || c.contact_type === 'vendor') return false;
+      if (typeFilter !== 'all' && c.contact_type !== typeFilter) return false;
+      if (!q) return true;
+      const hay = `${c.first_name || ''} ${c.last_name || ''} ${c.company || ''} ${c.email || ''} ${c.title || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [contacts, search, typeFilter]);
+
+  // Group filtered contacts by status.
   const byStatus = useMemo(() => {
     const groups = Object.fromEntries(COLUMNS.map(c => [c.id, []]));
-    for (const c of contacts) {
-      if (c.contact_type === 'internal' || c.contact_type === 'vendor') continue;
+    for (const c of filtered) {
       const s = COLUMNS.find(col => col.id === (c.status || 'prospect'))?.id || 'prospect';
       groups[s].push(c);
     }
@@ -64,7 +85,7 @@ function PipelineView({ user, onBack, onLogout, accessToken, projects = [] }) {
       });
     }
     return groups;
-  }, [contacts]);
+  }, [filtered]);
 
   const openContact = useMemo(
     () => contacts.find(c => c.id === openContactId) || null,
@@ -96,11 +117,43 @@ function PipelineView({ user, onBack, onLogout, accessToken, projects = [] }) {
       </div>
 
       <div style={{ padding: '28px 32px' }}>
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', margin: 0 }}>Pipeline</h1>
           <p style={{ fontSize: 13, color: T.fadedInk, marginTop: 4 }}>
-            {contacts.length} contacts · grouped by funnel stage · click a card to open + change stage
+            {filtered.length === contacts.length
+              ? <>{contacts.length} contacts · grouped by funnel stage · click a card to open + change stage</>
+              : <>{filtered.length} of {contacts.length} contacts shown · filter active</>}
           </p>
+        </div>
+
+        {/* Toolbar — search + type filter. Mirrors ContactsView so the
+            two CRM surfaces feel symmetrical. */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0 18px', flexWrap: 'wrap',
+        }}>
+          <div style={{ flex: 1, minWidth: 240, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: T.inkSoft2 }}>
+            <span style={{ fontSize: 12, color: T.fadedInk }}>⌕</span>
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, company, email, title…"
+              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 13, color: T.ink, fontFamily: T.sans }}/>
+            {search && (
+              <button onClick={() => setSearch('')} title="Clear search" style={{
+                background: 'transparent', border: 'none', color: T.fadedInk, cursor: 'pointer',
+                padding: 0, fontSize: 14, lineHeight: 1,
+              }}>×</button>
+            )}
+          </div>
+          {TYPE_FILTERS.map(t => {
+            const active = typeFilter === t.id;
+            return <button key={t.id} onClick={() => setTypeFilter(t.id)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999,
+              fontSize: 11, fontWeight: 600, fontFamily: T.sans, cursor: 'pointer',
+              background: active ? T.ink : 'transparent',
+              color: active ? T.paper : T.ink70,
+              border: `1px solid ${active ? T.ink : T.faintRule}`,
+              transition: 'all .15s', whiteSpace: 'nowrap',
+            }}>{t.icon && <span style={{ fontSize: 11 }}>{t.icon}</span>}{t.label}</button>;
+          })}
         </div>
 
         {loading ? (
@@ -162,7 +215,9 @@ function PipelineView({ user, onBack, onLogout, accessToken, projects = [] }) {
         <ContactDetailDrawer
           contact={openContact}
           projects={projects}
+          allContacts={contacts}
           userId={userId}
+          userName={user?.name || user?.email}
           accessToken={accessToken}
           onClose={() => setOpenContactId(null)}
           onUpdate={updated => setContacts(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))}

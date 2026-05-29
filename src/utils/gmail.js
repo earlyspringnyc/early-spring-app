@@ -73,3 +73,71 @@ export async function listGmailThreadsForEmail(accessToken, email, { limit = 20 
 
   return results.filter(Boolean).sort((a, b) => new Date(b.date) - new Date(a.date));
 }
+
+// Decode a base64url-encoded MIME part as UTF-8 text. Gmail uses
+// base64url (no padding, - and _ instead of + and /).
+function decodeB64Url(data) {
+  if (!data) return '';
+  const b64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch (e) { return ''; }
+}
+
+// Walk the MIME payload tree and return the first matching mimeType
+// body it finds. Gmail nests multipart/alternative inside
+// multipart/mixed etc., so this has to recurse.
+function findPart(payload, mimeType) {
+  if (!payload) return null;
+  if (payload.mimeType === mimeType && payload.body?.data) return payload;
+  for (const p of payload.parts || []) {
+    const hit = findPart(p, mimeType);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+// Crude HTML→text: drop scripts/styles, replace block tags with
+// newlines, strip remaining tags, collapse whitespace. Good enough
+// for feeding email bodies to an LLM.
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<\/(p|div|li|tr|h\d|br)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+}
+
+// Fetch a full Gmail message body. Prefers text/plain, falls back to
+// stripped text/html. Caller passes a `maxChars` cap so a huge thread
+// doesn't blow the LLM context window.
+export async function getGmailMessageBody(accessToken, messageId, { maxChars = 3000 } = {}) {
+  if (!accessToken) throw new Error('Not signed in to Google');
+  if (!messageId) return '';
+  const detail = await ffetch(`${GMAIL_API}/messages/${messageId}?format=full`, accessToken);
+  const payload = detail.payload;
+  // If the whole message is single-part text the data sits on payload.body.
+  let text = '';
+  if (payload?.mimeType === 'text/plain' && payload.body?.data) {
+    text = decodeB64Url(payload.body.data);
+  } else {
+    const plain = findPart(payload, 'text/plain');
+    if (plain) text = decodeB64Url(plain.body.data);
+    if (!text) {
+      const html = findPart(payload, 'text/html');
+      if (html) text = htmlToText(decodeB64Url(html.body.data));
+    }
+  }
+  text = text.replace(/\r\n/g, '\n').trim();
+  if (text.length > maxChars) text = text.slice(0, maxChars) + `\n[…truncated, ${text.length - maxChars} more chars]`;
+  return text;
+}

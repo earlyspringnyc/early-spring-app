@@ -314,6 +314,28 @@ export async function listProjectsForContact(contactId) {
   ) || [];
 }
 
+// Batched variant — one round-trip for a list of contact ids. Used by
+// the company-cluster detail panel, which otherwise fires N parallel
+// requests (one per contact). `contact_id` is included in the select
+// so callers can bucket the result back per-contact.
+export async function listProjectsForContacts(contactIds) {
+  const ids = Array.from(new Set((contactIds || []).filter(Boolean)));
+  if (!ids.length) return [];
+  // Chunk to keep URL length sane — PostgREST `in.(...)` handles big
+  // lists but proxies can flake. 100 per query matches the importer.
+  const out = [];
+  const CHUNK = 100;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const list = slice.map(v => `"${v}"`).join(',');
+    const rows = await restFetch(
+      `/contact_projects?select=contact_id,role,created_at,projects(id,name,stage)&contact_id=in.(${enc(list)})`
+    ) || [];
+    out.push(...rows);
+  }
+  return out;
+}
+
 // Reverse lookup — all contacts linked to a project, with their role.
 // Used by the project view's contacts panel.
 export async function listContactsForProject(projectId) {

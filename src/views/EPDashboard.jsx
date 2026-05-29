@@ -5,7 +5,7 @@ import { calcProject } from '../utils/calc.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
 import { getBudgetHealth } from '../utils/budgetHealth.js';
 import { getProjectStaff, getCrossProjectStaffing } from '../utils/staffing.js';
-import { STAGE_LABELS, STAGE_COLORS, ROLE_LABELS, ROLE_COLORS } from '../constants/index.js';
+import { STAGE_LABELS, STAGE_COLORS, ROLE_LABELS, ROLE_COLORS, isInactiveStage } from '../constants/index.js';
 import { LogOutI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
@@ -16,6 +16,7 @@ import StickyNotes from '../components/StickyNotes.jsx';
 import UpcomingMeetings from '../components/UpcomingMeetings.jsx';
 import FollowUps from '../components/FollowUps.jsx';
 import PrepBrief from '../components/PrepBrief.jsx';
+import VoiceCaptureModal from '../components/VoiceCaptureModal.jsx';
 import { useUserNotes } from '../hooks/useUserNotes.js';
 
 /* ── helpers ── */
@@ -55,8 +56,9 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
   const[tab,setTab]=useState("overview"); // overview | staffing
   const[expandedId,setExpandedId]=useState(null);
   const[teamMembers,setTeamMembers]=useState([]);
+  const[voiceOpen,setVoiceOpen]=useState(false);
   // Personal notes — RLS scopes to auth.uid(), per-user not per-org
-  const{notes,addNote,updateNote,deleteNote,addToCalendar,dismissReminder,analyzingIds}=useUserNotes(user?.user_id||user?.id,accessToken);
+  const{notes,addNote,updateNote,deleteNote,addToCalendar,dismissReminder,analyzingIds,reload:reloadNotes}=useUserNotes(user?.user_id||user?.id,accessToken);
   // Prep-brief overlay: opened from the Upcoming Meetings widget
   // when the user clicks ✦ Prep brief on a calendar event with a
   // resolved CRM contact. Holds both the contact and the calendar
@@ -69,7 +71,7 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
     }
   },[orgId]);
 
-  const projectData=useMemo(()=>projects.filter(p=>p.stage!=="archived").map(p=>{
+  const projectData=useMemo(()=>projects.filter(p=>!isInactiveStage(p.stage)).map(p=>{
     const comp=calcProject(p);
     const health=getBudgetHealth(p);
     const staff=getProjectStaff(p,teamMembers);
@@ -78,9 +80,9 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
     return{project:p,comp,health,staff,daysOut,eventDate};
   }),[projects,teamMembers]);
 
-  const crossStaffing=useMemo(()=>getCrossProjectStaffing(projects.filter(p=>p.stage!=="archived"),teamMembers),[projects,teamMembers]);
+  const crossStaffing=useMemo(()=>getCrossProjectStaffing(projects.filter(p=>!isInactiveStage(p.stage)),teamMembers),[projects,teamMembers]);
 
-  const activeProjects=projects.filter(p=>p.stage!=="archived");
+  const activeProjects=projects.filter(p=>!isInactiveStage(p.stage));
   const expandedData=expandedId?projectData.find(d=>d.project.id===expandedId):null;
 
   const greeting=`${(()=>{const h=new Date().getHours();if(h<12)return"Good morning";if(h<17)return"Good afternoon";return"Good evening"})()}, ${user?.name?.split(" ")[0]||""}`;
@@ -93,6 +95,10 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
         {organizations.length>1&&<OrgSwitcher organizations={organizations} profiles={profiles} currentOrgId={currentOrgId} switchOrg={switchOrg}/>}
       </div>
       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
+        <button onClick={()=>setVoiceOpen(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:T.rS,border:`1px solid ${T.ink}`,background:T.ink,color:T.paper,fontSize:11,fontWeight:600,fontFamily:T.sans,cursor:"pointer",letterSpacing:".02em"}} title="Record a voice note">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          Voice note
+        </button>
         <Pill color="#F59E0B">EP View</Pill>
         <span style={{fontSize:12,color:T.dim}}>{user?.email}</span>
         <button onClick={onLogout} style={{background:"none",border:"none",color:T.dim,cursor:"pointer",padding:4}} title="Sign out"><LogOutI size={16}/></button>
@@ -165,6 +171,10 @@ function EPDashboard({projects,onOpen,user,onLogout,profiles=[],organizations=[]
 
     {/* Prep brief overlay launched from Upcoming Meetings */}
     {prepBrief&&<PrepBrief contact={prepBrief.contact} event={prepBrief.event} userId={user?.user_id||user?.id} accessToken={accessToken} onClose={()=>setPrepBrief(null)}/>}
+
+    {/* Voice capture — opened from the header button. Reloads the sticky-notes
+        list on file so a reminder we just routed shows up immediately. */}
+    {voiceOpen&&<VoiceCaptureModal user={user} projects={projects} accessToken={accessToken} onClose={()=>setVoiceOpen(false)} onFiled={()=>reloadNotes?.()}/>}
   </div>;
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import T, { setThemeMode } from './theme/tokens.js';
 import { uid } from './utils/uid.js';
 import { GOOGLE_CLIENT_ID } from './constants/index.js';
@@ -9,16 +9,23 @@ import { isSupabaseConfigured } from './lib/supabase.js';
 import Login from './views/Login.jsx';
 import LandingPage from './views/LandingPage.jsx';
 import PortfolioDash from './views/PortfolioDash.jsx';
+import GlobalSettings from './views/GlobalSettings.jsx';
 import EPDashboard from './views/EPDashboard.jsx';
 import ProjectView from './views/ProjectView.jsx';
 import ContactsView from './views/ContactsView.jsx';
 import MeetingsView from './views/MeetingsView.jsx';
+import OneOnOnesView from './views/OneOnOnesView.jsx';
 import PipelineView from './views/PipelineView.jsx';
 import BooksView from './views/BooksView.jsx';
 import ActivityView from './views/ActivityView.jsx';
 import HelpView from './views/HelpView.jsx';
 import NewProjectModal from './components/modals/NewProjectModal.jsx';
 import SharedClientView from './views/SharedClientView.jsx';
+import ClientPortal from './views/ClientPortal.jsx';
+import GlobalChatWidget from './components/GlobalChatWidget.jsx';
+import VoiceCaptureFAB from './components/VoiceCaptureFAB.jsx';
+import NotificationBell from './components/NotificationBell.jsx';
+import { canSeeSurface, PROJECT_BYPASS_ROLES } from './constants/index.js';
 
 
 
@@ -127,7 +134,13 @@ function App(){
   if(path==="/privacy")return<PrivacyPage/>;
   if(path==="/terms")return<TermsPage/>;
 
-  // Check for share link
+  // Client portal — fully self-contained: own login screen, own data
+  // loading via RLS-gated PostgREST. Renders entirely outside the staff
+  // auth machinery so org/profile auto-init never fires for client users.
+  if(path==="/client"||path.startsWith("/client/"))return<ClientPortal/>;
+
+  // Check for share link (legacy anonymous flow — kept while we
+  // transition existing share links over to the new client portal).
   const shareToken=new URLSearchParams(window.location.search).get("share");
   if(shareToken)return<SharedClientView token={shareToken}/>;
 
@@ -189,8 +202,44 @@ function App(){
   const[saving,setSaving]=useState(false);
   const[lastSaved,setLastSaved]=useState(null);
 
+  // "View as" preview — admin previews the app as another teammate
+  // would see it. Stored in sessionStorage so a refresh keeps the
+  // preview alive, but it doesn't persist beyond the tab session.
+  // When set, effectiveUser below replaces the real user everywhere
+  // permissions are checked — filtering projects, surface pills, etc.
+  const[viewAs,setViewAsRaw]=useState(()=>{
+    try { return JSON.parse(sessionStorage.getItem('es_view_as') || 'null'); } catch (e) { return null; }
+  });
+  const setViewAs=useCallback((target)=>{
+    setViewAsRaw(target);
+    try {
+      if (target) sessionStorage.setItem('es_view_as', JSON.stringify(target));
+      else sessionStorage.removeItem('es_view_as');
+    } catch (e) {}
+  },[]);
+  const exitViewAs=useCallback(()=>setViewAs(null),[setViewAs]);
+  // effectiveUser drives permission checks. Real user's id is preserved
+  // separately for ownership checks (e.g. "is this row mine?").
+  const effectiveUser = viewAs ? { ...viewAs, _realUserId: user?.user_id || user?.id } : user;
+  // Filter the project list visible from PortfolioDash through the
+  // view-as user's project_member rows. Bypass roles see everything.
+  const visibleProjects = useMemo(() => {
+    if (!viewAs) return projects;
+    if (PROJECT_BYPASS_ROLES.has(viewAs.role)) return projects;
+    const allowedIds = new Set((viewAs.projectMemberRows || []).map(r => r.project_id));
+    return (projects || []).filter(p => allowedIds.has(p.id || p._dbId));
+  }, [viewAs, projects]);
+
   const[showLogin,setShowLogin]=useState(false);
-  const[activeId,setActiveIdRaw]=useState(()=>{try{return localStorage.getItem("es_activeProject")||null}catch(e){return null}});
+  const[activeId,setActiveIdRaw]=useState(()=>{
+    // Deep links from the Gmail Add-on (?addon_code=...) must land
+    // on global Settings, not a project view — so clear any saved
+    // active project when we arrive with an approval code.
+    try{
+      if(typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('addon_code'))return null;
+    }catch(e){}
+    try{return localStorage.getItem("es_activeProject")||null}catch(e){return null}
+  });
   const setActiveId=useCallback(id=>{setActiveIdRaw(id);try{if(id){localStorage.setItem("es_activeProject",id);/* Reset the per-project view so clicking a project always lands on its dashboard. Refresh persistence still works — it just stores again the moment the user navigates within the project. */ localStorage.removeItem(`es_view_${id}`)}else localStorage.removeItem("es_activeProject")}catch(e){}},[]);
   const[showNew,setShowNew]=useState(false);
   // Top-level view: 'dashboard' (home) or 'contacts' (CRM). Project view
@@ -201,8 +250,13 @@ function App(){
   const[topView,setTopViewRaw]=useState(()=>{
     // URL takes precedence so /help works as a deep link even
     // without sign-in (the help view doesn't need auth state).
+    // Same for ?addon_code=... — the Gmail Add-on sends users
+    // here to approve a device connection; that lives in Settings.
     try{
-      if(typeof window!=='undefined'&&window.location.pathname==='/help')return 'help';
+      if(typeof window!=='undefined'){
+        if(window.location.pathname==='/help')return 'help';
+        if(new URLSearchParams(window.location.search).get('addon_code'))return 'settings';
+      }
     }catch(e){}
     try{return localStorage.getItem("es_topView")||"dashboard"}catch(e){return"dashboard"}
   });
@@ -242,15 +296,21 @@ function App(){
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
   // After projects load: if activeId references a project that's not in
   // the current org's list (org switch, deleted by teammate, stale
-  // sessionStorage), clear it instead of silently dropping to dashboard
-  // with no feedback.
+  // localStorage), clear it. Wrapped in a short grace period so a
+  // transient empty `projects` during refresh doesn't kick the user
+  // back to the dashboard before the real list arrives.
   useEffect(()=>{
     if(!loaded||!activeId)return;
-    if(!projects.find(p=>p.id===activeId)){
+    if(projects.find(p=>p.id===activeId))return;
+    const t=setTimeout(()=>{
+      // Re-check via current ref at fire time — projects may have
+      // arrived during the delay.
+      if(!loaded)return;
       console.warn('[app] active project not found in current list — clearing');
       setActiveIdRaw(null);
       try{localStorage.removeItem('es_activeProject')}catch(e){}
-    }
+    },1500);
+    return()=>clearTimeout(t);
   },[loaded,activeId,projects]);
 
   // Org-level Drive location setting
@@ -328,11 +388,14 @@ function App(){
   // instead of leaving the user trapped on the loading screen.
   useEffect(()=>{
     if(!profilePending)return;
+    // Bumped from 30s → 120s because slow networks + heavier profile
+    // fetches were tripping the auto-recover and silently bouncing
+    // legit users back to login. 30s wasn't enough margin.
     const t=setTimeout(()=>{
       if(sbAuth.forceSignOutAndReload){
-        sbAuth.forceSignOutAndReload('profile load stuck >30s');
+        sbAuth.forceSignOutAndReload('profile load stuck >120s');
       }
-    },30000);
+    },120000);
     return()=>clearTimeout(t);
   },[profilePending,sbAuth]);
 
@@ -342,7 +405,7 @@ function App(){
     <div style={{textAlign:"center",color:T.fadedInk,maxWidth:360,padding:"0 24px"}}>
       <div style={{fontSize:24,marginBottom:14,animation:"pulse 1.5s ease-in-out infinite",color:T.ink}}>◐</div>
       <div style={{fontSize:13,color:T.ink,fontWeight:600,marginBottom:6}}>{profilePending?"Loading your workspace…":"Loading…"}</div>
-      {profilePending&&<div style={{fontSize:11,color:T.fadedInk,lineHeight:1.6,marginBottom:14}}>Reconnecting to the server. This usually takes a few seconds — if it doesn't clear within 30 seconds we'll auto-recover.</div>}
+      {profilePending&&<div style={{fontSize:11,color:T.fadedInk,lineHeight:1.6,marginBottom:14}}>Reconnecting to the server. This usually takes a few seconds — if it doesn't clear within two minutes we'll auto-recover.</div>}
       {profilePending&&<button onClick={()=>sbAuth.forceSignOutAndReload?.('user clicked sign out from loading screen')} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}>Sign out</button>}
     </div>
   </div>;
@@ -355,34 +418,94 @@ function App(){
     return<LandingPage onGetStarted={()=>setShowLogin(true)}/>;
   }
 
+  // If a client-role user lands on the staff app, redirect them into
+  // the dedicated portal. They have no staff views and the sidebar
+  // would be empty; the /client surface is the right place for them.
+  if(user.role==='client'){
+    if(typeof window!=='undefined'&&window.location.pathname!=='/client'){
+      window.location.replace('/client');
+      return null;
+    }
+    return<ClientPortal/>;
+  }
+
+  // Gate org-wide surfaces — if the user doesn't have permission for
+  // the surface they're trying to open (e.g. someone shared a deep link
+  // or they navigated via browser back to a now-revoked view), bounce
+  // them to the dashboard rather than render a forbidden screen.
+  // When in view-as preview, check against the effective (view-as) user.
+  if (topView !== 'dashboard' && !activeProject) {
+    const surfaceKey = { contacts: 'crm', pipeline: 'pipeline', meetings: 'meetings', books: 'books', activity: 'activity' }[topView];
+    if (surfaceKey && !canSeeSurface(effectiveUser, surfaceKey)) {
+      setTopView('dashboard');
+      return null;
+    }
+  }
+
+  // Sticky banner shown across the whole app while viewing as someone else.
+  const ViewAsBanner = () => viewAs ? (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998, padding: '10px 18px', background: '#F0B849', color: '#0F52BA', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, fontFamily: T.sans, fontSize: 12, fontWeight: 700, letterSpacing: '.04em', boxShadow: '0 2px 8px rgba(15,82,186,.18)' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>Previewing as <strong>{viewAs.name || viewAs.email}</strong> ({viewAs.role}). Edits in this mode still hit the database as you — don't change anything you don't mean to.</span>
+      <button onClick={exitViewAs} style={{ marginLeft: 8, padding: '5px 14px', background: '#0F52BA', color: '#F0B849', border: 'none', borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>Exit preview</button>
+    </div>
+  ) : null;
+
   if(topView==="contacts"&&!activeProject)return<><ContactsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenMeetings={()=>setTopView("meetings")} onOpenPipeline={()=>setTopView("pipeline")} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="pipeline"&&!activeProject)return<><PipelineView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+  </>;
+
+  if(topView==="settings"&&!activeProject)return<><GlobalSettings user={user} orgId={orgId} organizations={sbAuth.organizations} toggleTheme={toggleTheme} themeMode={themeMode} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} onBack={()=>setTopView("dashboard")} onViewAs={(target)=>{setViewAs(target);setTopView("dashboard")}}/>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+    </div>
+    <GlobalChatWidget user={user} projects={projects} activeProjectId={null}/>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="books"&&!activeProject)return<><BooksView user={user} onBack={()=>setTopView("dashboard")} projects={projects} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="activity"&&!activeProject)return<><ActivityView onBack={()=>setTopView("dashboard")}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
+  if(topView==="oneonones"&&!activeProject)return<><OneOnOnesView user={user} projects={projects} accessToken={accessToken} onBack={()=>setTopView("dashboard")}/>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
+      {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
+    </div>
+    <GlobalChatWidget user={user} projects={projects} activeProjectId={null}/>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+  </>;
   if(topView==="meetings"&&!activeProject)return<><MeetingsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onCreateProject={createProjectQuietly} onOpenContacts={()=>setTopView("contacts")} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
@@ -393,18 +516,15 @@ function App(){
         return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}{t.action&&<button onClick={t.action.onClick} style={{marginLeft:10,background:'none',border:'none',color:'inherit',fontSize:11,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer',fontFamily:T.sans,textDecoration:'underline'}}>{t.action.label}</button>}</div>;
       })}
     </div>
+    <GlobalChatWidget user={user} projects={projects} activeProjectId={activeProject?.id || activeProject?._dbId}/>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
-  // If a finance/accounts user signs in with no active project,
-  // land them on Books by default — that's their primary surface.
-  if(!activeProject && topView==="dashboard" && (user?.role==='finance' || user?.role==='accounts')) {
-    return<><BooksView user={user} onBack={doLogout} projects={projects} onOpenProject={setActiveId}/>
-      <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
-        {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
-      </div>
-    </>;
-  }
-  return<><DashComp projects={projects} onOpen={setActiveId} onNew={()=>setShowNew(true)} onOpenContacts={()=>setTopView("contacts")} onOpenMeetings={()=>setTopView("meetings")} onOpenPipeline={()=>setTopView("pipeline")} onOpenBooks={()=>setTopView("books")} onOpenActivity={()=>setTopView("activity")} onOpenHelp={()=>setTopView("help")} user={user} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  // (Previously: finance/accounts users were forced to BooksView on
+  // sign-in. Removed so they get the same project dashboard as
+  // everyone else, with Books accessible as a top-level pill.)
+  return<><ViewAsBanner/><div style={{paddingTop:viewAs?44:0}}><DashComp projects={visibleProjects} onOpen={setActiveId} onNew={()=>setShowNew(true)} onOpenContacts={()=>setTopView("contacts")} onOpenMeetings={()=>setTopView("meetings")} onOpenOneOnOnes={()=>setTopView("oneonones")} onOpenPipeline={()=>setTopView("pipeline")} onOpenBooks={()=>setTopView("books")} onOpenActivity={()=>setTopView("activity")} onOpenHelp={()=>setTopView("help")} onOpenSettings={()=>setTopView("settings")} user={effectiveUser} onLogout={doLogout} accessToken={accessToken} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} orgId={orgId} toggleTheme={toggleTheme} themeMode={themeMode}/></div>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {(conflicts||[]).map(c=><div key={c.projectId} className="slide-in" style={{padding:"12px 18px",borderRadius:T.rS,background:T.alertSoft,border:`1px solid ${T.alert}`,color:T.alert,fontSize:12,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>
         <div style={{fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:4}}>Refreshed from server</div>
@@ -417,6 +537,9 @@ function App(){
         return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}{t.action&&<button onClick={t.action.onClick} style={{marginLeft:10,background:'none',border:'none',color:'inherit',fontSize:11,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer',fontFamily:T.sans,textDecoration:'underline'}}>{t.action.label}</button>}</div>;
       })}
     </div>
+    <GlobalChatWidget user={user} projects={projects} activeProjectId={null}/>
+    <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
+    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 }
 

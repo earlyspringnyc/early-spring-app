@@ -13,14 +13,21 @@ export function taskColor(t){
   if(t._gcal)return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk,borderStyle:"dashed"};
   if(t.status==="done")return{bg:T.inkSoft2,fg:T.fadedInk};
   if(t.status==="progress")return{bg:"rgba(15,82,186,.10)",fg:T.ink};
-  const cat=((t.category||"General")+" "+(t.name||"")).toLowerCase();
+  // Tasks can carry multiple categories now. The color heuristic checks
+  // every category + the task name, so a task tagged ["Strategy","Creative"]
+  // matches both keyword groups below.
+  const cats = Array.isArray(t.categories) ? t.categories.join(" ") : (t.category || "General");
+  const cat=(cats+" "+(t.name||"")).toLowerCase();
   if(cat.includes("meeting")||cat.includes("call")||cat.includes("sync"))return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk};
   if(cat.includes("design")||cat.includes("creative")||cat.includes("brand")||cat.includes("art")||cat.includes("concept")||cat.includes("strategy")||cat.includes("ideation")||cat.includes("content")||cat.includes("photo")||cat.includes("video")||cat.includes("capture")||cat.includes("edit")||cat.includes("marketing"))return{bg:"rgba(15,82,186,.08)",fg:T.ink70};
   if(cat.includes("production")||cat.includes("build")||cat.includes("fabrication")||cat.includes("install")||cat.includes("av")||cat.includes("staging")||cat.includes("venue")||cat.includes("location")||cat.includes("site")||cat.includes("catering")||cat.includes("food")||cat.includes("bev")||cat.includes("print")||cat.includes("collateral")||cat.includes("signage")||cat.includes("staff")||cat.includes("team")||cat.includes("crew")||cat.includes("talent")||cat.includes("travel")||cat.includes("logistics")||cat.includes("shipping")||cat.includes("freight")||cat.includes("rental"))return{bg:"rgba(15,82,186,.10)",fg:T.ink};
   return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk};
 }
 
-function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canEdit}){
+// onOpenTask(task) — fired when the user clicks a chip in any view.
+// Lets the parent (TimelineV) open its full edit modal so day/week
+// views can edit too, not just the inline rename in month view.
+function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,onOpenTask,canEdit}){
   const[month,setMonth]=useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}});
   const[addDate,setAddDate]=useState(null);
   const[popoverPos,setPopoverPos]=useState(null);
@@ -189,12 +196,13 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
           <button onClick={e=>{e.stopPropagation();onDeleteTask&&onDeleteTask(t.id);setEditingTask(null)}} style={{background:"none",border:"none",color:T.neg,fontSize:10,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Delete task">×</button>
         </div>;
         /* Multi-day: show name on start, continuation bar on middle/end */
-        const taskTitle=`${t.name}${t.category?" · "+t.category:""}${t.startDate?" · "+t.startDate:""}${t.endDate&&t.endDate!==t.startDate?" — "+t.endDate:""}`;
+        const _catLabel=Array.isArray(t.categories)?t.categories.join(" · "):(t.category||"");
+        const taskTitle=`${t.name}${_catLabel?" · "+_catLabel:""}${t.startDate?" · "+t.startDate:""}${t.endDate&&t.endDate!==t.startDate?" — "+t.endDate:""}`;
         if(t._isMultiDay&&!t._isStart)return<div key={t.id+d} title={taskTitle} style={{marginBottom:2}} onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(canEdit){setEditingTask(t.id);setEditName(t.name)}}}>
           <div style={{fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:t._gcal?"pointer":canEdit?"pointer":"default",borderRadius:t._isEnd?"0 3px 3px 0":"0",marginLeft:-6,paddingLeft:8,opacity:.7}}>{t._isEnd?`— ${t.name}`:""}</div>
         </div>;
         return<div key={t.id+d} title={taskTitle} style={{display:"flex",alignItems:"center",gap:2,marginBottom:2}}>
-          <div onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px ${tc.borderStyle||"solid"} ${tc.fg}`,borderRadius:t._isMultiDay?"3px 0 0 3px":"3px",marginRight:t._isMultiDay?-6:0,cursor:t._gcal?"pointer":canEdit?"pointer":"default"}}>{t.category==="Meeting"?"● ":""}{t.name}{t._isMultiDay?" →":""}</div>
+          <div onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(onOpenTask){onOpenTask(t)}else if(canEdit){setEditingTask(t.id);setEditName(t.name)}}} style={{flex:1,fontSize:10,padding:"2px 5px",background:tc.bg,color:tc.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px ${tc.borderStyle||"solid"} ${tc.fg}`,borderRadius:t._isMultiDay?"3px 0 0 3px":"3px",marginRight:t._isMultiDay?-6:0,cursor:t._gcal?"pointer":canEdit||onOpenTask?"pointer":"default"}}>{(Array.isArray(t.categories)?t.categories.includes("Meeting"):t.category==="Meeting")?"● ":""}{t.name}{t._isMultiDay?" →":""}</div>
           {canEdit&&!t._isMultiDay&&!t._gcal&&<button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(confirm("Delete '"+t.name+"'?"))onDeleteTask&&onDeleteTask(t.id)}} style={{background:"none",border:"none",color:T.dim,fontSize:10,cursor:"pointer",padding:0,lineHeight:1,flexShrink:0,opacity:.3,transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.3} title="Delete">×</button>}
         </div>})}
       {dayTasks.length>3&&<div style={{fontSize:10,color:T.dim,paddingLeft:5}}>+{dayTasks.length-3} more</div>}
@@ -204,17 +212,29 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
   const DayView=()=>{
     const hours=[];for(let h=7;h<=22;h++)hours.push(h);
     const dayTasks=(tasksByDay[selectedDay]||[]);
+    // Parse `HH:MM` start time. Fallback: anything without a time
+    // shows in the top All-day strip below the header.
+    const taskHour=(t)=>{const tm=t.time||t.startTime;if(!tm)return null;const [h]=String(tm).split(':').map(Number);return Number.isFinite(h)?h:null;};
+    const allDay=dayTasks.filter(t=>taskHour(t)===null);
     return<div style={{padding:6}}>
-      {hours.map(h=>(
-        <div key={h} style={{display:"flex",borderBottom:`1px solid ${T.border}`,minHeight:48}}>
+      {allDay.length>0&&<div style={{padding:"4px 8px 8px 58px",borderBottom:`1px solid ${T.border}`,display:"flex",flexWrap:"wrap",gap:4}}>
+        <span style={{fontSize:9,fontWeight:700,color:T.dim,letterSpacing:".08em",textTransform:"uppercase",marginRight:4,alignSelf:"center"}}>All day</span>
+        {allDay.map(t=>{const tc=taskColor(t);return<div key={t.id} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(onOpenTask){onOpenTask(t)}}} style={{fontSize:10,padding:"3px 8px",borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px ${tc.borderStyle||"solid"} ${tc.fg}`,cursor:onOpenTask?"pointer":"default"}}>{(Array.isArray(t.categories)?t.categories.includes("Meeting"):t.category==="Meeting")?"● ":""}{t.name}</div>})}
+      </div>}
+      {hours.map(h=>{
+        const hourTasks=dayTasks.filter(t=>taskHour(t)===h);
+        return<div key={h} style={{display:"flex",borderBottom:`1px solid ${T.border}`,minHeight:48}}>
           <div style={{width:50,padding:"8px 8px 8px 0",textAlign:"right",fontSize:10,color:T.dim,fontFamily:T.mono,flexShrink:0}}>
             {h>12?h-12:h}{h>=12?"pm":"am"}
           </div>
           <div style={{flex:1,padding:"4px 8px",borderLeft:`1px solid ${T.border}`}} onClick={(e)=>canEdit&&openPopover(selectedDay,e)}>
-            {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id} style={{fontSize:10,padding:"2px 6px",marginBottom:2,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px ${tc.borderStyle||"solid"} ${tc.fg}`}}>{t.name}</div>})}
+            {hourTasks.map(t=>{const tc=taskColor(t);return<div key={t.id} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(onOpenTask){onOpenTask(t)}}} style={{fontSize:11,padding:"4px 8px",marginBottom:2,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`3px ${tc.borderStyle||"solid"} ${tc.fg}`,cursor:onOpenTask?"pointer":"default",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(Array.isArray(t.categories)?t.categories.includes("Meeting"):t.category==="Meeting")?"● ":""}{t.name}</span>
+              {(t.time||t.startTime)&&<span style={{fontSize:9,color:tc.fg,opacity:.7,fontFamily:T.mono,flexShrink:0}}>{t.time||t.startTime}</span>}
+            </div>})}
           </div>
-        </div>
-      ))}
+        </div>;
+      })}
     </div>;
   };
 
@@ -228,7 +248,7 @@ function CalendarView({tasks,onAddTask,onAddMeeting,onEditTask,onDeleteTask,canE
         const tdy=isToday(d);
         return<div key={d} onClick={(e)=>{setSelectedDay(d);canEdit&&openPopover(d,e)}} style={{minHeight:200,padding:8,background:addDate===d?`${T.gold}0A`:"transparent",borderRadius:T.rS,cursor:canEdit?"pointer":"default",border:tdy?`1px solid ${T.gold}40`:"1px solid transparent"}} onMouseEnter={e=>{if(addDate!==d)e.currentTarget.style.background=T.surfHov}} onMouseLeave={e=>{if(addDate!==d)e.currentTarget.style.background="transparent"}}>
           <div style={{fontSize:10,fontWeight:tdy?700:400,color:tdy?T.gold:T.dim,marginBottom:6,fontFamily:T.mono,textAlign:"center"}}>{dNames[new Date(month.y,month.m,d).getDay()]} {d}</div>
-          {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id+d} style={{fontSize:10,padding:"3px 6px",marginBottom:3,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px ${tc.borderStyle||"solid"} ${tc.fg}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>})}
+          {dayTasks.map(t=>{const tc=taskColor(t);return<div key={t.id+d} onClick={e=>{e.stopPropagation();if(t._gcal){openGcalDetail(t,e)}else if(onOpenTask){onOpenTask(t)}}} style={{fontSize:10,padding:"3px 6px",marginBottom:3,borderRadius:3,background:tc.bg,color:tc.fg,borderLeft:`2px ${tc.borderStyle||"solid"} ${tc.fg}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:onOpenTask?"pointer":"default"}}>{(Array.isArray(t.categories)?t.categories.includes("Meeting"):t.category==="Meeting")?"● ":""}{t.name}</div>})}
         </div>;
       })}
     </div>;

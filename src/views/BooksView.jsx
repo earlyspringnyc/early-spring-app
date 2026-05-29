@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0 } from '../utils/format.js';
-import { calcProject } from '../utils/calc.js';
+import { calcProject, isOverdue } from '../utils/calc.js';
+import { extractInvoiceData } from '../utils/pdfOcr.js';
+import { updateProject as updateProjectInDb } from '../lib/db.js';
+import { toast } from '../lib/toast.js';
 
 // Cross-project finance view for bookkeepers and admins.
 //
@@ -76,6 +79,86 @@ function downloadCSV(filename, rows) {
 }
 
 export default function BooksView({ projects = [], onBack, user, onOpenProject }) {
+  // Cross-project OCR batch — find every doc with fileData attached
+  // that hasn't been processed (amount=0 and not paid), run the
+  // shared extractor, write results back to Supabase. Drive-only
+  // docs (fileData=null after Drive upload) are skipped — the user
+  // can edit those manually in the project's Finance viewer.
+  const [scanProgress, setScanProgress] = useState(null); // { current, total, projectName }
+  const [scanResult, setScanResult] = useState('');
+  const scanAllProjects = async () => {
+    // Build the work list across every project
+    const work = [];
+    for (const p of projects) {
+      const docs = p.docs || [];
+      for (const d of docs) {
+        if (d.fileData && (!d.amount || d.amount === 0) && d.status !== 'paid') {
+          work.push({ projectId: p.id || p._dbId, project: p, doc: d });
+        }
+      }
+    }
+    if (work.length === 0) {
+      setScanResult('Nothing to scan — every doc with a file attached already has an amount.');
+      return;
+    }
+    setScanResult('');
+    let updated = 0, failed = 0;
+    // Group by project so we batch writes (one Supabase update per project)
+    const byProject = new Map();
+    for (let i = 0; i < work.length; i++) {
+      const { projectId, project, doc } = work[i];
+      setScanProgress({ current: i + 1, total: work.length, projectName: project.name || project.client || 'project' });
+      try {
+        const parsed = await extractInvoiceData(doc.fileData, doc.name || 'document');
+        if (!parsed) { failed += 1; continue; }
+        // Pull (or initialize) this project's draft
+        let draft = byProject.get(projectId);
+        if (!draft) { draft = { project, docs: [...(project.docs || [])] }; byProject.set(projectId, draft); }
+        // Match vendor by name
+        let matchedVendorId = '';
+        if (parsed.vendor) {
+          const vName = parsed.vendor.toLowerCase();
+          const found = (project.vendors || []).find(v => (v.name || '').toLowerCase().includes(vName) || vName.includes((v.name || '').toLowerCase()));
+          if (found) matchedVendorId = found.id;
+        }
+        // Store the AI's read as a SUGGESTION on the doc rather than
+        // overwriting fields directly. The viewer surfaces these with
+        // an Apply / Reject step so a wrong extraction doesn't silently
+        // pollute the books.
+        draft.docs = draft.docs.map(d => {
+          if (d.id !== doc.id) return d;
+          return {
+            ...d,
+            ocrSuggestion: {
+              type: parsed.type || '',
+              amount: parsed.amount && parsed.amount > 0 ? parsed.amount : 0,
+              dueDate: parsed.dueDate || '',
+              number: parsed.number || '',
+              vendor: parsed.vendor || '',
+              vendorId: matchedVendorId || '',
+              scannedAt: new Date().toISOString(),
+            },
+          };
+        });
+        updated += 1;
+      } catch (e) { failed += 1; }
+    }
+    // Flush each project's draft back to Supabase
+    for (const [projectId, draft] of byProject) {
+      try {
+        await updateProjectInDb(projectId, { ...draft.project, docs: draft.docs });
+      } catch (e) {
+        console.error('[books-scan] save failed for', projectId, e);
+      }
+    }
+    setScanProgress(null);
+    setScanResult(`Scanned ${work.length} doc(s). ${updated} AI suggestion(s) ready for review. Open each doc to Apply or Reject. ${failed > 0 ? `${failed} failed.` : ''}`);
+    toast.success(`Scanned ${work.length} doc(s) — review suggestions in each project's Finance tab.`);
+  };
+  const unscannedCount = useMemo(
+    () => projects.reduce((a, p) => a + (p.docs || []).filter(d => d.fileData && (!d.amount || d.amount === 0) && d.status !== 'paid' && !d.ocrSuggestion).length, 0),
+    [projects],
+  );
   const [tab, setTab] = useState('receivables');
 
   // Flatten all rows once. Keeps tabs cheap to switch between.
@@ -274,11 +357,25 @@ export default function BooksView({ projects = [], onBack, user, onOpenProject }
             }}>{t.label}</button>
           ))}
         </div>
-        <button onClick={exportTab} style={{
-          padding: '8px 16px', borderRadius: T.rS, background: 'transparent',
-          color: T.cream, border: `1px solid ${T.border}`,
-          fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: T.sans,
-        }}>↓ Export CSV</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {scanResult && <span style={{ fontSize: 10, color: T.dim, fontStyle: 'italic' }}>{scanResult}</span>}
+          {(unscannedCount > 0 || scanProgress) && (
+            <button onClick={scanAllProjects} disabled={!!scanProgress} style={{
+              padding: '8px 14px', borderRadius: T.rS,
+              background: scanProgress ? 'transparent' : 'rgba(74,222,128,.08)',
+              color: scanProgress ? T.dim : T.pos,
+              border: `1px solid ${scanProgress ? T.border : 'rgba(74,222,128,.2)'}`,
+              fontSize: 11, fontWeight: 600, cursor: scanProgress ? 'default' : 'pointer', fontFamily: T.sans,
+            }}>
+              {scanProgress ? `Scanning ${scanProgress.current}/${scanProgress.total} (${scanProgress.projectName})…` : `Scan all unscanned (${unscannedCount})`}
+            </button>
+          )}
+          <button onClick={exportTab} style={{
+            padding: '8px 16px', borderRadius: T.rS, background: 'transparent',
+            color: T.cream, border: `1px solid ${T.border}`,
+            fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: T.sans,
+          }}>↓ Export CSV</button>
+        </div>
       </div>
 
       {/* Body */}

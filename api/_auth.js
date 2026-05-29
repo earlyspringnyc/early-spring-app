@@ -16,9 +16,16 @@ export async function verifyAuth(req) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return null;
+    if (error || !user) {
+      // One-line diagnostic so we can see WHY a token was rejected
+      // when chasing add-on auth bugs. Token preview only — never log
+      // the full JWT.
+      console.error('[verifyAuth] reject:', error?.message || 'no user', '| token starts:', token.slice(0, 20));
+      return null;
+    }
     return user;
   } catch (e) {
+    console.error('[verifyAuth] threw:', e?.message || String(e));
     return null;
   }
 }

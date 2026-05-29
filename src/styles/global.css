@@ -32,6 +32,7 @@ i,cite,.ital{font-style:italic}
 @keyframes viewFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @keyframes glow{0%,100%{opacity:.4}50%{opacity:.8}}
 @keyframes pulse{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:.8;transform:scale(1)}}
+@keyframes es-weather-drift{0%{background-position:0% 30%}100%{background-position:100% 70%}}
 
 .fade-up{animation:fadeUp .45s cubic-bezier(.2,.8,.2,1) forwards}
 .slide-in{animation:slideIn .35s cubic-bezier(.2,.8,.2,1) forwards}

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Login Lab — Morgan</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  :root{
+    --bg:#0A0A0D;
+    --font:'Geist Sans',-apple-system,'SF Pro Display','Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#050507;color:#E8E8EC;font-family:var(--font);min-height:100vh}
+  body{padding:32px 24px 80px}
+  header{max-width:1400px;margin:0 auto 28px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  h1{font-size:22px;font-weight:700;letter-spacing:-0.02em;margin:0 0 4px;color:#E8E8EC}
+  header p{margin:0;font-size:12px;color:rgba(232,232,236,.55);max-width:680px;line-height:1.55}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;max-width:1400px;margin:0 auto}
+  .stage{
+    position:relative;
+    border-radius:18px;
+    background:radial-gradient(120% 80% at 50% 0%,#15151B 0%,#0A0A0D 60%);
+    border:1px solid rgba(255,255,255,.05);
+    padding:28px;
+    min-height:720px;
+    display:flex;flex-direction:column;gap:20px;
+    overflow:hidden;
+  }
+  .stage::before{
+    content:"";position:absolute;inset:0;
+    background-image:radial-gradient(1px 1px at 12% 18%,rgba(148,163,184,.5) 50%,transparent 51%),
+                     radial-gradient(1px 1px at 78% 26%,rgba(196,181,253,.45) 50%,transparent 51%),
+                     radial-gradient(1px 1px at 22% 72%,rgba(125,211,252,.45) 50%,transparent 51%),
+                     radial-gradient(1px 1px at 84% 84%,rgba(74,222,128,.4) 50%,transparent 51%),
+                     radial-gradient(1px 1px at 50% 90%,rgba(245,158,11,.4) 50%,transparent 51%),
+                     radial-gradient(1px 1px at 60% 10%,rgba(236,72,153,.35) 50%,transparent 51%);
+    pointer-events:none;
+    opacity:.85;
+  }
+  .label{
+    position:relative;z-index:2;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+  }
+  .pill{
+    font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    padding:5px 10px;border-radius:20px;background:rgba(255,255,255,.06);color:#E8E8EC;border:1px solid rgba(255,255,255,.08);
+  }
+  .name{font-size:13px;font-weight:600;color:#E8E8EC;letter-spacing:-0.01em}
+  .desc{font-size:10px;color:rgba(232,232,236,.45);margin-top:2px;line-height:1.5;max-width:300px}
+
+  /* ── Card frame, common ── */
+  .card{
+    position:relative;z-index:2;
+    width:100%;max-width:380px;align-self:center;
+    border-radius:16px;
+    padding:48px 40px;
+    text-align:center;
+    backdrop-filter:blur(40px) saturate(1.2);
+    -webkit-backdrop-filter:blur(40px) saturate(1.2);
+    box-shadow:0 24px 80px rgba(0,0,0,.5);
+  }
+  .iso{display:flex;justify-content:center;margin-bottom:14px}
+  .wordmark{font-size:18px;font-weight:600;letter-spacing:.42em;text-indent:.42em}
+  .by{font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-top:8px}
+  .tagline{font-size:21px;font-weight:700;letter-spacing:-0.02em;line-height:1.25;margin:28px 0 8px}
+  .sub{font-size:13px;line-height:1.6;margin:0 0 28px}
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    width:100%;padding:13px 18px;border-radius:10px;
+    font-size:14px;font-weight:500;font-family:var(--font);cursor:pointer;
+    transition:all .2s;
+  }
+  .btn-google{margin-bottom:14px}
+  .btn-svg{width:18px;height:18px;flex-shrink:0}
+  .or{
+    display:flex;align-items:center;gap:12px;margin:18px 0;
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  }
+  .or::before,.or::after{content:"";flex:1;height:1px}
+  .foot{font-size:10px;margin-top:16px}
+
+  /* ── Variant A: Current dark, contrast-fixed ── */
+  .v-A .card{background:rgba(10,10,14,.75);border:1px solid rgba(255,255,255,.06)}
+  .v-A .iso svg{color:#94A3B8}
+  .v-A .wordmark{color:#E8E8EC}
+  .v-A .by{color:rgba(232,232,236,.4)}
+  .v-A .tagline{color:#E8E8EC}
+  .v-A .sub{color:rgba(232,232,236,.55)}
+  .v-A .btn-google{background:rgba(255,255,255,.04);color:#E8E8EC;border:1px solid rgba(255,255,255,.08)}
+  .v-A .btn-google:hover{background:rgba(255,255,255,.1);border-color:rgba(148,163,184,.3)}
+  .v-A .btn-email{background:transparent;color:rgba(232,232,236,.55);border:1px solid rgba(255,255,255,.08)}
+  .v-A .btn-email:hover{color:#E8E8EC;background:rgba(255,255,255,.04)}
+  .v-A .or{color:rgba(232,232,236,.3)}
+  .v-A .or::before,.v-A .or::after{background:rgba(255,255,255,.08)}
+  .v-A .foot{color:rgba(232,232,236,.3)}
+
+  /* ── Variant B: High contrast, more luminous ── */
+  .v-B .card{background:rgba(15,15,20,.78);border:1px solid rgba(255,255,255,.1)}
+  .v-B .iso svg{color:#7DD3FC}
+  .v-B .wordmark{color:#FFFFFF}
+  .v-B .by{color:rgba(255,255,255,.55)}
+  .v-B .tagline{color:#FFFFFF;font-size:23px}
+  .v-B .sub{color:rgba(255,255,255,.7)}
+  .v-B .btn-google{background:#FFFFFF;color:#0A0A0D;border:1px solid #FFFFFF;font-weight:600}
+  .v-B .btn-google:hover{background:#F4F4F8;transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .v-B .btn-email{background:rgba(255,255,255,.06);color:#E8E8EC;border:1px solid rgba(255,255,255,.12)}
+  .v-B .btn-email:hover{background:rgba(255,255,255,.12)}
+  .v-B .or{color:rgba(255,255,255,.45)}
+  .v-B .or::before,.v-B .or::after{background:rgba(255,255,255,.12)}
+  .v-B .foot{color:rgba(255,255,255,.4)}
+
+  /* ── Variant C: Warm gold (Early Spring brand) ── */
+  .v-C .card{background:rgba(20,16,12,.82);border:1px solid rgba(212,165,116,.18)}
+  .v-C .iso svg{color:#D4A574}
+  .v-C .wordmark{color:#F5F4F1}
+  .v-C .by{color:rgba(212,165,116,.7)}
+  .v-C .tagline{color:#F5F4F1;font-family:'Newsreader','Georgia',serif;font-style:italic;font-weight:500;font-size:24px;letter-spacing:-0.01em}
+  .v-C .sub{color:rgba(245,244,241,.6)}
+  .v-C .btn-google{background:transparent;color:#F5F4F1;border:1px solid rgba(212,165,116,.3)}
+  .v-C .btn-google:hover{background:rgba(212,165,116,.08);border-color:rgba(212,165,116,.55)}
+  .v-C .btn-email{background:#D4A574;color:#1C1208;border:1px solid #D4A574;font-weight:600}
+  .v-C .btn-email:hover{background:#E0B788;transform:translateY(-1px);box-shadow:0 6px 20px rgba(212,165,116,.25)}
+  .v-C .or{color:rgba(212,165,116,.5)}
+  .v-C .or::before,.v-C .or::after{background:rgba(212,165,116,.2)}
+  .v-C .foot{color:rgba(245,244,241,.4)}
+
+  /* ── Variant D: Cool aurora / vivid accents ── */
+  .v-D .card{
+    background:linear-gradient(180deg,rgba(20,20,28,.85) 0%,rgba(10,10,16,.85) 100%);
+    border:1px solid rgba(125,211,252,.18);
+    box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 60px rgba(125,211,252,.07),inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .v-D .iso svg{color:#7DD3FC;filter:drop-shadow(0 0 12px rgba(125,211,252,.45))}
+  .v-D .wordmark{
+    background:linear-gradient(90deg,#7DD3FC,#C4B5FD);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+  }
+  .v-D .by{color:rgba(196,181,253,.7);letter-spacing:.22em}
+  .v-D .tagline{color:#F2F4F8;font-size:22px}
+  .v-D .sub{color:rgba(232,232,240,.65)}
+  .v-D .btn-google{background:rgba(255,255,255,.05);color:#F2F4F8;border:1px solid rgba(125,211,252,.22)}
+  .v-D .btn-google:hover{background:rgba(125,211,252,.08);border-color:rgba(125,211,252,.45)}
+  .v-D .btn-email{
+    background:linear-gradient(135deg,rgba(125,211,252,.14),rgba(196,181,253,.14));
+    color:#F2F4F8;border:1px solid rgba(196,181,253,.25);
+  }
+  .v-D .btn-email:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(125,211,252,.18)}
+  .v-D .or{color:rgba(232,232,240,.45)}
+  .v-D .or::before,.v-D .or::after{background:linear-gradient(90deg,transparent,rgba(125,211,252,.2),transparent)}
+  .v-D .foot{color:rgba(196,181,253,.5)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Login Lab — Morgan</h1>
+    <p>Four variants of the sign-in card on the same dark canvas. Pick the one you want shipped (or mix-and-match details — e.g. take A's button style with C's serif tagline). Open <code style="color:#7DD3FC">login-lab.html</code> directly in a browser to view.</p>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- A: Current dark, contrast-fixed (the one-line fix) -->
+  <section class="stage v-A">
+    <div class="label">
+      <div>
+        <div class="name">A · Current dark, fixed</div>
+        <div class="desc">Steel blue accent. Your existing palette with theme correctly locked to dark. Most conservative — same vibe, just legible.</div>
+      </div>
+      <span class="pill">Minimal change</span>
+    </div>
+    <div class="card">
+      <div class="iso">
+        <svg width="44" height="44" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6"><rect x="8" y="8" width="84" height="84" rx="14"/><path d="M22 72 V36 L40 60 L50 50 L60 60 L78 36 V72" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </div>
+      <div class="wordmark">MORGAN</div>
+      <div class="by">by Early Spring</div>
+      <h2 class="tagline">Brief to build. One tool.</h2>
+      <p class="sub">Total project management for<br/>people who build experiences.</p>
+      <button class="btn btn-google">
+        <svg class="btn-svg" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+      <div class="or">or</div>
+      <button class="btn btn-email">Continue with email</button>
+      <p class="foot">Sign in to create or join a team</p>
+    </div>
+  </section>
+
+  <!-- B: High contrast, white CTA -->
+  <section class="stage v-B">
+    <div class="label">
+      <div>
+        <div class="name">B · High contrast</div>
+        <div class="desc">Pure white headline + solid white Google CTA. Most legible at a glance, very SaaS-startup. Cyan accent on the isotype.</div>
+      </div>
+      <span class="pill">Loudest</span>
+    </div>
+    <div class="card">
+      <div class="iso">
+        <svg width="44" height="44" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6"><rect x="8" y="8" width="84" height="84" rx="14"/><path d="M22 72 V36 L40 60 L50 50 L60 60 L78 36 V72" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </div>
+      <div class="wordmark">MORGAN</div>
+      <div class="by">by Early Spring</div>
+      <h2 class="tagline">Brief to build. One tool.</h2>
+      <p class="sub">Total project management for<br/>people who build experiences.</p>
+      <button class="btn btn-google">
+        <svg class="btn-svg" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+      <div class="or">or</div>
+      <button class="btn btn-email">Continue with email</button>
+      <p class="foot">Sign in to create or join a team</p>
+    </div>
+  </section>
+
+  <!-- C: Warm gold (Early Spring brand) -->
+  <section class="stage v-C">
+    <div class="label">
+      <div>
+        <div class="name">C · Warm gold (Early Spring brand)</div>
+        <div class="desc">Pulls in your Early Spring brown/cream palette and a serif tagline. Feels editorial — closer to the brand identity.</div>
+      </div>
+      <span class="pill">On-brand</span>
+    </div>
+    <div class="card">
+      <div class="iso">
+        <svg width="44" height="44" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6"><rect x="8" y="8" width="84" height="84" rx="14"/><path d="M22 72 V36 L40 60 L50 50 L60 60 L78 36 V72" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </div>
+      <div class="wordmark">MORGAN</div>
+      <div class="by">by Early Spring</div>
+      <h2 class="tagline">Brief to build.<br/>One tool.</h2>
+      <p class="sub">Total project management for<br/>people who build experiences.</p>
+      <button class="btn btn-google">
+        <svg class="btn-svg" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+      <div class="or">or</div>
+      <button class="btn btn-email">Continue with email</button>
+      <p class="foot">Sign in to create or join a team</p>
+    </div>
+  </section>
+
+  <!-- D: Cool aurora -->
+  <section class="stage v-D">
+    <div class="label">
+      <div>
+        <div class="name">D · Aurora</div>
+        <div class="desc">Cyan + violet gradient wordmark, glowing isotype, gradient email CTA. Most distinctive — leans into the constellation backdrop.</div>
+      </div>
+      <span class="pill">Most distinctive</span>
+    </div>
+    <div class="card">
+      <div class="iso">
+        <svg width="44" height="44" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6"><rect x="8" y="8" width="84" height="84" rx="14"/><path d="M22 72 V36 L40 60 L50 50 L60 60 L78 36 V72" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </div>
+      <div class="wordmark">MORGAN</div>
+      <div class="by">by Early Spring</div>
+      <h2 class="tagline">Brief to build. One tool.</h2>
+      <p class="sub">Total project management for<br/>people who build experiences.</p>
+      <button class="btn btn-google">
+        <svg class="btn-svg" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+      <div class="or">or</div>
+      <button class="btn btn-email">Continue with email</button>
+      <p class="foot">Sign in to create or join a team</p>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

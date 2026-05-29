@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import T from '../../theme/tokens.js';
-import { downloadFileData } from '../../lib/db.js';
+import { downloadFileData, publicFileUrl } from '../../lib/db.js';
 
 function DocViewer({ doc, onClose }) {
   if (!doc) return null;
@@ -10,6 +10,10 @@ function DocViewer({ doc, onClose }) {
   useEffect(() => {
     if (doc.fileData) { setFileData(doc.fileData); return; }
     if (doc.storagePath) {
+      // 'files' bucket is public-read — use the direct URL instead of
+      // downloading bytes. Browser handles caching.
+      const url = publicFileUrl(doc.storagePath);
+      if (url) { setFileData(url); return; }
       setLoading(true);
       downloadFileData(doc.storagePath).then(data => {
         setFileData(data);
@@ -18,8 +22,11 @@ function DocViewer({ doc, onClose }) {
     }
   }, [doc.fileData, doc.storagePath]);
 
-  const isImage = fileData?.startsWith("data:image");
-  const isPdf = fileData?.startsWith("data:application/pdf") || doc.fileName?.endsWith(".pdf");
+  // fileData is either a data: URL or an https: URL now. Detect type
+  // by data-URL MIME or by filename extension.
+  const fileName = (doc.fileName || doc.name || '').toLowerCase();
+  const isImage = fileData?.startsWith("data:image") || /\.(png|jpe?g|gif|webp|svg|tiff)$/i.test(fileName);
+  const isPdf = fileData?.startsWith("data:application/pdf") || /\.pdf$/i.test(fileName);
 
   return <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,82,186,.18)", backdropFilter: "blur(8px)" }} onClick={onClose}>
     <div className="slide-in" onClick={e => e.stopPropagation()} style={{ width: "90vw", maxWidth: 900, height: "85vh", borderRadius: T.r, background: T.bg, border: `1px solid ${T.border}`, boxShadow: T.shadow, display: "flex", flexDirection: "column", overflow: "hidden" }}>

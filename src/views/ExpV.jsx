@@ -1,14 +1,14 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
 import { ci, ct, calcProject } from '../utils/calc.js';
-import { STATUS_LABELS, CLIENT_FILE_CATS, CLIENT_FILE_LABELS, CLIENT_FILE_COLORS } from '../constants/index.js';
+import { STATUS_LABELS, CLIENT_FILE_CATS, CLIENT_FILE_LABELS, CLIENT_FILE_COLORS, canDo } from '../constants/index.js';
 import { mkClientFile } from '../data/factories.js';
 import { PlusI, DlI, TrashI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
-import { listContactsForProject, listContacts } from '../lib/contacts.js';
+import { listContactsForProject, listContacts, linkContactToProject, unlinkContactFromProject } from '../lib/contacts.js';
 import { listMeetingsForProject } from '../lib/meetings.js';
 import { normalizeCompany } from '../utils/companyDedup.js';
 import { restFetch } from '../lib/db.js';
@@ -153,13 +153,29 @@ function FileViewerModal({file,onClose}){
     <div onClick={e=>e.stopPropagation()} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",flexShrink:0,height:40,background:T.inkSoft2}}>
       <div style={{fontSize:13,fontWeight:600,color:T.cream}}>{file.name}</div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {file.linkUrl&&<a href={file.linkUrl} target="_blank" rel="noopener noreferrer" className="btn-pill" style={{padding:"4px 14px",fontSize:11,textDecoration:"none",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`}}>Open & Edit ↗</a>}
         {resolvedData&&<a href={resolvedData} download={file.fileName||"file"} className="btn-pill" style={{padding:"4px 14px",fontSize:11,textDecoration:"none"}}>Download</a>}
         <button onClick={onClose} className="btn-pill" style={{padding:"4px 14px",fontSize:11}}>Close (Esc)</button>
       </div>
     </div>
     {/* Content — full remaining space */}
     <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto"}}>
-      {!resolvedData?<div style={{padding:48,textAlign:"center",color:loadError?T.alert:T.fadedInk,fontSize:13,maxWidth:480,lineHeight:1.6}}>{loadError||'Loading…'}</div>
+      {file.linkUrl?(()=>{
+        // Convert known providers to their iframe-embed URLs so the
+        // preview actually renders. Inline mini-version of
+        // CreativeV.toEmbedUrl — kept here so ExpV doesn't have to
+        // import the whole creative module.
+        const u=file.linkUrl;const ul=u.toLowerCase();
+        let src=u;
+        if(ul.includes('docs.google.com')||ul.includes('drive.google.com'))src=u.replace(/\/(edit|view|viewform)(\?[^#]*)?(#.*)?$/,'/preview');
+        else if(ul.includes('figma.com'))src=`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(u)}`;
+        else if(ul.includes('canva.com')){const v=u.replace(/\/(edit|view)(\?[^#]*)?(#.*)?$/,'/view');src=v.includes('?embed')?v:`${v}?embed`}
+        else if(ul.includes('youtube.com')||ul.includes('youtu.be')){const m=u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/);if(m)src=`https://www.youtube.com/embed/${m[1]}`}
+        else if(ul.includes('vimeo.com')){const m=u.match(/vimeo\.com\/(?:video\/)?(\d+)/);if(m)src=`https://player.vimeo.com/video/${m[1]}`}
+        else if(ul.includes('loom.com'))src=u.replace('/share/','/embed/');
+        return<iframe src={src} title={file.name} style={{width:"100vw",height:"calc(100vh - 50px)",border:"none",background:"#fff"}} allow="autoplay; fullscreen; clipboard-write" allowFullScreen sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"/>;
+      })()
+      :!resolvedData?<div style={{padding:48,textAlign:"center",color:loadError?T.alert:T.fadedInk,fontSize:13,maxWidth:480,lineHeight:1.6}}>{loadError||'Loading…'}</div>
       :isPdf?<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
         {loading&&<div style={{color:T.fadedInk,fontSize:13,padding:48}}>Loading PDF…</div>}
         {error&&<div style={{color:T.neg,fontSize:13,padding:48}}>{error}</div>}
@@ -180,8 +196,114 @@ function FileViewerModal({file,onClose}){
   </div>;
 }
 
-function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,requestCalendarAccess}){
+function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,requestCalendarAccess,user}){
+  // Capability gates. Agents (and viewer/client roles) lose Send-Email
+  // and Invite-Client surfaces — they can still download PDFs.
+  const canSendEmail = canDo(user, 'send_email');
+  const canInviteClient = canDo(user, 'invite_client');
   const[activeView,setActiveView]=useState(null); // null=grid, "budget"|"timeline"|"files"
+
+  // ── Client portal presence ──────────────────────────────────
+  // project_clients rows for this project. last_seen_at is heartbeated
+  // from the /client portal every 60s while a client tab is open.
+  // We poll every 30s so staff sees presence within ~1 minute.
+  const[portalClients,setPortalClients]=useState([]);
+  useEffect(()=>{
+    if(!project?.id)return;
+    let cancelled=false;
+    const fetchClients=async()=>{
+      try{
+        const rows=await restFetch(`/project_clients?project_id=eq.${project.id}&select=id,user_id,invited_at,last_seen_at&order=invited_at.desc`);
+        if(!cancelled)setPortalClients(rows||[]);
+      }catch(e){/* RLS errors swallow gracefully */}
+    };
+    fetchClients();
+    // 90s while visible — was 30s, throttled to ease free-tier load.
+    const interval=setInterval(()=>{if(document.visibilityState==='visible')fetchClients()},90000);
+    return()=>{cancelled=true;clearInterval(interval)};
+  },[project?.id]);
+
+  // ── Chat with the client ────────────────────────────────────
+  const[chatOpen,setChatOpen]=useState(false);
+  const[chatMessages,setChatMessages]=useState([]);
+  const[chatDraft,setChatDraft]=useState("");
+  const[chatSending,setChatSending]=useState(false);
+  const[chatLastSeenAt,setChatLastSeenAt]=useState(()=>{
+    try{return localStorage.getItem(`es_chat_staff_last_seen_${project?.id}`)||""}catch(e){return""}
+  });
+  const chatScrollerRef=useRef(null);
+  useEffect(()=>{
+    if(!project?.id)return;
+    let cancelled=false;
+    const fetchChat=async()=>{
+      try{
+        const rows=await restFetch(`/client_messages?project_id=eq.${project.id}&order=created_at.asc&limit=300`);
+        if(!cancelled)setChatMessages(rows||[]);
+      }catch(e){}
+    };
+    fetchChat();
+    // 15s while visible — was 4s. Duplicate of the global chat poll;
+    // this can be removed once the inline chat in ExpV is fully retired.
+    const interval=setInterval(()=>{if(document.visibilityState==='visible')fetchChat()},15000);
+    return()=>{cancelled=true;clearInterval(interval)};
+  },[project?.id]);
+  useEffect(()=>{
+    if(chatOpen&&chatScrollerRef.current){chatScrollerRef.current.scrollTop=chatScrollerRef.current.scrollHeight}
+  },[chatMessages,chatOpen]);
+  useEffect(()=>{
+    if(chatOpen&&chatMessages.length>0){
+      const newest=chatMessages[chatMessages.length-1]?.created_at||'';
+      if(newest){setChatLastSeenAt(newest);try{localStorage.setItem(`es_chat_staff_last_seen_${project?.id}`,newest)}catch(e){}}
+    }
+  },[chatOpen,chatMessages,project?.id]);
+  const sendChatMessage=async()=>{
+    const body=chatDraft.trim();
+    if(!body||!project?.id)return;
+    setChatSending(true);
+    try{
+      const sbKey=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
+      const session=sbKey?JSON.parse(localStorage.getItem(sbKey)):null;
+      const myId=session?.user?.id;
+      if(!myId){alert('Sign in first.');return}
+      const inserted=await restFetch('/client_messages',{
+        method:'POST',
+        body:{project_id:project.id,user_id:myId,body},
+      });
+      const row=Array.isArray(inserted)?inserted[0]:inserted;
+      if(row)setChatMessages(prev=>[...prev,row]);
+      setChatDraft("");
+    }catch(e){alert(`Couldn't send: ${e.message||e}`)}
+    finally{setChatSending(false)}
+  };
+
+  // Presence summary: are any clients "active now" (last_seen <90s ago)?
+  const clientPresence=useMemo(()=>{
+    if(!portalClients.length)return{state:'none'};
+    const now=Date.now();
+    const mostRecent=portalClients.reduce((max,c)=>{
+      const t=c.last_seen_at?new Date(c.last_seen_at).getTime():0;
+      return t>max?t:max;
+    },0);
+    if(mostRecent===0)return{state:'invited',count:portalClients.length};
+    const ageMs=now-mostRecent;
+    if(ageMs<90000)return{state:'active',count:portalClients.length,at:mostRecent};
+    return{state:'idle',count:portalClients.length,at:mostRecent};
+  },[portalClients]);
+
+  // Unread chat messages from the client side (anyone NOT the current
+  // staff user, since we don't track sender role here — close enough).
+  const currentUserId=useMemo(()=>{
+    try{
+      const sbKey=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
+      const session=sbKey?JSON.parse(localStorage.getItem(sbKey)):null;
+      return session?.user?.id||null;
+    }catch(e){return null}
+  },[]);
+  const chatUnread=useMemo(()=>{
+    if(!chatMessages.length)return 0;
+    return chatMessages.filter(m=>m.user_id!==currentUserId&&(!chatLastSeenAt||m.created_at>chatLastSeenAt)).length;
+  },[chatMessages,chatLastSeenAt,currentUserId]);
+
   const tasks=project.timeline||[];
   const clientFiles=project.clientFiles||[];
   const[included,setIncluded]=useState(()=>new Set(tasks.map(t=>t.id)));
@@ -192,6 +314,38 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const[shareModal,setShareModal]=useState(null); // null | "budget" | "timeline"
   const[previewHtml,setPreviewHtml]=useState("");
   const[fileFilter,setFileFilter]=useState("all");
+  const[showFileLink,setShowFileLink]=useState(false);
+  const[fileLinkUrl,setFileLinkUrl]=useState("");
+  const[fileLinkName,setFileLinkName]=useState("");
+  const[fileLinkAddingName,setFileLinkAddingName]=useState(false);
+  // Look up the doc name from the URL (Drive API for Google Docs,
+  // slug parse for Figma/Canva/etc.) as soon as the user finishes
+  // typing/pastes the URL — only if they haven't manually typed
+  // their own name yet.
+  const fileLinkBlur=async()=>{
+    if(!fileLinkUrl.trim()||fileLinkName.trim())return;
+    setFileLinkAddingName(true);
+    try{
+      const{deriveLinkName}=await import('../utils/linkMeta.js');
+      const n=await deriveLinkName(fileLinkUrl.trim(),accessToken);
+      if(n&&!fileLinkName.trim())setFileLinkName(n);
+    }catch(e){}
+    finally{setFileLinkAddingName(false)}
+  };
+  const addFileLink=async()=>{
+    const url=fileLinkUrl.trim();if(!url)return;
+    let name=fileLinkName.trim();
+    if(!name){
+      try{const{deriveLinkName}=await import('../utils/linkMeta.js');name=(await deriveLinkName(url,accessToken))||""}catch(e){}
+    }
+    if(!name){
+      try{const u=new URL(url);name=u.hostname.replace(/^www\./,'')+u.pathname.split('/').filter(Boolean).slice(0,1).map(s=>` · ${s}`).join('')}catch(e){name=url.slice(0,60)}
+    }
+    const doc=mkClientFile(name,fileFilter==='all'?'other':fileFilter,null,null);
+    doc.linkUrl=url;
+    updateProject(prev=>({clientFiles:[...(prev.clientFiles||[]),doc]}));
+    setFileLinkUrl("");setFileLinkName("");setShowFileLink(false);
+  };
   const[fileSearch,setFileSearch]=useState("");
   const[viewingFile,setViewingFile]=useState(null);
   const fileInputRef=useRef(null);
@@ -210,6 +364,39 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   // PLUS contacts whose company matches project.client.
   const[crmContacts,setCrmContacts]=useState([]);
   const[crmMeetings,setCrmMeetings]=useState([]);
+  const[crmReloadKey,setCrmReloadKey]=useState(0);
+  // Inline role editor — same pattern as DashV. Lets the user
+  // switch a contact between POC / Champion / Team member / RFP
+  // sender, or remove an explicit row entirely. Implicit
+  // (company-match) contacts can't be "removed" inline; the
+  // Manage modal on the dashboard handles that case.
+  const userIdEx=user?.user_id||user?.id;
+  const ROLE_OPTIONS_EX=[
+    {id:'point_of_contact',label:'Point of contact'},
+    {id:'champion',label:'Champion'},
+    {id:'rfp_sender',label:'RFP sender'},
+    {id:'team_member',label:'Team member'},
+  ];
+  const changeContactRoleEx=async(contactId,oldRole,newRole)=>{
+    try{
+      if(newRole==='__remove__'){
+        if(oldRole&&oldRole!=='client_team'){
+          await unlinkContactFromProject(contactId,project.id,oldRole);
+        }else{
+          alert("Use the dashboard's Client Team → Manage button to remove auto-included contacts.");
+          return;
+        }
+      }else if(oldRole&&oldRole!=='client_team'&&oldRole!==newRole){
+        await unlinkContactFromProject(contactId,project.id,oldRole);
+        await linkContactToProject(userIdEx,contactId,project.id,newRole);
+      }else if(!oldRole||oldRole==='client_team'){
+        await linkContactToProject(userIdEx,contactId,project.id,newRole);
+      }else{
+        return;
+      }
+      setCrmReloadKey(k=>k+1);
+    }catch(e){alert('Could not update role: '+(e.message||e))}
+  };
   useEffect(()=>{
     if(!project?.id)return;
     let cancelled=false;
@@ -225,10 +412,16 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       let explicit=[];
       try{explicit=await listContactsForProject(project.id)||[]}
       catch(e){console.warn("[expv] contact_projects load failed:",e.message||e)}
+      // Curation rule (mirrors DashV): once any explicit contact_projects
+      // row exists, the team is considered curated — skip the company-
+      // match auto-include so only the people explicitly added show up.
+      // Zero explicit rows → fall back to showing the whole company as
+      // a discovery default.
       const seenIds=new Set(explicit.map(lp=>lp.contacts?.id).filter(Boolean));
+      const implicit=explicit.length>0?[]:byCompany.filter(c=>!seenIds.has(c.id)).map(c=>({...c,_role:"client_team"}));
       const merged=[
         ...explicit.map(lp=>({...lp.contacts,_role:lp.role})),
-        ...byCompany.filter(c=>!seenIds.has(c.id)).map(c=>({...c,_role:"client_team"})),
+        ...implicit,
       ];
       if(!cancelled)setCrmContacts(merged);
 
@@ -238,7 +431,10 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       try{explicitM=await listMeetingsForProject(project.id)||[]}
       catch(e){console.warn("[expv] meeting_projects load failed:",e.message||e)}
       const mById=new Map(explicitM.map(m=>[m.id,m]));
-      const allContactIds=[...seenIds,...byCompany.map(c=>c.id)].filter(Boolean);
+      // Curated team → only explicit contacts contribute to meeting
+      // lookups. Otherwise meetings from sibling projects (same
+      // company, different project) leak in via the company match.
+      const allContactIds=(explicit.length>0?[...seenIds]:[...seenIds,...byCompany.map(c=>c.id)]).filter(Boolean);
       if(allContactIds.length){
         try{
           const enc=encodeURIComponent;
@@ -254,7 +450,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       if(!cancelled)setCrmMeetings(all);
     })();
     return()=>{cancelled=true};
-  },[project?.id,project?.client]);
+  },[project?.id,project?.client,crmReloadKey]);
 
   // Shape CRM contacts into the same { id, name, role, email } the
   // existing UI expects, then merge with legacy.
@@ -264,6 +460,9 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     name:`${c.first_name||""} ${c.last_name||""}`.trim()||c.email||"(No name)",
     email:c.email||"",
     role:ROLE_LABEL[c._role]||c._role||"",
+    // Keep the raw role id around so the inline role editor can
+    // PATCH against contact_projects with the correct value.
+    _roleId:c._role||"",
     phone:c.phone||"",
     title:c.title||"",
     _crm:true,
@@ -313,6 +512,142 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   };
   const[showContactSugs,setShowContactSugs]=useState(false);
   const[linkCopied,setLinkCopied]=useState(false);
+
+  // ── Client portal invite state ──────────────────────────────
+  // Provisions a Supabase auth user + project_clients link for a client,
+  // then emails the portal URL + credentials via the staff member's Gmail.
+  const[showInviteModal,setShowInviteModal]=useState(false);
+  const[inviteEmail,setInviteEmail]=useState("");
+  const[inviteName,setInviteName]=useState("");
+  const[inviteSending,setInviteSending]=useState(false);
+  const[inviteResult,setInviteResult]=useState(null); // {email,password,portalUrl,emailSent}
+  const[inviteError,setInviteError]=useState("");
+  const portalUrl=typeof window!=='undefined'?`${window.location.origin}/client`:'/client';
+
+  const provisionClientPortal=async()=>{
+    setInviteError("");
+    const email=inviteEmail.trim().toLowerCase();
+    if(!email.includes('@')){setInviteError('Enter a valid email.');return}
+    setInviteSending(true);
+    try{
+      const sbKey=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
+      const token=sbKey?JSON.parse(localStorage.getItem(sbKey))?.access_token:null;
+      if(!token){setInviteError('Sign in first.');setInviteSending(false);return}
+      const res=await fetch('/api/client-invite',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+        body:JSON.stringify({projectId:project.id||project._dbId,email,name:inviteName.trim()||undefined}),
+      });
+      if(!res.ok){
+        const e=await res.json().catch(()=>({}));
+        setInviteError(e.error||'Could not provision client account');
+        setInviteSending(false);
+        return;
+      }
+      const data=await res.json();
+      // Try to email the client via Gmail using the existing helper.
+      let emailSent=false;let emailErr=null;
+      try{
+        const{sendEmail:gmailSend}=await import('../utils/google.js');
+        const{clientInviteEmailHtml}=await import('../utils/emailTemplates.js');
+        let gToken=accessToken;
+        if(!gToken){try{gToken=localStorage.getItem('es_google_token')}catch(e){}}
+        if(!gToken&&requestCalendarAccess){try{gToken=await requestCalendarAccess()}catch(e){}}
+        if(gToken){
+          const html=clientInviteEmailHtml(project,data.email,data.password,portalUrl,'');
+          await gmailSend(gToken,data.email,`Your ${project.name||"project"} portal access`,html);
+          emailSent=true;
+        }else{emailErr='No Google token — credentials shown below to share manually.'}
+      }catch(e){emailErr=e.message||'Email send failed — credentials shown below.'}
+      setInviteResult({...data,portalUrl,emailSent,emailErr});
+    }catch(e){setInviteError(e.message||'Network error')}
+    finally{setInviteSending(false)}
+  };
+
+  const closeInviteModal=()=>{
+    setShowInviteModal(false);
+    setInviteEmail("");setInviteName("");setInviteResult(null);setInviteError("");
+  };
+
+  // Rendered via `{renderInviteModal()}` rather than `<ClientInviteModal/>`
+  // so React keeps the input nodes mounted across re-renders — otherwise
+  // focus jumps on every keystroke since the component identity changes.
+  const inviteRow=(label,value,mono)=>(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:12}}>
+      <span style={{fontSize:10,fontWeight:700,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",flexShrink:0}}>{label}</span>
+      <span style={{fontSize:12,color:T.cream,fontFamily:mono?T.mono:T.sans,wordBreak:"break-all",textAlign:"right"}}>{value}</span>
+    </div>
+  );
+  const renderInviteModal=()=>{
+    if(!showInviteModal)return null;
+    return<div onClick={closeInviteModal} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(15,82,186,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:560,background:T.paper,border:`1px solid ${T.faintRule}`,borderRadius:T.r,boxShadow:"0 24px 80px rgba(15,82,186,.20)",overflow:"hidden"}}>
+        <div style={{padding:"18px 24px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,fontWeight:700,color:T.cream}}>Invite Client to Portal</div>
+          <button onClick={closeInviteModal} style={{background:"none",border:"none",color:T.dim,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>×</button>
+        </div>
+
+        {!inviteResult?<div style={{padding:"24px"}}>
+          <p style={{fontSize:12,color:T.dim,lineHeight:1.6,margin:"0 0 18px"}}>
+            We'll create a portal login for this email and send an invitation
+            with the credentials. The password is {' '}
+            <code style={{fontFamily:T.mono,color:T.cream,padding:"1px 6px",background:T.surface,borderRadius:3,fontSize:11}}>earlyspring{(project.client||project.name||'client').toLowerCase().replace(/[^a-z0-9]/g,'')}</code>.
+          </p>
+
+          {/* Quick-pick from this project's client contacts (CRM + legacy).
+              Tapping a chip autofills the form. Manual entry below still works. */}
+          {(()=>{const invitable=clientContacts.filter(c=>c.email);if(!invitable.length)return null;
+            return<div style={{marginBottom:18}}>
+              <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Pick from client contacts</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {invitable.map(c=>{
+                  const isPicked=c.email.toLowerCase()===inviteEmail.trim().toLowerCase();
+                  return<button key={c.id||c.email} onClick={()=>{setInviteEmail(c.email);setInviteName(c.name||"")}} style={{padding:"6px 12px",borderRadius:999,border:`1px solid ${isPicked?T.ink:T.faintRule}`,background:isPicked?T.ink:"transparent",color:isPicked?T.paper:T.cream,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,textAlign:"left",lineHeight:1.4,transition:"all .15s"}}>
+                    <span style={{fontWeight:700}}>{c.name||c.email}</span>
+                    {c.name&&<span style={{marginLeft:6,opacity:.6,fontWeight:400}}>{c.email}</span>}
+                  </button>;
+                })}
+              </div>
+            </div>;
+          })()}
+
+          <div style={{display:"grid",gap:14}}>
+            <div>
+              <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Client name (optional)</label>
+              <input value={inviteName} onChange={e=>setInviteName(e.target.value)} placeholder="Jane Doe" style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Client email *</label>
+              <input type="email" autoFocus value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="jane@client.com" onKeyDown={e=>e.key==='Enter'&&provisionClientPortal()} style={{width:"100%",padding:"10px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:T.surfEl,color:T.cream,fontSize:13,fontFamily:T.sans,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+          </div>
+          {inviteError&&<div style={{marginTop:14,fontSize:12,color:T.neg,fontWeight:600}}>{inviteError}</div>}
+          <div style={{marginTop:22,display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button onClick={closeInviteModal} style={{padding:"9px 18px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Cancel</button>
+            <button onClick={provisionClientPortal} disabled={inviteSending||!inviteEmail.trim()} style={{padding:"9px 22px",background:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:inviteSending||!inviteEmail.trim()?"default":"pointer",opacity:inviteSending||!inviteEmail.trim()?.4:1,fontFamily:T.sans}}>{inviteSending?"Creating…":"Create & Send"}</button>
+          </div>
+        </div>
+        :<div style={{padding:"24px"}}>
+          <div style={{fontSize:13,fontWeight:600,color:T.pos,marginBottom:14}}>
+            {inviteResult.alreadyExisted?'Existing account refreshed.':'Client account created.'}
+            {inviteResult.emailSent?' Invitation email sent.':' Email NOT sent — copy the credentials below.'}
+          </div>
+          {inviteResult.emailErr&&!inviteResult.emailSent&&<div style={{fontSize:11,color:T.dim,marginBottom:14}}>{inviteResult.emailErr}</div>}
+          <div style={{display:"grid",gap:10,background:T.surface,padding:"16px 18px",borderRadius:T.rS,border:`1px solid ${T.border}`}}>
+            {inviteRow("Portal URL",inviteResult.portalUrl,true)}
+            {inviteRow("Email",inviteResult.email,true)}
+            {inviteRow("Password",inviteResult.password,true)}
+          </div>
+          <div style={{marginTop:18,display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button onClick={()=>{navigator.clipboard?.writeText(`Portal: ${inviteResult.portalUrl}\nEmail: ${inviteResult.email}\nPassword: ${inviteResult.password}`)}} style={{padding:"9px 18px",background:"transparent",color:T.cream,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Copy all</button>
+            <button onClick={closeInviteModal} style={{padding:"9px 22px",background:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>Done</button>
+          </div>
+        </div>}
+      </div>
+    </div>;
+  };
+
+
   const[fileDragging,setFileDragging]=useState(false);
   const fileDragCounter=useRef(0);
   const onFileDragEnter=useCallback(e=>{e.preventDefault();e.stopPropagation();fileDragCounter.current++;setFileDragging(true)},[]);
@@ -654,14 +989,75 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const cardLeave=(e)=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"};
 
   /* ══ GRID VIEW (default) ══ */
+  // Floating chat widget — same shape on portal + staff side so the
+  // experience reads as one shared thread. Rendered as a function call
+  // rather than a sub-component so input focus survives parent re-renders.
+  const renderChatWidget=()=>{
+    if(!project?.id)return null;
+    const PAPER='#FFFFFF',INK='#0F52BA',RULE='#CDD7EB',FADED='#7791C5',GOLD='#F0B849';
+    return<div style={{position:'fixed',bottom:20,right:20,zIndex:1000}}>
+      {chatOpen?<div style={{width:380,height:540,maxHeight:'calc(100vh - 40px)',background:PAPER,border:`1px solid ${RULE}`,borderRadius:10,boxShadow:'0 16px 40px rgba(15,82,186,.18)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{padding:'14px 16px',borderBottom:`1px solid ${RULE}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:FADED,letterSpacing:'.10em',textTransform:'uppercase'}}>Chat</div>
+            <div style={{fontSize:13,fontWeight:700,color:INK,marginTop:2}}>{clientName||'Client'}</div>
+          </div>
+          <button onClick={()=>setChatOpen(false)} style={{background:'transparent',border:'none',color:FADED,fontSize:20,cursor:'pointer',padding:4,lineHeight:1}}>×</button>
+        </div>
+        <div ref={chatScrollerRef} style={{flex:1,overflow:'auto',padding:'14px 16px',background:PAPER,display:'flex',flexDirection:'column',gap:10}}>
+          {chatMessages.length===0?<div style={{fontSize:12,color:FADED,padding:'14px 0',lineHeight:1.55}}>No messages yet. Say hi to the client.</div>:chatMessages.map(m=>{
+            const isMine=m.user_id===currentUserId;
+            return<div key={m.id} style={{display:'flex',flexDirection:'column',alignItems:isMine?'flex-end':'flex-start'}}>
+              <div style={{maxWidth:'80%',padding:'8px 12px',borderRadius:12,background:isMine?INK:'rgba(15,82,186,.06)',color:isMine?PAPER:INK,fontSize:13,lineHeight:1.45,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{m.body}</div>
+              <span style={{fontSize:9,color:FADED,marginTop:4,fontFamily:T.mono,letterSpacing:'.04em'}}>{isMine?'You':'Client'} · {new Date(m.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+            </div>;
+          })}
+        </div>
+        <div style={{borderTop:`1px solid ${RULE}`,padding:'10px 12px',display:'flex',gap:8,alignItems:'flex-end'}}>
+          <textarea value={chatDraft} onChange={e=>setChatDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}}} placeholder={`Message ${clientName||'the client'}…`} rows={1} style={{flex:1,padding:'8px 10px',background:PAPER,border:`1px solid ${RULE}`,borderRadius:6,color:INK,fontSize:13,fontFamily:T.sans,outline:'none',resize:'none',lineHeight:1.4,maxHeight:100,boxSizing:'border-box'}} onFocus={e=>e.currentTarget.style.borderColor=INK} onBlur={e=>e.currentTarget.style.borderColor=RULE}/>
+          <button onClick={sendChatMessage} disabled={!chatDraft.trim()||chatSending} style={{padding:'8px 14px',background:INK,color:PAPER,border:'none',borderRadius:6,fontSize:10,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',cursor:chatDraft.trim()&&!chatSending?'pointer':'default',opacity:chatDraft.trim()&&!chatSending?1:.4,fontFamily:T.sans}}>{chatSending?'…':'Send'}</button>
+        </div>
+      </div>:<button onClick={()=>setChatOpen(true)} style={{position:'relative',padding:'12px 18px 12px 16px',background:INK,color:PAPER,border:'none',borderRadius:999,fontSize:11,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',cursor:'pointer',fontFamily:T.sans,boxShadow:'0 8px 24px rgba(15,82,186,.30)',display:'inline-flex',alignItems:'center',gap:8}}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Chat with {clientName||'client'}
+        {chatUnread>0&&<span style={{marginLeft:4,minWidth:18,height:18,padding:'0 6px',borderRadius:9,background:GOLD,color:INK,fontSize:10,fontWeight:800,display:'inline-flex',alignItems:'center',justifyContent:'center',letterSpacing:0}}>{chatUnread}</span>}
+      </button>}
+    </div>;
+  };
+
   if(!activeView)return<div>
-    <div style={{marginBottom:28}}>
-      <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em"}}>Client: {clientName}</h1>
-      <div style={{display:"flex",gap:12,marginTop:6,alignItems:"center"}}>
-        <span style={{fontSize:12,color:T.dim}}>{project.name}</span>
-        {project.eventDate&&<span style={{fontSize:12,color:T.dim}}>Event: {project.eventDate}</span>}
+    <div style={{marginBottom:28,display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <h1 style={{fontSize:22,fontWeight:700,color:T.cream,letterSpacing:"-0.02em",margin:0}}>Client: {clientName}</h1>
+          {clientPresence.state!=='none'&&(()=>{
+            // Live presence badge. Active = green dot, anything else
+            // shows last seen relative to now ("3 min ago" / "2 hrs ago").
+            const fmtAgo=(ms)=>{
+              const s=Math.max(0,Math.round((Date.now()-ms)/1000));
+              if(s<60)return 'just now';
+              const m=Math.round(s/60);if(m<60)return `${m} min ago`;
+              const h=Math.round(m/60);if(h<24)return `${h} hr${h===1?'':'s'} ago`;
+              const d=Math.round(h/24);return `${d} day${d===1?'':'s'} ago`;
+            };
+            const isActive=clientPresence.state==='active';
+            const isInvited=clientPresence.state==='invited';
+            return<span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:999,border:`1px solid ${isActive?'#1F7A3F':T.faintRule}`,fontSize:10,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',fontFamily:T.sans,color:isActive?'#1F7A3F':T.dim,background:isActive?'rgba(31,122,63,.08)':'transparent'}}>
+              <span style={{width:8,height:8,borderRadius:'50%',background:isActive?'#1F7A3F':isInvited?T.fadedInk:T.dim,boxShadow:isActive?'0 0 0 4px rgba(31,122,63,.18)':'none',display:'inline-block'}}/>
+              {isActive?'In portal now':isInvited?'Invited':`Last seen ${fmtAgo(clientPresence.at)}`}
+            </span>;
+          })()}
+        </div>
+        <div style={{display:"flex",gap:12,marginTop:6,alignItems:"center"}}>
+          <span style={{fontSize:12,color:T.dim}}>{project.name}</span>
+          {project.eventDate&&<span style={{fontSize:12,color:T.dim}}>Event: {project.eventDate}</span>}
+        </div>
       </div>
+      {canInviteClient&&<button onClick={()=>setShowInviteModal(true)} style={{padding:"10px 18px",background:T.ink,color:T.paper,border:"none",borderRadius:T.rS,fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans}}>
+        Invite Client to Portal
+      </button>}
     </div>
+    {renderInviteModal()}
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
       {/* ── Estimate(s) ── */}
@@ -886,7 +1282,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
           </div>}
         </div>
         {/* Share buttons */}
-        <button onClick={()=>openShareModal("budget")} style={{padding:"8px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share</button>
+        {canSendEmail&&<button onClick={()=>openShareModal("budget")} style={{padding:"8px 14px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share</button>}
       </div>
     </div>
 
@@ -993,7 +1389,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <div style={{display:"flex",gap:2,background:T.surface,borderRadius:20,padding:2}}>
           {[["calendar","Calendar"],["gantt","Gantt"]].map(([k,l])=><button key={k} onClick={()=>setClientViewMode(k)} style={{padding:"5px 14px",borderRadius:18,border:"none",cursor:"pointer",fontSize:10,fontWeight:clientViewMode===k?600:400,fontFamily:T.sans,background:clientViewMode===k?T.goldSoft:"transparent",color:clientViewMode===k?T.gold:T.dim}}>{l}</button>)}
         </div>
-        <button onClick={()=>openShareModal("timeline")} style={{padding:"7px 12px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share</button>
+        {canSendEmail&&<button onClick={()=>openShareModal("timeline")} style={{padding:"7px 12px",borderRadius:T.rS,background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Share</button>}
         <button onClick={copyLink} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:linkCopied?T.pos:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{linkCopied?"Copied":"Copy Link"}</button>
         <button onClick={()=>window.print()} style={{padding:"7px 12px",borderRadius:T.rS,border:`1px solid ${T.border}`,background:"transparent",color:T.dim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>PDF</button>
       </div>
@@ -1034,9 +1430,18 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
           }
           alert(synced>0?`${synced} file(s) synced to Drive`:"No files could be synced — files without local data need to be re-uploaded");
         }} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:"transparent",color:T.cyan,border:`1px solid ${T.cyan}40`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>Sync to Drive</button>}
-        <button onClick={()=>fileInputRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload</button>
+        <button onClick={()=>setShowFileLink(s=>!s)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:showFileLink?T.inkSoft:T.cyan+"18",color:showFileLink?T.ink:T.cyan,border:`1px solid ${showFileLink?T.ink:T.cyan+"40"}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color="currentColor"/> Paste Link</button>
+        <button onClick={()=>fileInputRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload File</button>
       </div>
     </div>
+    {showFileLink&&<div style={{marginBottom:16,padding:14,borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`}}>
+      <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Paste a link — Google Docs, Figma, Canva, Notion, Dropbox, YouTube, etc. {fileLinkAddingName?'· auto-naming…':''}</div>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
+        <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>URL</div><input value={fileLinkUrl} onChange={e=>setFileLinkUrl(e.target.value)} onBlur={fileLinkBlur} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addFileLink()}}} placeholder="https://docs.google.com/document/d/..." style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.bg||T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <div><div style={{fontSize:9,color:T.dim,marginBottom:4}}>Name {fileLinkName?'':<span style={{fontStyle:'italic'}}>(auto)</span>}</div><input value={fileLinkName} onChange={e=>setFileLinkName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addFileLink()}}} placeholder="Auto-filled from URL" style={{width:"100%",padding:"8px 10px",borderRadius:T.rS,background:T.bg||T.surface,border:`1px solid ${T.border}`,color:T.cream,fontSize:12,fontFamily:T.sans,outline:"none"}}/></div>
+        <button onClick={addFileLink} disabled={!fileLinkUrl.trim()} style={{padding:"8px 16px",borderRadius:T.rS,background:fileLinkUrl.trim()?T.goldSoft:T.inkSoft2,color:fileLinkUrl.trim()?T.gold:T.fadedInk,border:`1px solid ${fileLinkUrl.trim()?T.borderGlow:"transparent"}`,fontSize:11,fontWeight:700,cursor:fileLinkUrl.trim()?"pointer":"default",fontFamily:T.sans}}>Add</button>
+      </div>
+    </div>}
     <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
       <button onClick={()=>setFileFilter("all")} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:fileFilter==="all"?600:400,fontFamily:T.sans,background:fileFilter==="all"?T.goldSoft:"transparent",color:fileFilter==="all"?T.gold:T.dim}}>All ({clientFiles.length})</button>
       {CLIENT_FILE_CATS.map(c=>fileCounts[c]>0&&<button key={c} onClick={()=>setFileFilter(c)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontWeight:fileFilter===c?600:400,fontFamily:T.sans,background:fileFilter===c?`${CLIENT_FILE_COLORS[c]}18`:"transparent",color:fileFilter===c?CLIENT_FILE_COLORS[c]:T.dim}}>{CLIENT_FILE_LABELS[c]} ({fileCounts[c]})</button>)}
@@ -1048,7 +1453,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         const hasStorage=!!f.storagePath;
         const isPdf=(f.fileName&&/\.pdf$/i.test(f.fileName));
         const isImg=(fd&&/^data:image\//i.test(fd))||(!fd&&hasStorage&&/\.(png|jpe?g|gif|webp)$/i.test(f.fileName||""));
-        const canView=fd||hasStorage||f.driveId;
+        const canView=fd||hasStorage||f.driveId||!!f.linkUrl;
         return<div key={f.id} onClick={()=>canView&&setViewingFile({...f,fileData:fd||null})} style={{borderRadius:T.r,border:`1px solid ${T.border}`,background:T.surfEl,overflow:"hidden",cursor:canView?"pointer":"default",transition:"border-color .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderGlow;e.currentTarget.style.boxShadow=T.shadow}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none"}}>
           {/* Thumbnail area */}
           <div style={{height:130,background:T.surface,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",position:"relative"}}>
@@ -1066,7 +1471,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
             <div style={{fontSize:9,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:8}}>{f.fileName} · {f.dateAdded}</div>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
               <select value={f.category} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();updateFileCategory(f.id,e.target.value)}} style={{flex:1,padding:"3px 4px",borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,color:T.dim,fontSize:9,fontFamily:T.sans,outline:"none",cursor:"pointer"}}>{CLIENT_FILE_CATS.map(c=><option key={c} value={c}>{CLIENT_FILE_LABELS[c]}</option>)}</select>
-              <button onClick={e=>{e.stopPropagation();openShareFileModal(f)}} title="Send this file via email" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:4,cursor:"pointer",padding:"3px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.cream}}>✉</button>
+              {canSendEmail&&<button onClick={e=>{e.stopPropagation();openShareFileModal(f)}} title="Send this file via email" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:4,cursor:"pointer",padding:"3px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:T.cream,fontFamily:T.sans}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.cream}}>✉</button>}
               <button onClick={e=>{e.stopPropagation();removeFile(f.id)}} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.18)",borderRadius:4,cursor:"pointer",padding:"3px 5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={10} color={T.neg}/></button>
             </div>
           </div>
@@ -1232,11 +1637,17 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     {clientContacts.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:12}}>
       {clientContacts.map(c=><Card key={c.id} style={{padding:"20px 22px",borderLeft:"3px solid #06B6D4"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:4}}>{c.name}</div>
-            {c.role&&<Pill color={T.cyan} size="xs">{c.role}</Pill>}
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{fontSize:15,fontWeight:600,color:T.cream,marginBottom:6}}>{c.name}</div>
+            {c._crm?(
+              <select value={c._roleId||"client_team"} onChange={e=>changeContactRoleEx(c.id,c._roleId,e.target.value)} title="Change role" style={{fontSize:10,fontWeight:700,padding:"3px 20px 3px 8px",borderRadius:10,background:`${T.cyan}18`,color:T.cyan,letterSpacing:".04em",textTransform:"uppercase",border:"none",cursor:"pointer",fontFamily:T.sans,appearance:"none",WebkitAppearance:"none",backgroundImage:`linear-gradient(45deg, transparent 50%, ${T.cyan} 50%), linear-gradient(135deg, ${T.cyan} 50%, transparent 50%)`,backgroundPosition:`calc(100% - 9px) 50%, calc(100% - 5px) 50%`,backgroundSize:"4px 4px, 4px 4px",backgroundRepeat:"no-repeat"}}>
+                {c._roleId==='client_team'&&<option value="client_team">Auto · Click to assign</option>}
+                {ROLE_OPTIONS_EX.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+                <option value="__remove__">— Remove from project</option>
+              </select>
+            ):c.role&&<Pill color={T.cyan} size="xs">{c.role}</Pill>}
           </div>
-          <button onClick={()=>removeContact(c.id)} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.18)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={11} color={T.neg}/></button>
+          {!c._crm&&<button onClick={()=>removeContact(c.id)} style={{background:"rgba(122,31,31,.06)",border:"1px solid rgba(122,31,31,.18)",borderRadius:T.rS,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(122,31,31,.18)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(122,31,31,.06)"}}><TrashI size={11} color={T.neg}/></button>}
         </div>
         <div style={{marginTop:12}}>
           {c.email&&<div style={{fontSize:12,color:T.cyan,marginBottom:4}}>{c.email}</div>}

@@ -7,8 +7,10 @@ import {
 import { listMeetingsForContact, effectiveClassification } from '../lib/meetings.js';
 import { uploadAvatar } from '../lib/avatarUpload.js';
 import { listGmailThreadsForEmail } from '../utils/gmail.js';
+import { deriveCompanyWebsiteFromEmail } from '../utils/companyDedup.js';
 import ScheduleMeetingModal from './ScheduleMeetingModal.jsx';
 import ConceptMenuBuilder from './ConceptMenuBuilder.jsx';
+import ShareContactModal from './contacts/ShareContactModal.jsx';
 
 // Status = pipeline stage. Four states; `vendor` and `press`
 // previously lived here but overlapped with type — moved out.
@@ -41,7 +43,7 @@ const PROJECT_ROLES = [
   { id: 'team_member',      label: 'Team member' },
 ];
 
-function ContactDetailDrawer({ contact: initialContact, projects = [], userId, accessToken, onClose, onUpdate, onDelete, onEnrich, onOpenPrepBrief, onOpenProject }) {
+function ContactDetailDrawer({ contact: initialContact, projects = [], allContacts = [], userId, userName, accessToken, onClose, onUpdate, onDelete, onEnrich, onOpenPrepBrief, onOpenProject }) {
   const [contact, setContact] = useState(initialContact);
   // `dirty` holds in-progress edits keyed by field name. The contact
   // state above is the union of (saved data) + (dirty edits) for
@@ -65,6 +67,7 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
   const [enrichError, setEnrichError] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showConceptMenu, setShowConceptMenu] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const fileInputRef = useRef(null);
 
   const hasUnsavedChanges = Object.keys(dirty).length > 0;
@@ -82,11 +85,15 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
   // When the same contact gets patched externally (e.g. the enrich
   // modal applied a RocketReach diff while the drawer was open), the
   // parent passes a new `initialContact` reference. Merge it in
-  // without clobbering any in-progress dirty edits, so the drawer
-  // reflects the new values immediately.
+  // without clobbering any in-progress dirty edits or unsaved-typed
+  // notes, so the drawer reflects the new values immediately.
   useEffect(() => {
     if (!initialContact) return;
-    setContact({ ...initialContact, ...dirtyRef.current });
+    setContact({
+      ...initialContact,
+      ...dirtyRef.current,
+      ...(notesPendingRef.current !== null ? { notes: notesPendingRef.current } : {}),
+    });
   }, [initialContact]);
 
   const runEnrich = useCallback(async () => {
@@ -179,6 +186,22 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
     }
   }, [contact, onUpdate]);
 
+  // Auto-fill company_url from the email domain when empty.
+  // Runs once per contact open — doesn't re-derive on subsequent
+  // email edits, so the user can clear an auto-filled URL without
+  // it bouncing back. Persisted immediately so it sticks across
+  // refreshes without needing a Save click.
+  const autoFilledRef = useRef(null);
+  useEffect(() => {
+    if (!contact?.id) return;
+    if (autoFilledRef.current === contact.id) return;
+    autoFilledRef.current = contact.id;
+    if ((contact.company_url || '').trim()) return;
+    const derived = deriveCompanyWebsiteFromEmail(contact.email);
+    if (!derived) return;
+    updateImmediate({ company_url: derived });
+  }, [contact?.id, contact?.email, contact?.company_url, updateImmediate]);
+
   // Save all pending field edits. Discards dirty state on success.
   const saveAll = useCallback(async () => {
     if (!hasUnsavedChanges) return;
@@ -270,10 +293,62 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
     }
   }, [contact, onClose, onDelete]);
 
+  // Notes autosave. Long-form textarea is the one field where users
+  // reasonably expect typing → persisted. The Overview fields stay on
+  // explicit-Save so a half-typed email/URL doesn't write half-data.
+  //
+  // notesPendingRef holds the latest typed-but-not-yet-saved value so
+  // an external refresh of initialContact (e.g. enrich diff applied,
+  // contacts list re-fetched) can't clobber in-progress typing.
+  const [notesSaveState, setNotesSaveState] = useState('idle'); // idle | saving | saved
+  const notesTimerRef = useRef(null);
+  const notesLastSavedRef = useRef(initialContact?.notes ?? '');
+  const notesPendingRef = useRef(null);
+  useEffect(() => {
+    notesLastSavedRef.current = initialContact?.notes ?? '';
+    notesPendingRef.current = null;
+    setNotesSaveState('idle');
+  }, [initialContact?.id]);
+
+  const flushNotes = useCallback(async () => {
+    if (notesTimerRef.current) { clearTimeout(notesTimerRef.current); notesTimerRef.current = null; }
+    const pending = notesPendingRef.current;
+    if (pending === null || pending === notesLastSavedRef.current) return;
+    try {
+      await updateContact(contact.id, { notes: pending });
+      notesLastSavedRef.current = pending;
+      notesPendingRef.current = null;
+      onUpdate?.({ ...contact, notes: pending });
+      setNotesSaveState('saved');
+      setTimeout(() => setNotesSaveState(s => s === 'saved' ? 'idle' : s), 1500);
+    } catch (e) {
+      console.error('[contact-drawer] notes autosave failed:', e?.message || e);
+      setNotesSaveState('idle');
+    }
+  }, [contact, onUpdate]);
+
+  const onNotesChange = useCallback((value) => {
+    setContact(c => ({ ...c, notes: value }));
+    notesPendingRef.current = value;
+    if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+    if (value === notesLastSavedRef.current) { setNotesSaveState('idle'); return; }
+    setNotesSaveState('saving');
+    notesTimerRef.current = setTimeout(() => { flushNotes(); }, 700);
+  }, [flushNotes]);
+
+  useEffect(() => () => { if (notesTimerRef.current) clearTimeout(notesTimerRef.current); }, []);
+
+  // Avatar error state — kept above the early-return below to obey
+  // React's rules-of-hooks (must be called in the same order each render).
+  const [avatarError, setAvatarError] = useState(false);
+  useEffect(() => { setAvatarError(false); }, [contact?.avatar_url]);
+
   // Warn before closing the drawer with unsaved edits — the user
   // explicitly opted for Save-on-click, so prompting is the right
-  // call rather than silently discarding.
-  const safeClose = () => {
+  // call rather than silently discarding. Flush any pending notes
+  // autosave first so the last 700ms of typing isn't lost.
+  const safeClose = async () => {
+    await flushNotes();
     if (hasUnsavedChanges) {
       if (!confirm('You have unsaved changes. Close without saving?')) return;
     }
@@ -284,8 +359,6 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
 
   const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || '(No name)';
   const initials = ((contact.first_name?.[0] || '') + (contact.last_name?.[0] || '')).toUpperCase();
-  const [avatarError, setAvatarError] = useState(false);
-  useEffect(() => { setAvatarError(false); }, [contact?.avatar_url]);
 
   return (
     <div onClick={safeClose} style={{
@@ -397,6 +470,11 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
                 background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`, cursor: 'pointer',
                 textTransform: 'uppercase', letterSpacing: '.08em',
               }}>✦ Concept menu</button>
+              <button onClick={() => setShowShareModal(true)} title="Email this contact's card to someone — name, role, company, clickable email/phone/LinkedIn" style={{
+                padding: '6px 12px', borderRadius: 999, fontSize: 10, fontWeight: 600, fontFamily: T.sans,
+                background: 'transparent', color: T.ink, border: `1px solid ${T.faintRule}`, cursor: 'pointer',
+                textTransform: 'uppercase', letterSpacing: '.08em',
+              }}>✉ Share</button>
               <button onClick={safeClose} style={{ background: 'transparent', border: 'none', fontSize: 18, color: T.fadedInk, cursor: 'pointer', width: 28, height: 28 }}>×</button>
             </div>
           </div>
@@ -469,6 +547,44 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
         <div style={{ padding: '24px 28px 80px' }}>
           {tab === 'overview' && (
             <>
+              {/* One-click verify — re-fetches LinkedIn via RocketReach
+                  and shows a diff in the existing RefreshPreviewModal.
+                  Shown whenever we have something to look up by. The
+                  sparse panel below still adds an override input for
+                  contacts with no LI URL / wrong identifiers. */}
+              {onEnrich && (contact.linkedin_url || contact.email) && (
+                <div style={{
+                  marginBottom: 14, padding: '10px 14px', borderRadius: 8,
+                  background: T.inkSoft3, border: `1px solid ${T.faintRule}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.ink }}>
+                        Verify on LinkedIn
+                      </div>
+                      <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2, lineHeight: 1.5 }}>
+                        Re-fetches via RocketReach to catch role/company changes. You'll see a per-field preview before anything saves.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEnrich}
+                      disabled={enriching}
+                      style={{
+                        padding: '6px 14px', borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
+                        background: T.ink, color: T.paper, border: 'none',
+                        cursor: enriching ? 'wait' : 'pointer', opacity: enriching ? .6 : 1, whiteSpace: 'nowrap',
+                      }}
+                    >{enriching ? 'Checking…' : '↻ Verify'}</button>
+                  </div>
+                  {/* Only render the error here when the sparse panel
+                      isn't visible — otherwise it would show twice. */}
+                  {enrichError && contact.title && contact.company && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: T.alert, lineHeight: 1.5 }}>{enrichError}</div>
+                  )}
+                </div>
+              )}
+
               {/* Sparse-contact heuristic: shows the enrich affordance
                   only when there's something obvious to fill in.
                   Contacts created from a Fireflies attendee land here
@@ -527,8 +643,8 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
                 <EditableField label="Title" value={contact.title || ''} onChange={v => updateField('title', v || null)}/>
                 <EditableField label="Company" value={contact.company || ''} onChange={v => updateField('company', v || null)}/>
                 <EditableField label="Location" value={contact.location || ''} onChange={v => updateField('location', v || null)}/>
-                <EditableField label="LinkedIn URL" value={contact.linkedin_url || ''} onChange={v => updateField('linkedin_url', v || null)}/>
-                <EditableField label="Company URL" value={contact.company_url || ''} onChange={v => updateField('company_url', v || null)}/>
+                <ClickableUrlField label="LinkedIn URL" value={contact.linkedin_url || ''} onChange={v => updateField('linkedin_url', v || null)}/>
+                <ClickableUrlField label="Company URL" value={contact.company_url || ''} onChange={v => updateField('company_url', v || null)}/>
               </div>
 
               {contact.bio && (
@@ -580,7 +696,7 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
               </div>
               <textarea
                 value={contact.notes || ''}
-                onChange={e => updateField('notes', e.target.value)}
+                onChange={e => onNotesChange(e.target.value)}
                 placeholder="What should you remember about this person?"
                 style={{
                   width: '100%', minHeight: 320, padding: 14, borderRadius: 8,
@@ -588,7 +704,11 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
                   fontSize: 13, fontFamily: T.sans, color: T.ink, outline: 'none', resize: 'vertical',
                 }}
               />
-              <div style={{ marginTop: 6, fontSize: 10, color: T.fadedInk, textAlign: 'right' }}>Autosaves as you type.</div>
+              <div style={{ marginTop: 6, fontSize: 10, color: T.fadedInk, textAlign: 'right' }}>
+                {notesSaveState === 'saving' ? 'Saving…'
+                  : notesSaveState === 'saved' ? '✓ Saved'
+                  : 'Autosaves as you type'}
+              </div>
             </div>
           )}
 
@@ -837,6 +957,14 @@ function ContactDetailDrawer({ contact: initialContact, projects = [], userId, a
           onClose={() => setShowConceptMenu(false)}
         />
       )}
+      {showShareModal && (
+        <ShareContactModal
+          contact={contact}
+          defaultFromName={userName}
+          suggestions={allContacts}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -906,6 +1034,70 @@ function EditableField({ label, value, onChange, fullWidth }) {
         onFocus={e => e.target.style.borderColor = T.ink}
         onBlur={e => e.target.style.borderColor = T.faintRule}
       />
+    </div>
+  );
+}
+
+// URL field that defaults to a clickable link with a ✎ to enter edit
+// mode. Empty value opens directly into edit mode so the field is still
+// fillable on a brand-new contact. Editing flows into the same dirty/
+// Save bar as the other Overview fields — no separate save logic.
+function ClickableUrlField({ label, value, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const v = (value || '').trim();
+  if (editing || !v) {
+    return (
+      <div>
+        <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+        <input
+          autoFocus={editing}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onBlur={e => { e.target.style.borderColor = T.faintRule; if (e.target.value.trim()) setEditing(false); }}
+          onFocus={e => e.target.style.borderColor = T.ink}
+          style={{
+            width: '100%', padding: '8px 10px', borderRadius: 6,
+            border: `1px solid ${T.faintRule}`, background: T.paper,
+            fontSize: 13, fontFamily: T.sans, color: T.ink, outline: 'none',
+            transition: 'border-color .15s',
+          }}
+        />
+      </div>
+    );
+  }
+  const href = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  const display = v.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, color: T.fadedInk, letterSpacing: '.10em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '8px 10px', borderRadius: 6,
+        border: `1px solid ${T.faintRule}`, background: T.paper,
+        minHeight: 35, // match input height
+      }}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener"
+          title={href}
+          style={{
+            flex: 1, minWidth: 0,
+            fontSize: 13, fontFamily: T.sans, color: T.ink,
+            textDecoration: 'underline', textDecorationColor: T.faintRule,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >{display} ↗</a>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          title="Edit"
+          style={{
+            background: 'transparent', border: 'none', color: T.fadedInk,
+            cursor: 'pointer', fontSize: 12, padding: 2, lineHeight: 1, flexShrink: 0,
+          }}
+        >✎</button>
+      </div>
     </div>
   );
 }

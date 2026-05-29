@@ -38,7 +38,9 @@ export function getCrossProjectStaffing(projects, teamMembers = []) {
   const grid = new Map();
 
   projects.forEach(p => {
-    if (p.stage === 'archived') return;
+    // Skip both archived AND lost projects — they shouldn't roll up
+    // into the active staffing grid.
+    if (p.stage === 'archived' || p.stage === 'lost') return;
     const staff = getProjectStaff(p, teamMembers);
     staff.forEach(s => {
       const key = s.userId || s.name;

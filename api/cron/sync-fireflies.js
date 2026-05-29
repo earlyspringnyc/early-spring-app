@@ -3,6 +3,11 @@
 // get linked to their CRM contact via meeting_contacts; internal /
 // brainstorms / vendor stuff stay in the library, tagged but
 // un-linked, so the CRM contact profile doesn't drown in noise.
+//
+// Also callable from the staff UI (Meetings tab → "Sync now") with a
+// valid Supabase JWT — same handler, two auth paths.
+
+import { verifyAuth } from '../_auth.js';
 
 const FF_API = 'https://api.fireflies.ai/graphql';
 
@@ -14,10 +19,14 @@ function getTeamEmails() {
 }
 
 export default async function handler(req, res) {
+  // Accept either: (a) Vercel cron with the configured CRON_SECRET, or
+  // (b) a signed-in staff user clicking the manual "Sync now" button.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers['authorization'] || '';
-    if (auth !== `Bearer ${cronSecret}`) return res.status(401).json({ error: 'Unauthorized' });
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'] || '';
+  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  if (!isCron) {
+    const user = await verifyAuth(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const apiKey = process.env.FIREFLIES_API_KEY;

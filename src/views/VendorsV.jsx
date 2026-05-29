@@ -8,6 +8,7 @@ import { TrashI } from '../components/icons/index.js';
 import { Card, Metric, DatePick } from '../components/primitives/index.js';
 import { listContacts } from '../lib/contacts.js';
 import { toast } from '../lib/toast.js';
+import { extractInvoiceData } from '../utils/pdfOcr.js';
 
 /* Auto-detect doc type from filename */
 const detectDocType=(fileName)=>{
@@ -37,25 +38,18 @@ function VendorsV({project,updateProject,canEdit,onVendorClick,onAddVendor}){
   const fileRefs=useRef({});
   const invFileRef=useRef(null);
 
-  /* AI document analysis — extract invoice details */
+  /* AI document analysis — extract invoice details. Delegates to
+     shared util that renders PDFs to PNG via pdfjs, then calls
+     /api/chat with the auth header (the old inline version was
+     missing both). */
   const analyzeDocument=async(fileData,fileName,vendorId)=>{
     setAnalyzing(vendorId);
     try{
-      const isImage=fileData.startsWith("data:image");
-      const isPdf=fileData.startsWith("data:application/pdf");
-      if(!isImage&&!isPdf){setAnalyzing(null);return null}
-      const content=isImage?[{type:"image",source:{type:"base64",media_type:fileData.split(";")[0].split(":")[1],data:fileData.split(",")[1]}},{type:"text",text:"Extract from this document: 1) document type (invoice/contract/w9), 2) total amount as a number, 3) due date in MM/DD/YYYY format, 4) invoice/document number, 5) vendor name. Return ONLY valid JSON like: {\"type\":\"invoice\",\"amount\":1234.56,\"dueDate\":\"03/15/2026\",\"number\":\"INV-001\",\"vendor\":\"ABC Co\"}"}]
-      :[{type:"text",text:"The user uploaded a PDF named '"+fileName+"'. Based on the filename, determine: 1) document type (invoice/contract/w9), 2) any amount or date hints from the name. Return ONLY valid JSON like: {\"type\":\"invoice\",\"amount\":0,\"dueDate\":\"\",\"number\":\"\",\"vendor\":\"\"}"}];
-      const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content}]})});
-      if(!res.ok){setAnalyzing(null);toast.error(`AI couldn't analyze "${fileName}" (HTTP ${res.status}). File is saved — fill in details manually.`);return null}
-      const data=await res.json();
-      const text=data.content[0].text;
-      const jsonMatch=text.match(/\{[\s\S]*\}/);
-      if(!jsonMatch){setAnalyzing(null);toast.error(`AI couldn't read "${fileName}" cleanly. File is saved — fill in details manually.`);return null}
-      const parsed=JSON.parse(jsonMatch[0]);
-      setAnalyzing(null);
+      const parsed=await extractInvoiceData(fileData,fileName);
+      if(!parsed){toast.error(`AI couldn't read "${fileName}". File is saved — fill in details manually.`);return null}
       return parsed;
-    }catch(e){setAnalyzing(null);toast.error(`AI analysis failed: ${e?.message || 'unknown error'}`);return null}
+    }catch(e){toast.error(`AI analysis failed: ${e?.message || 'unknown error'}`);return null}
+    finally{setAnalyzing(null)}
   };
   const totalOutstanding=vendors.reduce((a,v)=>{const vDocs=docs.filter(d=>d.vendorId===v.id&&d.type==="invoice"&&d.status!=="paid");return a+vDocs.reduce((s,d)=>s+(d.amount-(d.paidAmount||0)),0)},0);
   // Lazy-load CRM vendor contacts the first time the add form opens.

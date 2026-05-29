@@ -135,8 +135,14 @@ export function useProjects(orgId) {
       }
 
       // Re-upload any local-only projects (failed creates from a previous
-      // session, or projects from a pre-orgId cache).
+      // session, or projects from a pre-orgId cache). If the upsert
+      // fails — usually because RLS blocks the insert or the org no
+      // longer exists — we DROP the local copy instead of rendering it
+      // as _unsynced. Rendering ghosts was causing deleted projects
+      // (Meridian) to keep appearing in stale-cache scenarios long
+      // after they were purged server-side.
       const recovered = [];
+      const droppedGhosts = [];
       for (const lp of localOnly) {
         try {
           const toSave = stripLargeFiles(lp);
@@ -145,30 +151,25 @@ export function useProjects(orgId) {
             console.log('[projects] Recovered local-only project →', saved.name);
             recovered.push(saved);
           } else {
-            recovered.push({ ...lp, _unsynced: true });
+            droppedGhosts.push(lp);
           }
         } catch (e) {
-          console.error('[projects] Recovery upsert failed for', lp.name, e);
-          recovered.push({ ...lp, _unsynced: true });
+          console.warn('[projects] Recovery upsert failed for', lp.name, '— dropping local copy:', e?.message);
+          droppedGhosts.push(lp);
         }
+      }
+      if (droppedGhosts.length) {
+        console.log('[projects] Dropped', droppedGhosts.length, 'unrecoverable local-only project(s):', droppedGhosts.map(p => p.name).join(', '));
       }
 
-      // First-time-ever sample
+      // No more first-time sample project. The "Meridian Summer Launch"
+      // seed created a duplicate every time the multi-org auth race
+      // spawned a new org — by the time we caught it there were 16
+      // orphan copies. Real orgs start empty; users create their own
+      // first project. Old localStorage marker preserved so this is a
+      // no-op for accounts that already passed the gate.
       let final = [...serverProjects, ...recovered];
-      if (final.length === 0 && !hasHadProjects()) {
-        markHasProjects();
-        const sample = mkSampleProject();
-        try {
-          const saved = await db.createProject(orgId, sample);
-          if (saved) final = [saved];
-          else final = [sample];
-        } catch (e) {
-          console.error('[projects] Sample create failed:', e);
-          final = [sample];
-        }
-      } else if (final.length > 0) {
-        markHasProjects();
-      }
+      if (final.length > 0) markHasProjects();
 
       // Seed optimistic-lock map so the first save after load can guard
       // against teammates' edits.
@@ -303,6 +304,17 @@ export function useProjects(orgId) {
     if (stripped.creativeAssets) stripped.creativeAssets = await Promise.all(stripped.creativeAssets.map(upload));
     if (stripped.docs) stripped.docs = await Promise.all(stripped.docs.map(upload));
     if (stripped.clientFiles) stripped.clientFiles = await Promise.all(stripped.clientFiles.map(upload));
+    // Vendor records (W9s, COIs, etc.) live nested inside vendors[].documents[].
+    // The old VendorDetailModal upload path stored these as inline base64,
+    // which bloats the project blob. Walk them too so any inline data gets
+    // uploaded to Storage on save and replaced with a storagePath ref.
+    if (Array.isArray(stripped.vendors)) {
+      stripped.vendors = await Promise.all(stripped.vendors.map(async (vendor) => {
+        if (!Array.isArray(vendor?.documents) || vendor.documents.length === 0) return vendor;
+        const documents = await Promise.all(vendor.documents.map(upload));
+        return { ...vendor, documents };
+      }));
+    }
     return stripped;
   };
 
@@ -346,8 +358,13 @@ export function useProjects(orgId) {
     const entries = Array.from(pendingSaves.current.entries());
     pendingSaves.current.clear();
     for (const [projectId, data] of entries) {
-      try { await db.updateProject(projectId, await stripFileData(data, projectId)); }
-      catch (e) { console.error('[projects] Flush failed for', projectId, e); }
+      try {
+        const newAt = await db.updateProject(projectId, await stripFileData(data, projectId));
+        if (newAt) lastSyncedAt.current.set(projectId, newAt);
+        if (saveTimer.current?.[`save-${projectId}`]) {
+          clearTimeout(saveTimer.current[`save-${projectId}`]);
+        }
+      } catch (e) { console.error('[projects] Flush failed for', projectId, e); }
     }
   }, [usesDb]);
 
@@ -379,20 +396,39 @@ export function useProjects(orgId) {
         saveFailCount.current.delete(projectId);
       } catch (e) {
         if (e?.code === 'CONFLICT') {
-          // Teammate saved in the meantime. Refetch + replace local state
-          // with server's. The local edit is preserved in pendingSaves until
-          // the user resolves; for now we surface a conflict banner.
-          console.warn('[projects] Conflict — another user saved this project. Refreshing.');
+          // The row's updated_at moved out from under us. Most often this
+          // is the user's own back-to-back saves racing (rapid uploads),
+          // not a real teammate edit. Strategy: fetch fresh server state,
+          // merge our pending arrays (creativeAssets / docs / clientFiles)
+          // on top so already-uploaded files aren't lost, then retry the
+          // save with the fresh updated_at. Cap retries so a persistent
+          // server-side update can't pin us in an infinite loop.
+          const conflictRetries = (saveFailCount.current.get(projectId) || 0) + 1;
+          saveFailCount.current.set(projectId, conflictRetries);
+          if (conflictRetries > 4) {
+            console.error('[projects] Conflict retries exhausted; surfacing banner.');
+            setConflicts(c => [...c.filter(x => x.projectId !== projectId), { projectId, name: data?.name || 'Project', at: Date.now() }]);
+            pendingSaves.current.delete(projectId);
+            saveFailCount.current.delete(projectId);
+            return;
+          }
+          console.warn(`[projects] Conflict — merging pending edits and retrying (attempt ${conflictRetries}).`);
           try {
             const fresh = await db.getProjects(orgId);
             const incoming = fresh.find(p => p.id === projectId);
             if (incoming) {
+              const merged = mergePendingIntoFresh(incoming, data);
               lastSyncedAt.current.set(projectId, incoming._serverUpdatedAt);
-              setProjects(prev => prev.map(p => p.id === projectId ? restoreFileData(incoming) : p));
-              setConflicts(c => [...c.filter(x => x.projectId !== projectId), { projectId, name: incoming.name, at: Date.now() }]);
+              setProjects(prev => prev.map(p => p.id === projectId ? restoreFileData(merged) : p));
+              // Re-queue with merged data and let the next debounced save fire it
+              pendingSaves.current.set(projectId, merged);
+              scheduleRetry(projectId, 250 + conflictRetries * 250);
+              return;
             }
-          } catch (refetchErr) { console.error('[projects] Conflict refetch failed:', refetchErr); }
-          // Drop the stale pending save; user can re-edit on top of the new state.
+          } catch (refetchErr) {
+            console.error('[projects] Conflict refetch failed:', refetchErr);
+            setConflicts(c => [...c.filter(x => x.projectId !== projectId), { projectId, name: data?.name || 'Project', at: Date.now() }]);
+          }
           pendingSaves.current.delete(projectId);
           saveFailCount.current.delete(projectId);
           return;
@@ -417,19 +453,62 @@ export function useProjects(orgId) {
   // large fileData synchronously or Postgres rejects the row (54000) and
   // the user's last edit is lost.
   useEffect(() => {
+    // Fire-and-forget flush, used during true page unload where awaits
+    // aren't reliable. Captures the response in a then() to keep
+    // lastSyncedAt + pendingSaves in sync when the response lands
+    // before the tab fully unloads — otherwise the next save would
+    // race with this one and 406-conflict.
     const onHide = () => {
       const entries = Array.from(pendingSaves.current.entries());
       for (const [projectId, data] of entries) {
         try {
-          // Synchronous strip — no awaits, this is during unload.
           const safe = stripLargeFiles(data);
-          db.updateProject(projectId, safe);
+          Promise.resolve(db.updateProject(projectId, safe))
+            .then(newAt => {
+              if (newAt) lastSyncedAt.current.set(projectId, newAt);
+              pendingSaves.current.delete(projectId);
+              if (saveTimer.current?.[`save-${projectId}`]) {
+                clearTimeout(saveTimer.current[`save-${projectId}`]);
+              }
+            })
+            .catch(() => {});
         } catch (e) {}
       }
     };
     window.addEventListener('pagehide', onHide);
     window.addEventListener('beforeunload', onHide);
-    const visHandler = () => { if (document.visibilityState === 'hidden') onHide(); };
+    // visibilitychange fires constantly during ordinary use (clicking
+    // DevTools focuses another window, alt-tabbing, etc). Doing a full
+    // save+upload on each event causes major perf issues and conflict
+    // storms. Strategy: debounce a 1.5s timer after the tab goes hidden;
+    // if it's still hidden when the timer fires, then flush. Bail
+    // immediately if there's nothing pending so the common case is free.
+    let visTimer = null;
+    const visHandler = () => {
+      if (visTimer) { clearTimeout(visTimer); visTimer = null; }
+      if (document.visibilityState !== 'hidden') return;
+      if (pendingSaves.current.size === 0) return;
+      visTimer = setTimeout(async () => {
+        visTimer = null;
+        if (document.visibilityState !== 'hidden') return;
+        const entries = Array.from(pendingSaves.current.entries());
+        for (const [projectId, data] of entries) {
+          try {
+            const stripped = await stripFileData(data, projectId);
+            const newAt = await db.updateProject(projectId, stripped);
+            if (newAt) lastSyncedAt.current.set(projectId, newAt);
+            pendingSaves.current.delete(projectId);
+            if (saveTimer.current?.[`save-${projectId}`]) {
+              clearTimeout(saveTimer.current[`save-${projectId}`]);
+            }
+          } catch (e) {
+            // Don't clear pendingSaves on error — let the debounced retry
+            // logic handle conflicts. Just stop this flush.
+            console.warn('[projects] visibility flush failed:', e?.message || e);
+          }
+        }
+      }, 1500);
+    };
     document.addEventListener('visibilitychange', visHandler);
     return () => {
       window.removeEventListener('pagehide', onHide);
@@ -576,6 +655,44 @@ function stripLargeFiles(p) {
   delete out._unsynced; // UI flag, never persist
   ['creativeAssets', 'clientFiles', 'docs'].forEach(k => {
     if (out[k]) out[k] = out[k].map(it => it.fileData && it.fileData.length > 50000 ? { ...it, fileData: null } : it);
+  });
+  // Same defensive strip for vendor.documents[] (W9s, COIs, etc.) so a
+  // page-unload save can't accidentally persist a 1.4MB W9 inline.
+  if (Array.isArray(out.vendors)) {
+    out.vendors = out.vendors.map(v => {
+      if (!Array.isArray(v?.documents) || v.documents.length === 0) return v;
+      return {
+        ...v,
+        documents: v.documents.map(d => d.fileData && d.fileData.length > 50000 ? { ...d, fileData: null } : d),
+      };
+    });
+  }
+  return out;
+}
+
+// Merge a pending local edit onto the fresh-from-server project after
+// an optimistic-lock conflict. For the file arrays we union by id so
+// recently-uploaded files (already in Storage with storagePath set)
+// don't disappear into the void. For scalar fields we trust the local
+// pending value — the user just clicked something and expects to see
+// it. The fresh row's other arrays (e.g. cats, timeline) are kept as
+// the baseline; if both sides edited the same array, last-write-wins
+// is acceptable v1 behavior since the same user is usually behind both.
+function mergePendingIntoFresh(fresh, pending) {
+  const out = { ...fresh, ...pending };
+  // Preserve server-side metadata that the pending data shouldn't override
+  out._serverUpdatedAt = fresh._serverUpdatedAt;
+  out.updated_at = fresh.updated_at;
+  ['creativeAssets', 'clientFiles', 'docs'].forEach(key => {
+    const freshArr = Array.isArray(fresh[key]) ? fresh[key] : [];
+    const pendingArr = Array.isArray(pending[key]) ? pending[key] : [];
+    if (!freshArr.length && !pendingArr.length) return;
+    const byId = new Map();
+    freshArr.forEach(it => { if (it?.id) byId.set(it.id, it); });
+    // Pending wins for ids that exist on both sides — it has the latest
+    // edits (storagePath after upload, comments, etc.)
+    pendingArr.forEach(it => { if (it?.id) byId.set(it.id, it); });
+    out[key] = Array.from(byId.values());
   });
   return out;
 }

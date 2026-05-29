@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { calcProject, isOverdue } from '../utils/calc.js';
-import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES } from '../constants/index.js';
+import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES, isInactiveStage, canSeeSurface } from '../constants/index.js';
 import { PlusI, LogOutI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card, DonutChart } from '../components/primitives/index.js';
@@ -43,7 +43,50 @@ const L=({children})=><div style={{fontSize:10,fontWeight:600,fontFamily:T.mono,
 const Big=({children,color=T.cream,size=42})=><div className="num" style={{fontSize:size,fontWeight:700,fontFamily:T.mono,letterSpacing:"-0.04em",color,lineHeight:1}}>{children}</div>;
 const Sub=({children})=><div style={{fontSize:11,color:T.dim,marginTop:6}}>{children}</div>;
 
-function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOpenBooks,onOpenActivity,onOpenHelp,user,onLogout,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
+// Shared menu styles for the consolidated header dropdowns.
+const menuPanelStyle = {
+  position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+  minWidth: 220, padding: 6, borderRadius: 10,
+  background: T.paper, border: `1px solid ${T.faintRule}`,
+  boxShadow: '0 16px 48px rgba(15,82,186,.18)',
+  display: 'flex', flexDirection: 'column', gap: 2,
+};
+const menuItemStyle = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  padding: '8px 12px', borderRadius: 6, background: 'transparent',
+  border: 'none', cursor: 'pointer', textAlign: 'left',
+  fontSize: 12, fontWeight: 600, color: T.ink, fontFamily: T.sans,
+};
+const menuDividerStyle = { height: 1, background: T.faintRule, margin: '4px 6px' };
+
+function HeaderMenu({ open, onClose, children }) {
+  // Close on outside click + Escape. Bound only while open so we
+  // don't leak global listeners.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onDoc = (e) => { if (!e.target.closest('[data-headermenu]')) onClose(); };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDoc);
+    return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onDoc); };
+  }, [open, onClose]);
+  if (!open) return null;
+  return <div data-headermenu style={menuPanelStyle}>{children}</div>;
+}
+
+function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOpenOneOnOnes,onOpenBooks,onOpenActivity,onOpenPipeline,onOpenHelp,onOpenSettings,user,onLogout,accessToken,profiles=[],organizations=[],currentOrgId,switchOrg,toggleTheme,themeMode}){
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  // Workspaces, filtered by per-user surface permissions. 1-1s is
+  // always shown for now (not gated by any surface flag).
+  const workspaceItems = [
+    onOpenContacts && canSeeSurface(user,'crm') && { label: 'Early Spring CRM', onClick: onOpenContacts },
+    onOpenPipeline && canSeeSurface(user,'pipeline') && { label: 'Pipeline', onClick: onOpenPipeline },
+    onOpenMeetings && canSeeSurface(user,'meetings') && { label: 'Meetings Library', onClick: onOpenMeetings },
+    onOpenBooks && canSeeSurface(user,'books') && { label: 'Books', onClick: onOpenBooks },
+    onOpenOneOnOnes && { label: '1-1s', onClick: onOpenOneOnOnes },
+    onOpenActivity && canSeeSurface(user,'activity') && { label: 'Activity', onClick: onOpenActivity },
+  ].filter(Boolean);
   // Note: onDelete/onDuplicate/onUpdateStage are reachable from the open
   // ProjectView, not from this dashboard. Kept off the API surface here
   // so we don't accumulate prop drift.
@@ -58,7 +101,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
   // Financial totals exclude archived projects so the dashboard reflects active business
   const {allComps,activeComps,totalRevenue,totalCost,totalProfit,blendedMargin,totalProdCost,totalAgencyFee,totalProdMargin,totalAgencyMargin,totalOwed,allOverdue,allUpcoming,activeProjects:activeProjectCount}=useMemo(()=>{
     const allComps=projects.map(p=>({p,c:calcProject(p)}));
-    const activeComps=allComps.filter(({p})=>(p.stage||"pitching")!=="archived");
+    const activeComps=allComps.filter(({p})=>!isInactiveStage(p.stage||"pitching"));
     const totalRevenue=activeComps.reduce((a,{c})=>a+c.grandTotal,0);
     const totalCost=activeComps.reduce((a,{c})=>a+c.productionSubtotal.actualCost+c.agencyCostsSubtotal.actualCost+c.agencyFee.actualCost,0);
     const totalProfit=activeComps.reduce((a,{c})=>a+c.netProfit,0);
@@ -78,7 +121,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
   // Tasks across active projects (archived excluded so rollups reflect current work)
   const allTasks=useMemo(()=>{
     const tasks=[];
-    projects.forEach(p=>{if((p.stage||"pitching")==="archived")return;(p.timeline||[]).forEach(t=>tasks.push({...t,projectName:p.name,projectId:p.id}))});
+    projects.forEach(p=>{if(isInactiveStage(p.stage||"pitching"))return;(p.timeline||[]).forEach(t=>tasks.push({...t,projectName:p.name,projectId:p.id}))});
     return tasks;
   },[projects]);
   const tasksDone=allTasks.filter(t=>t.status==="done").length;
@@ -114,7 +157,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
   // Spend by category — active projects only
   const spendData=useMemo(()=>{
     const catMap=new Map();
-    projects.forEach(p=>{if((p.stage||"pitching")==="archived")return;(p.cats||[]).forEach(cat=>{const existing=catMap.get(cat.name)||0;const catCost=(cat.items||[]).reduce((a,it)=>a+(it.excluded?0:(it.actualCost||0)),0);catMap.set(cat.name,existing+catCost)})});
+    projects.forEach(p=>{if(isInactiveStage(p.stage||"pitching"))return;(p.cats||[]).forEach(cat=>{const existing=catMap.get(cat.name)||0;const catCost=(cat.items||[]).reduce((a,it)=>a+(it.excluded?0:(it.actualCost||0)),0);catMap.set(cat.name,existing+catCost)})});
     return[...catMap.entries()].map(([name,value])=>({name,value})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
   },[projects]);
 
@@ -145,16 +188,61 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
           {profiles.length>1&&<OrgSwitcher organizations={organizations} profiles={profiles} currentOrgId={currentOrgId} switchOrg={switchOrg}/>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          {onOpenContacts&&<button onClick={onOpenContacts} style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.ink,cursor:"pointer",transition:"all .18s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.background=T.inkSoft}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.background="transparent"}}>Early Spring CRM</button>}
-          {onOpenBooks&&<button onClick={onOpenBooks} style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.ink,cursor:"pointer",transition:"all .18s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.background=T.inkSoft}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.background="transparent"}}>Books</button>}
-          {onOpenActivity&&(user?.role==='admin'||user?.role==='ep'||user?.role==='producer')&&<button onClick={onOpenActivity} style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.ink,cursor:"pointer",transition:"all .18s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.background=T.inkSoft}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.background="transparent"}}>Activity</button>}
-          {onOpenHelp&&<button onClick={onOpenHelp} title="Open the Morgan user guide" style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.fadedInk,cursor:"pointer",transition:"all .18s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.color=T.ink}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}>? Help</button>}
-          {canCreate&&<button className="portfolio-new-btn btn-pill" onClick={onNew} style={{padding:"7px 14px",fontSize:12}}><PlusI size={11} color="currentColor"/> New Project</button>}
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:26,height:26,borderRadius:"50%",background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:T.ink,flexShrink:0}}>{(user.name||user.email||"?")[0]}</div>
-            <span style={{fontSize:11,color:T.fadedInk,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{user.name||user.email||""}</span>
-            {toggleTheme&&<button onClick={toggleTheme} title={themeMode==="dark"?"Switch to light":"Switch to dark"} style={{display:"flex",alignItems:"center",justifyContent:"center",background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,cursor:"pointer",padding:"5px 10px",flexShrink:0,fontSize:13,color:T.fadedInk,fontFamily:T.sans,transition:"all .18s ease",lineHeight:1}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.color=T.ink}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}>{themeMode==="dark"?"☼":"☾"}</button>}
-            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:4,background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,cursor:"pointer",padding:"5px 12px",flexShrink:0,fontSize:10,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:T.fadedInk,fontFamily:T.sans,transition:"all .18s ease"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.alert;e.currentTarget.style.color=T.alert}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}><LogOutI size={11} color="currentColor"/>Sign Out</button>
+          {/* Workspaces dropdown — collapses CRM/Pipeline/Meetings/Books/1-1s/Activity into one menu */}
+          {workspaceItems.length > 0 && (
+            <div data-headermenu style={{ position: 'relative' }}>
+              <button onClick={() => { setWorkspaceMenuOpen(o => !o); setAccountMenuOpen(false); }}
+                style={{padding:"7px 14px",fontSize:12,fontWeight:600,fontFamily:T.sans,background:workspaceMenuOpen?T.inkSoft:"transparent",border:`1px solid ${workspaceMenuOpen?T.ink:T.faintRule}`,borderRadius:999,color:T.ink,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>
+                Workspaces <span style={{ fontSize: 9 }}>▾</span>
+              </button>
+              <HeaderMenu open={workspaceMenuOpen} onClose={() => setWorkspaceMenuOpen(false)}>
+                {workspaceItems.map((it) => (
+                  <button key={it.label} onClick={() => { setWorkspaceMenuOpen(false); it.onClick(); }} style={menuItemStyle}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = T.inkSoft)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                    {it.label}
+                  </button>
+                ))}
+              </HeaderMenu>
+            </div>
+          )}
+          {/* Primary action */}
+          {canCreate && <button className="portfolio-new-btn btn-pill" onClick={onNew} style={{padding:"7px 14px",fontSize:12}}><PlusI size={11} color="currentColor"/> New Project</button>}
+          {/* Account menu — avatar opens settings, help, theme, sign out */}
+          <div data-headermenu style={{ position: 'relative' }}>
+            <button onClick={() => { setAccountMenuOpen(o => !o); setWorkspaceMenuOpen(false); }} title={user.name || user.email || ''}
+              style={{display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px 3px 3px",background:accountMenuOpen?T.inkSoft:"transparent",border:`1px solid ${accountMenuOpen?T.ink:T.faintRule}`,borderRadius:999,cursor:"pointer"}}>
+              <div style={{width:26,height:26,borderRadius:"50%",background:T.inkSoft,border:`1px solid ${T.faintRule}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:T.ink}}>{(user.name||user.email||"?")[0]}</div>
+              <span style={{ fontSize: 9, color: T.fadedInk }}>▾</span>
+            </button>
+            <HeaderMenu open={accountMenuOpen} onClose={() => setAccountMenuOpen(false)}>
+              <div style={{ padding: '8px 12px 10px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.ink }}>{user.name || user.email || ''}</div>
+                {user.email && user.name && <div style={{ fontSize: 10, color: T.fadedInk, marginTop: 2 }}>{user.email}</div>}
+              </div>
+              <div style={menuDividerStyle} />
+              {onOpenSettings && (
+                <button onClick={() => { setAccountMenuOpen(false); onOpenSettings(); }} style={menuItemStyle}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = T.inkSoft)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>Settings</button>
+              )}
+              {onOpenHelp && (
+                <button onClick={() => { setAccountMenuOpen(false); onOpenHelp(); }} style={menuItemStyle}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = T.inkSoft)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>Help</button>
+              )}
+              {toggleTheme && (
+                <button onClick={() => { toggleTheme(); }} style={menuItemStyle}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = T.inkSoft)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                  <span>{themeMode === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+                  <span style={{ fontSize: 14 }}>{themeMode === 'dark' ? '☼' : '☾'}</span>
+                </button>
+              )}
+              <div style={menuDividerStyle} />
+              <button onClick={() => { setAccountMenuOpen(false); onLogout(); }} style={{ ...menuItemStyle, color: T.alert }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(197,48,48,0.06)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                <span>Sign out</span>
+                <LogOutI size={11} color="currentColor"/>
+              </button>
+            </HeaderMenu>
           </div>
         </div>
       </div>
@@ -204,8 +292,8 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
           {projects.length===0?<div style={{textAlign:"center",padding:"40px 20px",color:T.dim,fontSize:13}}>No projects yet. Create one to get started.</div>
           :(()=>{
             const sorted=[...projects].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-            const active=sorted.filter(p=>(p.stage||"pitching")!=="archived");
-            const archived=sorted.filter(p=>(p.stage||"pitching")==="archived");
+            const active=sorted.filter(p=>!isInactiveStage(p.stage||"pitching"));
+            const archived=sorted.filter(p=>isInactiveStage(p.stage||"pitching"));
             const renderCard=(p,pi)=>{
               const comp=calcProject(p);
               const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;
@@ -214,7 +302,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
               const tp=tt>0?Math.round(td/tt*100):0;
               const[cardBg,cardBorder,cardAccent]=cardColors[pi%cardColors.length];
               const stage=p.stage||"pitching";
-              return<Card key={p.id} hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:stage==="archived"?.6:1,background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
+              return<Card key={p.id} hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:isInactiveStage(stage)?.55:1,background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
                 <div style={{padding:"18px 20px 14px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
                     <div style={{flex:1,minWidth:0}}>
@@ -243,10 +331,10 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
               :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
                 {active.map((p,pi)=>renderCard(p,pi))}
               </div>}
-              {archived.length>0&&<div style={{marginTop:active.length>0?16:0,paddingTop:active.length>0?14:0,borderTop:active.length>0?`1px solid ${T.border}`:"none"}}>
+              {archived.length>0&&<div data-portfolio-archived style={{marginTop:active.length>0?16:0,paddingTop:active.length>0?14:0,borderTop:active.length>0?`1px solid ${T.border}`:"none",scrollMarginTop:80}}>
                 <button onClick={()=>setShowArchived(!showArchived)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:T.sans,color:T.dim,fontSize:10,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",marginBottom:showArchived?12:0,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
                   <span style={{display:"inline-block",transform:showArchived?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",fontSize:9}}>&#9656;</span>
-                  {archived.length} archived
+                  {archived.length} archived &amp; lost
                 </button>
                 {showArchived&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
                   {archived.map((p,pi)=>renderCard(p,active.length+pi))}
@@ -384,6 +472,27 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
           </div>)}
         </Card>}
       </div>
+
+      {/* Bottom strip — quick link to archived/lost projects so they're
+          always reachable without scrolling back up to the Projects card. */}
+      {(()=>{
+        const inactive=projects.filter(p=>isInactiveStage(p.stage||"pitching"));
+        if(!inactive.length)return null;
+        return<div style={{marginTop:32,paddingTop:18,borderTop:`1px solid ${T.faintRule}`,display:"flex",justifyContent:"center"}}>
+          <button onClick={()=>{
+            setShowArchived(true);
+            // Scroll the Projects card's archived section into view.
+            setTimeout(()=>{
+              const el=document.querySelector('[data-portfolio-archived]');
+              if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+            },50);
+          }} style={{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",background:"transparent",border:`1px solid ${T.faintRule}`,borderRadius:999,color:T.fadedInk,fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",cursor:"pointer",fontFamily:T.sans,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.ink;e.currentTarget.style.color=T.ink}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.faintRule;e.currentTarget.style.color=T.fadedInk}}>
+            View archived projects
+            <span style={{fontSize:10,opacity:.7}}>({inactive.length})</span>
+            <span style={{fontSize:12,opacity:.6}}>↓</span>
+          </button>
+        </div>;
+      })()}
     </div>
 
     {vendorDetailId&&vendorProjectId&&(()=>{
