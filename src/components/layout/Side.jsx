@@ -16,7 +16,7 @@ function OrgAvatar({org,size=20}){
 // role), restrict to budget, vendors, P&L, and contract (read-only
 // elsewhere).
 const ROLE_ALLOWED_VIEWS={
-  finance:    new Set(['dashboard','budget','vendors','pnl','contract','time']),
+  finance:    new Set(['dashboard','budget','vendors','pnl','contract','time','reporting']),
   accounts:   new Set(['dashboard','budget','vendors','pnl','time']),
   creative:   new Set(['dashboard','creative','timeline','meetings','ai','time']),
   production: new Set(['dashboard','timeline','vendors','ros','meetings','time']),
