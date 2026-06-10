@@ -513,6 +513,49 @@ function MembersSection({ user, orgId, organizations, accessToken, requestCalend
             alert(`New password: ${out.password}\n\nCopied to clipboard.`);
           }
         };
+
+        // Reset the member's password AND email them fresh, branded login
+        // details via the admin's connected Gmail — the same email the
+        // original invite sends. Use this when someone never received (or
+        // lost) their credentials. Falls back to clipboard if Google isn't
+        // connected or the send fails, so the admin can always share manually.
+        const onResendLogin = async (m) => {
+          const loginUrl = `https://morgan.earlyspring.nyc${m.role === 'client' ? '/client' : ''}`;
+          if (!confirm(`Reset ${m.name || m.email}'s password and email them fresh login details? Their current password will stop working.`)) return;
+          const out = await callAdmin('reset_password', m.user_id);
+          if (!out?.password) return; // callAdmin already surfaced the error
+          const creds = `Login: ${loginUrl}\nEmail: ${m.email}\nPassword: ${out.password}`;
+
+          // Resolve a Google token the same way the invite flow does.
+          let token = accessToken;
+          if (!token) { try { token = localStorage.getItem('es_google_token'); } catch (e) {} }
+          if (!token && requestCalendarAccess) { try { token = await requestCalendarAccess(); } catch (e) {} }
+          if (!token) {
+            navigator.clipboard?.writeText(creds);
+            alert(`Password reset to: ${out.password}\n\nCouldn't email it — sign into Google to send automatically. Credentials copied to clipboard so you can share them manually.`);
+            return;
+          }
+          try {
+            const { sendEmail } = await import('../utils/google.js');
+            const { teamInviteEmailHtml } = await import('../utils/emailTemplates.js');
+            const html = teamInviteEmailHtml({
+              orgName,
+              recipientName: m.name || m.email.split('@')[0],
+              roleLabel: ROLE_LABELS[m.role] || m.role,
+              email: m.email,
+              password: out.password,
+              loginUrl,
+              projectList: [],
+              inviterName: user?.name || '',
+              message: '',
+            });
+            await sendEmail(token, m.email, `Your ${orgName} access — Morgan login`, html);
+            alert(`Sent fresh login details to ${m.email}.`);
+          } catch (e) {
+            navigator.clipboard?.writeText(creds);
+            alert(`Password reset to: ${out.password}\n\nEmail failed (${e.message || 'send error'}). Credentials copied to clipboard so you can share them manually.`);
+          }
+        };
         const onRevoke = async (m) => {
           if (!confirm(`Permanently revoke ${m.name || m.email}? Their account, profile, and all access will be removed. This cannot be undone.`)) return;
           const out = await callAdmin('revoke', m.user_id);
@@ -573,6 +616,7 @@ function MembersSection({ user, orgId, organizations, accessToken, requestCalend
                         {!isMe && (
                           <>
                             <button onClick={() => onView(m)} style={{ padding: '5px 12px', background: T.goldSoft, color: T.gold, border: `1px solid ${T.gold}55`, borderRadius: T.rS, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>View as</button>
+                            <button onClick={() => onResendLogin(m)} disabled={adminBusy} title="Reset their password and email them fresh login details" style={{ padding: '5px 12px', background: T.inkSoft2, color: T.ink, border: `1px solid ${T.ink}55`, borderRadius: T.rS, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>Resend login</button>
                             <button onClick={() => onResetPassword(m)} disabled={adminBusy} style={{ padding: '5px 12px', background: 'transparent', color: T.dim, border: `1px solid ${T.border}`, borderRadius: T.rS, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>Reset PW</button>
                             <button onClick={() => onRevoke(m)} disabled={adminBusy} style={{ padding: '5px 12px', background: 'transparent', color: T.neg, border: `1px solid ${T.neg}`, borderRadius: T.rS, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>Revoke</button>
                           </>
