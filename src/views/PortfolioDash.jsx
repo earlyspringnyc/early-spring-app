@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { calcProject, isOverdue } from '../utils/calc.js';
-import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES, isInactiveStage, canSeeSurface } from '../constants/index.js';
+import { PROJECT_STAGES, STAGE_LABELS, STAGE_COLORS, VENDOR_TYPE_LABELS, VENDOR_TYPE_COLORS, VENDOR_TYPES, isInactiveStage, canSeeSurface, canDo } from '../constants/index.js';
 import { PlusI, LogOutI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card, DonutChart } from '../components/primitives/index.js';
@@ -91,6 +91,10 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
   // ProjectView, not from this dashboard. Kept off the API surface here
   // so we don't accumulate prop drift.
   const canCreate=user.role!=="client";
+  // Roles without view_financials (creative, production, agent, viewer)
+  // see the portfolio without any money — KPIs, charts, per-project
+  // revenue/profit, invoice amounts are all hidden.
+  const canSeeFin=canDo(user,'view_financials');
   const[vendorDetailId,setVendorDetailId]=useState(null);
   const[vendorProjectId,setVendorProjectId]=useState(null);
   const[showArchived,setShowArchived]=useState(false);
@@ -259,6 +263,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
       <div className="portfolio-bento" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
 
         {/* Row 1: Key financial metrics */}
+        {canSeeFin&&<>
         <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
           <L>Total Revenue</L>
           <Big color={T.gold}>{f0(totalRevenue)}</Big>
@@ -274,9 +279,10 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
           <Big color={T.cream} size={36}>{f0(totalCost)}</Big>
           <Sub>Prod + agency</Sub>
         </Card>
+        </>}
 
         {/* Row 2: Overdue alerts (full width, only if overdue) */}
-        {allOverdue.length>0&&<Card style={{padding:18,gridColumn:"span 4",background:T.alertSoft,borderColor:T.alert,borderLeft:`2px solid ${T.alert}`}}>
+        {canSeeFin&&allOverdue.length>0&&<Card style={{padding:18,gridColumn:"span 4",background:T.alertSoft,borderColor:T.alert,borderLeft:`2px solid ${T.alert}`}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:10,fontWeight:700,color:T.alert,textTransform:"uppercase",letterSpacing:".10em"}}>Overdue Invoices</span><Pill color={T.alert} size="xs">{allOverdue.length}</Pill></div>
           {allOverdue.slice(0,5).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="rgba(122,31,31,.06)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <span style={{color:T.cream,flex:1,fontWeight:600}}>{d.name}</span><Pill color={T.fadedInk} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.fadedInk,fontFamily:T.mono}}>Due: {d.dueDate}</span><span className="num" style={{fontFamily:T.mono,fontWeight:600,color:T.alert}}>{f$(d.amount)}</span>
@@ -315,10 +321,10 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
                       {ov>0&&<Pill color={T.neg} size="xs">{ov} overdue</Pill>}
                     </div>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  {canSeeFin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                     <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Revenue</div><div className="num" style={{fontSize:18,fontWeight:700,color:T.gold,fontFamily:T.mono}}>{f0(comp.grandTotal)}</div></div>
                     <div><div style={{fontSize:9,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Profit</div><div className="num" style={{fontSize:18,fontWeight:700,color:comp.netProfit>0?T.pos:T.dim,fontFamily:T.mono}}>{f0(comp.netProfit)}</div></div>
-                  </div>
+                  </div>}
                   {tt>0&&<div style={{marginTop:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{td}/{tt} tasks</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{tp}%</span></div>
                     <div style={{height:3,background:T.faintRule,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${tp}%`,background:cardAccent,borderRadius:2,transition:"width .4s cubic-bezier(.2,.8,.2,1)"}}/></div>
@@ -372,18 +378,18 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
           </div>}
         </Card>
 
-        <Card style={{padding:24}} hoverable>
+        {canSeeFin&&<Card style={{padding:24}} hoverable>
           <L>Production Cost</L>
           <Big size={28} color={T.cream}>{f0(totalProdCost)}</Big>
-        </Card>
-        <Card style={{padding:24}} hoverable>
+        </Card>}
+        {canSeeFin&&<Card style={{padding:24}} hoverable>
           <L>Owed to Vendors</L>
           <Big size={28} color={totalOwed>0?T.neg:T.dim}>{f0(totalOwed)}</Big>
           {allOverdue.length>0&&<div style={{marginTop:6}}><Pill color={T.neg} size="xs">{allOverdue.length} overdue</Pill></div>}
-        </Card>
+        </Card>}
 
         {/* Row 5: Charts */}
-        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+        {canSeeFin&&<Card style={{padding:24,gridColumn:"span 2"}} hoverable>
           <L>Revenue by Project</L>
           {barData.length>0?<BarChart data={barData} height={180}/>
           :<div style={{height:180,display:"flex",alignItems:"center",justifyContent:"center",color:T.dim,fontSize:12}}>No project data</div>}
@@ -391,8 +397,8 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
             <span style={{fontSize:10,color:T.dim,display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:2,background:T.dim,display:"inline-block"}}/> Cost</span>
             <span style={{fontSize:10,color:T.dim,display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:2,background:T.gold,display:"inline-block"}}/> Client Total</span>
           </div>
-        </Card>
-        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+        </Card>}
+        {canSeeFin&&<Card style={{padding:24,gridColumn:"span 2"}} hoverable>
           <L>Profit Composition</L>
           <div style={{display:"flex",alignItems:"center",gap:20}}>
             <DonutChart data={profitData} size={120} thickness={16}/>
@@ -410,7 +416,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
               </div>
             </div>
           </div>
-        </Card>
+        </Card>}
 
         {/* Row 6: Vendors + Pipeline */}
         <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
@@ -439,7 +445,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
             </div>)}
           </div>}
         </Card>
-        <Card style={{padding:24,gridColumn:"span 2"}} hoverable>
+        {canSeeFin&&<Card style={{padding:24,gridColumn:"span 2"}} hoverable>
           <L>Pipeline by Stage</L>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {stageData.map(d=>{const pct=totalRevenue>0?(d.value/totalRevenue)*100:0;return<div key={d.name}>
@@ -462,10 +468,10 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
               <span className="num" style={{fontSize:11,fontFamily:T.mono,color:T.cream}}>{f0(d.value)}</span>
             </div>)}
           </div>}
-        </Card>
+        </Card>}
 
-        {/* Upcoming due dates */}
-        {allUpcoming.length>0&&<Card style={{padding:18,gridColumn:"span 4"}}>
+        {/* Upcoming due dates (invoices — financial) */}
+        {canSeeFin&&allUpcoming.length>0&&<Card style={{padding:18,gridColumn:"span 4"}}>
           <div style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Upcoming Due Dates</div>
           {allUpcoming.slice(0,6).map(d=><div key={d.id} onClick={()=>onOpen(d.projectId)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",marginBottom:2,borderRadius:T.rS,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <span style={{color:T.cream,flex:1,fontWeight:600}}>{d.name}</span><Pill color={T.dim} size="xs">{d.projectName}</Pill><span style={{fontSize:10,color:T.gold,fontFamily:T.mono}}>{d.dueDate}</span><span className="num" style={{fontFamily:T.mono,color:T.dim}}>{f$(d.amount)}</span>

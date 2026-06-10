@@ -7,6 +7,12 @@ import { listContactsForProject, listContacts, linkContactToProject, unlinkConta
 import { listMeetingsForProject } from '../lib/meetings.js';
 import { normalizeCompany } from '../utils/companyDedup.js';
 import { restFetch } from '../lib/db.js';
+import { canDo } from '../constants/index.js';
+
+// Cards that expose money — budget totals, margins, P&L figures,
+// invoice amounts. Hidden from roles without view_financials (creative,
+// production, agents, viewers). See ROLE_CAPABILITIES in constants.
+const FINANCIAL_CARDS = new Set(['budget','spend','owed','client','prod','margin','blended','profit','donut','comp','cashflow','agencyfee','recenttxns','vendors']);
 
 // Batch-fetch meetings linked to any of a list of contact IDs in
 // one round-trip. Replaces the N+1 listMeetingsForContact loop.
@@ -75,6 +81,9 @@ const Slash=({children})=><span style={{fontSize:14,fontWeight:400,color:T.dim,f
 const Pill=({children,color=T.gold,bg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,background:bg||`${color}18`,color,textTransform:"uppercase",letterSpacing:".04em",whiteSpace:"nowrap"}}>{children}</span>;
 
 function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requestCalendarAccess,user}){
+  // Roles without view_financials (creative, production, agent, viewer)
+  // never see money — financial cards or invoice amounts in the alerts.
+  const canSeeFin=canDo(user,'view_financials');
   const docs=project?.docs||[];const tasks=project?.timeline||[];
   const overdueDocs=docs.filter(d=>(d.status==="overdue"||(d.status==="pending"&&isOverdue(d)))&&d.type==="invoice");
   const upcomingDocs=docs.filter(d=>{if(d.status==="paid"||!d.dueDate)return false;const p=d.dueDate.split("/");if(p.length!==3)return false;const due=new Date(p[2],p[0]-1,p[1]);const now=new Date();const diff=daysBetween(now,due);return diff>=0&&diff<=14&&d.status!=="paid"}).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));
@@ -97,20 +106,26 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
   const tasksDone=tasks.filter(t=>t.status==="done").length;
   const budgetPct=totalBudget>0?Math.round((spendToDate/totalBudget)*100):0;
   const overBudget=comp.grandTotal>totalBudget&&totalBudget>0;
-  const hasAlerts=overdueDocs.length>0||unpaidInvoices.length>0||allUpcoming.length>0||overdueTasks.length>0;
+  // Non-financial roles: hide invoice alerts entirely and drop invoice
+  // rows (with their amounts) from upcoming deadlines — tasks only.
+  const showInvoiceAlerts=canSeeFin&&(overdueDocs.length>0||unpaidInvoices.length>0);
+  const visibleUpcoming=canSeeFin?allUpcoming:allUpcoming.filter(d=>d._isTask);
+  const hasAlerts=showInvoiceAlerts||visibleUpcoming.length>0||overdueTasks.length>0;
 
   /* ── Layout state ── */
   // initOrder: use saved layout if present, but also append any
   // cards from DEFAULT_ORDER that aren't in the saved layout —
   // otherwise newly-added cards (like clientteam, meetingnotes)
   // never appear on projects with an older saved layout.
+  // Strip money cards from the saved layout for users who can't see them.
+  const stripFin=useCallback((arr)=>canSeeFin?arr:arr.filter(k=>!FINANCIAL_CARDS.has(k)),[canSeeFin]);
   const initOrder=()=>{
     const saved=project?.dashLayout;
     if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){
       const missing=DEFAULT_ORDER.filter(k=>!saved.includes(k)&&ALL_CARDS[k]);
-      return [...saved, ...missing];
+      return stripFin([...saved, ...missing]);
     }
-    return DEFAULT_ORDER;
+    return stripFin(DEFAULT_ORDER);
   };
   const[order,setOrder]=useState(initOrder);
   const[editing,setEditing]=useState(false);
@@ -300,9 +315,12 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
     geocodeAndFetch();
   },[order,weather,weatherLoading,project?.vendors,project?.eventCity]);
 
-  useEffect(()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){const missing=DEFAULT_ORDER.filter(k=>!saved.includes(k)&&ALL_CARDS[k]);setOrder([...saved,...missing])}},[project?.dashLayout]);
+  useEffect(()=>{const saved=project?.dashLayout;if(saved&&Array.isArray(saved)&&saved.length>0&&saved.every(k=>ALL_CARDS[k])){const missing=DEFAULT_ORDER.filter(k=>!saved.includes(k)&&ALL_CARDS[k]);setOrder(stripFin([...saved,...missing]))}},[project?.dashLayout,stripFin]);
 
-  const saveOrder=useCallback(next=>{setOrder(next);if(updateProject)updateProject({dashLayout:next})},[updateProject]);
+  // dashLayout is shared across everyone on the project. Users who can't
+  // see financial cards work from a stripped copy — never persist theirs,
+  // or it would wipe the money cards for producers too.
+  const saveOrder=useCallback(next=>{setOrder(next);if(updateProject&&canSeeFin)updateProject({dashLayout:next})},[updateProject,canSeeFin]);
 
   const removeCard=useCallback((cardKey)=>{const next=order.filter(k=>k!==cardKey);saveOrder(next)},[order,saveOrder]);
   const addCard=useCallback((cardKey)=>{if(order.includes(cardKey))return;const next=[...order,cardKey];saveOrder(next);setShowAddMenu(false)},[order,saveOrder]);
@@ -690,7 +708,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
   const cardBorderStyle={budget:{borderColor:T.borderGlow},spend:{borderLeft:overBudget?`3px solid ${T.neg}`:`3px solid ${T.pos}`}};
   const cardPadding={donut:"28px 32px",comp:"28px 32px"};
 
-  const hiddenCards=Object.keys(ALL_CARDS).filter(k=>!order.includes(k));
+  const hiddenCards=Object.keys(ALL_CARDS).filter(k=>!order.includes(k)&&(canSeeFin||!FINANCIAL_CARDS.has(k)));
 
   /* ── Compute the alerts row position ── */
   const alertsRow=useMemo(()=>{
@@ -753,7 +771,7 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
       {/* ── Alerts row (fixed) ── */}
       {hasAlerts?
       <div style={{gridColumn:"1/-1",gridRow:alertsRow,display:"flex",flexDirection:"column",gap:10}}>
-        {(overdueDocs.length>0||unpaidInvoices.length>0)&&<div onClick={()=>onNavigate&&onNavigate("pnl")} style={{background:overdueDocs.length>0?"rgba(122,31,31,.06)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(122,31,31,.18)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
+        {showInvoiceAlerts&&<div onClick={()=>onNavigate&&onNavigate("pnl")} style={{background:overdueDocs.length>0?"rgba(122,31,31,.06)":"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid ${overdueDocs.length>0?"rgba(122,31,31,.18)":"rgba(148,163,184,.08)"}`,padding:"18px 22px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:overdueDocs.length>0?T.neg:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>{overdueDocs.length>0?"Invoice Alerts":"Unpaid Invoices"}</span><Pill color={overdueDocs.length>0?T.neg:T.gold}>{overdueDocs.length+unpaidInvoices.length}</Pill></div>
           {overdueDocs.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(122,31,31,.06)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Overdue</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{d.name}</span>{d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}<span style={{fontSize:10,color:T.dim}}>{getVendorName(d.vendorId,project?.vendors)}</span></div>
@@ -764,13 +782,13 @@ function DashV({cats,comp,feeP,project,onNavigate,updateProject,accessToken,requ
             <div style={{display:"flex",gap:10,alignItems:"center"}}>{d.dueDate&&<span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d.dueDate}</span>}<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount-(d.paidAmount||0))}</span></div>
           </div>)}
         </div>}
-        {(allUpcoming.length>0||overdueTasks.length>0)&&<div onClick={()=>onNavigate&&onNavigate("timeline")} style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px",cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>Upcoming Deadlines</span><Pill color={T.gold}>{overdueTasks.length+allUpcoming.length}</Pill></div>
+        {(visibleUpcoming.length>0||overdueTasks.length>0)&&<div onClick={()=>onNavigate&&onNavigate("timeline")} style={{background:"rgba(148,163,184,.03)",borderRadius:T.r,border:`1px solid rgba(148,163,184,.08)`,padding:"18px 22px",cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,fontWeight:700,color:T.gold,fontFamily:T.mono,textTransform:"uppercase",letterSpacing:".08em"}}>Upcoming Deadlines</span><Pill color={T.gold}>{overdueTasks.length+visibleUpcoming.length}</Pill></div>
           {overdueTasks.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS,background:"rgba(122,31,31,.06)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={T.neg}>Late</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{t.name}</span></div>
             <span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {t.endDate}</span>
           </div>)}
-          {allUpcoming.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
+          {visibleUpcoming.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",marginBottom:4,borderRadius:T.rS}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Pill color={d._isTask?T.cyan:T.gold}>{d._isTask?"Task":"Invoice"}</Pill><span style={{fontSize:12,color:T.cream,fontWeight:600}}>{d.name}</span>{!d._isTask&&d.invoiceKind&&<Pill color={INVOICE_KIND_COLORS[d.invoiceKind]}>{INVOICE_KIND_LABELS[d.invoiceKind]}</Pill>}</div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:11,color:T.dim,fontFamily:T.mono}}>Due: {d._isTask?d.endDate:d.dueDate}</span>{!d._isTask&&<span className="num" style={{fontSize:13,fontFamily:T.mono,fontWeight:600,color:T.gold}}>{f$(d.amount)}</span>}</div>
           </div>)}

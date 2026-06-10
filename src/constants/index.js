@@ -171,18 +171,22 @@ export function canSeeSurface(profile, surface) {
 // create_project  — create new projects
 // manage_team     — invite teammates, manage permissions
 // invite_client   — provision client portal accounts
+// view_financials — see budget totals, margins, P&L, invoice amounts
+//                   (dashboard money tiles + finance views). Restricted
+//                   to leadership, producers, and finance roles —
+//                   creatives / production / agents must not see numbers.
 // ─────────────────────────────────────────────────────────────────────
 const ROLE_CAPABILITIES = {
-  admin:     { send_email: true,  create_meeting: true,  create_project: true,  manage_team: true,  invite_client: true  },
-  ep:        { send_email: true,  create_meeting: true,  create_project: true,  manage_team: true,  invite_client: true  },
-  producer:  { send_email: true,  create_meeting: true,  create_project: true,  manage_team: false, invite_client: true  },
-  agent:     { send_email: false, create_meeting: false, create_project: false, manage_team: false, invite_client: false },
-  creative:  { send_email: true,  create_meeting: true,  create_project: false, manage_team: false, invite_client: false },
-  finance:   { send_email: true,  create_meeting: false, create_project: false, manage_team: false, invite_client: false },
-  accounts:  { send_email: true,  create_meeting: false, create_project: false, manage_team: false, invite_client: false },
-  production:{ send_email: true,  create_meeting: true,  create_project: false, manage_team: false, invite_client: false },
-  viewer:    { send_email: false, create_meeting: false, create_project: false, manage_team: false, invite_client: false },
-  client:    { send_email: false, create_meeting: false, create_project: false, manage_team: false, invite_client: false },
+  admin:     { send_email: true,  create_meeting: true,  create_project: true,  manage_team: true,  invite_client: true,  view_financials: true  },
+  ep:        { send_email: true,  create_meeting: true,  create_project: true,  manage_team: true,  invite_client: true,  view_financials: true  },
+  producer:  { send_email: true,  create_meeting: true,  create_project: true,  manage_team: false, invite_client: true,  view_financials: true  },
+  agent:     { send_email: false, create_meeting: false, create_project: false, manage_team: false, invite_client: false, view_financials: false },
+  creative:  { send_email: true,  create_meeting: true,  create_project: false, manage_team: false, invite_client: false, view_financials: false },
+  finance:   { send_email: true,  create_meeting: false, create_project: false, manage_team: false, invite_client: false, view_financials: true  },
+  accounts:  { send_email: true,  create_meeting: false, create_project: false, manage_team: false, invite_client: false, view_financials: true  },
+  production:{ send_email: true,  create_meeting: true,  create_project: false, manage_team: false, invite_client: false, view_financials: false },
+  viewer:    { send_email: false, create_meeting: false, create_project: false, manage_team: false, invite_client: false, view_financials: false },
+  client:    { send_email: false, create_meeting: false, create_project: false, manage_team: false, invite_client: false, view_financials: false },
 };
 
 export function canDo(profile, capability) {
