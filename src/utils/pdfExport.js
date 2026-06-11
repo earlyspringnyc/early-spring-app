@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { ci } from './calc.js';
 import { f$ } from './format.js';
 import { buildPhaseColorMap, phaseColor, NEUTRAL as PHASE_NEUTRAL } from './workbackPhases.js';
+import { byCueTime } from './rosTime.js';
 
 // Early Spring brand tokens (RGB triplets — jsPDF colors)
 const INK   = [15, 82, 186];        // Sapphire #0F52BA
@@ -453,6 +454,66 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
     },
     didDrawPage: () => {
       drawBrandHeader(doc, { margin, labTag: `Workback · ${project?.client || 'Internal'}`, lockup });
+      drawFooter(doc, { margin });
+    },
+  });
+
+  doc.save(filename);
+}
+
+// Run of Show — landscape cue sheet. Start · End · Cue · Location · Lead · Notes.
+export async function exportROSPDF(project, entries, opts = {}) {
+  const rows = (Array.isArray(entries) ? entries : []).slice().sort(byCueTime);
+  const filename = opts.filename || `${project?.name || 'run-of-show'}-run-of-show.pdf`;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
+  const margin = 40;
+  const lockup = await getEsLockupPng(96);
+
+  const venueName = project?.rosVenueName || project?.data?.rosVenueName || '';
+  const eventDateStr = project?.eventDate || project?.data?.eventDate || '';
+  drawTitle(doc, {
+    margin,
+    kicker: 'Run of Show',
+    title: project?.name || 'Project',
+    sub: [
+      project?.client,
+      venueName,
+      eventDateStr && `Event · ${fmtFullDate(eventDateStr)}`,
+      `${rows.length} cue${rows.length === 1 ? '' : 's'}`,
+    ].filter(Boolean).join('  ·  '),
+  });
+
+  const body = rows.map((r) => ([
+    { content: r.time || '', styles: { fontStyle: 'bold', textColor: INK, fontSize: 10, valign: 'top' } },
+    { content: r.endTime || '', styles: { textColor: FADED, fontSize: 9, valign: 'top' } },
+    { content: r.item || '', styles: { textColor: INK, fontStyle: 'bold', fontSize: 9, valign: 'top' } },
+    { content: r.location || '', styles: { textColor: FADED, fontSize: 9, valign: 'top' } },
+    { content: r.lead || '', styles: { textColor: INK, fontSize: 9, valign: 'top' } },
+    { content: r.notes || '', styles: { textColor: FADED, fontSize: 9, valign: 'top' } },
+  ]));
+
+  autoTable(doc, {
+    ...baseTable(margin),
+    startY: 174,
+    head: [[
+      { content: 'Start',    styles: { halign: 'left' } },
+      { content: 'End',      styles: { halign: 'left' } },
+      { content: 'Cue',      styles: { halign: 'left' } },
+      { content: 'Location', styles: { halign: 'left' } },
+      { content: 'Lead',     styles: { halign: 'left' } },
+      { content: 'Notes',    styles: { halign: 'left' } },
+    ]],
+    body,
+    columnStyles: {
+      0: { cellWidth: 58 },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 130 },
+      4: { cellWidth: 110 },
+      5: { cellWidth: 200 },
+    },
+    didDrawPage: () => {
+      drawBrandHeader(doc, { margin, labTag: `Run of Show · ${project?.client || 'Internal'}`, lockup });
       drawFooter(doc, { margin });
     },
   });

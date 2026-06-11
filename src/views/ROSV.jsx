@@ -3,6 +3,8 @@ import T from '../theme/tokens.js';
 import { mkROS } from '../data/factories.js';
 import { TrashI } from '../components/icons/index.js';
 import { Card } from '../components/primitives/index.js';
+import { byCueTime } from '../utils/rosTime.js';
+import { toast } from '../lib/toast.js';
 
 function ROSV({project,updateProject,canEdit,accessToken}){
   const entries=project.ros||[];
@@ -16,7 +18,24 @@ function ROSV({project,updateProject,canEdit,accessToken}){
   const[emailMsg,setEmailMsg]=useState("");
   const[editingAddress,setEditingAddress]=useState(false);
 
-  const sorted=[...entries].sort((a,b)=>a.time.localeCompare(b.time));
+  // Chronological — robust to 12h ("8am") and 24h ("08:00") entries so a
+  // late-added early cue doesn't fall to the bottom.
+  const sorted=[...entries].sort(byCueTime);
+
+  const exportPdf=async()=>{
+    try{
+      const{exportROSPDF}=await import('../utils/pdfExport.js');
+      await exportROSPDF(project,entries,{filename:`${(project?.name||'run-of-show')}-run-of-show.pdf`});
+      toast.success('Run of Show PDF downloaded');
+    }catch(e){console.error('[ros] pdf export failed:',e);toast.error(`PDF export failed: ${e.message||e}`);}
+  };
+  const exportPng=async()=>{
+    try{
+      const{exportROSPNG}=await import('../utils/rosPNG.js');
+      await exportROSPNG(project,entries,{filename:`${(project?.name||'run-of-show')}-run-of-show.png`});
+      toast.success('Run of Show PNG downloaded');
+    }catch(e){console.error('[ros] png export failed:',e);toast.error(`PNG export failed: ${e.message||e}`);}
+  };
   const addEntry=()=>{if(!nT||!nI.trim())return;const e=mkROS(nT,nI.trim(),nL,nLd,"",nNo);e.endTime=nET;updateProject({ros:[...entries,e]});setNT("");setNET("");setNI("");setNL("");setNLd("");setNNo("");setShowAdd(false)};
   const removeEntry=id=>updateProject({ros:entries.filter(e=>e.id!==id)});
   const updateEntry=(id,updates)=>updateProject({ros:entries.map(e=>e.id===id?{...e,...updates}:e)});
@@ -141,6 +160,8 @@ function ROSV({project,updateProject,canEdit,accessToken}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
       <div><h1 style={{fontSize:20,fontWeight:600,color:T.cream,letterSpacing:"-0.01em"}}>Run of Show</h1><p style={{fontSize:13,color:T.dim,marginTop:6}}>{entries.length} cues{project.eventDate?` · Event: ${project.eventDate}`:""}</p></div>
       <div style={{display:"flex",gap:8}}>
+        {entries.length>0&&<button onClick={exportPdf} style={{padding:"10px 16px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>↓ PDF</button>}
+        {entries.length>0&&<button onClick={exportPng} style={{padding:"10px 16px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>↓ PNG</button>}
         <button onClick={()=>setShowShare(!showShare)} style={{padding:"10px 18px",background:"transparent",color:showShare?T.cyan:T.dim,border:`1px solid ${showShare?`${T.cyan}40`:T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showShare?"Cancel":"Share"}</button>
         {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":T.ink,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Cue"}</button>}
       </div>
