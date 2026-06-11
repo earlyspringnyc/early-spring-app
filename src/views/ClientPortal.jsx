@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import T from '../theme/tokens.js';
 import { f0 } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
 import { ci, ct, calcProject } from '../utils/calc.js';
+import { buildPhaseColorMap, phaseColor } from '../utils/workbackPhases.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { MorganIsotype } from '../components/brand/MorganLogo.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -1008,6 +1010,10 @@ function ClientPortalDashboard({ user, onSignOut }) {
   const [decisions, setDecisions] = useState({});
   // Per-asset draft comment state so typing doesn't spam the server.
   const [commentDrafts, setCommentDrafts] = useState({});
+  // Carousel modal: which shared section is currently being scrolled
+  // through, and which asset within that section is on screen.
+  const [carouselSectionId, setCarouselSectionId] = useState(null);
+  const [carouselIdx, setCarouselIdx] = useState(0);
   // Fireflies-synced meetings linked to this project. Separate from
   // project.data.meetings (legacy) — RLS gates these to meetings
   // auto-classified as 'client' so internal/vendor meetings stay
@@ -1117,6 +1123,7 @@ function ClientPortalDashboard({ user, onSignOut }) {
   const creativeAssets = pickArr('creativeAssets');
   const clientFiles = pickArr('clientFiles');
   const meetings = pickArr('meetings');
+  const workback = pickArr('workbackSchedule');
   const eventDate = pickField('eventDate');
   const feeP = Number(pickField('feeP')) || 0;
 
@@ -1179,12 +1186,60 @@ function ClientPortalDashboard({ user, onSignOut }) {
   };
 
   // Group sent assets by their staff section so the client sees one
-  // sub-card per section name (the user's mental model).
+  // sub-card per section name. Two ways an asset shows up here:
+  //   1. Card-level share (preferred) — staff flipped the entire
+  //      section in project.sentSectionIds. ALL assets in that
+  //      section appear, regardless of their individual status.
+  //   2. Per-asset share (legacy) — staff set asset.status='sent'
+  //      on individual items. Those items appear even if the
+  //      section itself isn't shared.
+  const sharedSectionIds = new Set(pickArr('sentSectionIds') || []);
+  // Workback schedule is opt-in: it only appears in the portal once staff
+  // flip 'workback' into sentSectionIds from the Production › Workback view.
+  const workbackShared = sharedSectionIds.has('workback') && workback.length > 0;
+  const workbackRows = useMemo(() => {
+    const parse = (s) => { const p = String(s || '').split('/'); if (p.length !== 3) return null; const d = new Date(+p[2], p[0] - 1, p[1]); return isNaN(d) ? null : d; };
+    const evt = parse(eventDate);
+    const colorMap = buildPhaseColorMap(workback);
+    return workback.map((r) => {
+      const d = parse(r.date);
+      let tday = '';
+      if (d && evt) { const days = Math.round((evt - d) / 86400000); tday = days === 0 ? 'Event' : days > 0 ? `T-${days}d` : `T+${Math.abs(days)}d`; }
+      const details = [r.annotation, r.intro, ...((r.items || []).map((b) => (b && b.trim() ? `• ${b.trim()}` : '')).filter(Boolean))].filter(Boolean);
+      return {
+        id: r.id,
+        dateFull: d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (r.date || ''),
+        phase: r.phase || '',
+        pc: phaseColor(r.phase, colorMap),
+        name: r.name || '',
+        details,
+        owner: r.owner || '',
+        status: r.status || 'Not Started',
+        tday,
+      };
+    });
+  }, [workback, eventDate]);
+  const downloadWorkback = useCallback(async (kind) => {
+    try {
+      const base = `${project?.name || 'workback'}-workback-schedule`;
+      if (kind === 'pdf') {
+        const { exportWorkbackPDF } = await import('../utils/pdfExport.js');
+        await exportWorkbackPDF(project, workback, { filename: `${base}.pdf` });
+      } else {
+        const { exportWorkbackXLSX } = await import('../utils/workbackXlsx.js');
+        exportWorkbackXLSX(project, workback, { filename: `${base}.xlsx` });
+      }
+    } catch (e) { console.error('[portal] workback download failed', e); }
+  }, [project, workback]);
   const sentAssetsBySection = (() => {
     const out = new Map();
-    visibleAssets.forEach(a => {
-      if (a.status !== 'sent') return;  // only sent assets get the per-section grouping treatment
+    creativeAssets.forEach(a => {
+      if (!a) return;
+      if (deckIdSet.has(a.id)) return;  // dedup with the Decks card
       const sid = a.section || 'other';
+      const sectionShared = sharedSectionIds.has(sid);
+      const assetShared = a.status === 'sent';
+      if (!sectionShared && !assetShared) return;
       if (!out.has(sid)) out.set(sid, []);
       out.get(sid).push(a);
     });
@@ -1521,8 +1576,9 @@ function ClientPortalDashboard({ user, onSignOut }) {
   const sections = [
     { key: 'estimate', label: 'Estimate', value: comp && grandTotal ? f0(grandTotal) : 'Pending', sub: cats.length ? `${cats.length} ${cats.length === 1 ? 'category' : 'categories'}` : 'Not yet published', empty: !comp || grandTotal === 0 },
     { key: 'timeline', label: 'Production Timeline', value: timeline.length ? `${tasksDone} / ${timeline.length}` : 'Pending', sub: timeline.length ? 'Tasks complete' : 'Not yet scheduled', empty: timeline.length === 0 },
+    ...(workbackShared ? [{ key: 'workback', label: 'Workback Schedule', value: workback.length, sub: 'Key dates & milestones', empty: false }] : []),
     { key: 'decks', label: 'Decks & Presentations', value: visibleDecks.length || '—', sub: visibleDecks.length ? 'View pitch decks' : 'None shared', empty: visibleDecks.length === 0 },
-    { key: 'creative', label: 'Creative & Design', value: visibleAssets.length || '—', sub: visibleAssets.length ? 'Approved work' : 'None shared', empty: visibleAssets.length === 0 },
+    { key: 'creative', label: 'Creative & Design', value: sentAssetsBySection.size || '—', sub: sentAssetsBySection.size ? `${sentAssetsBySection.size} ${sentAssetsBySection.size === 1 ? 'card shared' : 'cards shared'}` : 'None shared', empty: sentAssetsBySection.size === 0 },
     { key: 'files', label: 'Files', value: (visibleFiles.length + clientUploads.length) || '—', sub: (visibleFiles.length + clientUploads.length) ? `${visibleFiles.length} shared · ${clientUploads.length} yours` : 'Upload or view files', empty: (visibleFiles.length + clientUploads.length) === 0 },
     { key: 'meetings', label: 'Meeting Recaps', value: visibleMeetings.length || '—', sub: visibleMeetings.length ? 'Latest discussion' : 'No recaps yet', empty: visibleMeetings.length === 0 },
     { key: 'links', label: 'Shared Asset Links', value: assetLinks.length || 'Drop in', sub: 'Drive / Dropbox / Figma', empty: false },
@@ -1765,6 +1821,53 @@ function ClientPortalDashboard({ user, onSignOut }) {
         </PortalCard>
       )}
 
+      {/* Workback Schedule detail */}
+      {activeSection === 'workback' && (
+        <PortalCard
+          kicker="Workback Schedule"
+          title={`${workbackRows.length} milestone${workbackRows.length === 1 ? '' : 's'}`}
+          span="full"
+          accent
+          action={(
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => downloadWorkback('pdf')} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${RULE}`, background: '#fff', color: INK, cursor: 'pointer', fontFamily: T.sans }}>↓ PDF</button>
+              <button onClick={() => downloadWorkback('xls')} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${RULE}`, background: '#fff', color: INK, cursor: 'pointer', fontFamily: T.sans }}>↓ XLS</button>
+            </div>
+          )}
+        >
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontFamily: T.sans }}>
+              <thead>
+                <tr>
+                  {['Date', 'Phase', 'Milestone', 'Owner', 'Status', 'T-Day'].map((h, i) => (
+                    <th key={h} style={{ textAlign: i >= 3 ? (i === 5 ? 'right' : 'center') : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: FADED, padding: '0 10px 10px', borderBottom: `1px solid ${RULE}`, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {workbackRows.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: `1px solid ${RULE}` }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12, color: INK, fontWeight: 600, whiteSpace: 'nowrap', verticalAlign: 'top', fontFamily: T.mono }}>{r.dateFull}</td>
+                    <td style={{ padding: '12px 10px', verticalAlign: 'top' }}>
+                      {r.phase ? <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: r.pc.fg, background: r.pc.bg, whiteSpace: 'nowrap' }}>{r.phase}</span> : <span style={{ color: FADED }}>—</span>}
+                    </td>
+                    <td style={{ padding: '12px 10px', fontSize: 13, color: INK, verticalAlign: 'top' }}>
+                      <div style={{ fontWeight: 600 }}>{r.name}</div>
+                      {r.details.map((d, di) => (
+                        <div key={di} style={{ fontSize: 12, color: FADED, marginTop: 3, lineHeight: 1.45 }}>{d}</div>
+                      ))}
+                    </td>
+                    <td style={{ padding: '12px 10px', fontSize: 12, color: FADED, textAlign: 'center', verticalAlign: 'top', whiteSpace: 'nowrap' }}>{r.owner || '—'}</td>
+                    <td style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: FADED, textAlign: 'center', verticalAlign: 'top', whiteSpace: 'nowrap' }}>{r.status}</td>
+                    <td className="num" style={{ padding: '12px 10px', fontSize: 12, color: FADED, textAlign: 'right', verticalAlign: 'top', whiteSpace: 'nowrap', fontFamily: T.mono }}>{r.tday}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PortalCard>
+      )}
+
       {/* Decks & Presentations detail */}
       {activeSection === 'decks' && visibleDecks.length === 0 && (
         <PortalCard kicker="Decks & Presentations">
@@ -1816,41 +1919,38 @@ function ClientPortalDashboard({ user, onSignOut }) {
         </PortalCard>
       )}
 
-      {/* Creative & Design detail */}
-      {activeSection === 'creative' && visibleAssets.length === 0 && (
+      {/* Creative & Design detail — one card per shared staff section.
+          Click a card → opens the carousel viewer for that section's
+          assets, where the client can navigate, approve, reject,
+          comment, and download. */}
+      {activeSection === 'creative' && sentAssetsBySection.size === 0 && (
         <PortalCard kicker="Creative & Design">
-          <div style={{ color: FADED, fontSize: 14, lineHeight: 1.6 }}>No approved creative assets yet.</div>
+          <div style={{ color: FADED, fontSize: 14, lineHeight: 1.6 }}>Nothing shared yet. Early Spring will push cards here when they're ready for your review.</div>
         </PortalCard>
       )}
-      {activeSection === 'creative' && visibleAssets.length > 0 && (
-        <PortalCard kicker="Creative & Design" title={`${visibleAssets.length} ${visibleAssets.length === 1 ? 'asset' : 'assets'}`}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 14 }}>
-            {visibleAssets.map((a) => {
-              const isImg = a.isImage || /\.(png|jpe?g|gif|webp|svg)$/i.test(a.fileName || '');
-              const previewable = canPreview(a);
-              const onOpen = () => {
-                if (previewable) { setViewingFile(a); return; }
-                if (a.fileData) {
-                  const el = document.createElement('a');
-                  el.href = a.fileData; el.download = a.fileName || a.name || 'file'; el.click();
-                }
-              };
+      {activeSection === 'creative' && sentAssetsBySection.size > 0 && (
+        <PortalCard kicker="Creative & Design" title={`${sentAssetsBySection.size} ${sentAssetsBySection.size === 1 ? 'card' : 'cards'}`}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }}>
+            {Array.from(sentAssetsBySection.entries()).map(([sectionId, items]) => {
+              const cover = items.find(it => it.isImage || /\.(png|jpe?g|gif|webp|svg)$/i.test(it.fileName || ''));
+              const coverUrl = cover ? (cover.fileData || (cover.storagePath ? publicFileUrl(cover.storagePath) : null) || cover.driveLink) : null;
+              const decidedCount = items.filter(it => decisions[it.id]?.decision).length;
               return (
-                <button key={a.id} onClick={onOpen} style={{ all: 'unset', cursor: 'pointer', display: 'block', border: `1px solid ${RULE}`, borderRadius: 6, overflow: 'hidden', background: PAPER, transition: 'all .15s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = INK; e.currentTarget.style.boxShadow = '0 4px 16px rgba(15,82,186,.10)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = RULE; e.currentTarget.style.boxShadow = 'none'; }}>
-                  <div style={{ aspectRatio: '4 / 3', background: 'rgba(15,82,186,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {isImg && a.fileData ? (
-                      <img src={a.fileData} alt={a.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button key={sectionId} onClick={() => { setCarouselSectionId(sectionId); setCarouselIdx(0); }} style={{ all: 'unset', cursor: 'pointer', display: 'block', border: `1px solid ${RULE}`, borderRadius: 6, overflow: 'hidden', background: PAPER, transition: 'all .15s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = INK; e.currentTarget.style.boxShadow = '0 6px 20px rgba(15,82,186,.10)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = RULE; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+                  <div style={{ aspectRatio: '4 / 3', background: 'rgba(15,82,186,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {coverUrl ? (
+                      <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: FADED, letterSpacing: '.10em', textTransform: 'uppercase' }}>
-                        {a.fileName ? a.fileName.split('.').pop().toUpperCase() : 'File'}
-                      </span>
+                      <span style={{ fontSize: 28, color: FADED, opacity: .35 }}>—</span>
                     )}
                   </div>
-                  <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontSize: 12, color: INK, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name || a.fileName || 'Untitled'}</div>
-                    {a.category && <div style={{ fontSize: 10, color: FADED, marginTop: 2, letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 700 }}>{a.category}</div>}
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: INK, letterSpacing: '.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sectionLabelFor(sectionId)}</div>
+                    <div style={{ fontSize: 11, color: FADED, marginTop: 4, fontFamily: T.mono }}>
+                      {items.length} {items.length === 1 ? 'item' : 'items'}{decidedCount > 0 ? ` · ${decidedCount} reviewed` : ''}
+                    </div>
                   </div>
                 </button>
               );
@@ -2123,6 +2223,18 @@ function ClientPortalDashboard({ user, onSignOut }) {
       {/* PDF / image viewer modal — projectId + user enable the
           per-asset comments side panel inside the viewer. */}
       <FileViewer file={viewingFile} onClose={() => setViewingFile(null)} projectId={project?.id} user={user} />
+      {carouselSectionId && (
+        <SectionCarousel
+          sectionLabel={sectionLabelFor(carouselSectionId)}
+          items={sentAssetsBySection.get(carouselSectionId) || []}
+          startIdx={carouselIdx}
+          decisions={decisions}
+          commentDrafts={commentDrafts}
+          setCommentDrafts={setCommentDrafts}
+          upsertDecision={upsertDecision}
+          onClose={() => { setCarouselSectionId(null); setCarouselIdx(0); }}
+        />
+      )}
 
       {/* Live chat with the production team */}
       <PortalChat projectId={project?.id} user={user} clientName={project?.client} />
@@ -2191,4 +2303,153 @@ export default function ClientPortal() {
   if (!user) return <ClientLogin onSignedIn={() => { /* onAuthStateChange will set user */ }} />;
 
   return <ClientPortalDashboard user={user} onSignOut={handleSignOut} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SectionCarousel — full-screen lightbox shown when a client clicks a
+// shared section card. Carousel of one image at a time with prev/next
+// arrows + keyboard nav. Side panel shows the current item's
+// approve/reject/comment controls + download. Decisions persist via
+// upsertDecision (same hook as the inline Files list).
+// ─────────────────────────────────────────────────────────────────────
+function SectionCarousel({ sectionLabel, items, startIdx, decisions, commentDrafts, setCommentDrafts, upsertDecision, onClose }) {
+  const PAPER = '#FFFFFF';
+  const INK = '#0F52BA';
+  const RULE = '#CDD7EB';
+  const FADED = '#7791C5';
+  const GOLD = '#F0B849';
+
+  const [idx, setIdx] = useState(() => Math.max(0, Math.min(startIdx || 0, (items?.length || 1) - 1)));
+  const safeIdx = Math.max(0, Math.min(idx, (items?.length || 1) - 1));
+  const current = items?.[safeIdx];
+
+  const go = (delta) => {
+    if (!items?.length) return;
+    setIdx((safeIdx + delta + items.length) % items.length);
+  };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft') go(-1);
+      else if (e.key === 'ArrowRight') go(1);
+      else if (e.key === 'Escape') onClose?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [safeIdx, items?.length]);
+
+  if (!current) {
+    return (
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,82,186,.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: PAPER, padding: 32, borderRadius: 6, fontFamily: T.sans }}>Nothing in this section.</div>
+      </div>
+    );
+  }
+
+  const d = decisions[current.id] || {};
+  const isApproved = d.decision === 'approved';
+  const isRejected = d.decision === 'rejected';
+  const draft = commentDrafts[current.id] !== undefined ? commentDrafts[current.id] : (d.comment || '');
+  const fileUrl = current.fileData || (current.storagePath ? publicFileUrl(current.storagePath) : null) || current.driveLink;
+  const isImg = current.isImage || /\.(png|jpe?g|gif|webp|svg)$/i.test(current.fileName || '');
+  const isPdf = current.isPdf || /\.pdf$/i.test(current.fileName || '');
+
+  return createPortal(
+    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, background: PAPER, display: 'flex', flexDirection: 'column', fontFamily: T.sans }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '14px 24px', borderBottom: `1px solid ${RULE}`, gap: 16, flexShrink: 0 }}>
+        <button onClick={onClose} title="Close (Esc)" style={{ background: 'none', border: 'none', fontSize: 20, color: FADED, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: FADED, letterSpacing: '.10em', textTransform: 'uppercase' }}>Creative & Design</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: INK, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sectionLabel}</div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontSize: 11, color: FADED, fontFamily: T.mono, background: 'rgba(15,82,186,.04)', padding: '3px 10px', borderRadius: 999 }}>{safeIdx + 1} / {items.length}</span>
+          {fileUrl && <a href={fileUrl} download={current.fileName || current.name || 'file'} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', border: `1px solid ${RULE}`, borderRadius: 4, background: PAPER, color: INK, fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', textDecoration: 'none' }}>↓ Download</a>}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Image stage */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(15,82,186,.02)', overflow: 'auto' }}>
+          {items.length > 1 && (
+            <>
+              <button onClick={() => go(-1)} title="Previous (←)" style={navArrowStyle('left', PAPER, INK, RULE)}>‹</button>
+              <button onClick={() => go(1)} title="Next (→)" style={navArrowStyle('right', PAPER, INK, RULE)}>›</button>
+            </>
+          )}
+          {isImg && fileUrl ? (
+            <img src={fileUrl} alt={current.name || ''} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4 }} onError={(e) => { e.currentTarget.alt = 'Image failed to load — try Download in the header.'; }} />
+          ) : isPdf && fileUrl ? (
+            <iframe src={fileUrl} title={current.name || ''} style={{ width: '100%', height: '100%', border: 'none', borderRadius: 4, background: PAPER }} />
+          ) : fileUrl ? (
+            <div style={{ textAlign: 'center', color: INK }}>
+              <div style={{ fontSize: 48, color: FADED, opacity: .35, marginBottom: 12 }}>{(current.fileName || '').split('.').pop()?.toUpperCase() || 'FILE'}</div>
+              <div style={{ fontSize: 13, marginBottom: 14 }}>No inline preview for this file type.</div>
+              <a href={fileUrl} download={current.fileName || current.name || 'file'} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 22px', background: INK, color: PAPER, fontSize: 12, fontWeight: 700, letterSpacing: '.04em', borderRadius: 4, textDecoration: 'none' }}>Download</a>
+            </div>
+          ) : (
+            <div style={{ color: FADED, fontSize: 13 }}>Preview unavailable.</div>
+          )}
+        </div>
+
+        {/* Side panel: title + decision + comments */}
+        <div style={{ width: 340, flexShrink: 0, borderLeft: `1px solid ${RULE}`, background: PAPER, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '18px 20px', borderBottom: `1px solid ${RULE}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: FADED, letterSpacing: '.08em', textTransform: 'uppercase' }}>Item</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: INK, marginTop: 4, lineHeight: 1.3, wordBreak: 'break-word' }}>{current.name || current.fileName || 'Untitled'}</div>
+            {current.fileName && current.name && current.fileName !== current.name && <div style={{ fontSize: 10, color: FADED, marginTop: 4, fontFamily: T.mono, wordBreak: 'break-all' }}>{current.fileName}</div>}
+          </div>
+
+          <div style={{ padding: '18px 20px', borderBottom: `1px solid ${RULE}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: FADED, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 10 }}>Your decision</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => upsertDecision(current.id, { decision: isApproved ? null : 'approved' })} style={{ flex: 1, padding: '10px 14px', border: `1px solid ${isApproved ? '#1F7A4F' : RULE}`, borderRadius: 4, background: isApproved ? '#1F7A4F' : PAPER, color: isApproved ? '#fff' : '#1F7A4F', fontSize: 12, fontWeight: 700, letterSpacing: '.04em', cursor: 'pointer', fontFamily: T.sans }}>✓ Approve</button>
+              <button onClick={() => upsertDecision(current.id, { decision: isRejected ? null : 'rejected' })} style={{ flex: 1, padding: '10px 14px', border: `1px solid ${isRejected ? '#7A1F1F' : RULE}`, borderRadius: 4, background: isRejected ? '#7A1F1F' : PAPER, color: isRejected ? '#fff' : '#7A1F1F', fontSize: 12, fontWeight: 700, letterSpacing: '.04em', cursor: 'pointer', fontFamily: T.sans }}>× Reject</button>
+            </div>
+            {(isApproved || isRejected) && <div style={{ fontSize: 10, color: isApproved ? '#1F7A4F' : '#7A1F1F', fontWeight: 600, marginTop: 8, letterSpacing: '.04em', textTransform: 'uppercase' }}>{isApproved ? '✓ Approved' : '× Rejected'}</div>}
+          </div>
+
+          <div style={{ padding: '18px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: FADED, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 8 }}>Comment</div>
+            <textarea
+              value={draft}
+              onChange={e => setCommentDrafts(prev => ({ ...prev, [current.id]: e.target.value }))}
+              onBlur={() => { if ((draft || '') !== (d.comment || '')) upsertDecision(current.id, { comment: draft }); }}
+              placeholder="Any feedback for the team?"
+              style={{ width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 120, padding: '10px 12px', borderRadius: 4, border: `1px solid ${RULE}`, background: PAPER, color: INK, fontSize: 12, fontFamily: T.sans, outline: 'none', resize: 'vertical', lineHeight: 1.55 }}
+            />
+            <div style={{ fontSize: 10, color: FADED, marginTop: 6 }}>Saves automatically when you click outside the box.</div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function navArrowStyle(side, PAPER, INK, RULE) {
+  return {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    [side]: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    border: `1px solid ${RULE}`,
+    background: 'rgba(255,255,255,.92)',
+    color: INK,
+    fontSize: 22,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: T.sans,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 4px 14px rgba(15,82,186,.14)',
+    zIndex: 5,
+    userSelect: 'none',
+    lineHeight: 1,
+  };
 }
