@@ -11,6 +11,8 @@ import VendorDetailModal from '../components/modals/VendorDetailModal.jsx';
 import BudgetV from './BudgetV.jsx';
 import DashV from './DashV.jsx';
 import TimelineV from './TimelineV.jsx';
+import TopicsV from './TopicsV.jsx';
+import WorkbackV from './WorkbackV.jsx';
 import ROSV from './ROSV.jsx';
 import CreativeV from './CreativeV.jsx';
 import ProjectMeetingsV from './ProjectMeetingsV.jsx';
@@ -26,7 +28,7 @@ import TimeV from './TimeV.jsx';
 import { createContact } from '../lib/contacts.js';
 import { upsertCompany } from '../lib/companies.js';
 
-function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,saving,lastSaved,onUpdateUser,profiles,organizations,currentOrgId,switchOrg}){
+function ProjectView({project,updateProject,deleteProject,user,onBack,accessToken,requestCalendarAccess,toggleTheme,themeMode,onLogout,saving,lastSaved,onUpdateUser,profiles,organizations,currentOrgId,switchOrg,vendorPool}){
   // View state is persisted per-project (es_view_<id>). When App.jsx
   // sets activeId via a click on the dashboard, it CLEARS this key
   // first, so a click always lands on the project dashboard. A
@@ -232,16 +234,27 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     <Side view={view} setView={setView} comp={primaryComp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout} saving={saving} lastSaved={lastSaved} profiles={profiles} organizations={organizations} currentOrgId={currentOrgId} switchOrg={switchOrg}/>
     <MobileNav view={view} setView={setView} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout}/>
     <main className="main-content" style={{flex:1,overflow:"auto",padding:32}}><div key={view} className="view-enter">
-      {view==="budget"&&<BudgetV cats={activeCats} ag={activeAg} feeP={activeFeeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} moveSection={moveSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={activeClientBudget} onUpdateBudget={v=>{isAlt?updateAltBudget({clientBudget:v}):updateProject({clientBudget:v})}} reorderCat={reorderCat} reorderSection={reorderSection} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={activeProjectForCalc} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory} updateProject={isAlt?(fields)=>updateAltBudget(fields):updateProject} accessToken={accessToken} budgets={altBudgets} activeBudgetId={activeBudgetId} onSwitchBudget={setActiveBudgetId} onAddBudget={(name)=>{const b={id:uid(),name,cats:defaultCats(),ag:defaultAg(),feeP:0.10,clientBudget:0,repFeeEnabled:false,repFeeP:0.10,createdAt:new Date().toISOString()};updateProject({budgets:[...altBudgets,b]});setActiveBudgetId(b.id)}} onDeleteBudget={(id)=>{if(!confirm("Delete this budget? This cannot be undone."))return;updateProject({budgets:altBudgets.filter(b=>b.id!==id)});if(activeBudgetId===id)setActiveBudgetId(null)}} onRenameBudget={(id,name)=>{updateProject({budgets:altBudgets.map(b=>b.id===id?{...b,name}:b)})}} onMakePrimary={(id)=>{
+      {view==="budget"&&<BudgetV cats={activeCats} ag={activeAg} feeP={activeFeeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} moveSection={moveSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} vendorPool={vendorPool||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={activeClientBudget} onUpdateBudget={v=>{isAlt?updateAltBudget({clientBudget:v}):updateProject({clientBudget:v})}} reorderCat={reorderCat} reorderSection={reorderSection} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={activeProjectForCalc} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory} updateProject={isAlt?(fields)=>updateAltBudget(fields):updateProject} accessToken={accessToken} budgets={altBudgets} activeBudgetId={activeBudgetId} onSwitchBudget={setActiveBudgetId} onAddBudget={(name)=>{const b={id:uid(),name,cats:defaultCats(),ag:defaultAg(),feeP:0.10,clientBudget:0,repFeeEnabled:false,repFeeP:0.10,createdAt:new Date().toISOString()};updateProject({budgets:[...altBudgets,b]});setActiveBudgetId(b.id)}} onDeleteBudget={(id)=>{if(!confirm("Delete this budget? This cannot be undone."))return;updateProject({budgets:altBudgets.filter(b=>b.id!==id)});if(activeBudgetId===id)setActiveBudgetId(null)}} onRenameBudget={(id,name)=>{updateProject({budgets:altBudgets.map(b=>b.id===id?{...b,name}:b)})}} onMakePrimary={(id)=>{
           const alt=altBudgets.find(b=>b.id===id);if(!alt)return;
           // Current primary becomes an alternate
           const oldPrimary={id:uid(),name:"Previous Primary",cats:JSON.parse(JSON.stringify(project.cats)),ag:JSON.parse(JSON.stringify(project.ag)),feeP:project.feeP,clientBudget:project.clientBudget||0,repFeeEnabled:project.repFeeEnabled||false,repFeeP:project.repFeeP||0.10,createdAt:new Date().toISOString()};
           // Promoted alt becomes the new primary
           updateProject({cats:alt.cats,ag:alt.ag,feeP:alt.feeP,clientBudget:alt.clientBudget||0,budgets:[oldPrimary,...altBudgets.filter(b=>b.id!==id)]});
           setActiveBudgetId(null);
+        }} onDuplicateBudget={(id)=>{
+          // Copy a budget (primary when id is null, else an alt) into a new
+          // alt budget. Deep-clone sections/items/agency lines with fresh ids
+          // so the copy is fully independent of the source.
+          const src=id?altBudgets.find(b=>b.id===id):{name:"Primary Budget",cats:project.cats,ag:project.ag,feeP:project.feeP,clientBudget:project.clientBudget||0,repFeeEnabled:project.repFeeEnabled||false,repFeeP:project.repFeeP||0.10};
+          if(!src)return;
+          const cloneCats=(cats)=>(cats||[]).map(c=>{const cc=JSON.parse(JSON.stringify(c));cc.id=uid();cc.items=(cc.items||[]).map(it=>({...it,id:uid()}));return cc;});
+          const cloneAg=(ag)=>(ag||[]).map(it=>({...JSON.parse(JSON.stringify(it)),id:uid()}));
+          const b={id:uid(),name:`Copy of ${src.name}`,cats:cloneCats(src.cats),ag:cloneAg(src.ag),feeP:src.feeP,clientBudget:src.clientBudget||0,repFeeEnabled:src.repFeeEnabled||false,repFeeP:src.repFeeP||0.10,createdAt:new Date().toISOString()};
+          updateProject({budgets:[...altBudgets,b]});
+          setActiveBudgetId(b.id);
         }}/>}
       {view==="dashboard"&&<DashV cats={project.cats} comp={primaryComp} feeP={project.feeP} project={project} onNavigate={setView} updateProject={updateProject} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user}/>}
-      {view==="timeline"&&<TimelineV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user}/>}
+      {view==="timeline"&&<ProductionWrapper project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
       {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={primaryComp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} accessToken={accessToken}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId} onAddVendor={addVendor}/>}
@@ -260,3 +273,41 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
 }
 
 export default ProjectView;
+
+// Sub-tab wrapper for the Production sidebar item: switches between
+// the live Timeline (Schedule) and the freeform Topics workspace
+// (Production Notes). Persists the choice per-project in localStorage
+// so each project remembers where the user was last.
+function ProductionWrapper({ project, ...rest }) {
+  const key = `es_prodTab_${project?.id || project?._dbId || 'unknown'}`;
+  const VALID = ['workback', 'schedule', 'topics'];
+  const [subTab, setSubTab] = useState(() => {
+    try { const v = localStorage.getItem(key); return VALID.includes(v) ? v : 'workback'; }
+    catch (e) { return 'workback'; }
+  });
+  const set = (v) => {
+    setSubTab(v);
+    try { localStorage.setItem(key, v); } catch (e) {}
+  };
+  const pillBase = {
+    padding: '6px 14px', borderRadius: 999, border: `1px solid ${T.faintRule}`,
+    background: 'transparent', cursor: 'pointer', fontFamily: T.sans,
+    fontSize: 11, fontWeight: 600, letterSpacing: '.04em', color: T.dim,
+    transition: 'all .15s',
+  };
+  const pillActive = {
+    background: T.inkSoft, borderColor: T.ink, color: T.ink, fontWeight: 700,
+  };
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
+        <button onClick={() => set('workback')} style={{ ...pillBase, ...(subTab === 'workback' ? pillActive : {}) }}>Workback</button>
+        <button onClick={() => set('schedule')} style={{ ...pillBase, ...(subTab === 'schedule' ? pillActive : {}) }}>Schedule</button>
+        <button onClick={() => set('topics')} style={{ ...pillBase, ...(subTab === 'topics' ? pillActive : {}) }}>Production Notes</button>
+      </div>
+      {subTab === 'workback' && <WorkbackV project={project} updateProject={rest.updateProject} canEdit={rest.canEdit} accessToken={rest.accessToken}/>}
+      {subTab === 'schedule' && <TimelineV project={project} {...rest}/>}
+      {subTab === 'topics' && <TopicsV project={project} updateProject={rest.updateProject} canEdit={rest.canEdit} onAddVendor={rest.onAddVendor} onVendorClick={rest.onVendorClick}/>}
+    </div>
+  );
+}

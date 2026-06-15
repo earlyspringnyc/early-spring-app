@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
-import { ct } from '../utils/calc.js';
+import { ct, fmtRange, projectSupportsRanges } from '../utils/calc.js';
 import { uid } from '../utils/uid.js';
 import { PlusI } from '../components/icons/index.js';
 import { Card, NI, Metric, SB } from '../components/primitives/index.js';
@@ -22,6 +22,15 @@ function BudgetV(p){
   const proj=p.project||{};
   const[globalMargin,setGlobalMargin]=useState(15);
   const[showHistory,setShowHistory]=useState(false);
+  // Range mode: opt-in per project. Auto-suggested for pitching
+  // projects (the toggle defaults visible-on) but always under the
+  // user's control. When off, the budget displays as single numbers
+  // even if individual items still have isRange data set.
+  const rangesAllowed=projectSupportsRanges(proj);
+  const toggleRanges=()=>{
+    if(!p.updateProject)return;
+    p.updateProject({ budgetSupportsRanges: !rangesAllowed });
+  };
 
   // ── Version history from the budget_snapshots table ──
   // Snapshots are stored in their own table (paginated to avoid
@@ -240,6 +249,9 @@ function BudgetV(p){
       {canEdit&&!showNewBudget&&<button onClick={()=>{setShowNewBudget(true);setNewBudgetName("")}} style={{padding:"10px 14px",background:"none",border:"none",borderBottom:"2px solid transparent",color:T.dim,fontSize:12,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}} onMouseEnter={e=>e.currentTarget.style.color=T.gold} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
         <PlusI size={10} color="currentColor"/> Add Budget
       </button>}
+      {canEdit&&!showNewBudget&&p.onDuplicateBudget&&<button onClick={()=>p.onDuplicateBudget(activeBudgetId||null)} title={`Duplicate the ${isPrimary?'Primary':'"'+(activeBudget?.name||'current')+'"'} budget into a new copy`} style={{padding:"10px 14px",background:"none",border:"none",borderBottom:"2px solid transparent",color:T.dim,fontSize:12,cursor:"pointer",fontFamily:T.sans,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}} onMouseEnter={e=>e.currentTarget.style.color=T.gold} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
+        <span style={{fontSize:13,lineHeight:1}}>⧉</span> Duplicate
+      </button>}
       {showNewBudget&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0"}}>
         <input autoFocus value={newBudgetName} onChange={e=>setNewBudgetName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newBudgetName.trim()){p.onAddBudget(newBudgetName.trim());setShowNewBudget(false)}if(e.key==="Escape")setShowNewBudget(false)}} placeholder="Budget name…" style={{padding:"6px 4px",background:"transparent",border:"none",borderBottom:`1px solid ${T.ink}`,color:T.ink,fontSize:13,fontFamily:T.sans,outline:"none",width:180}}/>
         <button onClick={()=>{if(newBudgetName.trim()){p.onAddBudget(newBudgetName.trim());setShowNewBudget(false)}}} disabled={!newBudgetName.trim()} className="btn-pill" style={{padding:"5px 12px",fontSize:11,opacity:newBudgetName.trim()?1:.5,cursor:newBudgetName.trim()?"pointer":"default"}}>Create</button>
@@ -253,6 +265,12 @@ function BudgetV(p){
         <div style={{fontSize:11,fontWeight:700,letterSpacing:".10em",textTransform:"uppercase",color:T.ink,marginBottom:8}}>Production Budget</div>
         <h1 style={{fontSize:"clamp(28px,3.4vw,40px)",fontWeight:800,color:T.ink,letterSpacing:"-0.022em",lineHeight:1.04,margin:0}}>{activeBudget?activeBudget.name:"Internal view"}</h1>
         <p style={{fontSize:13,color:T.fadedInk,marginTop:8,maxWidth:"56ch",lineHeight:1.6}}>{canEdit?"Live cost · margin · client price.":"View-only"}</p>
+        {canEdit&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}} title={rangesAllowed?"Line items and sections can be expressed as a min–max band. Turn off to display single numbers (range data stays saved).":"Allow line items and sections to be expressed as min–max bands — useful while pitching."}>
+          <button onClick={toggleRanges} style={{width:32,height:18,borderRadius:9,border:`1px solid ${rangesAllowed?T.ink:T.faintRule}`,cursor:"pointer",background:rangesAllowed?T.ink:"transparent",position:"relative",padding:0,flexShrink:0,transition:"background .18s ease, border-color .18s ease"}}>
+            <span style={{position:"absolute",top:2,left:rangesAllowed?16:2,width:12,height:12,borderRadius:6,background:rangesAllowed?T.paper:T.faintRule,transition:"left .18s ease"}}/>
+          </button>
+          <span style={{fontSize:10,fontWeight:700,color:rangesAllowed?T.ink:T.fadedInk,textTransform:"uppercase",letterSpacing:".10em"}}>Use ranges in this budget</span>
+        </div>}
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         {p.saving&&<Pill color={T.fadedInk} size="xs">Saving…</Pill>}
@@ -280,7 +298,7 @@ function BudgetV(p){
       </div>
       <div style={{padding:"18px 20px",borderRadius:T.rS,background:T.paper,border:`1px solid ${T.faintRule}`,borderLeft:`2px solid ${T.ink}`}}>
         <div style={{fontSize:10,fontWeight:700,color:T.fadedInk,textTransform:"uppercase",letterSpacing:".10em",marginBottom:8}}>Grand Total</div>
-        <div className="num" style={{fontSize:28,fontWeight:800,color:T.ink,fontFamily:T.mono,lineHeight:1,letterSpacing:"-0.022em"}}>{f0(gt)}</div>
+        <div className="num" style={{fontSize:rangesAllowed&&Math.abs((p.comp.grandMax||0)-(p.comp.grandMin||0))>=0.5?22:28,fontWeight:800,color:T.ink,fontFamily:T.mono,lineHeight:1,letterSpacing:"-0.022em"}}>{rangesAllowed?fmtRange(p.comp.grandMin||0,p.comp.grandMax||0,f0):f0(gt)}</div>
         {cb>0&&<div style={{marginTop:10}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:10,color:T.fadedInk}}>{spendPct}% of budget</span><span style={{fontSize:10,color:T.fadedInk,fontFamily:T.mono}}>{f0(cb-totalSpend)} remaining</span></div>
           <div style={{height:4,background:T.faintRule,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${spendPct}%`,background:spendPct>90?T.alert:T.ink,borderRadius:2,transition:"width .4s cubic-bezier(.2,.8,.2,1)"}}/></div>
@@ -298,24 +316,24 @@ function BudgetV(p){
       {canEdit&&<button onClick={()=>setShowAddSection(true)} className="btn-pill" style={{padding:"6px 14px",fontSize:11}}><PlusI size={11} color="currentColor"/> Add Section</button>}
       {!canEdit&&<div/>}
       <div style={{display:"flex",gap:20}}>
-        {["Actual","Client","Variance"].map(l=><span key={l} style={{fontSize:10,fontWeight:700,color:T.fadedInk,letterSpacing:".10em",textTransform:"uppercase"}}>{l}</span>)}
+        {(rangesAllowed?["Actual","Client"]:["Actual","Client","Variance"]).map(l=><span key={l} style={{fontSize:10,fontWeight:700,color:T.fadedInk,letterSpacing:".10em",textTransform:"uppercase"}}>{l}</span>)}
       </div>
     </div>
 
     {/* ── Categories (draggable sections) ── */}
-    {(()=>{const contBase=p.cats.filter(c=>c.name.toLowerCase()!=="contingency").reduce((a,c)=>a+ct(c.items).totals.actualCost,0);
+    {(()=>{const contBase=p.cats.filter(c=>c.name.toLowerCase()!=="contingency").reduce((a,c)=>a+ct(c.items,c).totals.actualCost,0);
     // Build the "move to..." target list for each section. Excludes
     // the currently-active budget so we don't show "Move here" on
     // the place we already are.
     const moveTargets=[{id:null,name:"Primary Budget"},...budgets.map(b=>({id:b.id,name:b.name}))].filter(t=>t.id!==(activeBudgetId||null));
-    return p.cats.map((c,ci2)=>{const isCont=c.name.toLowerCase()==="contingency";const accent=CAT_ACCENTS[ci2%CAT_ACCENTS.length];return<div key={c.id} draggable={canEdit} onDragStart={e=>{setDragSection(ci2);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverSection(ci2)}} onDrop={e=>{e.preventDefault();if(dragSection!==null&&dragSection!==ci2&&p.reorderSection)p.reorderSection(dragSection,ci2);setDragSection(null);setOverSection(null)}} onDragEnd={()=>{setDragSection(null);setOverSection(null)}} style={{opacity:dragSection===ci2?.4:1,borderTop:overSection===ci2&&dragSection!==null?`2px solid ${accent}`:"2px solid transparent",transition:"opacity .15s"}}><Cat cat={c} comp={ct(c.items)} open={p.exp.has(c.id)} toggle={()=>p.tog(c.id)} onUp={(ii,u)=>p.uCat(ci2,ii,u)} onAdd={()=>p.aCat(ci2)} onRm={ii=>p.rCat(ci2,ii)} onRemoveCat={()=>p.rmCat(ci2)} onMoveCat={p.moveSection?(targetId)=>p.moveSection(ci2,targetId):null} moveTargets={moveTargets} canEdit={canEdit} docs={p.docs} vendors={p.vendors} onAddVendor={p.onAddVendor} onVendorClick={p.onVendorClick} isContingency={isCont} contBase={contBase} onReorder={(from,to)=>p.reorderCat(ci2,from,to)} accent={accent} onSetCatMargin={(margin)=>{if(p.updateProject){p.updateProject({cats:p.cats.map((cat,i)=>i===ci2?{...cat,items:cat.items.map(it=>({...it,margin}))}:cat)})}}}/></div>})})()}
+    return p.cats.map((c,ci2)=>{const isCont=c.name.toLowerCase()==="contingency";const accent=CAT_ACCENTS[ci2%CAT_ACCENTS.length];return<div key={c.id} draggable={canEdit} onDragStart={e=>{setDragSection(ci2);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{e.preventDefault();setOverSection(ci2)}} onDrop={e=>{e.preventDefault();if(dragSection!==null&&dragSection!==ci2&&p.reorderSection)p.reorderSection(dragSection,ci2);setDragSection(null);setOverSection(null)}} onDragEnd={()=>{setDragSection(null);setOverSection(null)}} style={{opacity:dragSection===ci2?.4:1,borderTop:overSection===ci2&&dragSection!==null?`2px solid ${accent}`:"2px solid transparent",transition:"opacity .15s"}}><Cat cat={c} comp={ct(c.items,c)} open={p.exp.has(c.id)} toggle={()=>p.tog(c.id)} onUp={(ii,u)=>p.uCat(ci2,ii,u)} onAdd={()=>p.aCat(ci2)} onRm={ii=>p.rCat(ci2,ii)} onRemoveCat={()=>p.rmCat(ci2)} onMoveCat={p.moveSection?(targetId)=>p.moveSection(ci2,targetId):null} moveTargets={moveTargets} canEdit={canEdit} docs={p.docs} vendors={p.vendors} vendorPool={p.vendorPool} onAddVendor={p.onAddVendor} onVendorClick={p.onVendorClick} isContingency={isCont} contBase={contBase} onReorder={(from,to)=>p.reorderCat(ci2,from,to)} accent={accent} rangesAllowed={rangesAllowed} onSetCatMargin={(margin)=>{if(p.updateProject){p.updateProject({cats:p.cats.map((cat,i)=>i===ci2?{...cat,items:cat.items.map(it=>({...it,margin}))}:cat)})}}} onSetCatOverlay={(rangeMin,rangeMax)=>{if(p.updateProject){p.updateProject({cats:p.cats.map((cat,i)=>i===ci2?{...cat,rangeMin,rangeMax}:cat)})}}}/></div>})})()}
 
     {/* ── Subtotals ── */}
-    <div style={{marginTop:6}}><SB label="Production Subtotal" actual={p.comp.productionSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance}/></div>
+    <div style={{marginTop:6}}><SB label="Production Subtotal" actual={p.comp.productionSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance} {...(rangesAllowed?{clientMin:p.comp.productionSubtotal.clientMin,clientMax:p.comp.productionSubtotal.clientMax}:{})}/></div>
 
-    <div style={{marginTop:20}}><Cat cat={{name:"Agency Production Costs"}} comp={ct(p.ag)} open={p.exp.has("agency")} toggle={()=>p.tog("agency")} onUp={p.uAg} onAdd={p.aAg} onRm={p.rAg} isAg canEdit={canEdit} accent={T.cyan}/></div>
-    <SB label="Agency Costs Subtotal" actual={p.comp.agencyCostsSubtotal.actualCost} client={p.comp.agencyCostsSubtotal.clientPrice} variance={p.comp.agencyCostsSubtotal.variance}/>
-    <SB label="Total Production & Agency Cost" actual={p.comp.productionSubtotal.actualCost+p.comp.agencyCostsSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice+p.comp.agencyCostsSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance+p.comp.agencyCostsSubtotal.variance}/>
+    <div style={{marginTop:20}}><Cat cat={{name:"Agency Production Costs"}} comp={ct(p.ag)} open={p.exp.has("agency")} toggle={()=>p.tog("agency")} onUp={p.uAg} onAdd={p.aAg} onRm={p.rAg} isAg canEdit={canEdit} accent={T.cyan} rangesAllowed={rangesAllowed}/></div>
+    <SB label="Agency Costs Subtotal" actual={p.comp.agencyCostsSubtotal.actualCost} client={p.comp.agencyCostsSubtotal.clientPrice} variance={p.comp.agencyCostsSubtotal.variance} {...(rangesAllowed?{clientMin:p.comp.agencyCostsSubtotal.clientMin,clientMax:p.comp.agencyCostsSubtotal.clientMax}:{})}/>
+    <SB label="Total Production & Agency Cost" actual={p.comp.productionSubtotal.actualCost+p.comp.agencyCostsSubtotal.actualCost} client={p.comp.productionSubtotal.clientPrice+p.comp.agencyCostsSubtotal.clientPrice} variance={p.comp.productionSubtotal.variance+p.comp.agencyCostsSubtotal.variance} {...(rangesAllowed?{clientMin:(p.comp.productionSubtotal.clientMin||0)+(p.comp.agencyCostsSubtotal.clientMin||0),clientMax:(p.comp.productionSubtotal.clientMax||0)+(p.comp.agencyCostsSubtotal.clientMax||0)}:{})}/>
 
     {/* ── Agency Fee ──
          The percentage and the dollar amount stay in sync: edit
@@ -386,12 +404,12 @@ function BudgetV(p){
     </div>
 
     {/* ── Grand Total & Net Profit ── */}
-    <div style={{display:"flex",alignItems:"center",padding:"16px 20px",borderRadius:T.rS,marginTop:8,background:T.inkSoft2,border:`1px solid ${T.faintRule}`,borderTop:`2px solid ${T.ink}`}}>
+    {(()=>{const grandIsRange=rangesAllowed&&Math.abs((p.comp.grandMax||0)-(p.comp.grandMin||0))>=0.5;return<div style={{display:"flex",alignItems:"center",padding:"16px 20px",borderRadius:T.rS,marginTop:8,background:T.inkSoft2,border:`1px solid ${T.faintRule}`,borderTop:`2px solid ${T.ink}`}}>
       <span style={{flex:1,fontSize:12,fontWeight:700,letterSpacing:".10em",color:T.ink,textTransform:"uppercase"}}>Grand Total</span>
       <span className="num" style={{width:96,textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.fadedInk,fontWeight:600}}>{f0(p.comp.productionSubtotal.actualCost+p.comp.agencyCostsSubtotal.actualCost+p.comp.agencyFee.actualCost)}</span>
-      <span className="num" style={{width:96,textAlign:"right",fontSize:18,fontFamily:T.mono,color:T.ink,fontWeight:800,marginLeft:8,letterSpacing:"-0.018em"}}>{f0(gt)}</span>
-      <span className="num" style={{width:96,textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.ink,fontWeight:600,marginLeft:8}}>{f0(p.comp.productionSubtotal.variance+p.comp.agencyCostsSubtotal.variance+p.comp.agencyFee.variance)}</span>
-    </div>
+      <span className="num" style={{width:grandIsRange?220:96,textAlign:"right",fontSize:grandIsRange?15:18,fontFamily:T.mono,color:T.ink,fontWeight:800,marginLeft:8,letterSpacing:"-0.018em"}}>{rangesAllowed?fmtRange(p.comp.grandMin||0,p.comp.grandMax||0,f0):f0(gt)}</span>
+      {!rangesAllowed&&<span className="num" style={{width:96,textAlign:"right",fontSize:13,fontFamily:T.mono,color:T.ink,fontWeight:600,marginLeft:8}}>{f0(p.comp.productionSubtotal.variance+p.comp.agencyCostsSubtotal.variance+p.comp.agencyFee.variance)}</span>}
+    </div>;})()}
     <div style={{display:"flex",alignItems:"center",padding:"22px 22px",borderRadius:T.rS,marginTop:6,background:T.paper,border:`1px solid ${T.faintRule}`,borderTop:`2px solid ${T.ink}`}}>
       <span style={{flex:1,fontSize:12,fontWeight:700,letterSpacing:".10em",color:T.ink,textTransform:"uppercase"}}>Net Profit{proj.repFeeEnabled&&<em style={{fontStyle:"italic",fontWeight:400,marginLeft:8,letterSpacing:"normal",textTransform:"none",fontSize:11}}>after rep fee</em>}</span>
       <span className="num" style={{fontSize:28,fontFamily:T.mono,color:p.comp.netProfit>=0?T.ink:T.alert,fontWeight:800,letterSpacing:"-0.022em"}}>{f0(p.comp.netProfit)}</span>
