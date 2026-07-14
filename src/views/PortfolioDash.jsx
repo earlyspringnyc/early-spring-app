@@ -298,8 +298,14 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
           {projects.length===0?<div style={{textAlign:"center",padding:"40px 20px",color:T.dim,fontSize:13}}>No projects yet. Create one to get started.</div>
           :(()=>{
             const sorted=[...projects].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-            const active=sorted.filter(p=>!isInactiveStage(p.stage||"pitching"));
-            const archived=sorted.filter(p=>isInactiveStage(p.stage||"pitching"));
+            // Wrapped projects are complete — archive them off the active grid
+            // into the collapsed section below (alongside archived & lost) so the
+            // home dashboard shows only live work. Note: this is listing-only —
+            // the revenue/task/staffing rollups above still count wrapped work as
+            // realized (unlike lost/archived), so financial totals are unchanged.
+            const isArchivedForList=(stage)=>isInactiveStage(stage)||stage==="wrapped";
+            const active=sorted.filter(p=>!isArchivedForList(p.stage||"pitching"));
+            const archived=sorted.filter(p=>isArchivedForList(p.stage||"pitching"));
             const renderCard=(p,pi)=>{
               const comp=calcProject(p);
               const ov=(p.docs||[]).filter(d=>d.status==="overdue"||(d.status==="pending"&&isOverdue(d))).length;
@@ -308,7 +314,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
               const tp=tt>0?Math.round(td/tt*100):0;
               const[cardBg,cardBorder,cardAccent]=cardColors[pi%cardColors.length];
               const stage=p.stage||"pitching";
-              return<Card key={p.id} hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:isInactiveStage(stage)?.55:1,background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
+              return<Card key={p.id} hoverable onClick={()=>onOpen(p.id)} style={{padding:0,overflow:"hidden",opacity:isArchivedForList(stage)?.55:1,background:cardBg,borderColor:cardBorder,borderLeft:`3px solid ${cardAccent}`}}>
                 <div style={{padding:"18px 20px 14px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
                     <div style={{flex:1,minWidth:0}}>
@@ -340,7 +346,7 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
               {archived.length>0&&<div data-portfolio-archived style={{marginTop:active.length>0?16:0,paddingTop:active.length>0?14:0,borderTop:active.length>0?`1px solid ${T.border}`:"none",scrollMarginTop:80}}>
                 <button onClick={()=>setShowArchived(!showArchived)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:T.sans,color:T.dim,fontSize:10,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",marginBottom:showArchived?12:0,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.cream} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>
                   <span style={{display:"inline-block",transform:showArchived?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",fontSize:9}}>&#9656;</span>
-                  {archived.length} archived &amp; lost
+                  {archived.length} wrapped, archived &amp; lost
                 </button>
                 {showArchived&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
                   {archived.map((p,pi)=>renderCard(p,active.length+pi))}
@@ -482,7 +488,8 @@ function PortfolioDash({projects,onOpen,onNew,onOpenContacts,onOpenMeetings,onOp
       {/* Bottom strip — quick link to archived/lost projects so they're
           always reachable without scrolling back up to the Projects card. */}
       {(()=>{
-        const inactive=projects.filter(p=>isInactiveStage(p.stage||"pitching"));
+        // Matches the Projects card's archived grouping: wrapped + archived + lost.
+        const inactive=projects.filter(p=>{const s=p.stage||"pitching";return isInactiveStage(s)||s==="wrapped";});
         if(!inactive.length)return null;
         return<div style={{marginTop:32,paddingTop:18,borderTop:`1px solid ${T.faintRule}`,display:"flex",justifyContent:"center"}}>
           <button onClick={()=>{
