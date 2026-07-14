@@ -1123,7 +1123,10 @@ function ClientPortalDashboard({ user, onSignOut }) {
   const creativeAssets = pickArr('creativeAssets');
   const clientFiles = pickArr('clientFiles');
   const meetings = pickArr('meetings');
-  const workback = pickArr('workbackSchedule');
+  // The client portal only ever sees rows NOT marked internal-only. Filtering
+  // at the source means every downstream consumer (shared check, rendered rows,
+  // PDF/XLS downloads, the summary stat) excludes hidden rows automatically.
+  const workback = pickArr('workbackSchedule').filter(r => r && !r.hiddenFromClient);
   const eventDate = pickField('eventDate');
   const feeP = Number(pickField('feeP')) || 0;
 

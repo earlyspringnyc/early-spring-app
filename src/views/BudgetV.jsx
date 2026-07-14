@@ -183,13 +183,35 @@ function BudgetV(p){
   const[showSheetSync,setShowSheetSync]=useState(false);
   const[showXlsxImport,setShowXlsxImport]=useState(false);
   const[sheetsUrl,setSheetsUrl]=useState(null);
+  const runSheetsExport=async(token)=>{
+    const result=await exportBudgetToSheets(token,p.project,p.cats,p.ag,p.comp,p.feeP,p.project?.driveFolders);
+    if(result?.url){setSheetsUrl(result.url);window.open(result.url,"_blank")}
+    return result;
+  };
   const exportToSheets=async()=>{
-    const token=p.accessToken;if(!token){alert("Sign in with Google to export to Sheets");return}
+    // The user is already signed into Morgan with Google, but the Sheets/Drive
+    // API needs a separate access token that expires ~hourly. If we don't have
+    // a live one, request it on the spot (same grant the calendar features use)
+    // rather than telling them to "sign in" — that message confused producers
+    // who were already signed in.
+    let token=p.accessToken;
+    if(!token&&p.requestCalendarAccess){token=await p.requestCalendarAccess();}
+    if(!token){alert("Google needs permission to create the Sheet. Approve the Google pop-up, then click Export to Sheets again.");return}
     setSheetsExporting(true);setShowExportMenu(false);
     try{
-      const result=await exportBudgetToSheets(token,p.project,p.cats,p.ag,p.comp,p.feeP,p.project?.driveFolders);
-      if(result?.url){setSheetsUrl(result.url);window.open(result.url,"_blank")}
-    }catch(e){console.error("[sheets]",e)}
+      await runSheetsExport(token);
+    }catch(e){
+      console.error("[sheets]",e);
+      // Most common failure is an expired/insufficient token — silently
+      // re-request once and retry before surfacing an error.
+      const msg=String(e?.message||e);
+      let recovered=false;
+      if(/401|403|invalid|token|auth|expire/i.test(msg)&&p.requestCalendarAccess){
+        const fresh=await p.requestCalendarAccess();
+        if(fresh){try{await runSheetsExport(fresh);recovered=true;}catch(e2){console.error("[sheets retry]",e2);}}
+      }
+      if(!recovered)alert("Couldn't export to Google Sheets — your Google access may have expired. Approve the Google pop-up and try again.");
+    }
     setSheetsExporting(false);
   };
   const budgetRef=useRef(null);

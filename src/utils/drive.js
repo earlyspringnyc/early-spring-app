@@ -1,7 +1,11 @@
 /* ── Google Drive & Sheets integration ── */
 
+import { byCueTime } from './rosTime.js';
+
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
-const SHEETS_API = 'https://www.googleapis.com/v4/spreadsheets';
+// Sheets v4 is served from the dedicated host — NOT www.googleapis.com, which
+// 404s. The old value silently broke every Sheets export.
+const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 /* ── Folder operations ── */
@@ -599,4 +603,123 @@ export async function exportBudgetToSheets(token, project, cats, ag, comp, feeP,
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
   console.log('[sheets] Budget exported:', url);
   return { spreadsheetId, url };
+}
+
+/* ── Sheets export helpers (Workback + Run of Show) ── */
+
+function parseMDY_(s) {
+  if (!s) return null;
+  const p = String(s).split('/');
+  if (p.length !== 3) return null;
+  const m = +p[0], d = +p[1], y = +p[2];
+  if (!m || !d || !y) return null;
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt) ? null : dt;
+}
+function fmtFullDate_(s) {
+  const d = parseMDY_(s);
+  return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (s || '');
+}
+function fmtWeekOf_(s) {
+  const d = parseMDY_(s);
+  if (!d) return '';
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Create a spreadsheet, move it into a Drive folder (if given), write an
+// array-of-arrays, and format it: bold title row, bold + shaded + frozen
+// header row, auto-sized columns. Row 0 is the title; `headerIdx` is the
+// column-header row. Returns { spreadsheetId, url } or null on failure.
+async function createSheetFromRows(token, { title, tabName, rows, folderId, colCount, headerIdx }) {
+  const createRes = await fetch(SHEETS_API, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ properties: { title }, sheets: [{ properties: { title: tabName } }] }),
+  });
+  if (!createRes.ok) { console.error('[sheets] create failed:', await createRes.text()); return null; }
+  const spreadsheetId = (await createRes.json()).spreadsheetId;
+
+  if (folderId) {
+    await fetch(`${DRIVE_API}/files/${spreadsheetId}?addParents=${folderId}&fields=id`, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  }
+
+  const writeRes = await fetch(`${SHEETS_API}/${spreadsheetId}/values/A1?valueInputOption=USER_ENTERED`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range: 'A1', majorDimension: 'ROWS', values: rows }),
+  });
+  if (!writeRes.ok) { console.error('[sheets] write failed:', await writeRes.text()); return null; }
+
+  const requests = [
+    { repeatCell: { range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } }, fields: 'userEnteredFormat.textFormat' } },
+    { autoResizeDimensions: { dimensions: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: colCount } } },
+  ];
+  if (typeof headerIdx === 'number') {
+    requests.push({ repeatCell: { range: { sheetId: 0, startRowIndex: headerIdx, endRowIndex: headerIdx + 1 }, cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 } } }, fields: 'userEnteredFormat(textFormat,backgroundColor)' } });
+    requests.push({ updateSheetProperties: { properties: { sheetId: 0, gridProperties: { frozenRowCount: headerIdx + 1 } }, fields: 'gridProperties.frozenRowCount' } });
+  }
+  await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests }),
+  }).catch(() => {});
+
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}` };
+}
+
+// Workback schedule → a new Google Sheet. Mirrors the XLS/PDF columns
+// (Due Date · Week Of · Phase · Milestone · Details · Owner · Status · T-Day).
+// `items` should already be filtered to what the caller wants exported (the
+// staff view passes all rows; the client portal passes only visible rows).
+export async function exportWorkbackToSheets(token, project, items, folderIds) {
+  if (!token) return null;
+  const rows = Array.isArray(items) ? items : [];
+  const folderId = folderIds?.['Production'] || folderIds?.['Production/Workback'] || folderIds?._root;
+  const eventStr = project?.eventDate || project?.data?.eventDate || '';
+  const eventDate = parseMDY_(eventStr);
+  const title = `${project.name || 'Workback'} — Workback Schedule`;
+  const aoa = [
+    [title],
+    [`Generated: ${new Date().toLocaleDateString()}`, `Client: ${project.client || ''}`],
+    [],
+    ['Due Date', 'Week Of', 'Phase', 'Milestone', 'Details', 'Owner', 'Status', 'T-Day'],
+  ];
+  rows.forEach((r) => {
+    let tDay = '';
+    const d = parseMDY_(r.date);
+    if (d && eventDate) { const days = Math.round((eventDate - d) / 86400000); tDay = days === 0 ? 'Event' : days > 0 ? `T-${days}d` : `T+${Math.abs(days)}d`; }
+    const details = [r.annotation, r.intro, ...((r.items || []).map(b => (b && b.trim() ? `• ${b.trim()}` : '')).filter(Boolean))].filter(Boolean).join('\n');
+    aoa.push([fmtFullDate_(r.date), fmtWeekOf_(r.date), r.phase || '', r.name || '', details, r.owner || '', r.status || 'Not Started', tDay]);
+  });
+  const result = await createSheetFromRows(token, { title, tabName: 'Workback', rows: aoa, folderId, colCount: 8, headerIdx: 3 });
+  if (result) console.log('[sheets] Workback exported:', result.url);
+  return result;
+}
+
+// Run of Show → a new Google Sheet. Mirrors the PDF columns
+// (Start · End · Cue · Location · Lead · Notes), sorted by cue time.
+export async function exportROSToSheets(token, project, entries, folderIds) {
+  if (!token) return null;
+  const rows = (Array.isArray(entries) ? entries : []).slice().sort(byCueTime);
+  const folderId = folderIds?.['Production'] || folderIds?._root;
+  const venue = project?.rosVenueName || project?.data?.rosVenueName || '';
+  const title = `${project.name || 'Run of Show'} — Run of Show`;
+  const aoa = [
+    [title],
+    [`Generated: ${new Date().toLocaleDateString()}`, venue ? `Venue: ${venue}` : `Client: ${project.client || ''}`],
+    [],
+    ['Start', 'End', 'Cue', 'Location', 'Lead', 'Notes'],
+  ];
+  rows.forEach((r) => {
+    aoa.push([r.time || '', r.endTime || '', r.item || '', r.location || '', r.lead || '', r.notes || '']);
+  });
+  const result = await createSheetFromRows(token, { title, tabName: 'Run of Show', rows: aoa, folderId, colCount: 6, headerIdx: 3 });
+  if (result) console.log('[sheets] Run of Show exported:', result.url);
+  return result;
 }

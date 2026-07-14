@@ -6,7 +6,7 @@ import { Card } from '../components/primitives/index.js';
 import { byCueTime } from '../utils/rosTime.js';
 import { toast } from '../lib/toast.js';
 
-function ROSV({project,updateProject,canEdit,accessToken}){
+function ROSV({project,updateProject,canEdit,accessToken,requestCalendarAccess}){
   const entries=project.ros||[];
   const[showAdd,setShowAdd]=useState(false);
   const[nT,setNT]=useState("");const[nET,setNET]=useState("");const[nI,setNI]=useState("");const[nL,setNL]=useState("");const[nLd,setNLd]=useState("");const[nNo,setNNo]=useState("");
@@ -36,9 +36,36 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       toast.success('Run of Show PNG downloaded');
     }catch(e){console.error('[ros] png export failed:',e);toast.error(`PNG export failed: ${e.message||e}`);}
   };
-  const addEntry=()=>{if(!nT||!nI.trim())return;const e=mkROS(nT,nI.trim(),nL,nLd,"",nNo);e.endTime=nET;updateProject({ros:[...entries,e]});setNT("");setNET("");setNI("");setNL("");setNLd("");setNNo("");setShowAdd(false)};
-  const removeEntry=id=>updateProject({ros:entries.filter(e=>e.id!==id)});
-  const updateEntry=(id,updates)=>updateProject({ros:entries.map(e=>e.id===id?{...e,...updates}:e)});
+  const[sheetsBusy,setSheetsBusy]=useState(false);
+  const exportSheets=async()=>{
+    // The user is already signed into Morgan with Google, but the Sheets API
+    // needs a separate access token that expires ~hourly. Request it on the
+    // spot if we don't have a live one, then retry once if it turns out stale.
+    let token=accessToken;
+    if(!token&&requestCalendarAccess){token=await requestCalendarAccess();}
+    if(!token){toast.error('Google needs permission to create the Sheet. Approve the pop-up, then try again.');return;}
+    setSheetsBusy(true);
+    try{
+      const{exportROSToSheets}=await import('../utils/drive.js');
+      const run=async(t)=>{const r=await exportROSToSheets(t,project,entries,project?.driveFolders);if(!r?.url)throw new Error('No sheet returned');window.open(r.url,'_blank');return r;};
+      try{await run(token);}
+      catch(e){
+        const msg=String(e?.message||e);
+        if(/401|403|invalid|token|auth|expire/i.test(msg)&&requestCalendarAccess){const fresh=await requestCalendarAccess();if(fresh){await run(fresh);}else{throw e;}}
+        else{throw e;}
+      }
+      toast.success('Run of Show exported to Google Sheets');
+    }catch(e){console.error('[ros] sheets export failed:',e);toast.error('Couldn’t export to Google Sheets — your Google access may have expired. Approve the pop-up and try again.');}
+    setSheetsBusy(false);
+  };
+  // Functional updaters: each rebuilds `ros` from the LATEST project state
+  // (p.ros) rather than the `entries` snapshot captured at render. This
+  // prevents a second rapid edit — dispatched before the added/edited row
+  // propagates back through props — from shipping a stale array and silently
+  // dropping the change.
+  const addEntry=()=>{if(!nT||!nI.trim())return;const e=mkROS(nT,nI.trim(),nL,nLd,"",nNo);e.endTime=nET;updateProject(p=>({ros:[...(p.ros||[]),e]}));setNT("");setNET("");setNI("");setNL("");setNLd("");setNNo("");setShowAdd(false)};
+  const removeEntry=id=>updateProject(p=>({ros:(p.ros||[]).filter(e=>e.id!==id)}));
+  const updateEntry=(id,updates)=>updateProject(p=>({ros:(p.ros||[]).map(e=>e.id===id?{...e,...updates}:e)}));
 
   const venueAddress=project.rosVenueAddress||"";
   const venueName=project.rosVenueName||"";
@@ -162,6 +189,7 @@ function ROSV({project,updateProject,canEdit,accessToken}){
       <div style={{display:"flex",gap:8}}>
         {entries.length>0&&<button onClick={exportPdf} style={{padding:"10px 16px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>↓ PDF</button>}
         {entries.length>0&&<button onClick={exportPng} style={{padding:"10px 16px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>↓ PNG</button>}
+        {entries.length>0&&<button onClick={exportSheets} disabled={sheetsBusy} style={{padding:"10px 16px",background:"transparent",color:T.dim,border:`1px solid ${T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:sheetsBusy?"wait":"pointer",fontFamily:T.sans,opacity:sheetsBusy?.6:1}}>{sheetsBusy?"…":"↗ Sheets"}</button>}
         <button onClick={()=>setShowShare(!showShare)} style={{padding:"10px 18px",background:"transparent",color:showShare?T.cyan:T.dim,border:`1px solid ${showShare?`${T.cyan}40`:T.border}`,borderRadius:T.rS,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}>{showShare?"Cancel":"Share"}</button>
         {canEdit&&<button onClick={()=>setShowAdd(!showAdd)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",background:showAdd?"transparent":T.ink,color:showAdd?T.dim:T.brown,border:showAdd?`1px solid ${T.border}`:"none",borderRadius:T.rS,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:T.sans}}>{showAdd?"Cancel":"+ Add Cue"}</button>}
       </div>

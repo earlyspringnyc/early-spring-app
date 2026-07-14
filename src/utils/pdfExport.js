@@ -401,7 +401,9 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
   const body = rows.map(r => {
     const week = fmtWeekOf(r.date);
     const dateLine = fmtFullDate(r.date);
-    const weekContent = week ? `${week}\n${dateLine}` : (dateLine || '—');
+    // Due date is the PRIMARY (top) line; "Week of" is secondary underneath,
+    // labelled so it can't be misread as the due date itself.
+    const dateContent = dateLine ? (week ? `${dateLine}\nWeek of ${week}` : dateLine) : '—';
 
     const phase = r.phase || '';
     const pc = phaseColor(phase, phaseColors);
@@ -423,7 +425,7 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
     const sc = STATUS_RGB[status.toLowerCase()] || STATUS_RGB['not started'];
 
     return [
-      { content: weekContent, styles: { fontSize: 9, valign: 'top', textColor: INK, fontStyle: 'bold' } },
+      { content: dateContent, styles: { fontSize: 9, valign: 'top', textColor: INK, fontStyle: 'bold' } },
       { content: phase || '—', styles: { fillColor: phase ? pc.bgRgb : [255, 255, 255], textColor: phase ? pc.rgb : PHASE_NEUTRAL.rgb, fontStyle: 'bold', fontSize: 8, halign: 'left', valign: 'top', cellPadding: { top: 8, right: 8, bottom: 8, left: 8 } } },
       { content: milestoneContent, styles: { fontSize: 9, textColor: INK, valign: 'top', cellPadding: { top: 8, right: 8, bottom: 8, left: 8 } } },
       { content: r.owner || '—', styles: { fontSize: 9, halign: 'center', valign: 'top', textColor: FADED } },
@@ -436,7 +438,7 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
     ...baseTable(margin),
     startY: 174,
     head: [[
-      { content: 'Week Of',   styles: { halign: 'left' } },
+      { content: 'Due Date',  styles: { halign: 'left' } },
       { content: 'Phase',     styles: { halign: 'left' } },
       { content: 'Milestone', styles: { halign: 'left' } },
       { content: 'Owner',     styles: { halign: 'center' } },

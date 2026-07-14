@@ -106,6 +106,8 @@ function normalize(items) {
       items: Array.isArray(r.items) ? r.items : (r.notes ? [String(r.notes)] : []),
       gcalEventId: r.gcalEventId || null,
       syncedAt: r.syncedAt || null,
+      // Internal-only rows kept out of the client portal + its exports.
+      hiddenFromClient: r.hiddenFromClient || false,
     };
     out.push(base);
   });
@@ -123,7 +125,7 @@ function buildEventDescription(row) {
   return lines.join('\n');
 }
 
-export default function WorkbackV({ project, updateProject, canEdit, accessToken }) {
+export default function WorkbackV({ project, updateProject, canEdit, accessToken, requestCalendarAccess }) {
   const raw = project?.workbackSchedule;
   const normalized = useMemo(() => normalize(raw), [raw]);
   const eventDateRaw = project?.eventDate || project?.data?.eventDate || '';
@@ -135,27 +137,34 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
 
   const patchItems = (next) => updateProject({ workbackSchedule: next });
 
+  // Functional updaters: each rebuilds the schedule from the LATEST project
+  // state (p.workbackSchedule) rather than the `normalized` snapshot captured
+  // at render, so a rapid second edit can't ship a stale array and silently
+  // drop a just-added/edited row (same class of bug fixed in Budget + ROS).
   const updateRow = (id, patch) => {
-    patchItems(normalized.map(r => r.id === id ? { ...r, ...patch } : r));
+    updateProject(p => ({ workbackSchedule: normalize(p.workbackSchedule).map(r => r.id === id ? { ...r, ...patch } : r) }));
   };
 
   const addRow = (afterIdx) => {
-    const lastPhase = normalized.length ? normalized[normalized.length - 1].phase : '';
-    const row = {
-      id: uid(), date: '', endDate: '', phase: lastPhase,
-      name: '', owner: 'ES', status: 'Not Started',
-      intro: '', annotation: '', items: [],
-    };
-    const next = [...normalized];
-    next.splice(typeof afterIdx === 'number' ? afterIdx + 1 : next.length, 0, row);
-    patchItems(next);
+    updateProject(p => {
+      const cur = normalize(p.workbackSchedule);
+      const lastPhase = cur.length ? cur[cur.length - 1].phase : '';
+      const row = {
+        id: uid(), date: '', endDate: '', phase: lastPhase,
+        name: '', owner: 'ES', status: 'Not Started',
+        intro: '', annotation: '', items: [], hiddenFromClient: false,
+      };
+      const next = [...cur];
+      next.splice(typeof afterIdx === 'number' ? afterIdx + 1 : next.length, 0, row);
+      return { workbackSchedule: next };
+    });
   };
 
   const removeRow = (id) => {
     const row = normalized.find(r => r.id === id);
     if (!row) return;
     if (!confirm(`Delete milestone "${row.name || 'untitled'}"?`)) return;
-    patchItems(normalized.filter(r => r.id !== id));
+    updateProject(p => ({ workbackSchedule: normalize(p.workbackSchedule).filter(r => r.id !== id) }));
   };
 
   const sortByDate = () => {
@@ -269,6 +278,34 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
     }
   };
 
+  const [sheetsBusy, setSheetsBusy] = useState(false);
+  const exportSheets = async () => {
+    // The user is already signed into Morgan with Google, but the Sheets API
+    // needs a separate access token that expires ~hourly. Request it on demand
+    // if we don't have a live one, and retry once if it turns out stale. The
+    // internal view exports every row (like the PDF/XLS); the client portal has
+    // its own filtered download.
+    let token = accessToken;
+    if (!token && requestCalendarAccess) { token = await requestCalendarAccess(); }
+    if (!token) { toast.error('Google needs permission to create the Sheet. Approve the pop-up, then try again.'); return; }
+    setSheetsBusy(true);
+    try {
+      const { exportWorkbackToSheets } = await import('../utils/drive.js');
+      const run = async (t) => { const r = await exportWorkbackToSheets(t, project, normalized, project?.driveFolders); if (!r?.url) throw new Error('No sheet returned'); window.open(r.url, '_blank'); return r; };
+      try { await run(token); }
+      catch (e) {
+        const msg = String(e?.message || e);
+        if (/401|403|invalid|token|auth|expire/i.test(msg) && requestCalendarAccess) { const fresh = await requestCalendarAccess(); if (fresh) { await run(fresh); } else { throw e; } }
+        else { throw e; }
+      }
+      toast.success('Workback exported to Google Sheets');
+    } catch (e) {
+      console.error('[workback] sheets export failed:', e);
+      toast.error('Couldn’t export to Google Sheets — your Google access may have expired. Approve the pop-up and try again.');
+    }
+    setSheetsBusy(false);
+  };
+
   // Share the workback with the client portal. Mirrors the Creative
   // section's share model: the section id 'workback' lives in
   // project.sentSectionIds; the portal renders it when present.
@@ -338,6 +375,11 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
               ↓ Export XLS
             </button>
           )}
+          {normalized.length > 0 && (
+            <button onClick={exportSheets} disabled={sheetsBusy} className="btn-pill" style={{ padding: '6px 14px', fontSize: 11, cursor: sheetsBusy ? 'wait' : 'pointer', opacity: sheetsBusy ? .6 : 1 }}>
+              {sheetsBusy ? '…' : '↗ Google Sheets'}
+            </button>
+          )}
           {canEdit && normalized.length > 0 && (
             <button
               onClick={toggleClientShare}
@@ -379,7 +421,7 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 36 }}></th>
-                <th style={{ ...thStyle, width: 110 }}>Week Of</th>
+                <th style={{ ...thStyle, width: 110 }}>Due Date</th>
                 <th style={{ ...thStyle, width: 150 }}>Phase</th>
                 <th style={{ ...thStyle }}>Milestone</th>
                 <th style={{ ...thStyle, width: 110 }}>Owner</th>
@@ -406,22 +448,25 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
                       onDragOver={(e) => handleDragOver(e, row.id)}
                       onDrop={() => handleDrop(row.id)}
                       style={{
-                        background: isOver && !isDragSource ? T.goldSoft : 'transparent',
+                        background: isOver && !isDragSource ? T.goldSoft : (row.hiddenFromClient ? T.inkSoft3 : 'transparent'),
                         opacity: isDragSource ? .4 : 1,
                         cursor: canEdit ? 'grab' : 'default',
                       }}
                     >
                       <td style={{ ...tdStyle, color: T.fadedInk, fontFamily: T.mono, fontSize: 10, textAlign: 'center', cursor: canEdit ? 'grab' : 'default' }} title="Drag to reorder">⋮⋮</td>
                       <td style={{ ...tdStyle }}>
+                        {/* Due date is the PRIMARY line (top, bold); "Week of" is
+                            secondary underneath — people were misreading the week
+                            label as the actual due date (Bernardo, Stephanie). */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: T.ink, fontFamily: T.sans }}>{weekOfLabel(row.date) || <span style={{ color: T.fadedInk, fontStyle: 'italic', fontWeight: 400 }}>Set date</span>}</span>
                           <input
                             type="date"
                             value={toInput(row.date)}
                             onChange={(e) => updateRow(row.id, { date: fromInput(e.target.value) })}
                             disabled={!canEdit}
-                            style={{ background: 'transparent', border: 'none', color: T.fadedInk, fontSize: 10, fontFamily: T.mono, padding: 0, outline: 'none', width: '100%' }}
+                            style={{ background: 'transparent', border: 'none', color: T.ink, fontSize: 12, fontWeight: 700, fontFamily: T.sans, padding: 0, outline: 'none', width: '100%' }}
                           />
+                          <span style={{ fontSize: 10, color: T.fadedInk, fontFamily: T.mono }}>{weekOfLabel(row.date) ? `Week of ${weekOfLabel(row.date)}` : ''}</span>
                         </div>
                       </td>
                       <td style={{ ...tdStyle }}>
@@ -525,6 +570,21 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
                               }}
                             >
                               {isSyncing ? '…' : synced ? '✓' : '↗ Sync'}
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button
+                              onClick={() => updateRow(row.id, { hiddenFromClient: !row.hiddenFromClient })}
+                              title={row.hiddenFromClient ? 'Internal only — hidden from the client view. Click to show to client.' : 'Shown to client. Click to keep internal only.'}
+                              style={{
+                                background: row.hiddenFromClient ? T.inkSoft2 : 'transparent',
+                                border: `1px solid ${row.hiddenFromClient ? T.fadedInk : T.faintRule}`,
+                                color: T.fadedInk,
+                                fontSize: 9, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase',
+                                cursor: 'pointer', padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {row.hiddenFromClient ? '⊘ Internal' : 'Client'}
                             </button>
                           )}
                           {canEdit && (

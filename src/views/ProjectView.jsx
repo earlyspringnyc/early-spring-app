@@ -71,27 +71,31 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     updateProject({budgets});
   },[altBudgets,altIdx,updateProject]);
 
-  const uCat=useCallback((ci2,ii,u)=>{
-    const cats=activeCats.map((c,i)=>i===ci2?{...c,items:c.items.map((it,j)=>j===ii?{...it,...u}:it)}:c);
-    isAlt?updateAltBudget({cats}):updateProject({cats});
-  },[activeCats,isAlt,updateProject,updateAltBudget]);
-  const aCat=useCallback(ci2=>{
-    const cats=activeCats.map((c,i)=>i===ci2?{...c,items:[...c.items,mkI("New Item")]}:c);
-    isAlt?updateAltBudget({cats}):updateProject({cats});
-  },[activeCats,isAlt,updateProject,updateAltBudget]);
-  const rCat=useCallback((ci2,ii)=>{
-    const cats=activeCats.map((c,i)=>i===ci2?{...c,items:c.items.filter((_,j)=>j!==ii)}:c);
-    isAlt?updateAltBudget({cats}):updateProject({cats});
-  },[activeCats,isAlt,updateProject,updateAltBudget]);
-  const rmCat=useCallback(ci2=>{
-    const cats=activeCats.filter((_,i)=>i!==ci2);
-    isAlt?updateAltBudget({cats}):updateProject({cats});
-  },[activeCats,isAlt,updateProject,updateAltBudget]);
-  const addSection=useCallback(name=>{
-    const newCat={id:uid(),name,items:[mkI("New Item")]};
-    const cats=[...activeCats,newCat];
-    isAlt?updateAltBudget({cats}):updateProject({cats});
-  },[activeCats,isAlt,updateProject,updateAltBudget]);
+  // Merge fields into the ACTIVE budget (primary or alt) computed from the
+  // LATEST project state. `fieldsOrFn` may be a plain object, or a function
+  // (currentActiveBudget) => fields — the function form reads cats/ag from the
+  // freshest state so two rapid edits can't ship a stale whole-array snapshot
+  // that silently drops a just-added/edited line item. This is the fix for
+  // producers reporting "I add a line and it disappears." Resolves the active
+  // budget by id (not a render-time index) so it stays correct under churn.
+  const updateActiveBudget=useCallback((fieldsOrFn)=>{
+    updateProject(p=>{
+      if(activeBudgetId){
+        const budgets=p.budgets||[];
+        const i=budgets.findIndex(b=>b.id===activeBudgetId);
+        if(i<0) return {};
+        const fields=typeof fieldsOrFn==='function'?fieldsOrFn(budgets[i]):fieldsOrFn;
+        return {budgets:budgets.map((b,j)=>j===i?{...b,...fields}:b)};
+      }
+      return typeof fieldsOrFn==='function'?fieldsOrFn(p):fieldsOrFn;
+    });
+  },[activeBudgetId,updateProject]);
+
+  const uCat=useCallback((ci2,ii,u)=>updateActiveBudget(b=>({cats:(b.cats||[]).map((c,i)=>i===ci2?{...c,items:c.items.map((it,j)=>j===ii?{...it,...u}:it)}:c)})),[updateActiveBudget]);
+  const aCat=useCallback(ci2=>updateActiveBudget(b=>({cats:(b.cats||[]).map((c,i)=>i===ci2?{...c,items:[...c.items,mkI("New Item")]}:c)})),[updateActiveBudget]);
+  const rCat=useCallback((ci2,ii)=>updateActiveBudget(b=>({cats:(b.cats||[]).map((c,i)=>i===ci2?{...c,items:c.items.filter((_,j)=>j!==ii)}:c)})),[updateActiveBudget]);
+  const rmCat=useCallback(ci2=>updateActiveBudget(b=>({cats:(b.cats||[]).filter((_,i)=>i!==ci2)})),[updateActiveBudget]);
+  const addSection=useCallback(name=>updateActiveBudget(b=>({cats:[...(b.cats||[]),{id:uid(),name,items:[mkI("New Item")]}]})),[updateActiveBudget]);
   // Move a section out of the currently-viewed budget (primary or
   // alt) into another budget. The single updateProject call writes
   // both source and target in one atomic state update so there's
@@ -131,23 +135,11 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     updates.budgets=newBudgets;
     updateProject(updates);
   },[activeCats,activeBudgetId,project.cats,altBudgets,updateProject]);
-  const uAg=useCallback((ii,u)=>{
-    const ag=activeAg.map((it,i)=>i===ii?{...it,...u}:it);
-    isAlt?updateAltBudget({ag}):updateProject({ag});
-  },[activeAg,isAlt,updateProject,updateAltBudget]);
-  const aAg=useCallback(()=>{
-    const ag=[...activeAg,mkA("New Role")];
-    isAlt?updateAltBudget({ag}):updateProject({ag});
-  },[activeAg,isAlt,updateProject,updateAltBudget]);
-  const rAg=useCallback(ii=>{
-    const ag=activeAg.filter((_,i)=>i!==ii);
-    isAlt?updateAltBudget({ag}):updateProject({ag});
-  },[activeAg,isAlt,updateProject,updateAltBudget]);
-  const setFeeP=useCallback(v=>{isAlt?updateAltBudget({feeP:v}):updateProject({feeP:v})},[isAlt,updateProject,updateAltBudget]);
-  const setAllMargins=useCallback(margin=>{
-    const cats=activeCats.map(c=>({...c,items:c.items.map(it=>({...it,margin}))}));
-    isAlt?updateAltBudget({cats}):updateProject({cats});
-  },[activeCats,isAlt,updateProject,updateAltBudget]);
+  const uAg=useCallback((ii,u)=>updateActiveBudget(b=>({ag:(b.ag||[]).map((it,i)=>i===ii?{...it,...u}:it)})),[updateActiveBudget]);
+  const aAg=useCallback(()=>updateActiveBudget(b=>({ag:[...(b.ag||[]),mkA("New Role")]})),[updateActiveBudget]);
+  const rAg=useCallback(ii=>updateActiveBudget(b=>({ag:(b.ag||[]).filter((_,i)=>i!==ii)})),[updateActiveBudget]);
+  const setFeeP=useCallback(v=>updateActiveBudget({feeP:v}),[updateActiveBudget]);
+  const setAllMargins=useCallback(margin=>updateActiveBudget(b=>({cats:(b.cats||[]).map(c=>({...c,items:c.items.map(it=>({...it,margin}))}))})),[updateActiveBudget]);
   const saveHistory=useCallback(history=>updateProject({budgetHistory:history}),[updateProject]);
   // Restore the full project budget state from a snapshot. New
   // auto-snapshots include the alt-budgets array too, so a restore
@@ -195,8 +187,8 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
   },[project.cats,project.ag,project.feeP,project.budgets,accessToken,project.driveFolders]);
 
   const[vendorDetailId,setVendorDetailId]=useState(null);
-  const reorderCat=useCallback((ci2,from,to)=>{const cats=[...activeCats];const items=[...cats[ci2].items];const[moved]=items.splice(from,1);items.splice(to,0,moved);cats[ci2]={...cats[ci2],items};isAlt?updateAltBudget({cats}):updateProject({cats})},[activeCats,isAlt,updateProject,updateAltBudget]);
-  const reorderSection=useCallback((from,to)=>{const cats=[...activeCats];const[moved]=cats.splice(from,1);cats.splice(to,0,moved);isAlt?updateAltBudget({cats}):updateProject({cats})},[activeCats,isAlt,updateProject,updateAltBudget]);
+  const reorderCat=useCallback((ci2,from,to)=>updateActiveBudget(b=>{const cats=[...(b.cats||[])];const items=[...cats[ci2].items];const[moved]=items.splice(from,1);items.splice(to,0,moved);cats[ci2]={...cats[ci2],items};return{cats}}),[updateActiveBudget]);
+  const reorderSection=useCallback((from,to)=>updateActiveBudget(b=>{const cats=[...(b.cats||[])];const[moved]=cats.splice(from,1);cats.splice(to,0,moved);return{cats}}),[updateActiveBudget]);
   const addVendor=useCallback((v)=>{
     // 1) Per-project working copy — budget line items reference
     //    these by ID; P&L matches expenses to them.
@@ -234,7 +226,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
     <Side view={view} setView={setView} comp={primaryComp} user={user} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout} saving={saving} lastSaved={lastSaved} profiles={profiles} organizations={organizations} currentOrgId={currentOrgId} switchOrg={switchOrg}/>
     <MobileNav view={view} setView={setView} project={project} onBack={onBack} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={onLogout}/>
     <main className="main-content" style={{flex:1,overflow:"auto",padding:32}}><div key={view} className="view-enter">
-      {view==="budget"&&<BudgetV cats={activeCats} ag={activeAg} feeP={activeFeeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} moveSection={moveSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} vendorPool={vendorPool||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={activeClientBudget} onUpdateBudget={v=>{isAlt?updateAltBudget({clientBudget:v}):updateProject({clientBudget:v})}} reorderCat={reorderCat} reorderSection={reorderSection} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={activeProjectForCalc} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory} updateProject={isAlt?(fields)=>updateAltBudget(fields):updateProject} accessToken={accessToken} budgets={altBudgets} activeBudgetId={activeBudgetId} onSwitchBudget={setActiveBudgetId} onAddBudget={(name)=>{const b={id:uid(),name,cats:defaultCats(),ag:defaultAg(),feeP:0.10,clientBudget:0,repFeeEnabled:false,repFeeP:0.10,createdAt:new Date().toISOString()};updateProject({budgets:[...altBudgets,b]});setActiveBudgetId(b.id)}} onDeleteBudget={(id)=>{if(!confirm("Delete this budget? This cannot be undone."))return;updateProject({budgets:altBudgets.filter(b=>b.id!==id)});if(activeBudgetId===id)setActiveBudgetId(null)}} onRenameBudget={(id,name)=>{updateProject({budgets:altBudgets.map(b=>b.id===id?{...b,name}:b)})}} onMakePrimary={(id)=>{
+      {view==="budget"&&<BudgetV cats={activeCats} ag={activeAg} feeP={activeFeeP} setFeeP={setFeeP} comp={comp} exp={exp} tog={tog} uCat={uCat} aCat={aCat} rCat={rCat} rmCat={rmCat} addSection={addSection} moveSection={moveSection} uAg={uAg} aAg={aAg} rAg={rAg} user={user} docs={project.docs||[]} vendors={project.vendors||[]} vendorPool={vendorPool||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} clientBudget={activeClientBudget} onUpdateBudget={v=>{isAlt?updateAltBudget({clientBudget:v}):updateProject({clientBudget:v})}} reorderCat={reorderCat} reorderSection={reorderSection} saving={saving} lastSaved={lastSaved} setAllMargins={setAllMargins} project={activeProjectForCalc} onSaveHistory={saveHistory} onRestoreHistory={restoreHistory} updateProject={isAlt?(fields)=>updateAltBudget(fields):updateProject} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} budgets={altBudgets} activeBudgetId={activeBudgetId} onSwitchBudget={setActiveBudgetId} onAddBudget={(name)=>{const b={id:uid(),name,cats:defaultCats(),ag:defaultAg(),feeP:0.10,clientBudget:0,repFeeEnabled:false,repFeeP:0.10,createdAt:new Date().toISOString()};updateProject({budgets:[...altBudgets,b]});setActiveBudgetId(b.id)}} onDeleteBudget={(id)=>{if(!confirm("Delete this budget? This cannot be undone."))return;updateProject({budgets:altBudgets.filter(b=>b.id!==id)});if(activeBudgetId===id)setActiveBudgetId(null)}} onRenameBudget={(id,name)=>{updateProject({budgets:altBudgets.map(b=>b.id===id?{...b,name}:b)})}} onMakePrimary={(id)=>{
           const alt=altBudgets.find(b=>b.id===id);if(!alt)return;
           // Current primary becomes an alternate
           const oldPrimary={id:uid(),name:"Previous Primary",cats:JSON.parse(JSON.stringify(project.cats)),ag:JSON.parse(JSON.stringify(project.ag)),feeP:project.feeP,clientBudget:project.clientBudget||0,repFeeEnabled:project.repFeeEnabled||false,repFeeP:project.repFeeP||0.10,createdAt:new Date().toISOString()};
@@ -255,7 +247,7 @@ function ProjectView({project,updateProject,deleteProject,user,onBack,accessToke
         }}/>}
       {view==="dashboard"&&<DashV cats={project.cats} comp={primaryComp} feeP={project.feeP} project={project} onNavigate={setView} updateProject={updateProject} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user}/>}
       {view==="timeline"&&<ProductionWrapper project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} user={user} onAddVendor={addVendor} onVendorClick={setVendorDetailId}/>}
-      {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken}/>}
+      {view==="ros"&&<ROSV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess}/>}
       {(view==="pnl"||view==="docs")&&<PnLV project={project} updateProject={updateProject} comp={primaryComp} canEdit={canEdit} vendors={project.vendors||[]} onAddVendor={addVendor} onVendorClick={setVendorDetailId} accessToken={accessToken}/>}
       {view==="vendors"&&<VendorsV project={project} updateProject={updateProject} canEdit={canEdit} onVendorClick={setVendorDetailId} onAddVendor={addVendor}/>}
       {view==="creative"&&<CreativeV project={project} updateProject={updateProject} canEdit={canEdit} accessToken={accessToken} user={user} orgId={currentOrgId}/>}
@@ -305,7 +297,7 @@ function ProductionWrapper({ project, ...rest }) {
         <button onClick={() => set('schedule')} style={{ ...pillBase, ...(subTab === 'schedule' ? pillActive : {}) }}>Schedule</button>
         <button onClick={() => set('topics')} style={{ ...pillBase, ...(subTab === 'topics' ? pillActive : {}) }}>Production Notes</button>
       </div>
-      {subTab === 'workback' && <WorkbackV project={project} updateProject={rest.updateProject} canEdit={rest.canEdit} accessToken={rest.accessToken}/>}
+      {subTab === 'workback' && <WorkbackV project={project} updateProject={rest.updateProject} canEdit={rest.canEdit} accessToken={rest.accessToken} requestCalendarAccess={rest.requestCalendarAccess}/>}
       {subTab === 'schedule' && <TimelineV project={project} {...rest}/>}
       {subTab === 'topics' && <TopicsV project={project} updateProject={rest.updateProject} canEdit={rest.canEdit} onAddVendor={rest.onAddVendor} onVendorClick={rest.onVendorClick}/>}
     </div>
