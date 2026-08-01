@@ -419,7 +419,6 @@ function BudgetV(p){
           <input value={Math.round((proj.repFeeP||0.10)*100)} onChange={e=>{const v=parseFloat(e.target.value)||0;p.updateProject({repFeeP:Math.max(5,Math.min(25,v))/100})}} style={{width:40,padding:"4px",borderRadius:4,background:"transparent",border:"none",borderBottom:`1px solid ${T.faintRule}`,color:T.ink,fontSize:14,fontFamily:T.mono,fontWeight:800,textAlign:"center",outline:"none"}} onFocus={e=>e.currentTarget.style.borderBottomColor=T.ink} onBlur={e=>e.currentTarget.style.borderBottomColor=T.faintRule}/>
           <span style={{fontSize:14,fontWeight:800,color:T.ink}}>%</span>
         </div>
-        <span style={{fontSize:10,color:T.fadedInk}}>of agency fee</span>
       </>:proj.repFeeEnabled&&<span style={{fontSize:12,color:T.ink,fontFamily:T.mono,fontWeight:700}}>{fp(proj.repFeeP||0.10)}</span>}
       <div style={{flex:1}}/>
       {proj.repFeeEnabled&&<span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.ink,fontWeight:700}}>−{f0(p.comp.repFee||0)}</span>}

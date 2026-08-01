@@ -230,14 +230,15 @@ function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
   const loadClientDecisions=useCallback(async()=>{
     if(!project?.id)return;
     try{
-      const rows=await restFetch(`/client_asset_decisions?select=asset_id,decision,comment&project_id=eq.${project.id}&limit=500`);
+      const rows=await restFetch(`/client_asset_decisions?select=asset_id,decision,comment,updated_at,user_id&project_id=eq.${project.id}&limit=500&order=updated_at.desc`);
       const agg={};
       (rows||[]).forEach(r=>{
         if(!r?.asset_id)return;
-        if(!agg[r.asset_id])agg[r.asset_id]={approvals:0,rejections:0,comments:0};
+        if(!agg[r.asset_id])agg[r.asset_id]={approvals:0,rejections:0,comments:0,rows:[]};
         if(r.decision==='approved')agg[r.asset_id].approvals++;
         else if(r.decision==='rejected')agg[r.asset_id].rejections++;
         if(r.comment&&String(r.comment).trim())agg[r.asset_id].comments++;
+        agg[r.asset_id].rows.push(r);
       });
       setClientDecisions(agg);
     }catch(e){/* table may not exist; ignore */}
@@ -285,6 +286,18 @@ function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
     if(!confirm("Reset section list?\n\nRemoves any sections you added and restores all default cards. Files inside don't get touched."))return;
     updateProject({customCreativeSections:[],deletedSectionIds:[]});
   },[updateProject]);
+
+  // Card-level "Share with Client": flag the entire section as shared
+  // so its card appears in the client portal with ALL its assets. This
+  // supersedes the per-asset status='sent' flow, which still works as
+  // a fallback for sections that haven't been explicitly shared.
+  const sentSectionIds=Array.isArray(project?.sentSectionIds)?project.sentSectionIds:[];
+  const isSectionShared=useCallback((id)=>sentSectionIds.includes(id),[sentSectionIds]);
+  const toggleSectionShare=useCallback((id)=>{
+    const set=new Set(sentSectionIds);
+    if(set.has(id))set.delete(id);else set.add(id);
+    updateProject({sentSectionIds:Array.from(set)});
+  },[sentSectionIds,updateProject]);
 
   // Fire a Mailgun notification to all clients on the project that
   // a section is ready for review. Sharing is implicit (asset.status
@@ -618,7 +631,30 @@ function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
             </div>
           </div>
           <div style={{flex:1,overflow:"auto",padding:"12px 16px"}}>
-            {visibleComments.length===0&&<div style={{fontSize:11,color:T.dim,textAlign:"center",padding:20}}>{a.isPdf&&commentFilter==="page"?`No comments on page ${deckPage+1}`:"No comments yet"}</div>}
+            {/* Client feedback block — rendered at the top of the
+                comments sidebar so it's the first thing staff sees
+                when they open an asset. Surfaces every client's
+                decision + comment for THIS asset, pulled from the
+                clientDecisions cache loaded once per project. */}
+            {(()=>{const d=clientDecisions[a.id];if(!d||!d.rows||d.rows.length===0)return null;
+              return<div style={{marginBottom:14,padding:"10px 12px",background:`#F0B84908`,border:`1px solid #F0B84940`,borderRadius:T.rS}}>
+                <div style={{fontSize:9,fontWeight:700,color:T.gold,letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Client feedback</div>
+                {d.rows.map((row,i)=>{
+                  const approved=row.decision==='approved';
+                  const rejected=row.decision==='rejected';
+                  const decisionColor=approved?'#1F7A4F':rejected?'#7A1F1F':T.dim;
+                  const decisionLabel=approved?'✓ Approved':rejected?'× Rejected':'(no decision yet)';
+                  return<div key={i} style={{marginTop:i===0?0:10,paddingTop:i===0?0:10,borderTop:i===0?'none':`1px solid ${T.border}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:row.comment?6:0}}>
+                      <span style={{fontSize:10,fontWeight:700,color:decisionColor,letterSpacing:".04em",textTransform:"uppercase"}}>{decisionLabel}</span>
+                      {row.updated_at&&<span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{new Date(row.updated_at).toLocaleDateString()}</span>}
+                    </div>
+                    {row.comment&&<div style={{fontSize:12,color:T.cream,lineHeight:1.5,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{row.comment}</div>}
+                  </div>;
+                })}
+              </div>;
+            })()}
+            {visibleComments.length===0&&!clientDecisions[a.id]&&<div style={{fontSize:11,color:T.dim,textAlign:"center",padding:20}}>{a.isPdf&&commentFilter==="page"?`No comments on page ${deckPage+1}`:"No comments yet"}</div>}
             {visibleComments.map(c=><div key={c.id} style={{padding:"10px 12px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:6}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -730,7 +766,8 @@ function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
           <p style={{fontSize:12,color:T.dim,marginTop:4}}>{sAssets.length} files{reviewInSection>0?` · ${reviewInSection} awaiting review`:""}{sentCount>0?` · ${sentCount} sent to client`:""}</p>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {sentCount>0&&canEdit&&<button onClick={()=>setNotifyOpen(true)} title="Email the client(s) on this project that this section is ready for review" style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:T.ink,color:T.paper,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,letterSpacing:".02em"}}>✉ Notify client</button>}
+          {canEdit&&!sec.id?.startsWith('from-client')&&sec.id!=='wardrobe'&&<button onClick={()=>toggleSectionShare(activeSection)} title={isSectionShared(activeSection)?"This section is live in the client portal — click to unshare":"Share this entire card with the client(s)"} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:isSectionShared(activeSection)?"#F0B849":"transparent",color:isSectionShared(activeSection)?"#0F52BA":T.gold,border:`1px solid ${isSectionShared(activeSection)?"#F0B849":T.gold+"60"}`,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.sans,letterSpacing:".02em"}}>↗ {isSectionShared(activeSection)?"Shared":"Send to client"}</button>}
+          {(sentCount>0||isSectionShared(activeSection))&&canEdit&&<button onClick={()=>setNotifyOpen(true)} title="Email the client(s) on this project that this section is ready for review" style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:T.ink,color:T.paper,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans,letterSpacing:".02em"}}>✉ Notify client</button>}
           <button onClick={()=>setShowLinkInput(!showLinkInput)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",borderRadius:T.rS,background:showLinkInput?T.inkSoft:T.cyan+"18",border:`1px solid ${showLinkInput?T.ink:T.cyan+"40"}`,color:showLinkInput?T.ink:T.cyan,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color="currentColor"/> Paste Link</button>
           <button onClick={()=>fileRef.current.click()} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 14px",background:T.goldSoft,color:T.gold,border:`1px solid ${T.borderGlow}`,borderRadius:T.rS,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:T.sans}}><PlusI size={11} color={T.gold}/> Upload File</button>
         </div>
@@ -840,12 +877,17 @@ function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
           onDragLeave={e=>{if(noDrop)return;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl}}
           onDragOver={e=>{if(!noDrop)e.preventDefault()}}
           onDrop={e=>{if(noDrop)return;e.preventDefault();e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surfEl;if(e.dataTransfer.files?.length)handleFiles(e.dataTransfer.files,sec.id)}}>
-          {/* Edit + delete buttons (hover-revealed). Edit puts the
-              card label into inline rename mode; trash confirms + drops. */}
-          {canEdit&&isHovered&&!isEditing&&<div style={{position:"absolute",top:10,right:10,display:"flex",gap:4,zIndex:2}} onClick={e=>e.stopPropagation()}>
+          {/* Share / edit / delete buttons (hover-revealed). The share
+              toggle adds the section id to project.sentSectionIds — the
+              client portal mirrors that list one-card-per-section. */}
+          {canEdit&&isHovered&&!isEditing&&!isClient&&!isWardrobe&&<div style={{position:"absolute",top:10,right:10,display:"flex",gap:4,zIndex:2}} onClick={e=>e.stopPropagation()}>
+            <button onClick={e=>{e.stopPropagation();toggleSectionShare(sec.id)}} title={isSectionShared(sec.id)?"Unshare from client portal":"Share entire card with client"} style={{width:24,height:24,borderRadius:12,border:`1px solid ${isSectionShared(sec.id)?"#F0B849":T.border}`,background:isSectionShared(sec.id)?"#F0B849":T.bg,color:isSectionShared(sec.id)?"#0F52BA":T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans,display:"flex",alignItems:"center",justifyContent:"center",padding:0,fontWeight:700}}>{isSectionShared(sec.id)?"✓":"↗"}</button>
             <button onClick={e=>{e.stopPropagation();setEditingSectionId(sec.id);setEditingLabel(sec.label)}} title="Rename" style={{width:24,height:24,borderRadius:12,border:`1px solid ${T.border}`,background:T.bg,color:T.dim,fontSize:11,cursor:"pointer",fontFamily:T.sans,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>✎</button>
             <button onClick={e=>{e.stopPropagation();deleteSection(sec.id)}} title="Delete" style={{width:24,height:24,borderRadius:12,border:`1px solid ${T.border}`,background:T.bg,color:T.neg,fontSize:12,cursor:"pointer",fontFamily:T.sans,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>
           </div>}
+          {/* Always-visible Shared badge so user can see which sections
+              are live in the client portal without hovering. */}
+          {isSectionShared(sec.id)&&<div style={{position:"absolute",top:10,left:10,fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,background:"#F0B849",color:"#0F52BA",letterSpacing:".06em",textTransform:"uppercase",zIndex:1}}>↗ Shared</div>}
           <div style={{padding:"24px 26px"}}>
             <div style={{marginBottom:14}}>
               {isEditing?<div style={{display:"flex",gap:6,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
@@ -863,6 +905,19 @@ function CreativeV({project,updateProject,canEdit,accessToken,user,orgId}){
               {approved>0&&<Pill color={T.pos} size="xs">{approved} approved</Pill>}
               {isClient&&count>0&&<Pill color={T.gold} size="xs">From client</Pill>}
               {isWardrobe&&wardrobeStats.total>0&&<Pill color={T.ink} size="xs">{wardrobeStats.done}/{wardrobeStats.checks} items</Pill>}
+              {/* Client feedback summary across all assets in this section.
+                  Aggregates approvals/rejections/comments from clientDecisions
+                  so at a glance you know whether a card has reactions waiting. */}
+              {(!isClient&&!isWardrobe&&(()=>{
+                let cliApproved=0,cliRejected=0,cliComments=0;
+                sAssets.forEach(a=>{const d=clientDecisions[a.id];if(!d)return;cliApproved+=d.approvals||0;cliRejected+=d.rejections||0;cliComments+=d.comments||0});
+                if(cliApproved+cliRejected+cliComments===0)return null;
+                return<>
+                  {cliApproved>0&&<span title={`Client approved ${cliApproved}`} style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(31,122,79,.14)",color:"#1F7A4F",letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>✓ {cliApproved}</span>}
+                  {cliRejected>0&&<span title={`Client rejected ${cliRejected}`} style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(122,31,31,.14)",color:"#7A1F1F",letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>× {cliRejected}</span>}
+                  {cliComments>0&&<span title={`${cliComments} client comment${cliComments>1?'s':''}`} style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(240,184,73,.18)",color:"#0F52BA",letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>💬 {cliComments}</span>}
+                </>;
+              })())}
               {count===0&&<span style={{fontSize:11,color:T.dim}}>{sec.desc}</span>}
             </div>
           </div>

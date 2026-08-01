@@ -10,6 +10,7 @@ import { ESWordmark } from '../components/brand/index.js';
 import { Card, DatePick } from '../components/primitives/index.js';
 import GanttChart from './GanttChart.jsx';
 import CalendarView from './CalendarView.jsx';
+import { buildPhaseColorMap as wbBuildPhaseColorMap, phaseColor as wbPhaseColor } from '../utils/workbackPhases.js';
 import { createCalendarEvent, searchContacts } from '../utils/google.js';
 import { addTaskToHistory, searchTaskHistory } from '../utils/taskHistory.js';
 import { getCategories, primaryCategory, projectCategories, categoriesLabel } from '../utils/taskCategories.js';
@@ -51,6 +52,36 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
   const canSendEmail = canDo(user, 'send_email');
   const canCreateMeeting = canDo(user, 'create_meeting');
   const tasks=project.timeline||[];
+  // Workback milestones are surfaced as read-only events on the project
+  // calendar — staff shouldn't have to flip between tabs to see what's
+  // due that week. Status mapping: Complete → done, Delayed/At Risk →
+  // roadblocked, Cancelled-equivalent stays todo. Editing still happens
+  // in the Workback tab; opening one in the calendar is a no-op for now.
+  // Each chip carries its phase color so the calendar reads the same
+  // way as the table.
+  const workbackTasks=useMemo(()=>{
+    const items=Array.isArray(project?.workbackSchedule)?project.workbackSchedule:[];
+    const colorMap=wbBuildPhaseColorMap(items);
+    return items.filter(r=>r&&r.type!=='phase'&&r.date&&(r.name||'').trim()).map(r=>{
+      const s=(r.status||'').toLowerCase();
+      const status=s.includes('complete')?'done':(s.includes('delay')||s.includes('risk'))?'roadblocked':'todo';
+      const pc=wbPhaseColor(r.phase,colorMap);
+      return {
+        id:`wb_${r.id}`,
+        _workback:true,
+        _wbId:r.id,
+        _workbackPhaseFg:pc.fg,
+        _workbackPhaseBg:pc.bg,
+        name:r.name,
+        categories:[r.phase||'Workback'],
+        assignee:r.owner||'',
+        status,
+        startDate:r.date,
+        endDate:r.endDate||r.date,
+        notes:r.annotation||r.intro||'',
+      };
+    });
+  },[project?.workbackSchedule]);
   const[filter,setFilter]=useState("all");
   const[showAdd,setShowAdd]=useState(false);
   const[viewMode,setViewMode]=useState("calendar");
@@ -696,8 +727,8 @@ function TimelineV({project,updateProject,canEdit,accessToken,requestCalendarAcc
     {/* ══ LAYER 3 — Content ══ */}
     {(()=>{
       const calendarBlock=showCalOrGantt&&<div style={{marginBottom:16}}>
-        {viewMode==="calendar"?<CalendarView tasks={[...tasks,...gcalEvents]} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} onOpenTask={(t)=>{if(t._gcal)return;openEditTask(t)}} canEdit={canEdit}/>
-        :<GanttChart tasks={tasks}/>}
+        {viewMode==="calendar"?<CalendarView tasks={[...tasks,...workbackTasks,...gcalEvents]} onAddTask={addTask} onAddMeeting={(title,date,time,dur,att,agenda)=>{setMeetingTime(time);setMeetingDuration(dur);setMeetingAttendees(att);setMeetingAgenda(agenda);setMeetingDate(date);addMeeting(title)}} onEditTask={editTask} onDeleteTask={deleteTask} onOpenTask={(t)=>{if(t._gcal||t._workback)return;openEditTask(t)}} canEdit={canEdit}/>
+        :<GanttChart tasks={[...tasks,...workbackTasks]}/>}
       </div>;
 
       const taskListBlock=tasks.length===0&&!showAdd?

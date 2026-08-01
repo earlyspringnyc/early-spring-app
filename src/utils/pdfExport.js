@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ci } from './calc.js';
-import { f$ } from './format.js';
+import { ci, ct, fmtRange, projectSupportsRanges } from './calc.js';
+import { f$, f0 } from './format.js';
 import { buildPhaseColorMap, phaseColor, NEUTRAL as PHASE_NEUTRAL } from './workbackPhases.js';
 import { byCueTime } from './rosTime.js';
 
@@ -113,22 +113,25 @@ function drawTitle(doc, { kicker, title, sub, margin }) {
   }
 }
 
-function drawFooter(doc, opts) {
+// Footers are stamped AFTER the table is fully laid out. Drawing them from
+// didDrawPage meant getNumberOfPages() only knew about pages created so far,
+// so every page read "1 / 1", "2 / 2", "3 / 3" instead of "1 / 3", "2 / 3"…
+function stampFooters(doc, { margin }) {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = opts.margin;
-  const pageCount = doc.internal.getNumberOfPages();
-  const pageNum = doc.internal.getCurrentPageInfo().pageNumber;
+  const total = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.5);
+    doc.line(margin, pageH - 36, pageW - margin, pageH - 36);
 
-  doc.setDrawColor(...RULE);
-  doc.setLineWidth(0.5);
-  doc.line(margin, pageH - 36, pageW - margin, pageH - 36);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...FADED);
-  doc.text('Prepared in Morgan · Early Spring', margin, pageH - 20);
-  doc.text(`${pageNum} / ${pageCount}`, pageW - margin, pageH - 20, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...FADED);
+    doc.text('Prepared in Morgan · Early Spring', margin, pageH - 20);
+    doc.text(`${i} / ${total}`, pageW - margin, pageH - 20, { align: 'right' });
+  }
 }
 
 const baseTable = (margin, opts = {}) => ({
@@ -147,8 +150,10 @@ const baseTable = (margin, opts = {}) => ({
 // ─────────────────────────────────────────────────────────────────────
 export async function exportEstimatePDF(project, bd, opts = {}) {
   const filename = opts.filename || `${project?.name || 'estimate'}-production-estimate.pdf`;
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const margin = 48;
+  // Landscape: item names and descriptions sit side by side without either
+  // wrapping to three lines, and a range in the Cost column still fits.
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
+  const margin = 44;
   const lockup = await getEsLockupPng(110);
 
   drawTitle(doc, {
@@ -158,35 +163,57 @@ export async function exportEstimatePDF(project, bd, opts = {}) {
     sub: [project?.client, project?.eventDate && `Event · ${project.eventDate}`].filter(Boolean).join('  ·  '),
   });
 
+  // Range-quoting projects (pitches) price in bands. Whole dollars
+  // then, matching the client PNG — cents on a $120K–$150K band are
+  // noise, and the band has to fit the column.
+  const showR = projectSupportsRanges(project);
+  const fm = showR ? f0 : f$;
+  const feeP = bd.feeP || 0;
+  const clientBudget = project?.clientBudget || 0;
+  // Render a band when the ends actually differ, else the single
+  // figure. Mirrors clientBudgetPNG so both exports agree line for line.
+  const money = (lo, hi, single) =>
+    (showR && Math.abs((hi || 0) - (lo || 0)) >= 0.5) ? fmtRange(lo, hi, fm) : fm(single);
+
   // Build rows
   const body = [];
   (bd.cats || []).forEach(c => {
+    const totals = ct(c.items || [], c).totals;
     const items = (c.items || []).filter(it => ci(it).clientPrice > 0);
     if (!items.length) return;
     body.push([
       { content: (c.name || '').toUpperCase(), colSpan: 3, styles: { fontStyle: 'bold', fontSize: 9, textColor: INK, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 6, left: 8 } } },
     ]);
-    let catTotal = 0;
+    // A category range overlay supersedes the item sum, so the lines
+    // would no longer add up to the figure quoted. Show the band alone
+    // instead — the same suppression the on-screen client view does.
+    if (showR && totals.hasOverlay && Math.abs((totals.clientMax || 0) - (totals.clientMin || 0)) >= 0.5) {
+      body.push([
+        { content: 'Estimated range', colSpan: 2, styles: { textColor: FADED } },
+        { content: fmtRange(totals.clientMin, totals.clientMax, fm), styles: { halign: 'right', fontStyle: 'bold' } },
+      ]);
+      return;
+    }
     items.forEach(it => {
-      const price = ci(it).clientPrice;
-      catTotal += price;
+      const c2 = ci(it);
       body.push([
         it.name || '',
         { content: it.details || '', styles: { textColor: FADED } },
-        { content: f$(price), styles: { halign: 'right' } },
+        { content: money(c2.minClient, c2.maxClient, c2.clientPrice), styles: { halign: 'right' } },
       ]);
     });
     if (items.length > 1) {
       body.push([
         { content: `${c.name} subtotal`, colSpan: 2, styles: { fontStyle: 'bold', fontSize: 9, textColor: FADED, halign: 'right' } },
-        { content: f$(catTotal), styles: { halign: 'right', fontStyle: 'bold', fontSize: 9, textColor: FADED } },
+        { content: money(totals.clientMin, totals.clientMax, totals.clientPrice), styles: { halign: 'right', fontStyle: 'bold', fontSize: 9, textColor: FADED } },
       ]);
     }
   });
 
+  const prod = bd.comp.productionSubtotal;
   body.push([
     { content: 'PRODUCTION SUBTOTAL', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', textColor: INK, fontSize: 9, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 8, left: 8 } } },
-    { content: f$(bd.comp.productionSubtotal.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: INK, fontSize: 9, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 8, left: 8 } } },
+    { content: money(prod.clientMin, prod.clientMax, prod.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: INK, fontSize: 9, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 8, left: 8 } } },
   ]);
 
   const agItems = (bd.ag || []).filter(it => ci(it).clientPrice > 0);
@@ -195,32 +222,58 @@ export async function exportEstimatePDF(project, bd, opts = {}) {
       { content: 'AGENCY', colSpan: 3, styles: { fontStyle: 'bold', fontSize: 9, textColor: INK, lineWidth: { top: 1 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 6, left: 8 } } },
     ]);
     agItems.forEach(it => {
+      const c2 = ci(it);
       body.push([
         it.name || '',
         { content: it.details || '', styles: { textColor: FADED } },
-        { content: f$(ci(it).clientPrice), styles: { halign: 'right' } },
+        { content: money(c2.minClient, c2.maxClient, c2.clientPrice), styles: { halign: 'right' } },
       ]);
     });
+    const agS = bd.comp.agencyCostsSubtotal;
     body.push([
       { content: 'AGENCY SUBTOTAL', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', textColor: FADED, fontSize: 9 } },
-      { content: f$(bd.comp.agencyCostsSubtotal.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: FADED, fontSize: 9 } },
+      { content: money(agS.clientMin, agS.clientMax, agS.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: FADED, fontSize: 9 } },
     ]);
   }
 
   if (bd.comp.agencyFee?.clientPrice) {
+    const af = bd.comp.agencyFee;
     body.push([
-      { content: 'AGENCY FEE', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', textColor: INK, fontSize: 9 } },
-      { content: f$(bd.comp.agencyFee.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: INK, fontSize: 9 } },
+      { content: `AGENCY FEE (${Math.round(feeP * 100)}%)`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', textColor: INK, fontSize: 9 } },
+      { content: money(af.minClient, af.maxClient, af.clientPrice), styles: { halign: 'right', fontStyle: 'bold', textColor: INK, fontSize: 9 } },
     ]);
   }
 
+  if (clientBudget > 0) {
+    body.push([
+      { content: 'CLIENT BUDGET', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', textColor: FADED, fontSize: 9 } },
+      { content: fm(clientBudget), styles: { halign: 'right', textColor: FADED, fontSize: 9 } },
+    ]);
+  }
+
+  const grandIsRange = showR && Math.abs((bd.comp.grandMax || 0) - (bd.comp.grandMin || 0)) >= 0.5;
   body.push([
     { content: 'GRAND TOTAL', colSpan: 2, styles: { fontStyle: 'bold', fontSize: 11, halign: 'right', textColor: INK, lineWidth: { top: 2 }, lineColor: INK, cellPadding: { top: 18, right: 8, bottom: 12, left: 8 } } },
-    { content: f$(bd.comp.grandTotal), styles: { halign: 'right', fontStyle: 'bold', fontSize: 16, textColor: INK, lineWidth: { top: 2 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 10, left: 8 } } },
+    { content: grandIsRange ? fmtRange(bd.comp.grandMin, bd.comp.grandMax, fm) : fm(bd.comp.grandTotal), styles: { halign: 'right', fontStyle: 'bold', fontSize: grandIsRange ? 11 : 16, textColor: INK, lineWidth: { top: 2 }, lineColor: INK, cellPadding: { top: 14, right: 8, bottom: 10, left: 8 } } },
   ]);
 
+  if (clientBudget > 0) {
+    // Variance against the high end of the band — if the top of the
+    // range is over budget the client should see that, not the midpoint.
+    const cmp = grandIsRange ? (bd.comp.grandMax || 0) : (bd.comp.grandTotal || 0);
+    const variance = clientBudget - cmp;
+    const over = variance < 0;
+    body.push([
+      { content: '', colSpan: 2, styles: { lineWidth: 0 } },
+      { content: over ? `${fm(Math.abs(variance))} over client budget` : `${fm(variance)} under client budget`, styles: { halign: 'right', fontSize: 8, textColor: over ? ALERT : FADED, lineWidth: 0 } },
+    ]);
+  }
+
   autoTable(doc, {
-    ...baseTable(margin),
+    // margin.top governs where CONTINUATION pages start. Without it the
+    // table resumed at y=0 on page 2 and ran straight through the brand
+    // header — the lockup and the column heads printed on top of each other.
+    ...baseTable(margin, { margin: { top: 96, left: margin, right: margin } }),
     startY: 174,
     head: [[
       { content: 'Item', styles: { halign: 'left' } },
@@ -228,13 +281,13 @@ export async function exportEstimatePDF(project, bd, opts = {}) {
       { content: 'Cost', styles: { halign: 'right' } },
     ]],
     body,
-    columnStyles: { 0: { cellWidth: 170 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 100, halign: 'right' } },
+    columnStyles: { 0: { cellWidth: 220 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: showR ? 165 : 130, halign: 'right' } },
     didDrawPage: () => {
       drawBrandHeader(doc, { margin, labTag: `Lab · ${project?.client || 'Client'}`, lockup });
-      drawFooter(doc, { margin });
     },
   });
 
+  stampFooters(doc, { margin });
   doc.save(filename);
 }
 
@@ -318,7 +371,8 @@ export async function exportBudgetPDF(project, data, opts = {}) {
   ]);
 
   autoTable(doc, {
-    ...baseTable(margin),
+    // margin.top keeps continuation pages clear of the brand header.
+    ...baseTable(margin, { margin: { top: 96, left: margin, right: margin } }),
     startY: 174,
     head: [[
       'Item', 'Description', 'Vendor',
@@ -330,15 +384,15 @@ export async function exportBudgetPDF(project, data, opts = {}) {
     columnStyles: { 0: { cellWidth: 160 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 110 }, 3: { cellWidth: 90 }, 4: { cellWidth: 60 }, 5: { cellWidth: 100 } },
     didDrawPage: () => {
       drawBrandHeader(doc, { margin, labTag: `Internal · ${project?.client || 'Client'}`, lockup });
-      drawFooter(doc, { margin });
     },
   });
 
+  stampFooters(doc, { margin });
   doc.save(filename);
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Workback Schedule PDF (Week Of · Phase · Milestone · Owner · Status)
+// Workback Schedule PDF (Dates · Phase · Milestone · Owner · Status)
 // Landscape so the milestone column has room for bullet sub-deliverables
 // to wrap underneath each title without crowding the other columns.
 // ─────────────────────────────────────────────────────────────────────
@@ -358,16 +412,6 @@ function parseDateMDY(mmddyyyy) {
   const m = parseInt(parts[0], 10), d = parseInt(parts[1], 10), y = parseInt(parts[2], 10);
   if (!m || !d || !y) return null;
   return new Date(y, m - 1, d);
-}
-
-function fmtWeekOf(mmddyyyy) {
-  const d = parseDateMDY(mmddyyyy);
-  if (!d) return '';
-  const day = d.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function fmtFullDate(mmddyyyy) {
@@ -399,11 +443,14 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
   const phaseColors = buildPhaseColorMap(rows);
 
   const body = rows.map(r => {
-    const week = fmtWeekOf(r.date);
     const dateLine = fmtFullDate(r.date);
-    // Due date is the PRIMARY (top) line; "Week of" is secondary underneath,
-    // labelled so it can't be misread as the due date itself.
-    const dateContent = dateLine ? (week ? `${dateLine}\nWeek of ${week}` : dateLine) : '—';
+    const endLine = r.endDate ? fmtFullDate(r.endDate) : '';
+    // Start date on top, end date beneath it for multi-day milestones.
+    // A "Week of" line used to sit under these and was consistently
+    // misread as the milestone date itself.
+    const dateContent = dateLine
+      ? (endLine && endLine !== dateLine ? `${dateLine}\n→ ${endLine}` : dateLine)
+      : '—';
 
     const phase = r.phase || '';
     const pc = phaseColor(phase, phaseColors);
@@ -435,10 +482,11 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
   });
 
   autoTable(doc, {
-    ...baseTable(margin),
+    // margin.top keeps continuation pages clear of the brand header.
+    ...baseTable(margin, { margin: { top: 96, left: margin, right: margin } }),
     startY: 174,
     head: [[
-      { content: 'Due Date',  styles: { halign: 'left' } },
+      { content: 'Dates',     styles: { halign: 'left' } },
       { content: 'Phase',     styles: { halign: 'left' } },
       { content: 'Milestone', styles: { halign: 'left' } },
       { content: 'Owner',     styles: { halign: 'center' } },
@@ -447,8 +495,8 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
     ]],
     body,
     columnStyles: {
-      0: { cellWidth: 80 },
-      1: { cellWidth: 105 },
+      0: { cellWidth: 95 },
+      1: { cellWidth: 95 },
       2: { cellWidth: 'auto' },
       3: { cellWidth: 70 },
       4: { cellWidth: 80 },
@@ -456,10 +504,10 @@ export async function exportWorkbackPDF(project, items, opts = {}) {
     },
     didDrawPage: () => {
       drawBrandHeader(doc, { margin, labTag: `Workback · ${project?.client || 'Internal'}`, lockup });
-      drawFooter(doc, { margin });
     },
   });
 
+  stampFooters(doc, { margin });
   doc.save(filename);
 }
 
@@ -495,7 +543,8 @@ export async function exportROSPDF(project, entries, opts = {}) {
   ]));
 
   autoTable(doc, {
-    ...baseTable(margin),
+    // margin.top keeps continuation pages clear of the brand header.
+    ...baseTable(margin, { margin: { top: 96, left: margin, right: margin } }),
     startY: 174,
     head: [[
       { content: 'Start',    styles: { halign: 'left' } },
@@ -516,9 +565,9 @@ export async function exportROSPDF(project, entries, opts = {}) {
     },
     didDrawPage: () => {
       drawBrandHeader(doc, { margin, labTag: `Run of Show · ${project?.client || 'Internal'}`, lockup });
-      drawFooter(doc, { margin });
     },
   });
 
+  stampFooters(doc, { margin });
   doc.save(filename);
 }

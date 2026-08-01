@@ -11,6 +11,10 @@ export function taskColor(t){
   // Google Calendar imports get a dashed left border so they're visually
   // distinguishable from other faded chips (status=done, meetings).
   if(t._gcal)return{bg:"rgba(15,82,186,.06)",fg:T.fadedInk,borderStyle:"dashed"};
+  // Workback milestones live in their own tab but surface on the
+  // calendar — each milestone uses its phase color so the calendar
+  // reads the same way as the workback table.
+  if(t._workback)return{bg:t._workbackPhaseBg||"rgba(240,184,73,.18)",fg:t._workbackPhaseFg||"#A56F00",borderStyle:"solid"};
   if(t.status==="done")return{bg:T.inkSoft2,fg:T.fadedInk};
   if(t.status==="progress")return{bg:"rgba(15,82,186,.10)",fg:T.ink};
   // Tasks can carry multiple categories now. The color heuristic checks

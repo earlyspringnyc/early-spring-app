@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import T from '../../theme/tokens.js';
 import { mkVendor } from '../../data/factories.js';
+import { uid } from '../../utils/uid.js';
 import { VENDOR_TYPES, VENDOR_TYPE_LABELS } from '../../constants/index.js';
 
 function AddVendorModal({onAdd,onClose}){
@@ -39,14 +40,70 @@ function AddVendorModal({onAdd,onClose}){
   </div>;
 }
 
-function VendorSelect({ value, onChange, vendors, onAddVendor, disabled, compact }) {
+function VendorSelect({ value, onChange, vendors, vendorPool, onAddVendor, disabled, compact }) {
   const [showModal, setShowModal] = useState(false);
+
+  // De-dupe the pool against the current project's vendors so we don't
+  // suggest the same vendor twice. Match case-insensitively on name
+  // since IDs are project-scoped and won't line up.
+  const filteredPool = useMemo(() => {
+    if (!Array.isArray(vendorPool) || vendorPool.length === 0) return [];
+    const seen = new Set((vendors || []).map(v => (v?.name || '').trim().toLowerCase()).filter(Boolean));
+    const out = [];
+    const taken = new Set(seen);
+    vendorPool.forEach(v => {
+      const key = (v?.name || '').trim().toLowerCase();
+      if (!key || taken.has(key)) return;
+      taken.add(key);
+      out.push(v);
+    });
+    return out;
+  }, [vendorPool, vendors]);
+
   const handleAdd = (v) => { onAddVendor(v); onChange(v.id); setShowModal(false); };
+
+  const handleAddFromPool = (poolVendor) => {
+    if (!poolVendor) return;
+    // Fresh id + strip project-scoped attachments (W9s, POs, COIs) — the
+    // vendor record itself carries over but the documents belong to the
+    // project where they were uploaded.
+    const { id: _ignored, documents: _docs, ...rest } = poolVendor;
+    const copy = { ...rest, id: uid() };
+    onAddVendor(copy);
+    onChange(copy.id);
+  };
+
   return <>
-    <select value={value || ""} onChange={e => { if (e.target.value === "__add__") setShowModal(true); else onChange(e.target.value); }} disabled={disabled} style={{ width: "100%", padding: compact ? "6px 4px" : "9px 8px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: value ? T.cream : T.dim, fontSize: compact ? 11 : 13, fontFamily: T.sans, outline: "none", cursor: disabled ? "default" : "pointer", appearance: "none", WebkitAppearance: "none" }}>
+    <select
+      value={value || ""}
+      onChange={e => {
+        const v = e.target.value;
+        if (v === "__add__") setShowModal(true);
+        else if (v.startsWith("__pool__:")) {
+          const idx = parseInt(v.slice("__pool__:".length), 10);
+          handleAddFromPool(filteredPool[idx]);
+        }
+        else onChange(v);
+      }}
+      disabled={disabled}
+      style={{ width: "100%", padding: compact ? "6px 4px" : "9px 8px", borderRadius: T.rS, background: T.surface, border: `1px solid ${T.border}`, color: value ? T.cream : T.dim, fontSize: compact ? 11 : 13, fontFamily: T.sans, outline: "none", cursor: disabled ? "default" : "pointer", appearance: "none", WebkitAppearance: "none" }}
+    >
       <option value="">No vendor</option>
-      {(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-      {!disabled && <option value="__add__">+ Add vendor...</option>}
+      {(vendors || []).length > 0 && (
+        <optgroup label="This project">
+          {(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </optgroup>
+      )}
+      {filteredPool.length > 0 && (
+        <optgroup label="From your other projects · click to add">
+          {filteredPool.map((v, idx) => (
+            <option key={`pool_${idx}_${v.name}`} value={`__pool__:${idx}`}>
+              {v.name}{v.contactName ? ` — ${v.contactName}` : ''}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {!disabled && <option value="__add__">+ Add new vendor…</option>}
     </select>
     {showModal && <AddVendorModal onAdd={handleAdd} onClose={() => setShowModal(false)} />}
   </>;

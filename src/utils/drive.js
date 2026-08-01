@@ -620,16 +620,6 @@ function fmtFullDate_(s) {
   const d = parseMDY_(s);
   return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (s || '');
 }
-function fmtWeekOf_(s) {
-  const d = parseMDY_(s);
-  if (!d) return '';
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diff);
-  return mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 // Create a spreadsheet, move it into a Drive folder (if given), write an
 // array-of-arrays, and format it: bold title row, bold + shaded + frozen
 // header row, auto-sized columns. Row 0 is the title; `headerIdx` is the
@@ -674,7 +664,7 @@ async function createSheetFromRows(token, { title, tabName, rows, folderId, colC
 }
 
 // Workback schedule → a new Google Sheet. Mirrors the XLS/PDF columns
-// (Due Date · Week Of · Phase · Milestone · Details · Owner · Status · T-Day).
+// (Start Date · End Date · Phase · Milestone · Details · Owner · Status · T-Day).
 // `items` should already be filtered to what the caller wants exported (the
 // staff view passes all rows; the client portal passes only visible rows).
 export async function exportWorkbackToSheets(token, project, items, folderIds) {
@@ -684,20 +674,22 @@ export async function exportWorkbackToSheets(token, project, items, folderIds) {
   const eventStr = project?.eventDate || project?.data?.eventDate || '';
   const eventDate = parseMDY_(eventStr);
   const title = `${project.name || 'Workback'} — Workback Schedule`;
+  // End Date only earns a column when something actually spans days.
+  const hasRanges = rows.some((r) => r && r.endDate);
   const aoa = [
     [title],
     [`Generated: ${new Date().toLocaleDateString()}`, `Client: ${project.client || ''}`],
     [],
-    ['Due Date', 'Week Of', 'Phase', 'Milestone', 'Details', 'Owner', 'Status', 'T-Day'],
+    ['Start Date', ...(hasRanges ? ['End Date'] : []), 'Phase', 'Milestone', 'Details', 'Owner', 'Status', 'T-Day'],
   ];
   rows.forEach((r) => {
     let tDay = '';
     const d = parseMDY_(r.date);
     if (d && eventDate) { const days = Math.round((eventDate - d) / 86400000); tDay = days === 0 ? 'Event' : days > 0 ? `T-${days}d` : `T+${Math.abs(days)}d`; }
     const details = [r.annotation, r.intro, ...((r.items || []).map(b => (b && b.trim() ? `• ${b.trim()}` : '')).filter(Boolean))].filter(Boolean).join('\n');
-    aoa.push([fmtFullDate_(r.date), fmtWeekOf_(r.date), r.phase || '', r.name || '', details, r.owner || '', r.status || 'Not Started', tDay]);
+    aoa.push([fmtFullDate_(r.date), ...(hasRanges ? [fmtFullDate_(r.endDate)] : []), r.phase || '', r.name || '', details, r.owner || '', r.status || 'Not Started', tDay]);
   });
-  const result = await createSheetFromRows(token, { title, tabName: 'Workback', rows: aoa, folderId, colCount: 8, headerIdx: 3 });
+  const result = await createSheetFromRows(token, { title, tabName: 'Workback', rows: aoa, folderId, colCount: hasRanges ? 8 : 7, headerIdx: 3 });
   if (result) console.log('[sheets] Workback exported:', result.url);
   return result;
 }

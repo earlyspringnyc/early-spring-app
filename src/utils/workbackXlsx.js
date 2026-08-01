@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 
 // Workback schedule → .xlsx. Mirrors the columns of the PDF export
-// (Week Of · Phase · Milestone · Owner · Status · T-Day) plus a Details
+// (Date · Phase · Milestone · Owner · Status · T-Day) plus a Details
 // column carrying the row's annotation / intro / bullet deliverables so
 // nothing is lost in the spreadsheet. Used by both the staff Workback
 // view and the client portal download.
@@ -28,7 +28,10 @@ export function exportWorkbackXLSX(project, items, opts = {}) {
   const eventDateStr = project?.eventDate || project?.data?.eventDate || '';
   const eventDate = parseMDY(eventDateStr);
 
-  const header = ['Date', 'Phase', 'Milestone', 'Details', 'Owner', 'Status', 'T-Day'];
+  // End Date only earns a column when something actually spans days —
+  // an empty column on a single-day schedule is just noise.
+  const hasRanges = rows.some((r) => r && r.endDate);
+  const header = ['Date', ...(hasRanges ? ['End Date'] : []), 'Phase', 'Milestone', 'Details', 'Owner', 'Status', 'T-Day'];
   const aoa = [header];
 
   rows.forEach((r) => {
@@ -46,6 +49,7 @@ export function exportWorkbackXLSX(project, items, opts = {}) {
 
     aoa.push([
       fmtFull(r.date),
+      ...(hasRanges ? [fmtFull(r.endDate)] : []),
       r.phase || '',
       r.name || '',
       details,
@@ -56,7 +60,7 @@ export function exportWorkbackXLSX(project, items, opts = {}) {
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 44 }, { wch: 40 }, { wch: 10 }, { wch: 14 }, { wch: 8 }];
+  ws['!cols'] = [{ wch: 16 }, ...(hasRanges ? [{ wch: 16 }] : []), { wch: 16 }, { wch: 44 }, { wch: 40 }, { wch: 10 }, { wch: 14 }, { wch: 8 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Workback');
   XLSX.writeFile(wb, filename);

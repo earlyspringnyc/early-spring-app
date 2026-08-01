@@ -73,6 +73,47 @@ export async function createCalendarEvent(accessToken, meeting) {
   return await res.json();
 }
 
+// All-day Google Calendar event (workback milestones, key dates).
+// Uses Google's `date` shape (YYYY-MM-DD) instead of `dateTime`, so
+// the event sits as a header strip on the day rather than a timed
+// block. Pass an existing eventId to patch; omit to create.
+export async function upsertAllDayCalendarEvent(accessToken, { title, dateMMDDYYYY, endDateMMDDYYYY, notes, eventId, colorId }) {
+  if (!accessToken) throw new Error('No access token');
+  const parts = (dateMMDDYYYY || '').split('/');
+  if (parts.length !== 3) throw new Error('Invalid date');
+  const dateStr = `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+  // Google requires end.date to be the day AFTER the last inclusive day.
+  // For multi-day events (e.g. event runs Sep 10–11), the caller supplies
+  // the LAST inclusive day and we bump it by 1 here.
+  let lastInclusive = `${dateStr}T00:00:00`;
+  if (endDateMMDDYYYY) {
+    const ep = endDateMMDDYYYY.split('/');
+    if (ep.length === 3) lastInclusive = `${ep[2]}-${ep[0].padStart(2,'0')}-${ep[1].padStart(2,'0')}T00:00:00`;
+  }
+  const endDateObj = new Date(lastInclusive);
+  endDateObj.setDate(endDateObj.getDate() + 1);
+  const endStr = endDateObj.toISOString().slice(0, 10);
+  const event = {
+    summary: title,
+    description: notes || '',
+    start: { date: dateStr },
+    end: { date: endStr },
+    ...(colorId ? { colorId } : {}),
+    reminders: { useDefault: true },
+  };
+  const authToken = await getAuthToken();
+  const res = await fetch('/api/calendar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+    body: JSON.stringify({ accessToken, event, eventId: eventId || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Calendar request failed (${res.status})`);
+  }
+  return await res.json();
+}
+
 // List upcoming Google Calendar events. Goes through the
 // /api/calendar-list proxy so the user's Google token doesn't
 // need to be exposed beyond the request body.

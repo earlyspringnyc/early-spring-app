@@ -201,7 +201,10 @@ export default function NotificationBell({ user, onOpenProject }) {
 
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+          // Bell now lives bottom-left, so the dropdown opens UP and to
+          // the RIGHT of the icon. Was previously top-right with the
+          // panel hanging down.
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: 0,
           width: 360, maxHeight: 480, overflow: 'auto',
           background: T.bg, border: `1px solid ${T.border}`,
           borderRadius: T.rS, boxShadow: T.shadow, zIndex: 9999,

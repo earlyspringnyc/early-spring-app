@@ -30,9 +30,11 @@ export default function VoiceCaptureFAB({ user, projects, accessToken, onFiled }
         aria-label="Record a voice note"
         style={{
           position: 'fixed',
-          // Sit above the toast stack (z 9999) so it overlaps cleanly,
-          // and clear the iOS Safari home-indicator with safe-area inset.
-          bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
+          // Sit ABOVE the Client Chats pill (right:20, bottom:20, ~42px tall)
+          // so the two bottom-right elements stack instead of overlapping
+          // into a single visual mass. Safe-area inset still clears the
+          // iOS Safari home indicator.
+          bottom: 'calc(78px + env(safe-area-inset-bottom, 0px))',
           right: 20,
           zIndex: 9996,
           width: 58, height: 58, borderRadius: 29, border: 'none',

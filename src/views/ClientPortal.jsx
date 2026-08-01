@@ -1204,14 +1204,21 @@ function ClientPortalDashboard({ user, onSignOut }) {
     const parse = (s) => { const p = String(s || '').split('/'); if (p.length !== 3) return null; const d = new Date(+p[2], p[0] - 1, p[1]); return isNaN(d) ? null : d; };
     const evt = parse(eventDate);
     const colorMap = buildPhaseColorMap(workback);
+    const long = (x) => x.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const short = (x) => x.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return workback.map((r) => {
       const d = parse(r.date);
+      const end = parse(r.endDate);
       let tday = '';
       if (d && evt) { const days = Math.round((evt - d) / 86400000); tday = days === 0 ? 'Event' : days > 0 ? `T-${days}d` : `T+${Math.abs(days)}d`; }
       const details = [r.annotation, r.intro, ...((r.items || []).map((b) => (b && b.trim() ? `• ${b.trim()}` : '')).filter(Boolean))].filter(Boolean);
+      // Multi-day milestones read as a range. Year appears once, on the
+      // end — "Sep 10 – Sep 11, 2026" rather than repeating it.
       return {
         id: r.id,
-        dateFull: d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (r.date || ''),
+        dateFull: d
+          ? (end && end > d ? `${short(d)} – ${long(end)}` : long(d))
+          : (r.date || ''),
         phase: r.phase || '',
         pc: phaseColor(r.phase, colorMap),
         name: r.name || '',

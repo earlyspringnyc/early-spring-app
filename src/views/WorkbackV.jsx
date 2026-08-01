@@ -8,7 +8,7 @@ import { buildPhaseColorMap, phaseColor } from '../utils/workbackPhases.js';
 // Workback schedule — table view.
 //
 // Modeled on the spreadsheet workback the team already uses:
-//   Week Of | Phase | Milestone | Owner | Status
+//   Date | Phase | Milestone | Owner | Status
 //
 // Each row also carries optional rich fields (intro line, parenthetical
 // annotation, bullet deliverables, multi-day end date) which surface
@@ -57,26 +57,30 @@ function fromInput(yyyymmdd) {
   return `${parts[1]}/${parts[2]}/${parts[0]}`;
 }
 
+function fmtDateMDY(d) {
+  if (!d || isNaN(d)) return '';
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
 function fmtNice(mmddyyyy) {
   const d = parseDate(mmddyyyy);
   if (!d) return '—';
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// "Week Of" cell shows the Monday of the week that contains the date.
-function weekOfLabel(mmddyyyy) {
-  const d = parseDate(mmddyyyy);
-  if (!d) return '';
-  const day = d.getDay(); // 0=Sun..6=Sat
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 function daysBetween(a, b) {
   if (!a || !b) return null;
   return Math.round((b.getTime() - a.getTime()) / MS_DAY);
+}
+
+// Inclusive span of a multi-day milestone: the 10th → the 11th is 2 days.
+// Returns null when either end is missing/unparseable, and a negative
+// number if the range is backwards (legacy data — the pickers now block it).
+function spanDays(start, end) {
+  const a = parseDate(start), b = parseDate(end);
+  if (!a || !b) return null;
+  const n = daysBetween(a, b);
+  return n === null ? null : n + 1;
 }
 
 // Normalize legacy data so older projects don't break.
@@ -136,6 +140,22 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
   const [overId, setOverId] = useState(null);
 
   const patchItems = (next) => updateProject({ workbackSchedule: next });
+
+  // Moving the start of a multi-day milestone carries its end date along,
+  // preserving the duration — the way dragging a Gantt bar behaves. Without
+  // this you'd have to edit the end first just to push a range later.
+  const moveStart = (row, nextDate) => {
+    if (!nextDate || !row.endDate) return { date: nextDate };
+    const from = parseDate(row.date), to = parseDate(nextDate), end = parseDate(row.endDate);
+    if (!from || !to || !end) return { date: nextDate };
+    // Shift by whole calendar days via setDate rather than adding a raw ms
+    // delta: across a DST boundary local midnights are 23h/25h apart, and
+    // ms arithmetic lands the end date an hour short, i.e. a day early.
+    const delta = daysBetween(from, to);
+    const shifted = new Date(end);
+    shifted.setDate(shifted.getDate() + delta);
+    return { date: nextDate, endDate: fmtDateMDY(shifted) };
+  };
 
   // Functional updaters: each rebuilds the schedule from the LATEST project
   // state (p.workbackSchedule) rather than the `normalized` snapshot captured
@@ -421,7 +441,7 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 36 }}></th>
-                <th style={{ ...thStyle, width: 110 }}>Due Date</th>
+                <th style={{ ...thStyle, width: 150 }}>Dates</th>
                 <th style={{ ...thStyle, width: 150 }}>Phase</th>
                 <th style={{ ...thStyle }}>Milestone</th>
                 <th style={{ ...thStyle, width: 110 }}>Owner</th>
@@ -440,6 +460,13 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
                 const isOver = overId === row.id;
                 const isDragSource = dragId.current === row.id;
                 const statusColor = STATUS_COLOR[row.status] || STATUS_COLOR['Not Started'];
+                // Secondary line under the dates: how long it runs when it's
+                // a range. Nothing at all for a single-day milestone.
+                const span = spanDays(row.date, row.endDate);
+                const rangeBad = span !== null && span < 1;
+                const dateMeta = rangeBad
+                  ? 'End is before start'
+                  : (span !== null && span > 1 ? `${span} days` : '');
                 return (
                   <React.Fragment key={row.id}>
                     <tr
@@ -455,18 +482,45 @@ export default function WorkbackV({ project, updateProject, canEdit, accessToken
                     >
                       <td style={{ ...tdStyle, color: T.fadedInk, fontFamily: T.mono, fontSize: 10, textAlign: 'center', cursor: canEdit ? 'grab' : 'default' }} title="Drag to reorder">⋮⋮</td>
                       <td style={{ ...tdStyle }}>
-                        {/* Due date is the PRIMARY line (top, bold); "Week of" is
-                            secondary underneath — people were misreading the week
-                            label as the actual due date (Bernardo, Stephanie). */}
+                        {/* Just the dates. A "Week of" line used to sit under
+                            them and was consistently misread as the due date
+                            itself. Multi-day milestones (event week, load-in)
+                            carry their end date on the same cell, so a range is
+                            visible and editable in the table, not buried in the
+                            expanded panel. */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <input
                             type="date"
                             value={toInput(row.date)}
-                            onChange={(e) => updateRow(row.id, { date: fromInput(e.target.value) })}
+                            onChange={(e) => updateRow(row.id, moveStart(row, fromInput(e.target.value)))}
                             disabled={!canEdit}
                             style={{ background: 'transparent', border: 'none', color: T.ink, fontSize: 12, fontWeight: 700, fontFamily: T.sans, padding: 0, outline: 'none', width: '100%' }}
                           />
-                          <span style={{ fontSize: 10, color: T.fadedInk, fontFamily: T.mono }}>{weekOfLabel(row.date) ? `Week of ${weekOfLabel(row.date)}` : ''}</span>
+                          {row.endDate ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <span style={{ fontSize: 10, color: rangeBad ? T.alert : T.fadedInk, fontFamily: T.mono, flexShrink: 0 }}>→</span>
+                              <input
+                                type="date"
+                                value={toInput(row.endDate)}
+                                min={toInput(row.date) || undefined}
+                                onChange={(e) => updateRow(row.id, { endDate: fromInput(e.target.value) })}
+                                disabled={!canEdit}
+                                style={{ background: 'transparent', border: 'none', color: rangeBad ? T.alert : T.ink, fontSize: 11, fontWeight: 600, fontFamily: T.sans, padding: 0, outline: 'none', width: '100%' }}
+                              />
+                              {canEdit && (
+                                <button onClick={() => updateRow(row.id, { endDate: '' })} title="Remove end date — back to a single day" style={{ background: 'transparent', border: 'none', color: T.fadedInk, fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+                              )}
+                            </div>
+                          ) : canEdit && row.date ? (
+                            <button
+                              onClick={() => updateRow(row.id, { endDate: row.date })}
+                              title="Make this a multi-day range"
+                              style={{ background: 'transparent', border: 'none', color: T.fadedInk, fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: T.sans }}
+                            >
+                              + End date
+                            </button>
+                          ) : null}
+                          <span style={{ fontSize: 10, color: rangeBad ? T.alert : T.fadedInk, fontFamily: T.mono }}>{dateMeta}</span>
                         </div>
                       </td>
                       <td style={{ ...tdStyle }}>

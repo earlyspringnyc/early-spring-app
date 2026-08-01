@@ -2,12 +2,13 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import T from '../theme/tokens.js';
 import { f$, f0, fp } from '../utils/format.js';
 import { parseD, fmtShort, daysBetween } from '../utils/date.js';
-import { ci, ct, calcProject } from '../utils/calc.js';
+import { ci, ct, calcProject, fmtRange, projectSupportsRanges } from '../utils/calc.js';
 import { STATUS_LABELS, CLIENT_FILE_CATS, CLIENT_FILE_LABELS, CLIENT_FILE_COLORS, canDo } from '../constants/index.js';
 import { mkClientFile } from '../data/factories.js';
 import { PlusI, DlI, TrashI } from '../components/icons/index.js';
 import { ESWordmark } from '../components/brand/index.js';
 import { Card } from '../components/primitives/index.js';
+import { toast } from '../lib/toast.js';
 import { listContactsForProject, listContacts, linkContactToProject, unlinkContactFromProject } from '../lib/contacts.js';
 import { listMeetingsForProject } from '../lib/meetings.js';
 import { normalizeCompany } from '../utils/companyDedup.js';
@@ -1064,20 +1065,20 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       <div onClick={()=>setActiveView("budget")} style={cardStyle("#F59E0B")} onMouseEnter={cardHover} onMouseLeave={cardLeave}>
         <div style={{padding:"24px 26px"}}>
           <div style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Production Estimate</div>
-          <div className="num" style={{fontSize:32,fontWeight:700,color:T.gold,fontFamily:T.mono,marginBottom:12}}>{f0(comp.grandTotal)}</div>
+          <div className="num" style={{fontSize:projectSupportsRanges(project)&&Math.abs((comp.grandMax||0)-(comp.grandMin||0))>=0.5?24:32,fontWeight:700,color:T.gold,fontFamily:T.mono,marginBottom:12}}>{projectSupportsRanges(project)?fmtRange(comp.grandMin||0,comp.grandMax||0,f0):f0(comp.grandTotal)}</div>
           {cb>0&&<div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:9,color:T.dim}}>{spendPct}% of budget</span><span style={{fontSize:9,color:T.dim,fontFamily:T.mono}}>{f0(cb)} budget</span></div>
             <div style={{height:4,background:T.surface,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${spendPct}%`,background:spendPct>90?T.alert:T.ink,borderRadius:2}}/></div>
           </div>}
-          {cats.slice(0,4).map(c=>{const t=ct(c.items).totals;return<div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:11}}>
+          {cats.slice(0,4).map(c=>{const t=ct(c.items,c).totals;const showR=projectSupportsRanges(project);return<div key={c.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:11}}>
             <span style={{color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{c.name}</span>
-            <span style={{color:T.cream,fontFamily:T.mono,flexShrink:0,marginLeft:8}}>{f0(t.clientPrice)}</span>
+            <span style={{color:T.cream,fontFamily:T.mono,flexShrink:0,marginLeft:8}}>{showR?fmtRange(t.clientMin,t.clientMax,f0):f0(t.clientPrice)}</span>
           </div>})}
           {cats.length>4&&<div style={{fontSize:10,color:T.dim,paddingTop:4}}>+{cats.length-4} more</div>}
           {(budgets||[]).length>0&&<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
-            {(budgets||[]).map(b=>{const bc=calcProject({...project,cats:b.cats,ag:b.ag,feeP:b.feeP});return<div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0"}}>
+            {(budgets||[]).map(b=>{const bc=calcProject({...project,cats:b.cats,ag:b.ag,feeP:b.feeP});const showR=projectSupportsRanges(project);return<div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0"}}>
               <span style={{fontSize:11,color:T.dim}}>{b.name}</span>
-              <span className="num" style={{fontSize:13,fontWeight:600,color:T.gold,fontFamily:T.mono}}>{f0(bc.grandTotal)}</span>
+              <span className="num" style={{fontSize:13,fontWeight:600,color:T.gold,fontFamily:T.mono}}>{showR?fmtRange(bc.grandMin||0,bc.grandMax||0,f0):f0(bc.grandTotal)}</span>
             </div>})}
           </div>}
         </div>
@@ -1220,35 +1221,72 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
     await gen(project,bd,{title:label?`Production Estimate — ${label}`:"Production Estimate",filename:(project.name||"estimate")+(label?`-${label}`:"")+"-production-estimate.pdf"});
   };
+  // Shared row builder for the tabular client exports (XLSX + CSV) so
+  // they carry the same lines as the PDF and the client PNG. Ranges go
+  // out as two numeric columns rather than a "$a – $b" string — a
+  // spreadsheet cell should stay a number you can sum.
+  const buildEstimateRows=(bd)=>{
+    const showR=projectSupportsRanges(project);
+    const money=(lo,hi,single)=>showR?[lo||0,hi||0]:[single||0];
+    const rows=[["Category","Item","Description",...(showR?["Cost (Low)","Cost (High)"]:["Cost"])]];
+    bd.cats.forEach(c=>{
+      const totals=ct(c.items,c).totals;
+      const items=c.items.filter(it=>ci(it).clientPrice>0);
+      if(!items.length)return;
+      // Overlaid category: items no longer sum to the quoted band, so
+      // emit the band alone (matches PDF + PNG).
+      if(showR&&totals.hasOverlay&&Math.abs((totals.clientMax||0)-(totals.clientMin||0))>=0.5){
+        rows.push([c.name,"Estimated range","",...money(totals.clientMin,totals.clientMax,totals.clientPrice)]);
+        return;
+      }
+      items.forEach(it=>{const c2=ci(it);rows.push([c.name,it.name,it.details||"",...money(c2.minClient,c2.maxClient,c2.clientPrice)])});
+    });
+    rows.push([]);
+    const prod=bd.comp.productionSubtotal;
+    rows.push(["","","PRODUCTION SUBTOTAL",...money(prod.clientMin,prod.clientMax,prod.clientPrice)]);
+    const agItems=bd.ag.filter(it=>ci(it).clientPrice>0);
+    if(agItems.length){
+      agItems.forEach(it=>{const c2=ci(it);rows.push(["Agency",it.name,it.details||"",...money(c2.minClient,c2.maxClient,c2.clientPrice)])});
+      const agS=bd.comp.agencyCostsSubtotal;
+      rows.push(["","","AGENCY SUBTOTAL",...money(agS.clientMin,agS.clientMax,agS.clientPrice)]);
+    }
+    const af=bd.comp.agencyFee;
+    if(af?.clientPrice)rows.push(["","",`AGENCY FEE (${fp(bd.feeP)})`,...money(af.minClient,af.maxClient,af.clientPrice)]);
+    if((project.clientBudget||0)>0)rows.push(["","","CLIENT BUDGET",...money(project.clientBudget,project.clientBudget,project.clientBudget)]);
+    rows.push(["","","GRAND TOTAL",...money(bd.comp.grandMin,bd.comp.grandMax,bd.comp.grandTotal)]);
+    return{rows,showR};
+  };
   const exportEstimateXLSX=async()=>{
     const bd=getSelectedBudgetData();
     const XLSX=await import('xlsx');
-    const rows=[["Category","Item","Description","Cost"]];
-    bd.cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
-    rows.push([]);rows.push(["","","PRODUCTION SUBTOTAL",bd.comp.productionSubtotal.clientPrice]);
-    bd.ag.forEach(it=>{rows.push(["Agency",it.name,"",ci(it).clientPrice])});
-    rows.push(["","","AGENCY SUBTOTAL",bd.comp.agencyCostsSubtotal.clientPrice]);
-    rows.push(["","",`AGENCY FEE (${fp(bd.feeP)})`,bd.comp.agencyFee.clientPrice]);
-    rows.push(["","","GRAND TOTAL",bd.comp.grandTotal]);
-    const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:14}];
+    const{rows,showR}=buildEstimateRows(bd);
+    const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:14},...(showR?[{wch:14}]:[])];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Estimate");
     const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
     XLSX.writeFile(wb,(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.xlsx");
   };
   const exportEstimateCSV=()=>{
     const bd=getSelectedBudgetData();
-    const rows=[["Category","Item","Description","Cost"]];
-    bd.cats.forEach(c=>{c.items.filter(it=>ci(it).clientPrice>0).forEach(it=>{rows.push([c.name,it.name,it.details||"",ci(it).clientPrice])})});
-    rows.push([]);rows.push(["","","GRAND TOTAL",bd.comp.grandTotal]);
+    const{rows}=buildEstimateRows(bd);
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
     const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";a.download=(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
   };
   const exportEstimatePNG=async()=>{
-    const bd=getSelectedBudgetData();
-    const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
-    const activeBudgetName=label||"Primary Budget";
-    const{exportClientBudgetPNG}=await import('../utils/clientBudgetPNG.js');
-    await exportClientBudgetPNG(project,{cats:bd.cats,ag:bd.ag,comp:bd.comp,feeP:bd.feeP,activeBudgetName},{filename:(project.name||"estimate")+(label?`-${label}`:"")+"-client-summary.png"});
+    console.log('[export-png] click → start');
+    try {
+      const bd=getSelectedBudgetData();
+      console.log('[export-png] data:', { catsLen: bd.cats?.length, agLen: bd.ag?.length, hasComp: !!bd.comp, feeP: bd.feeP });
+      const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
+      const activeBudgetName=label||"Primary Budget";
+      console.log('[export-png] loading clientBudgetPNG module…');
+      const{exportClientBudgetPNG}=await import('../utils/clientBudgetPNG.js');
+      console.log('[export-png] module loaded, rendering canvas…');
+      await exportClientBudgetPNG(project,{cats:bd.cats,ag:bd.ag,comp:bd.comp,feeP:bd.feeP,activeBudgetName},{filename:(project.name||"estimate")+(label?`-${label}`:"")+"-client-summary.png"});
+      console.log('[export-png] done — download should have fired');
+    } catch (e) {
+      console.error('[export-png] failed:', e);
+      toast.error(`PNG export failed: ${e?.message || e}`);
+    }
   };
   /* ══ ESTIMATE VIEW ══ */
   if(activeView==="budget"){
@@ -1291,23 +1329,23 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
       <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:T.surface}}>
         {["Item","Description","Cost"].map((h,i)=><span key={i} style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:i===2?"right":"left"}}>{h}</span>)}
       </div>
-      {viewCats.map((c,ci2)=>{const t=ct(c.items).totals;const accent=["#F59E0B","#14B8A6","#8B5CF6","#EC4899","#06B6D4","#6366F1","#10B981","#F47264"][ci2%8];return<React.Fragment key={c.id}>
+      {viewCats.map((c,ci2)=>{const t=ct(c.items,c).totals;const accent=["#F59E0B","#14B8A6","#8B5CF6","#EC4899","#06B6D4","#6366F1","#10B981","#F47264"][ci2%8];const showR=projectSupportsRanges(project);const showAsRange=showR&&Math.abs((t.clientMax||0)-(t.clientMin||0))>=0.5;return<React.Fragment key={c.id}>
         <div style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:`${accent}08`,borderLeft:`3px solid ${accent}`}}>
           <span style={{fontSize:12,fontWeight:600,color:T.cream,gridColumn:"1/3"}}>{c.name}</span>
-          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(t.clientPrice)}</span>
+          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{showR?fmtRange(t.clientMin,t.clientMax,f$):f$(t.clientPrice)}</span>
         </div>
-        {c.items.filter(it=>ci(it).clientPrice>0).map(it=><div key={it.id} style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"10px 18px 10px 28px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        {!(showAsRange&&t.hasOverlay)&&c.items.filter(it=>ci(it).clientPrice>0).map(it=>{const c2=ci(it);const itemRange=showR&&it.isRange&&Math.abs((c2.maxClient||0)-(c2.minClient||0))>=0.5;return<div key={it.id} style={{display:"grid",gridTemplateColumns:"1.5fr 2fr 1fr",padding:"10px 18px 10px 28px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           <span style={{fontSize:12,color:T.cream}}>{it.name}</span>
           <span style={{fontSize:11,color:T.dim,fontStyle:"italic"}}>{it.details||""}</span>
-          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(ci(it).clientPrice)}</span>
-        </div>)}
+          <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{itemRange?fmtRange(c2.minClient,c2.maxClient,f$):f$(c2.clientPrice)}</span>
+        </div>})}
       </React.Fragment>})}
     </Card>
 
     {/* Production subtotal */}
     <div style={{display:"flex",justifyContent:"space-between",padding:"12px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:4}}>
       <span style={{fontSize:11,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".06em"}}>Production Subtotal</span>
-      <span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{f$(viewComp.productionSubtotal.clientPrice)}</span>
+      <span className="num" style={{fontSize:13,fontFamily:T.mono,color:T.gold,fontWeight:600}}>{projectSupportsRanges(project)?fmtRange(viewComp.productionSubtotal.clientMin||viewComp.productionSubtotal.clientPrice,viewComp.productionSubtotal.clientMax||viewComp.productionSubtotal.clientPrice,f$):f$(viewComp.productionSubtotal.clientPrice)}</span>
     </div>
 
     {/* Agency */}
@@ -1316,24 +1354,24 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
         <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em"}}>Agency Services</span>
         <span style={{fontSize:10,fontWeight:600,color:T.dim,textTransform:"uppercase",letterSpacing:".1em",textAlign:"right"}}>Cost</span>
       </div>
-      {viewAg.map(it=>{const c=ci(it);return<div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+      {viewAg.map(it=>{const c=ci(it);const showR=projectSupportsRanges(project);const itemRange=showR&&it.isRange&&Math.abs((c.maxClient||0)-(c.minClient||0))>=0.5;return<div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr",padding:"10px 18px",borderBottom:`1px solid ${T.border}`}} onMouseEnter={e=>e.currentTarget.style.background=T.surfHov} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
         <span style={{fontSize:12,color:T.cream}}>{it.name}</span>
-        <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(c.clientPrice)}</span>
+        <span className="num" style={{textAlign:"right",fontSize:12,fontFamily:T.mono,color:T.cream}}>{itemRange?fmtRange(c.minClient,c.maxClient,f$):f$(c.clientPrice)}</span>
       </div>})}
     </Card>
     <div style={{display:"flex",justifyContent:"space-between",padding:"10px 18px",borderRadius:T.rS,background:T.surfEl,border:`1px solid ${T.border}`,marginBottom:2}}>
       <span style={{fontSize:11,fontWeight:600,color:T.dim,textTransform:"uppercase"}}>Agency Subtotal</span>
-      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{f$(viewComp.agencyCostsSubtotal.clientPrice)}</span>
+      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.cream}}>{projectSupportsRanges(project)&&Math.abs((viewComp.agencyCostsSubtotal.clientMax||0)-(viewComp.agencyCostsSubtotal.clientMin||0))>=0.5?fmtRange(viewComp.agencyCostsSubtotal.clientMin,viewComp.agencyCostsSubtotal.clientMax,f$):f$(viewComp.agencyCostsSubtotal.clientPrice)}</span>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",padding:"10px 18px",borderRadius:T.rS,marginBottom:8}}>
       <span style={{fontSize:11,color:T.dim}}>Agency Fee ({fp(viewFeeP)})</span>
-      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{f$(viewComp.agencyFee.clientPrice)}</span>
+      <span className="num" style={{fontSize:12,fontFamily:T.mono,color:T.dim}}>{projectSupportsRanges(project)&&Math.abs((viewComp.agencyFee.maxClient||0)-(viewComp.agencyFee.minClient||0))>=0.5?fmtRange(viewComp.agencyFee.minClient,viewComp.agencyFee.maxClient,f$):f$(viewComp.agencyFee.clientPrice)}</span>
     </div>
 
     {/* Grand Total */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 22px",borderRadius:T.rS,background:T.inkSoft2,border:`1px solid ${T.faintRule}`,borderTop:`2px solid ${T.ink}`}}>
       <span style={{fontSize:12,fontWeight:700,color:T.cream,textTransform:"uppercase",letterSpacing:".08em"}}>Grand Total</span>
-      <span className="num" style={{fontSize:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{f$(viewComp.grandTotal)}</span>
+      <span className="num" style={{fontSize:projectSupportsRanges(project)&&Math.abs((viewComp.grandMax||0)-(viewComp.grandMin||0))>=0.5?20:24,fontFamily:T.mono,color:T.gold,fontWeight:700}}>{projectSupportsRanges(project)?fmtRange(viewComp.grandMin||0,viewComp.grandMax||0,f$):f$(viewComp.grandTotal)}</span>
     </div>
     {ShareEmailModal()}
   </div>}

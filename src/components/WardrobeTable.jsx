@@ -13,11 +13,11 @@ import { restFetch, getSession } from '../lib/db.js';
 // immediately. Optimistic local state — server errors revert + toast.
 
 const GARMENTS = [
-  { key: 'purchased_shorts',     label: 'Shorts',     linkKey: 'link_shorts' },
-  { key: 'purchased_shirt',      label: 'Shirt',      linkKey: 'link_shirt' },
-  { key: 'purchased_sunglasses', label: 'Sunglasses', linkKey: 'link_sunglasses' },
-  { key: 'purchased_scarf',      label: 'Scarf',      linkKey: 'link_scarf' },
-  { key: 'purchased_shoes',      label: 'Shoes',      linkKey: 'link_shoes' },
+  { key: 'purchased_shorts',     label: 'Shorts',     linkKey: 'link_shorts',     priceKey: 'price_shorts',     trackKey: 'tracking_shorts' },
+  { key: 'purchased_shirt',      label: 'Shirt',      linkKey: 'link_shirt',      priceKey: 'price_shirt',      trackKey: 'tracking_shirt' },
+  { key: 'purchased_sunglasses', label: 'Sunglasses', linkKey: 'link_sunglasses', priceKey: 'price_sunglasses', trackKey: 'tracking_sunglasses' },
+  { key: 'purchased_scarf',      label: 'Scarf',      linkKey: 'link_scarf',      priceKey: 'price_scarf',      trackKey: 'tracking_scarf' },
+  { key: 'purchased_shoes',      label: 'Shoes',      linkKey: 'link_shoes',      priceKey: 'price_shoes',      trackKey: 'tracking_shoes' },
 ];
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -194,7 +194,8 @@ export default function WardrobeTable({ project, updateProject, user, onBack }) 
     const fullyOutfitted = rows.filter(r => GARMENTS.every(g => r[g.key])).length;
     const totalChecks = total * GARMENTS.length;
     const doneChecks = rows.reduce((acc, r) => acc + GARMENTS.filter(g => r[g.key]).length, 0);
-    return { total, fullyOutfitted, totalChecks, doneChecks, pct: totalChecks ? Math.round((doneChecks / totalChecks) * 100) : 0 };
+    const spend = rows.reduce((acc, r) => acc + GARMENTS.reduce((a, g) => a + (Number(r[g.priceKey]) || 0), 0), 0);
+    return { total, fullyOutfitted, totalChecks, doneChecks, pct: totalChecks ? Math.round((doneChecks / totalChecks) * 100) : 0, spend };
   }, [rows]);
 
   return (
@@ -205,7 +206,7 @@ export default function WardrobeTable({ project, updateProject, user, onBack }) 
           <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: T.rS, background: 'transparent', border: `1px solid ${T.border}`, color: T.dim, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: T.sans, marginBottom: 10 }}>← Back to Creative</button>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: T.cream, margin: 0 }}>Talent Wardrobe</h2>
           <p style={{ fontSize: 12, color: T.dim, marginTop: 4 }}>
-            {stats.total} {stats.total === 1 ? 'person' : 'people'} · {stats.fullyOutfitted} fully outfitted · {stats.doneChecks}/{stats.totalChecks} items purchased
+            {stats.total} {stats.total === 1 ? 'person' : 'people'} · {stats.fullyOutfitted} fully outfitted · {stats.doneChecks}/{stats.totalChecks} items purchased{stats.spend > 0 ? ` · $${stats.spend.toLocaleString('en-US', { maximumFractionDigits: 0 })} spent` : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -276,7 +277,6 @@ export default function WardrobeTable({ project, updateProject, user, onBack }) 
                 <Th>Shoe</Th>
                 <Th>Shirt</Th>
                 {GARMENTS.map(g => <Th key={g.key} center>{g.label}</Th>)}
-                <Th>Tracking</Th>
                 <Th></Th>
               </tr>
             </thead>
@@ -377,25 +377,42 @@ function Row({ row, expanded, onToggleExpand, onPatch, onDelete, onUploadHeadsho
         <SizeCell row={row} field="shirt_size" onPatch={onPatch} placeholder="M" width={50} />
         {GARMENTS.map(g => {
           const url = row[g.linkKey];
+          const priceRaw = row[g.priceKey];
+          const priceVal = priceRaw === null || priceRaw === undefined || priceRaw === '' ? '' : priceRaw;
           return (
-            <td key={g.key} style={{ padding: '10px 8px', textAlign: 'center' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Checkbox checked={!!row[g.key]} onChange={(v) => onPatch(row.id, { [g.key]: v }, true)} />
-                {url ? (
-                  <a href={url} target="_blank" rel="noopener noreferrer" title={url} onClick={(e) => e.stopPropagation()} style={{ color: T.ink, fontSize: 12, textDecoration: 'none', opacity: .7 }}>↗</a>
-                ) : null}
+            <td key={g.key} style={{ padding: '10px 8px', verticalAlign: 'top' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Checkbox checked={!!row[g.key]} onChange={(v) => onPatch(row.id, { [g.key]: v }, true)} />
+                  {url ? (
+                    <a href={url} target="_blank" rel="noopener noreferrer" title={url} onClick={(e) => e.stopPropagation()} style={{ color: T.ink, fontSize: 12, textDecoration: 'none', opacity: .7 }}>↗</a>
+                  ) : null}
+                </div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, background: T.paper, border: `1px solid ${T.border}`, borderRadius: T.rS, padding: '2px 4px' }}>
+                  <span style={{ fontSize: 10, color: T.dim, fontFamily: T.mono }}>$</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={priceVal}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      onPatch(row.id, { [g.priceKey]: v === '' ? null : Number(v) });
+                    }}
+                    placeholder="—"
+                    style={{ width: 56, background: 'transparent', border: 'none', color: T.ink, fontSize: 11, fontFamily: T.mono, textAlign: 'right', outline: 'none', padding: 0 }}
+                  />
+                </div>
+                <input
+                  value={row[g.trackKey] || ''}
+                  onChange={(e) => onPatch(row.id, { [g.trackKey]: e.target.value })}
+                  placeholder="Tracking #"
+                  title="Tracking number"
+                  style={{ width: 96, background: T.paper, border: `1px solid ${T.border}`, borderRadius: T.rS, color: T.ink, fontSize: 10, padding: '3px 6px', fontFamily: T.mono, outline: 'none' }}
+                />
               </div>
             </td>
           );
         })}
-        <td style={{ padding: '10px 8px' }}>
-          <input
-            value={row.tracking_number || ''}
-            onChange={(e) => onPatch(row.id, { tracking_number: e.target.value })}
-            placeholder="—"
-            style={{ width: 120, background: T.paper, border: `1px solid ${T.border}`, borderRadius: T.rS, color: T.ink, fontSize: 11, padding: '4px 8px', fontFamily: T.mono, outline: 'none' }}
-          />
-        </td>
         <td style={{ padding: '10px 8px' }}>
           <button onClick={onDelete} title="Delete row" style={{ background: 'transparent', border: 'none', color: T.dim, fontSize: 16, cursor: 'pointer', padding: 4, lineHeight: 1 }}>×</button>
         </td>
@@ -403,7 +420,7 @@ function Row({ row, expanded, onToggleExpand, onPatch, onDelete, onUploadHeadsho
 
       {expanded && (
         <tr style={{ background: T.surfEl }}>
-          <td colSpan={10} style={{ padding: '12px 18px' }}>
+          <td colSpan={9} style={{ padding: '12px 18px' }}>
             {/* Product links FIRST — most-asked-for field in this view */}
             <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: T.ink, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>

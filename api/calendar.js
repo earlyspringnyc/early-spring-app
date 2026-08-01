@@ -17,15 +17,21 @@ export default async function handler(req, res) {
     }
   }
 
-  const { accessToken, event, conferenceDataVersion } = req.body;
+  const { accessToken, event, conferenceDataVersion, eventId } = req.body;
   if (!accessToken || !event) {
     return res.status(400).json({ error: "Missing accessToken or event data" });
   }
 
   try {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all${conferenceDataVersion ? `&conferenceDataVersion=${conferenceDataVersion}` : ''}`;
+    // If eventId is supplied we update in place (PATCH); otherwise create.
+    // sendUpdates=all keeps invitees in the loop on either path.
+    const isUpdate = !!eventId;
+    const base = `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+    const url = isUpdate
+      ? `${base}/${encodeURIComponent(eventId)}?sendUpdates=all${conferenceDataVersion ? `&conferenceDataVersion=${conferenceDataVersion}` : ''}`
+      : `${base}?sendUpdates=all${conferenceDataVersion ? `&conferenceDataVersion=${conferenceDataVersion}` : ''}`;
     const response = await fetch(url, {
-      method: "POST",
+      method: isUpdate ? "PATCH" : "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",

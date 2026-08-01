@@ -294,6 +294,23 @@ function App(){
     return()=>{mounted=false;if(unsubscribe)unsubscribe()};
   },[]);
   const activeProject=activeId?projects.find(p=>p.id===activeId):null;
+  // Cross-project vendor pool. Aggregates every vendor record on every
+  // project the user can see, de-duped by normalized name (lower-cased
+  // + trimmed). Surfaces in VendorSelect so a vendor you already used
+  // on Project A shows up as a suggestion when picking on Project B —
+  // selecting copies the record into the new project with a fresh id.
+  const vendorPool=useMemo(()=>{
+    const seen=new Map();
+    (projects||[]).forEach(p=>{
+      (p?.vendors||[]).forEach(v=>{
+        if(!v?.name)return;
+        const key=v.name.trim().toLowerCase();
+        if(!key||seen.has(key))return;
+        seen.set(key,v);
+      });
+    });
+    return Array.from(seen.values()).sort((a,b)=>a.name.localeCompare(b.name));
+  },[projects]);
   // After projects load: if activeId references a project that's not in
   // the current org's list (org switch, deleted by teammate, stale
   // localStorage), clear it. Wrapped in a short grace period so a
@@ -456,7 +473,7 @@ function App(){
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="pipeline"&&!activeProject)return<><PipelineView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onOpenProject={setActiveId}/>
@@ -464,7 +481,7 @@ function App(){
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="settings"&&!activeProject)return<><GlobalSettings user={user} orgId={orgId} organizations={sbAuth.organizations} toggleTheme={toggleTheme} themeMode={themeMode} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} onBack={()=>setTopView("dashboard")} onViewAs={(target)=>{setViewAs(target);setTopView("dashboard")}}/>
@@ -473,15 +490,15 @@ function App(){
     </div>
     <GlobalChatWidget user={user} projects={projects} activeProjectId={null}/>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
-  if(topView==="books"&&!activeProject)return<><BooksView user={user} onBack={()=>setTopView("dashboard")} projects={projects} onOpenProject={setActiveId}/>
+  if(topView==="books"&&!activeProject)return<><BooksView user={user} onBack={()=>setTopView("dashboard")} projects={projects} onOpenProject={setActiveId} orgId={orgId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="activity"&&!activeProject)return<><ActivityView onBack={()=>setTopView("dashboard")}/>
@@ -489,7 +506,7 @@ function App(){
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
   if(topView==="oneonones"&&!activeProject)return<><OneOnOnesView user={user} projects={projects} accessToken={accessToken} onBack={()=>setTopView("dashboard")}/>
@@ -498,17 +515,17 @@ function App(){
     </div>
     <GlobalChatWidget user={user} projects={projects} activeProjectId={null}/>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
   if(topView==="meetings"&&!activeProject)return<><MeetingsView user={user} onBack={()=>setTopView("dashboard")} onLogout={doLogout} accessToken={accessToken} projects={projects} onCreateProject={createProjectQuietly} onOpenContacts={()=>setTopView("contacts")} onOpenProject={setActiveId}/>
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{const isErr=t.type==='error';const isSucc=t.type==='success';return<div key={t.id} className="slide-in" style={{padding:"10px 16px",borderRadius:T.rS,background:isErr?T.alertSoft:isSucc?T.inkSoft:T.paper,border:`1px solid ${isErr?T.alert:T.ink}`,color:isErr?T.alert:T.ink,fontSize:12,fontWeight:500,fontFamily:T.sans,boxShadow:T.shadow,maxWidth:340}}>{t.msg}</div>;})}
     </div>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 
-  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
+  if(activeProject)return<><ProjectView project={activeProject} updateProject={updateProject} deleteProject={deleteProject} user={user} onBack={()=>setActiveId(null)} accessToken={accessToken} requestCalendarAccess={requestCalendarAccess} toggleTheme={toggleTheme} themeMode={themeMode} onLogout={doLogout} saving={saving} lastSaved={lastSaved} onUpdateUser={setUser} profiles={sbAuth.profiles} organizations={sbAuth.organizations} currentOrgId={orgId} switchOrg={switchOrgSafe} vendorPool={vendorPool.filter(v=>{const cur=(activeProject?.vendors||[]).map(x=>(x?.name||'').trim().toLowerCase());return !cur.includes((v?.name||'').trim().toLowerCase())})}/>{showNew&&<NewProjectModal onClose={()=>setShowNew(false)} onCreate={createProject}/>}
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
       {toasts.map(t=>{
         const isErr=t.type==='error';
@@ -518,7 +535,7 @@ function App(){
     </div>
     <GlobalChatWidget user={user} projects={projects} activeProjectId={activeProject?.id || activeProject?._dbId}/>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
   const DashComp=user.role==="ep"?EPDashboard:PortfolioDash;
   // (Previously: finance/accounts users were forced to BooksView on
@@ -539,7 +556,7 @@ function App(){
     </div>
     <GlobalChatWidget user={user} projects={projects} activeProjectId={null}/>
     <VoiceCaptureFAB user={user} projects={projects} accessToken={accessToken} onFiled={()=>toast('Voice note filed.','success')}/>
-    <div style={{position:"fixed",top:18,right:24,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
+    <div style={{position:"fixed",bottom:20,left:20,zIndex:9998,padding:"4px 6px",borderRadius:T.rS,background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shadow}}><NotificationBell user={user} onOpenProject={setActiveId}/></div>
   </>;
 }
 
