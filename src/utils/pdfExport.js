@@ -156,9 +156,14 @@ export async function exportEstimatePDF(project, bd, opts = {}) {
   const margin = 44;
   const lockup = await getEsLockupPng(110);
 
+  // A project can carry several budgets (a primary plus alternates like
+  // "Hair Hotline"). Name it in the kicker AND in the running header, so
+  // the sheet is identifiable on page 1 and on every page after it.
+  const budgetName = opts.budgetName || '';
+
   drawTitle(doc, {
     margin,
-    kicker: 'Production Estimate',
+    kicker: budgetName ? `Production Estimate · ${budgetName}` : 'Production Estimate',
     title: project?.name || 'Estimate',
     sub: [project?.client, project?.eventDate && `Event · ${project.eventDate}`].filter(Boolean).join('  ·  '),
   });
@@ -283,7 +288,11 @@ export async function exportEstimatePDF(project, bd, opts = {}) {
     body,
     columnStyles: { 0: { cellWidth: 220 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: showR ? 165 : 130, halign: 'right' } },
     didDrawPage: () => {
-      drawBrandHeader(doc, { margin, labTag: `Lab · ${project?.client || 'Client'}`, lockup });
+      drawBrandHeader(doc, {
+        margin,
+        labTag: [project?.client || 'Client', budgetName].filter(Boolean).join(' · '),
+        lockup,
+      });
     },
   });
 
@@ -301,9 +310,12 @@ export async function exportBudgetPDF(project, data, opts = {}) {
   const margin = 40;
   const lockup = await getEsLockupPng(100);
 
+  // Same multi-budget problem as the client estimate: name which one this is.
+  const budgetName = opts.budgetName || '';
+
   drawTitle(doc, {
     margin,
-    kicker: 'Production Budget',
+    kicker: budgetName ? `Production Budget · ${budgetName}` : 'Production Budget',
     title: project?.name || 'Budget',
     sub: [project?.client, 'Internal — cost, margin, client price'].filter(Boolean).join('  ·  '),
   });
@@ -383,7 +395,11 @@ export async function exportBudgetPDF(project, data, opts = {}) {
     body,
     columnStyles: { 0: { cellWidth: 160 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 110 }, 3: { cellWidth: 90 }, 4: { cellWidth: 60 }, 5: { cellWidth: 100 } },
     didDrawPage: () => {
-      drawBrandHeader(doc, { margin, labTag: `Internal · ${project?.client || 'Client'}`, lockup });
+      drawBrandHeader(doc, {
+        margin,
+        labTag: ['Internal', project?.client || 'Client', budgetName].filter(Boolean).join(' · '),
+        lockup,
+      });
     },
   });
 

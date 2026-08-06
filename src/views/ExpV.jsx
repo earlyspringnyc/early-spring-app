@@ -844,6 +844,15 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     }finally{setEmailSending(false)}
   };
 
+  // Display name for whichever budget is selected. `label` stays empty for
+  // the primary (existing filename/email logic keys off that); this always
+  // resolves to something printable.
+  const budgetLabel=()=>selectedBudgetId
+    ?((budgets||[]).find(b=>b.id===selectedBudgetId)?.name||"Alt Budget")
+    :"Primary Budget";
+  // Budget names are free text, so strip anything a filesystem would choke
+  // on before splicing one into a download name.
+  const budgetSlug=()=>budgetLabel().replace(/[\/\\:*?"<>|]+/g,"-").trim();
   const getSelectedBudgetData=()=>{
     if(!selectedBudgetId)return{cats,ag,comp,feeP};
     const alt=(budgets||[]).find(b=>b.id===selectedBudgetId);
@@ -1218,8 +1227,7 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const exportEstimatePDF=async()=>{
     const bd=getSelectedBudgetData();
     const{exportEstimatePDF:gen}=await import('../utils/pdfExport.js');
-    const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
-    await gen(project,bd,{title:label?`Production Estimate — ${label}`:"Production Estimate",filename:(project.name||"estimate")+(label?`-${label}`:"")+"-production-estimate.pdf"});
+    await gen(project,bd,{budgetName:budgetLabel(),filename:(project.name||"estimate")+`-${budgetSlug()}`+"-production-estimate.pdf"});
   };
   // Shared row builder for the tabular client exports (XLSX + CSV) so
   // they carry the same lines as the PDF and the client PNG. Ranges go
@@ -1228,7 +1236,15 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
   const buildEstimateRows=(bd)=>{
     const showR=projectSupportsRanges(project);
     const money=(lo,hi,single)=>showR?[lo||0,hi||0]:[single||0];
-    const rows=[["Category","Item","Description",...(showR?["Cost (Low)","Cost (High)"]:["Cost"])]];
+    // Title block names the project AND which budget this is — a project
+    // can hold a primary plus alternates, and the numbers alone don't say
+    // which one you're looking at.
+    const rows=[
+      [project.name||"Production Estimate"],
+      [project.client||"", budgetLabel()],
+      [],
+      ["Category","Item","Description",...(showR?["Cost (Low)","Cost (High)"]:["Cost"])],
+    ];
     bd.cats.forEach(c=>{
       const totals=ct(c.items,c).totals;
       const items=c.items.filter(it=>ci(it).clientPrice>0);
@@ -1262,26 +1278,24 @@ function ExpV({cats,ag,comp,feeP,project,updateProject,accessToken,budgets,reque
     const{rows,showR}=buildEstimateRows(bd);
     const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:14},...(showR?[{wch:14}]:[])];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Estimate");
-    const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
-    XLSX.writeFile(wb,(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.xlsx");
+    XLSX.writeFile(wb,(project.name||"estimate")+`-${budgetSlug()}`+"-client-estimate.xlsx");
   };
   const exportEstimateCSV=()=>{
     const bd=getSelectedBudgetData();
     const{rows}=buildEstimateRows(bd);
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
-    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";a.download=(project.name||"estimate")+(label?`-${label}`:"")+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
+    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(project.name||"estimate")+`-${budgetSlug()}`+"-client-estimate.csv";a.click();URL.revokeObjectURL(url);
   };
   const exportEstimatePNG=async()=>{
     console.log('[export-png] click → start');
     try {
       const bd=getSelectedBudgetData();
       console.log('[export-png] data:', { catsLen: bd.cats?.length, agLen: bd.ag?.length, hasComp: !!bd.comp, feeP: bd.feeP });
-      const label=selectedBudgetId?(budgets||[]).find(b=>b.id===selectedBudgetId)?.name:"";
-      const activeBudgetName=label||"Primary Budget";
+      const activeBudgetName=budgetLabel();
       console.log('[export-png] loading clientBudgetPNG module…');
       const{exportClientBudgetPNG}=await import('../utils/clientBudgetPNG.js');
       console.log('[export-png] module loaded, rendering canvas…');
-      await exportClientBudgetPNG(project,{cats:bd.cats,ag:bd.ag,comp:bd.comp,feeP:bd.feeP,activeBudgetName},{filename:(project.name||"estimate")+(label?`-${label}`:"")+"-client-summary.png"});
+      await exportClientBudgetPNG(project,{cats:bd.cats,ag:bd.ag,comp:bd.comp,feeP:bd.feeP,activeBudgetName},{filename:(project.name||"estimate")+`-${budgetSlug()}`+"-client-summary.png"});
       console.log('[export-png] done — download should have fired');
     } catch (e) {
       console.error('[export-png] failed:', e);

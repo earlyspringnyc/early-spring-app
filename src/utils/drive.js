@@ -513,13 +513,18 @@ export async function syncBudgetToSheets(token, project, primaryComp, calcProjec
 
 /* ── Export budget to Google Sheets (manual, legacy) ── */
 
-export async function exportBudgetToSheets(token, project, cats, ag, comp, feeP, folderIds) {
+export async function exportBudgetToSheets(token, project, cats, ag, comp, feeP, folderIds, opts = {}) {
   if (!token) return null;
 
   const budgetsFolderId = folderIds?.['Budgets'] || folderIds?.['Production/Budgets'] || folderIds?.['Production'] || folderIds?._root;
 
-  // Create spreadsheet
-  const sheetTitle = `${project.name || 'Budget'} — Production Budget`;
+  // Create spreadsheet. Name the budget in the title: a project can hold a
+  // primary plus alternates, and without this every one of them lands in
+  // Drive under an identical filename.
+  const budgetName = opts.budgetName || '';
+  const sheetTitle = budgetName
+    ? `${project.name || 'Budget'} — ${budgetName} — Production Budget`
+    : `${project.name || 'Budget'} — Production Budget`;
   const createRes = await fetch(SHEETS_API, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -544,7 +549,7 @@ export async function exportBudgetToSheets(token, project, cats, ag, comp, feeP,
   // Build rows
   const rows = [
     [sheetTitle, '', '', '', '', '', '', ''],
-    [`Generated: ${new Date().toLocaleDateString()}`, '', '', `Client: ${project.client || ''}`, '', '', '', ''],
+    [`Generated: ${new Date().toLocaleDateString()}`, '', '', `Client: ${project.client || ''}`, '', budgetName ? `Budget: ${budgetName}` : '', '', ''],
     [],
     ['Category', 'Item', 'Description', 'Vendor', 'Actual Cost', 'Margin %', 'Client Price', 'Variance'],
   ];

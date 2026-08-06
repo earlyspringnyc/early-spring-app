@@ -130,9 +130,23 @@ function BudgetV(p){
       setHistory(prev => prev.filter(h => h.id !== id));
     } catch (e) { alert('Delete failed: ' + (e.message || 'unknown')); }
   };
+  // A project can hold a primary budget plus alternates (e.g. Sexy Hair's
+  // "Hair Hotline"). Every export names which one it is — the numbers alone
+  // don't say, and two budgets for one project look identical otherwise.
+  const activeBudgetName=()=>p.activeBudgetId
+    ?((p.budgets||[]).find(b=>b.id===p.activeBudgetId)?.name||'Alt Budget')
+    :'Primary Budget';
+  // Budget names are free text — strip filesystem-hostile characters
+  // before splicing one into a download name.
+  const budgetSlug=()=>activeBudgetName().replace(/[\/\\:*?"<>|]+/g,'-').trim();
   const exportXLS=async()=>{
     const XLSX=await import('xlsx');
-    const rows=[["Category","Item","Description","Vendor","Actual Cost","Margin %","Client Price","Variance"]];
+    const rows=[
+      [p.project?.name||"Production Budget"],
+      [p.project?.client||"", activeBudgetName()],
+      [],
+      ["Category","Item","Description","Vendor","Actual Cost","Margin %","Client Price","Variance"],
+    ];
     p.cats.forEach(c=>{
       c.items.forEach(it=>{const cp=it.actualCost===0?0:it.actualCost*(1+it.margin);const variance=cp-it.actualCost;
         const vendorName=(p.vendors||[]).find(v=>v.id===it.vendorId)?.name||"";
@@ -148,26 +162,28 @@ function BudgetV(p){
     ws['!cols']=[{wch:18},{wch:24},{wch:20},{wch:16},{wch:14},{wch:10},{wch:14},{wch:14}];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Production Budget");
-    XLSX.writeFile(wb,(p.project?.name||"budget")+"-production-budget.xlsx");
+    XLSX.writeFile(wb,(p.project?.name||"budget")+`-${budgetSlug()}`+"-production-budget.xlsx");
   };
   const exportCSV=async()=>{
-    const rows=[["Category","Item","Description","Vendor","Actual Cost","Margin %","Client Price","Variance"]];
+    const rows=[
+      [p.project?.name||"Production Budget"],
+      [p.project?.client||"", activeBudgetName()],
+      [],
+      ["Category","Item","Description","Vendor","Actual Cost","Margin %","Client Price","Variance"],
+    ];
     p.cats.forEach(c=>{c.items.forEach(it=>{const cp=it.actualCost===0?0:it.actualCost*(1+it.margin);const variance=cp-it.actualCost;const vendorName=(p.vendors||[]).find(v=>v.id===it.vendorId)?.name||"";rows.push([c.name,it.name,it.details||"",vendorName,it.actualCost,(it.margin*100)+"%",cp,variance])})});
     rows.push([]);rows.push(["","","","","GRAND TOTAL","",p.comp.grandTotal,""]);rows.push(["","","","","NET PROFIT","",p.comp.netProfit,""]);
     const csv=rows.map(r=>r.map(c=>typeof c==="string"&&c.includes(",")?`"${c}"`:c).join(",")).join("\n");
-    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(p.project?.name||"budget")+"-production-budget.csv";a.click();URL.revokeObjectURL(url);setShowExportMenu(false);
+    const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(p.project?.name||"budget")+`-${budgetSlug()}`+"-production-budget.csv";a.click();URL.revokeObjectURL(url);setShowExportMenu(false);
   };
   const exportPDF=async()=>{
     const{exportBudgetPDF}=await import('../utils/pdfExport.js');
-    await exportBudgetPDF(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,vendors:p.vendors||[]},{filename:(p.project?.name||"budget")+"-production-budget.pdf"});
+    await exportBudgetPDF(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,vendors:p.vendors||[]},{budgetName:activeBudgetName(),filename:(p.project?.name||"budget")+`-${budgetSlug()}`+"-production-budget.pdf"});
     setShowExportMenu(false);
   };
   const exportClientPNG=async()=>{
     const{exportClientBudgetPNG}=await import('../utils/clientBudgetPNG.js');
-    const activeBudgetName=p.activeBudgetId
-      ?((p.budgets||[]).find(b=>b.id===p.activeBudgetId)?.name||'Alt Budget')
-      :'Primary Budget';
-    await exportClientBudgetPNG(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,activeBudgetName},{filename:(p.project?.name||"budget")+"-client-summary.png"});
+    await exportClientBudgetPNG(p.project,{cats:p.cats,ag:p.ag,comp:p.comp,feeP:p.feeP,activeBudgetName:activeBudgetName()},{filename:(p.project?.name||"budget")+`-${budgetSlug()}`+"-client-summary.png"});
     setShowExportMenu(false);
   };
   const[dragSection,setDragSection]=useState(null);
@@ -184,7 +200,7 @@ function BudgetV(p){
   const[showXlsxImport,setShowXlsxImport]=useState(false);
   const[sheetsUrl,setSheetsUrl]=useState(null);
   const runSheetsExport=async(token)=>{
-    const result=await exportBudgetToSheets(token,p.project,p.cats,p.ag,p.comp,p.feeP,p.project?.driveFolders);
+    const result=await exportBudgetToSheets(token,p.project,p.cats,p.ag,p.comp,p.feeP,p.project?.driveFolders,{budgetName:activeBudgetName()});
     if(result?.url){setSheetsUrl(result.url);window.open(result.url,"_blank")}
     return result;
   };
