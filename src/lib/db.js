@@ -406,8 +406,15 @@ export async function getProjects(orgId) {
     .eq('org_id', orgId)
     .order('created_at', { ascending: false });
   if (error) {
+    // MUST throw, not return []. Callers reconcile the local cache against
+    // this list: an empty array means "the server has no projects", which
+    // makes every cached project look local-only and eligible to be
+    // re-uploaded or dropped as a ghost. A timeout or a transient RLS
+    // failure would then silently delete the user's whole project list.
+    // The loader already has a catch that falls back to cache — swallowing
+    // the error here is what made that safety net dead code.
     console.error('[db] Get projects failed:', error);
-    return [];
+    throw new Error(`Could not load projects: ${error.message || error}`);
   }
   // Stamp _serverUpdatedAt so the client can use it as an optimistic-lock
   // precondition on the next write (concurrent-edit detection).

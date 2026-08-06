@@ -160,6 +160,13 @@ export function useProjects(orgId) {
       }
       if (droppedGhosts.length) {
         console.log('[projects] Dropped', droppedGhosts.length, 'unrecoverable local-only project(s):', droppedGhosts.map(p => p.name).join(', '));
+        // Say so. Dropping is right for stale-cache ghosts, but it's also
+        // what happens to a real project whose create failed — and doing
+        // that silently is how a teammate's new project disappears with
+        // nobody ever learning it existed.
+        import('../lib/toast.js').then(({ toast }) => toast.error(
+          `Could not sync ${droppedGhosts.length} project${droppedGhosts.length === 1 ? '' : 's'} to the server (${droppedGhosts.map(p => p.name).join(', ')}). ${droppedGhosts.length === 1 ? 'It has' : 'They have'} been removed from this browser — recreate if still needed.`
+        ));
       }
 
       // No more first-time sample project. The "Meridian Summer Launch"
@@ -536,12 +543,28 @@ export function useProjects(orgId) {
         // re-upload via upsert (preserving the local id).
         const flagged = { ...local, _unsynced: true };
         setProjects(prev => [...prev, flagged]);
-        // Also try a one-shot upsert in case it's a transient error.
+        // Tell the user. A project that only exists in one browser looks
+        // completely normal to whoever made it while being invisible to
+        // every teammate, and the "Not synced" pill alone wasn't landing.
+        import('../lib/toast.js').then(({ toast }) => toast.error(
+          `"${name}" could not be saved to the server, so your team can't see it yet. Retrying… (${e?.message || 'unknown error'})`
+        ));
+        // Retry once in case it's transient. Never swallow the reason —
+        // when this fails too the project is about to be dropped on the
+        // next load, and the console was the only place that said why.
         db.upsertProject(orgId, local)
           .then(saved => {
-            if (saved) setProjects(prev => prev.map(p => p.id === local.id ? { ...saved, _unsynced: false } : p));
+            if (saved) {
+              setProjects(prev => prev.map(p => p.id === local.id ? { ...saved, _unsynced: false } : p));
+              import('../lib/toast.js').then(({ toast }) => toast.success(`"${name}" synced — your team can see it now.`));
+            }
           })
-          .catch(() => {});
+          .catch(err => {
+            console.error('[projects] Create retry failed for', name, '—', err?.message || err);
+            import('../lib/toast.js').then(({ toast }) => toast.error(
+              `"${name}" still hasn't synced. Screenshot this and send it over: ${err?.message || 'unknown error'}`
+            ));
+          });
         return local.id;
       }
     }
